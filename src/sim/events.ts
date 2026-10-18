@@ -18,7 +18,8 @@ import type { ChartNode } from './chart';
 import type { Mode } from './level';
 import type { Planet } from '../world/planets';
 import { LOOT } from './build';
-import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
+import { itemName, rollItem, type Item } from '../game/loot';
+import { PARTS, type PartClass, type Rarity } from '../game/parts';
 import { pick, type Rng } from '../util';
 
 export type MiniKind = 'tow' | 'tune' | 'grab' | 'reels' | 'dock' | 'thread';
@@ -73,12 +74,13 @@ export interface RunEvent {
   choices: Choice[];
 }
 
-const part = (r: Rng, rarity: Rarity, cls?: PartClass) => {
+/** A part as a prize: one of the rarity asked for, rolled at that tier (an epic one is epic). */
+const part = (r: Rng, rarity: Rarity, cls?: PartClass): Item => {
   const xs = cls ? LOOT[rarity].filter((p) => p.cls === cls) : [];
-  return pick(r, xs.length ? xs : LOOT[rarity]).id;
+  return rollItem(r, pick(r, xs.length ? xs : LOOT[rarity]).id, rarity);
 };
 const ofClass = (r: Rng, cls: PartClass) => pick(r, PARTS.filter((p) => p.cls === cls && !p.duo)).id;
-const name = (id: string) => partById(id).name;
+const name = (it: Item) => itemName(it);
 const lacks = (n: number) => (run: Run) => (run.scrap < n ? `NEEDS ${n} SCRAP` : null);
 /** Tiers of a game's result, worst to best. */
 const tier = (score: number) => (score >= 0.85 ? 3 : score >= 0.55 ? 2 : score >= 0.25 ? 1 : 0);

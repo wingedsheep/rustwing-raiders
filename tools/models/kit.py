@@ -35,20 +35,27 @@ def rgb(hex_: str) -> tuple[float, float, float]:
 
 class Skin(str):
     """A colour in a named slot (a, b or c): it builds in its own colour (a stand-in for previews),
-    and the runtime paints the slot in the colours of whoever is wearing the model."""
+    and the runtime paints the slot in the colours of whoever is wearing the model. A shaded skin
+    (`a.shade(0.8)`) is painted that much darker (or lighter, over 1): worn and patched plates."""
 
-    def __new__(cls, slot: str, hex_: str):
+    def __new__(cls, slot: str, hex_: str, k: float = 1.0):
         s = super().__new__(cls, hex_)
         s.slot = slot
+        s.k = k
         return s
+
+    def shade(self, k: float) -> "Skin":
+        return Skin(self.slot, str(self), round(self.k * k, 2))
 
 
 _MATS: dict[str, bpy.types.Material] = {}
 
 
 def material(hex_: str, glow: bool = False) -> bpy.types.Material:
+    k = 1.0
     if isinstance(hex_, Skin):
-        key = f"skin{'glow' if glow else ''}_{hex_.slot}"
+        k = hex_.k
+        key = f"skin{'glow' if glow else ''}_{hex_.slot}" + (f"_s{round(k * 100)}" if k != 1 else "")
     else:
         key = f"{'glow' if glow else 'c'}_{hex_.lstrip('#').lower()}"
     if key in _MATS:
@@ -56,7 +63,7 @@ def material(hex_: str, glow: bool = False) -> bpy.types.Material:
     mat = bpy.data.materials.new(key)
     mat.use_nodes = True
     bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-    bsdf.inputs["Base Color"].default_value = (*rgb(hex_), 1)
+    bsdf.inputs["Base Color"].default_value = (*(min(1.0, c * k) for c in rgb(hex_)), 1)
     bsdf.inputs["Roughness"].default_value = 1.0
     if glow:
         bsdf.inputs["Emission Color"].default_value = (*rgb(hex_), 1)

@@ -5,9 +5,10 @@
 
 import { CELL, FRAMES, PARTS, TAG_BONUS, frameById, partById, type AuxKind, type DashMod, type FrameDef, type GunSpec, type PartDef, type Tag } from '../game/parts';
 import { links } from './links';
+import { tagsOf, type Item, type ItemDef } from '../game/loot';
 
-export interface Placement {
-  id: string;
+/** An item bolted on somewhere. */
+export interface Placement extends Item {
   c: number;
   r: number;
   /** Quarter turns clockwise, 0..3. */
@@ -157,7 +158,8 @@ export function stats(b: Build): Stats {
   const lk = links(b);
   const touching = lk.touch;
   const parts = lk.parts;
-  for (const { def } of parts) for (const t of def.tags) tags[t]++;
+  const ALL = Object.keys(tags) as Tag[];
+  for (const { p } of parts) for (const t of tagsOf(p, ALL)) tags[t]++;
   const bonus: Stats['bonus'] = {};
   for (const t of Object.keys(tags) as Tag[]) if (tags[t] >= 3) bonus[t] = tags[t] >= 5 ? 2 : 1;
 
@@ -172,6 +174,8 @@ export function stats(b: Build): Stats {
   let magnet = 0;
   let graze = 0;
   let special: Stats['special'] = null;
+  let chargeRate = 1;
+  let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
   const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, refill: false };
@@ -190,7 +194,11 @@ export function stats(b: Build): Stats {
     dash += def.dash ?? 0;
     magnet += def.magnet ?? 0;
     graze += def.graze ?? 0;
-    if (def.special && !special && !idle) special = def.special;
+    if (def.special && !special && !idle) {
+      special = def.special;
+      chargeRate = (def as ItemDef).chargeRate ?? 1;
+    }
+    dashRecover *= (def as ItemDef).dashRecover ?? 1;
     if (def.aux && !aux && !idle) {
       aux = def.aux;
       auxStr = str;
@@ -261,6 +269,12 @@ export function stats(b: Build): Stats {
     spec.rate *= brown;
     const g: Gun = { part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, homing, burst, cool, drone: false, crit, throttle, exchange, storm, volley };
     guns.push(g);
+    // twinned: a mirror copy from the other side of the hull (both off the middle, if it's there)
+    if (p.trait === 'twin') {
+      const off = Math.abs(g.x) < 0.1 ? CELL * 0.45 : 0;
+      if (off) g.x = -off;
+      guns.push({ ...g, spec: { ...spec }, x: off || -g.x, dir: -g.dir });
+    }
     // a drone bay touching this gun flies a copy of it (two guns a bay at most)
     for (const { p: q, def: d, str } of parts)
       if (d.drone && str > 0 && touching(p, q) && (copied.get(q) ?? 0) < 2) {
@@ -283,10 +297,10 @@ export function stats(b: Build): Stats {
     speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))),
     accel: 140 * grip,
     dashes: f.dash + Math.floor(dash) + (bonus.drive ? 1 : 0),
-    dashCooldown: 1.1 / (1 + dash * 0.6),
+    dashCooldown: (1.1 / (1 + dash * 0.6)) * dashRecover,
     guns,
     special,
-    specialRate: bonus.tech === 2 ? 1.4 : 1,
+    specialRate: (bonus.tech === 2 ? 1.4 : 1) * chargeRate,
     magnet: 4 + magnet * 7,
     graze: 1 + graze,
     tags,
@@ -311,8 +325,9 @@ export const LOOT = {
 export const DUOS = PARTS.filter((p) => p.duo);
 
 /** The duo parts a player has earned: two parts of each tag, on the ship or in the hold. */
-export function duosOpen(build: Build, cargo: string[] = []) {
-  const count = (t: Tag) => [...build.parts.map((p) => p.id), ...cargo].filter((id) => partById(id).tags.includes(t)).length;
+export function duosOpen(build: Build, cargo: Item[] = []) {
+  const all = Object.keys(TAG_BONUS) as Tag[];
+  const count = (t: Tag) => [...build.parts, ...cargo].filter((it) => tagsOf(it, all).includes(t)).length;
   return DUOS.filter((d) => count(d.duo![0]) >= 2 && count(d.duo![1]) >= 2);
 }
 

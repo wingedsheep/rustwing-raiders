@@ -36,16 +36,20 @@ export type AttackKind =
   | 'spores'
   | 'fan'
   | 'beam'
-  | 'jink';
+  | 'jink'
+  | 'torpedo';
 
 /** A tell's shape on the flight plane. `ground`: fixed to the land (it scrolls with it). */
 export type Tele =
-  | { shape: 'line'; x: number; z: number; x2: number; z2: number; w: number; lock: number }
+  /** body: it's the enemy itself that comes down the line (a charge), not a shot. */
+  | { shape: 'line'; x: number; z: number; x2: number; z2: number; w: number; lock: number; body?: boolean }
   | { shape: 'sweep'; x: number; z: number; a0: number; a1: number; len: number; w: number }
   | { shape: 'circle'; x: number; z: number; r: number; ground: boolean }
   | { shape: 'ring'; x: number; z: number; r: number; w: number }
   | { shape: 'edge'; x: number; z: number }
-  | { shape: 'gate'; x: number; x2: number; z: number; gx: number; gap: number };
+  | { shape: 'gate'; x: number; x2: number; z: number; gx: number; gap: number }
+  /** A lock-on: brackets closing in on player `id` (what a torpedo will chase). */
+  | { shape: 'lock'; id: number };
 
 /** What every enemy carries for the fight (and for the view to draw it). */
 export interface FoeFields {
@@ -111,7 +115,7 @@ export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKi
   e.stateDur = dur;
   if (state === 'windup') {
     e.tele = tele;
-    const faction = foeDef(e.arch)?.faction ?? (e.skin.kind === 'beast' && !e.boss ? 'wild' : factionOf(lv.spec.planet));
+    const faction = lookOf(lv, e);
     lv.emit({ type: 'windup', enemy: e.id, kind, tele, dur, faction, style: TELL[faction] });
   } else if (state === 'attack') lv.emit({ type: 'release', enemy: e.id, kind, x: e.x, z: e.z, a: e.aim });
   else if (state === 'recover' || state === 'stagger') {
@@ -119,6 +123,9 @@ export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKi
     lv.emit({ type: 'exposed', enemy: e.id, x: e.x, z: e.z, dur, stagger: state === 'stagger' });
   } else if (state === 'idle' || state === 'hidden') e.tele = null;
 }
+
+/** Whose side it fights for: its tells and its bullets speak that faction's language. */
+export const lookOf = (lv: Level, e: Enemy): Faction => foeDef(e.arch)?.faction ?? (e.skin.kind === 'beast' && !e.boss ? 'wild' : factionOf(lv.spec.planet));
 
 /** Done with this state? */
 export const over = (e: Enemy) => e.stateDur > 0 && e.stateT >= e.stateDur;
@@ -128,6 +135,7 @@ const TAKEN: Partial<Record<string, [number, number, number]>> = {
   ramjack: [1, 2, 2.5],
   rattler: [1, 1.5, 2],
   hookjaw: [1, 1.5, 2],
+  rigger: [1, 1.8, 2.2],
   ace: [1, 1.5, 2],
   flakker: [1, 1.6, 2],
   swooper: [1, 2, 2.5],
@@ -167,7 +175,7 @@ export function foeShot(lv: Level, e: Enemy, s: Shot) {
     if ((d.refl ?? 0) <= 0 && p) {
       d.refl = 0.35;
       const a = Math.atan2(p.x - e.x, p.z - e.z) + (lv.rand() - 0.5) * 0.3;
-      lv.bullet(e.x, e.z, a, 12, { color: e.skin.colors[2], kind: 'needle', r: 0.35 });
+      lv.bullet(e.x, e.z, a, 12, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: 'lattice' });
       lv.emit({ type: 'reflect', enemy: e.id, x: s.x, z: s.z, a });
     }
     return 0;

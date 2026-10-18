@@ -15,6 +15,7 @@ import { LOOT, duosOpen, startBuild, stats, type Build } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
+import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
 
 export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: number): LevelSpec {
   const r = rng(seed);
@@ -22,23 +23,24 @@ export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: 
   const open = planet.biomes.filter((b) => b.shape !== 'canyon');
   let biomes;
   if (mode === 'run') {
-    // a race: the planet's gorge if it has one, between two open stretches
+    // a race: a long one (minutes, not seconds), across four stretches of country with the
+    // planet's gorge, if it has one, in the middle
     const o = shuffle(r, [...open]);
-    biomes = canyon.length ? [o[0], canyon[0], o[1]] : [o[0], o[1], o[2]];
+    biomes = canyon.length ? [o[0], o[1 % o.length], canyon[0], o[2 % o.length]] : [o[0], o[1 % o.length], o[2 % o.length], o[3 % o.length]];
   } else if (mode === 'boss') {
     biomes = shuffle(r, [...open]).slice(0, 2);
   } else {
     // raids and hunts fly through three of the four, canyon included sometimes
     biomes = shuffle(r, [...planet.biomes]).slice(0, 3);
   }
-  const length = mode === 'run' ? 360 : mode === 'boss' ? 220 : 300;
+  const length = mode === 'run' ? 1700 : mode === 'boss' ? 220 : 300;
   return { planet, biomes, mode, seed, difficulty, length };
 }
 
 export interface Crew {
   build: Build;
   /** Parts in the hold, not bolted on. */
-  cargo: string[];
+  cargo: Item[];
   hull: number;
 }
 
@@ -65,7 +67,7 @@ export function threatTier(t: number): { step: number; word: string } {
 }
 
 export interface ShopItem {
-  part: string;
+  part: Item;
   price: number;
   sold: boolean;
 }
@@ -82,7 +84,7 @@ export interface Snapshot {
   scrap: number;
   fuel: number;
   hull: number[];
-  cargo: string[][];
+  cargo: Item[][];
   bounty: number;
   debt: number;
   policy: number;
@@ -183,8 +185,11 @@ export class Run {
     return next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]);
   }
 
-  /** Three parts to choose from after a level (`rich`: hunts and bosses lean rare). */
-  lootChoice(seed: number, rich: boolean): string[] {
+  /**
+   * Three parts to choose from after a level (`rich`: hunts and bosses lean rare), each rolled.
+   * `boss`: one of them is legendary.
+   */
+  lootChoice(seed: number, rich: boolean, boss = false): Item[] {
     const r = rng(seed);
     const d = this.difficulty();
     const at = this.landing;
@@ -205,8 +210,20 @@ export class Run {
     }
     // a duo the crew has earned (two of each of its tags aboard) can turn up in place of the third
     const duos = this.duos();
-    if (duos.length && r() < 0.35) return [...[...out].slice(0, 2), pick(r, duos)];
-    return [...out];
+    const ids = duos.length && r() < 0.35 ? [...[...out].slice(0, 2), pick(r, duos)] : [...out];
+    const items = ids.map((id) => rollItem(r, id, rollTier(r, d, rich, danger)));
+    // the Warden always leaves something worth building round
+    if (boss && !items.some((it) => it.tier === 'legendary')) {
+      const k = Math.floor(r() * items.length);
+      items[k] = rollItem(r, items[k].id === 'conduit' || items[k].id === 'elbow' ? pick(r, LOOT.epic).id : items[k].id, 'legendary');
+    }
+    return items;
+  }
+
+  /** A part picked up in flight, rolled when it's brought home. */
+  salvage(id: string, seed: number): Item {
+    const r = rng(seed);
+    return rollItem(r, id, rollTier(r, this.difficulty()));
   }
 
   /** Duo parts any ship of the crew has opened up. */
@@ -232,36 +249,43 @@ export class Run {
     // a duo the crew has earned sits at the end of the stall
     const duo = this.duos();
     if (duo.length) rest.push(pick(r, duo));
-    return [...own, ...rest].map((part) => {
-      const def = partById(part);
+    // dealers stock the odd tuned part, rarely anything finer
+    return [...own, ...rest].map((id) => {
+      const def = partById(id);
       const cheap = def.cls === m.sells ? 0.7 : 1;
-      return { part, price: Math.round(PRICE[def.rarity] * (0.85 + r() * 0.3) * cheap * m.mark), sold: false };
+      const tier = weighted(r, [['common', 58], ['rare', 32], ['epic', 9 + this.sector * 4], ['legendary', this.sector * 1.5]] as [Tier, number][]);
+      const part = rollItem(r, id, tier);
+      return { part, price: Math.round(PRICE[def.rarity] * TIER_VALUE[tierOf(part)] * (0.85 + r() * 0.3) * cheap * m.mark), sold: false };
     });
   }
 
   /** What a dealer gives for a part. */
-  sellPrice(part: string, n: ChartNode | null) {
-    const def = partById(part);
+  sellPrice(part: Item, n: ChartNode | null) {
+    const def = partById(part.id);
     const m = this.market(n);
     const k = def.cls === m.boom ? 3 : def.cls === m.wants ? 2 : n && !n.planet ? 1.25 : 1;
     // notoriety: fences pay more to someone with a price on their head
-    return Math.round(SELL[def.rarity] * k * (1 + this.bounty * 0.1));
+    return Math.round(SELL[def.rarity] * TIER_VALUE[tierOf(part)] * k * (1 + this.bounty * 0.1));
   }
 
   /** Puts a part in someone's hold, or turns it into scrap if it's full. Returns false if scrapped. */
-  stow(player: number, part: string) {
+  stow(player: number, part: string | Item) {
+    const it = typeof part === 'string' ? { id: part } : part;
     const c = this.crew[player];
     if (c.cargo.length < CARGO) {
-      c.cargo.push(part);
+      c.cargo.push(it);
       return true;
     }
-    this.scrap += SELL[partById(part).rarity];
+    this.scrap += Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]);
     return false;
   }
 
-  /** A part for everyone. */
-  give(part: string | ((i: number) => string)) {
-    this.crew.forEach((_, i) => this.stow(i, typeof part === 'string' ? part : part(i)));
+  /** A part for everyone (each their own copy). */
+  give(part: string | Item | ((i: number) => string | Item)) {
+    this.crew.forEach((_, i) => {
+      const it = typeof part === 'function' ? part(i) : part;
+      this.stow(i, typeof it === 'string' ? it : i ? { ...it } : it);
+    });
   }
 
   maxHull(player: number) {
@@ -383,12 +407,12 @@ export class Run {
     num(hull, 'HULL');
     this.crew.forEach((c, i) => {
       const was = [...s.cargo[i]];
-      for (const id of c.cargo) {
-        const k = was.indexOf(id);
+      for (const it of c.cargo) {
+        const k = was.indexOf(it);
         if (k >= 0) was.splice(k, 1);
-        else out.push({ text: `${this.crew.length > 1 ? `P${i + 1} ` : ''}+ ${partById(id).name.toUpperCase()}`, tone: 'good' });
+        else out.push({ text: `${this.crew.length > 1 ? `P${i + 1} ` : ''}+ ${itemName(it)}`, tone: 'good' });
       }
-      for (const id of was) out.push({ text: `${this.crew.length > 1 ? `P${i + 1} ` : ''}- ${partById(id).name.toUpperCase()}`, tone: 'bad' });
+      for (const it of was) out.push({ text: `${this.crew.length > 1 ? `P${i + 1} ` : ''}- ${itemName(it)}`, tone: 'bad' });
     });
     if (this.bounty !== s.bounty) out.push({ text: this.bounty ? `BOUNTY ${this.bounty * 40} ON YOU` : 'NO BOUNTY ON YOU', tone: this.bounty > s.bounty ? 'bad' : 'good' });
     if (this.debt !== s.debt) out.push({ text: this.debt ? `YOU OWE MAMA ${this.debt}` : 'MAMA RUZZ IS PAID', tone: this.debt > s.debt ? 'bad' : 'good' });

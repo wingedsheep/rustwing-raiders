@@ -2,7 +2,7 @@
  * Who you fight, and how they fight. Four factions, each with its own attack language:
  *
  *  - scrap:   the pirate clans (Hesk, the Cartel, the Scav Clans, the Reef Pirates). Momentum: they
- *             ram, chase, harpoon and shell you, and race you for it.
+ *             ram, chase, harpoon, shell and torpedo you, and race you for it.
  *  - lattice: the old machine and the companies that copied it (Port Authority, the Waking Engine,
  *             Vantorr). Precision: shields, reflectors, sweeping beams and gates.
  *  - wild:    the native beasts. The hunt: they pounce, burrow and spit.
@@ -21,6 +21,7 @@ export type Foe =
   | 'ramjack'
   | 'rattler'
   | 'hookjaw'
+  | 'rigger'
   | 'ace'
   | 'flakker'
   | 'swooper'
@@ -55,6 +56,7 @@ export const FOES: Record<Foe, FoeDef> = {
   ramjack: { name: 'Ramjack', faction: 'scrap', hp: 40, r: 1.6, score: 300, scrap: 3, model: 'dart', beast: false, scale: 1.5 },
   rattler: { name: 'Rattler', faction: 'scrap', hp: 30, r: 1.4, score: 250, scrap: 2, model: 'dart', beast: false, scale: 1.25 },
   hookjaw: { name: 'Hookjaw', faction: 'scrap', hp: 70, r: 2, score: 500, scrap: 4, model: 'gunship', beast: false, scale: 1 },
+  rigger: { name: 'Torpedo Rig', faction: 'scrap', hp: 65, r: 1.8, score: 550, scrap: 4, model: 'bomber', beast: false, scale: 1.05 },
   ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4 },
   flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true },
   swooper: { name: 'Swooper', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2 },
@@ -113,6 +115,7 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
     ['flakker', 2.5, 0.05],
     ['rattler', 2, 0.1],
     ['hookjaw', 1.4, 0.25],
+    ['rigger', 1.5, 0.2],
     ['ace', 0.6, 0.45],
   ],
   lattice: [
@@ -134,7 +137,7 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
 };
 
 /** Races want things to race: chasers, rivals, gates. */
-export const RACE: Partial<Record<Foe, number>> = { rattler: 2.5, ace: 2, gatekeeper: 2.2, ramjack: 1.2, swooper: 1.2, puffball: 1 };
+export const RACE: Partial<Record<Foe, number>> = { rattler: 2.5, ace: 0, gatekeeper: 2.2, ramjack: 1.2, swooper: 1.2, puffball: 1 };
 
 /** The bounties a faction puts out. */
 export const BOUNTIES: Record<Faction, Foe[]> = {

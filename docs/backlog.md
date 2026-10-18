@@ -14,9 +14,11 @@ Playtest feedback and design to-dos. Not in priority order.
 - Boost and dash don't feel like they're on the right controller buttons yet. Re-evaluate the gamepad layout.
 
 ## Parts / loot
-- It's unclear what you're choosing when picking parts. Improve the UI/UX: clear stats, comparison with the equipped part, what changes.
-- Add randomness to drops: rarity tiers plus rolled stats.
-- Legendary drops should feel unique and rare, strong enough that you can build your ship around one for that run.
+- ~~It's unclear what you're choosing when picking parts. Improve the UI/UX: clear stats, comparison with the equipped part, what changes.~~ Done: loot is dealt as cards (face down in their tier's colours, turned over one by one). Each card shows the shape big, its numbers, its rolls and an ON YOUR SHIP panel: the ship's grid with the part at its best spot (or the part it would best replace), and the stats that change (DPS 36→68, WAKES SLIPSTREAM, RUNS AT 150%). The dealer's stall uses the same card (`src/ui/loot-card.ts`, `src/sim/fit.ts`).
+- ~~Add randomness to drops: rarity tiers plus rolled stats.~~ Done: every part found is an item with a tier (COMMON stock, RARE one mod, EPIC two, LEGENDARY a mod and a trait). Mods roll in a range (+10..30% damage, -25..60% mass, +1..3 power, ...) and the card shows how well, in five pips (`src/game/loot.ts`).
+- ~~Legendary drops should feel unique and rare, strong enough that you can build your ship around one for that run.~~ Done: legendaries carry a trait that bends a rule of the grid: TWINNED (a mirror gun), COLOSSAL, WIRELESS (touches every part), KEYSTONE (linked anywhere), OVERCLOCKED, PRISMATIC (every tag). About 1–3% of cards, more on hunts and danger sites. The Warden always leaves one. They get a fanfare, gold rays on their card, a gold ring on the grid and a halo on the ship.
+  - Follow-up: more traits, ones that change how a part *plays* in flight (shots that split, a dash that leaves a gun behind), not just its numbers and links.
+  - Follow-up: the in-flight pickup pop could show the tier once it's rolled at pickup, not on the results screen.
 - Goal: every run feels unique and different because of what drops.
 - Ship building should be a major part of the skill and the experience. Take the variety of weapons and combinations in **Dead Cells** as the reference, then go further: wild ship builds with parts that work together (synergies, build-defining combos).
 - Model the new parts from the builds rework. Until then they show on ships as placeholder tinted boxes, one per cell: blue for dash mods, amber for aux, purple for passives (`src/view/ship-model.ts`).
@@ -26,8 +28,9 @@ Playtest feedback and design to-dos. Not in priority order.
   - Each part's look should hint at what it does (its verb), so a build is readable on the ship itself.
 
 ## Enemy attacks
-- Enemy attacks look too generic, like any other bullet-hell shmup. Improve the projectile and attack visuals.
-- Add more kinds of attack beyond bullets: beams, sweeps, mines, homing, area denial, telegraphed charges, and so on.
+- ~~Enemy attacks look too generic, like any other bullet-hell shmup. Improve the projectile and attack visuals.~~ Done: a bullet now says who fired it. Each faction has its own family of shapes, drawn as distance fields in one shader (`src/view/bullets.ts`), and all share one reading order: halo, ink rim, colour, bright core. Scrappers fire hot slugs with tracer streaks, spiked flak and naval mines. The lattice fires diamond shards that leave afterimages, long lances and turning hexagons. Beasts spit wobbling, dripping globs, thorns and egg sacs. The bloom fires lobed spores in a dithered haze, seeds trailing fluff and puffballs. Bullets swell out of the muzzle with a flash. Each faction has its own muzzle, and a cancelled bullet pops in its faction's way (sparks, a ring of light, a splash, a puff).
+- ~~Add more kinds of attack beyond bullets: beams, sweeps, mines, homing, area denial, telegraphed charges, and so on.~~ Beams, sweeps, mines, area denial and charges were already in. New: homing. The **Torpedo Rig** (scrap) locks on: brackets close in on your ship with a dotted line back to it, a rising beep, and LOCK ON. Then it lets go two torpedoes that drift out to the sides, light up and chase you until their fuel runs out. Turn hard, dash through them, decoy them, or shoot them down (SHOT DOWN); the Rig is open while it reloads. An arrow at your ship's edge points at each torpedo still chasing you. Mines now draw the lanes their shrapnel will fly, growing out as they ripen, and blink faster towards the end.
+  - Follow-up: give the lattice, wild and bloom a homing or area-denial attack of their own (a lattice seeker that only turns at right angles, a bloom spore cloud that drifts towards boosting ships).
 
 ## Bosses & elites: learnable patterns
 - Bosses, and some elite enemies in normal levels, should have attack patterns you can learn, like a soulslike.
@@ -38,9 +41,25 @@ Playtest feedback and design to-dos. Not in priority order.
   - Races
   - Escort / protect a convoy
   - (other objective-based modes)
-- Racing levels don't feel like races yet; they feel slow. Research **Galactic Racer** and what players say about it (sense of speed, boost, track feel) and use that to improve the racing experience.
-- In races it's hard to see where the track is and what the obstacles are. Make the track boundaries and obstacles clearly readable at speed.
+- ~~Racing levels don't feel like races yet; they feel slow. Research **Galactic Racer** and what players say about it (sense of speed, boost, track feel) and use that to improve the racing experience.~~ Done: races are top-down rally flights against three named rivals, about 2 minutes long, with no enemy waves and no guns. The course turns: the sim flies straight down -z, and every shader bends the drawn world round the course (`src/render/bend.ts`), so the world swings round you through the corners. The stick steers and works the throttle, fire is the handbrake, and momentum carries you wide unless you steer in. The inside of a bend is shorter. Holding a drift charges a three-tier turbo. The camera is locked on the leader. Also: a countdown with a perfect launch, gates with a clean-gate chain (miss one and the engine chokes), boost pads, slipstreams, takedowns, rally pace notes, and juice for every event (`src/view/track.ts`).
+- ~~In races it's hard to see where the track is and what the obstacles are. Make the track boundaries and obstacles clearly readable at speed.~~ Done: there is no road. The course runs over the open terrain and water of each planet (`src/sim/course.ts`), marked by lit gates with the next one pulsing, and amber boards on the outside of each turn. Anything tall enough to hit has a ring of light at flight height, so obstacles never look like land you can fly over. The planet reacts as you pass: grass and trees are blown aside, and water is pushed down and foams, with spray or dust thrown up behind.
+- Races: shortcuts were dropped with the road. They could come back as slots through rock massifs.
 
 ## Biomes & exploration
 - Every biome should feel different, unique and beautiful (Hollow Knight / Silksong as the benchmark).
 - Add a sense of exploration and discovery between and within biomes.
+- ~~Everything looks repetitive; make it feel alive, with larger elements.~~ First pass done:
+  - Scenery grows in groves and thickets with clearings between them. Each patch is mostly one kind, with big specimens in the thick of it and an old giant here and there.
+  - Every prop gets a lean and one of five shades of its colour, and neighbours share a cast.
+  - Meadows have patches of flowers.
+  - About a third of chunks have a landmark: a set piece of the place blown up as large as fits under the flight line (`LANDMARKS` in `src/sim/terrain.ts`).
+  - Vents, fires, wrecks, stacks and crystals breathe out steam, smoke, embers, spores or glints (`EMITS` in `src/view/world-view.ts`).
+  - Pods of sky whales glide by low now and then (`src/view/life.ts`).
+- ~~Canyons are too narrow, and enemies fly through the rock.~~ Done: raid and hunt canyons are about 50% wider, with rock pillars on the floor to slip round. Some pillars stand in the middle and split the canyon; `lineX` swings round those. Flyers are slid off walls, pillars and tall props (`keepOffRock` in `src/sim/level.ts`). Race canyons follow the race course instead.
+
+## Feel: weapons, hits, shields, kills
+- ~~Player weapons look cartoonish.~~ Done: shots are hot rounds with light (`src/view/shots.ts`): white-hot slugs with tracer streaks, sparks of shot, rails with a twisting wake, little rockets, tumbling brass flak shells and limpet mines. Light parts leave no depth, so they get no ink outline. The ion beam is a shader strip with a white core, crawling edges and pulses. Muzzles spit sparks and the heavy guns puff smoke.
+- ~~A hit sometimes feels like nothing happened.~~ Done: every hit bites (a white-hot flash and a hot bloom, sized by damage) and throws sparks back. Heavy hits and crits knock chips of hull off, puff smoke, hitstop 1–2 frames, shake the camera a little and pop the damage. An enemy that's been hit shows a slim health bar for a moment. Hurt enemies crackle with sparks.
+- ~~Enemy shields look lame and absorb shots without any effect.~~ Done: shields are domes of hex cells (`src/view/shields.ts`), a front wedge for a Warden and a bubble for a closed-up boss. Each stopped shot sends a ripple across the dome, lights the cells there and glances off in sparks. The shield shatters into motes and glassy flakes when it drops. A closed-up boss now stops shots at its bubble instead of letting them pass.
+- ~~Shot-down enemies should be spectacular.~~ Done: a kill adds a white-hot ball, petals of fire, two or three follow-up blasts, chunks of hull in its colours and drifting embers. The land below is lit for a moment (a small pool of point lights). The charred hull tumbles out of the sky trailing fire and smoke, then hits the ground in a second blast with a scorch mark, or lands in water in a column of spray. Ground units slump and burn where they stood.
+- Dev URL params: `&biomes=prism,jade` flies those biomes in order, `&guns=rivet,rail;flak` puts those guns in each ship's front row, and `&zoom=0.5` shows a closer view.

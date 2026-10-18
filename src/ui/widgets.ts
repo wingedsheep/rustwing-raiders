@@ -4,11 +4,20 @@
  */
 
 import { partById, type PartDef, type Rarity } from '../game/parts';
+import type { Tier } from '../game/loot';
 import { input, type DeviceId } from '../input';
 import { drawText, textWidth, wrap } from './font';
 import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, H, INK, PANEL, RED, W, frame } from './hud';
 
 export const RARITY_COLOR: Record<Rarity, string> = { common: '#a8a0b8', rare: '#6ad0ff', epic: '#ffb04a' };
+
+/** An item's tier: its colour, a dark of it for fills, and a faint tint for a card's body. */
+export const TIER_COLOR: Record<Tier, string> = { common: '#b8b0c8', rare: '#5ab8ff', epic: '#c27aff', legendary: '#ffb03a' };
+export const TIER_DARK: Record<Tier, string> = { common: '#2e2a3a', rare: '#16304c', epic: '#33194e', legendary: '#4e2c0c' };
+export const TIER_BODY: Record<Tier, string> = { common: '#1c1526', rare: '#151a2c', epic: '#1d1430', legendary: '#21181a' };
+
+/** A number for a card: whole when it's big, a decimal when it isn't. */
+export const num = (n: number) => (Math.abs(n) >= 10 || Number.isInteger(n) ? `${Math.round(n)}` : n.toFixed(1).replace(/\.0$/, ''));
 
 /** The hatched hull-plate backdrop the side panels have, over a rectangle. */
 export function backdrop(ctx: CanvasRenderingContext2D, x = 0, y = 0, w = W, h = H) {
@@ -24,10 +33,10 @@ export function partStats(def: PartDef): string[] {
   const g = def.gun;
   if (g) {
     const dps = g.damage * g.count * g.rate;
-    out.push(`DMG ${g.damage}${g.count > 1 ? `×${g.count}` : ''}  RATE ${g.rate}`);
+    out.push(`DMG ${num(g.damage)}${g.count > 1 ? `×${g.count}` : ''}  RATE ${num(g.rate)}${g.pierce && g.pierce < 99 ? `  PIERCE ${g.pierce}` : ''}`);
     out.push(`DPS ${Math.round(dps)}  HEAT ${Math.round(g.heat * 100)}`);
   }
-  if (def.thrust) out.push(`THRUST +${def.thrust}`);
+  if (def.thrust) out.push(`THRUST +${num(def.thrust)}`);
   if (def.grip) out.push(`GRIP ${def.grip > 0 ? '+' : ''}${def.grip}`);
   if (def.dash) out.push(`DASH +${def.dash}`);
   if (def.hp) out.push(`HULL +${def.hp}`);
@@ -51,7 +60,7 @@ export function partStats(def: PartDef): string[] {
   if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}`);
   if (def.conduit) out.push('CONDUIT: RELAYS LINKS');
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
-  out.push(`MASS ${def.mass}  ${def.power < 0 ? `POWER +${-def.power}` : def.power > 0 ? `DRAW ${def.power}` : 'NO POWER'}`);
+  out.push(`MASS ${num(def.mass)}  ${def.power < 0 ? `POWER +${num(-def.power)}` : def.power > 0 ? `DRAW ${num(def.power)}` : 'NO POWER'}`);
   return out;
 }
 

@@ -14,15 +14,17 @@
 
 export type Sfx =
   | 'shot_rivet' | 'shot_scatter' | 'shot_rail' | 'shot_arc' | 'shot_missile' | 'shot_flak' | 'shot_mine' | 'flak_burst'
-  | 'hit' | 'hit_armor' | 'enemy_shot' | 'explode_small' | 'explode_big' | 'explode_boss'
+  | 'hit' | 'hit_armor' | 'enemy_shot' | 'lock_on' | 'torpedo_launch' | 'torpedo_down' | 'explode_small' | 'explode_big' | 'explode_boss'
   | 'player_hit' | 'player_down' | 'shield_break' | 'shield_up' | 'dash' | 'graze' | 'overheat'
   | 'pickup_scrap' | 'pickup_part' | 'heal'
   | 'special_bomb' | 'special_phase' | 'special_emp' | 'special_overdrive' | 'special_ready'
   | 'laser_charge' | 'laser_fire' | 'lightning' | 'geyser' | 'crash' | 'warp' | 'boss_warning' | 'level_clear'
   | 'ui_move' | 'ui_select' | 'ui_back' | 'ui_error' | 'ui_place' | 'ui_buy'
+  | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
-  | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare';
-export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
+  | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
+  | 'count' | 'sonic' | 'pad' | 'scrape' | 'pass' | 'takedown' | 'gate' | 'gate_miss' | 'turbo' | 'drift_tier' | 'wreck';
+export type Loop = 'beam' | 'flame' | 'engine' | 'wind' | 'drift';
 export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
 // ================================================================================================
@@ -112,7 +114,14 @@ function init(): boolean {
   applyVolumes(true);
   ready = true;
   timer = window.setInterval(tick, 25);
+  document.addEventListener('visibilitychange', onVisibility);
   return true;
+}
+
+/** A tab in the background goes quiet (another tab with the game open would play over it). */
+function onVisibility() {
+  if (document.hidden) void ctx.suspend().catch(() => undefined);
+  else void ctx.resume().catch(() => undefined);
 }
 
 function impulse(seconds: number, decay: number): AudioBuffer {
@@ -357,6 +366,31 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.1;
   }, 0.05, 4, { low: true }),
 
+  // a lock-on: pips that come quicker and higher as the brackets close
+  lock_on: S((t, p, o) => {
+    let at = 0;
+    for (let k = 0; k < 7; k++) {
+      tone(o, t + at, 'square', (900 + k * 90) * p, (900 + k * 90) * p, 0.045, 0.04, 0.002);
+      at += 0.2 - k * 0.025;
+    }
+    tone(o, t + at, 'square', 1800 * p, 1800 * p, 0.14, 0.05, 0.002);
+    return at + 0.15;
+  }, 0.3, 2),
+
+  // a torpedo let go: a clunk off the rack, then the motor catching
+  torpedo_launch: S((t, p, o) => {
+    tone(o, t, 'triangle', 200 * p, 90 * p, 0.08, 0.18, 0.002);
+    noise(o, t + 0.4, 0.5, 'bandpass', 700 * p, 2400 * p, 1.5, 0.14, 0.05);
+    tone(o, t + 0.4, 'sawtooth', 110 * p, 160 * p, 0.4, 0.04, 0.03);
+    return 0.9;
+  }, 0.1, 3),
+
+  torpedo_down: S((t, p, o) => {
+    boom(o, t, p * 1.3, 0.2, 0.2);
+    tone(o, t, 'square', 1500 * p, 600 * p, 0.08, 0.05, 0.001);
+    return 0.4;
+  }, 0.04, 4),
+
   explode_small: S((t, p, o) => {
     boom(o, t, p, 0.45, 0.26);
     return 0.5;
@@ -516,6 +550,105 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'sine', 60 * p, 30 * p, 0.25, 0.3, 0.002);
     return 0.5;
   }, 0.15, 2),
+
+  /** The race's lights: a beep per second, GO an octave up and held (pitch 2). */
+  count: S((t, p, o) => {
+    const f = mtof(76) * p;
+    const len = p > 1.5 ? 0.55 : 0.16;
+    tone(o, t, pulse25, f, f, len, 0.11, 0.002);
+    tone(o, t, 'sine', f * 0.5, f * 0.5, len, 0.18, 0.002);
+    if (p > 1.5) tone(o, t, 'triangle', f * 1.5, f * 1.5, len * 0.8, 0.06, 0.01);
+    return len + 0.05;
+  }, 0.2, 2, { tuned: true, rev: 0.3 }),
+
+  /** A sonic boom: the crack of the air, a deep thump rolling under it. */
+  sonic: S((t, p, o) => {
+    noise(o, t, 0.035, 'highpass', 2500, 2500, 0.7, 0.4);
+    tone(o, t, 'sine', 130 * p, 32 * p, 0.6, 0.5, 0.002, 0.3);
+    noise(o, t + 0.01, 0.7, 'lowpass', 900 * p, 120, 0.8, 0.3, 0.01);
+    crackle(o, t, 0.25, 8, 0.12);
+    return 0.75;
+  }, 0.25, 2, { rev: 0.35 }),
+
+  /** A boost pad: a whoosh that climbs, a thump in the chest. */
+  pad: S((t, p, o) => {
+    noise(o, t, 0.4, 'bandpass', 400 * p, 5200 * p, 1.4, 0.28, 0.01);
+    const lp = filt(o, 'lowpass', 2600);
+    tone(lp, t, 'sawtooth', 110 * p, 520 * p, 0.32, 0.12, 0.005);
+    tone(o, t, 'sine', 70, 40, 0.22, 0.4, 0.002);
+    tone(o, t + 0.06, 'triangle', mtof(84) * p, mtof(91) * p, 0.18, 0.05, 0.005);
+    return 0.45;
+  }, 0.12, 2),
+
+  /** Metal grinding along a barrier. */
+  scrape: S((t, p, o) => {
+    noise(o, t, 0.09, 'bandpass', 3200 * p, 2600 * p, 6, 0.16, 0.002);
+    const bp = filt(o, 'bandpass', 2200 * p, 8);
+    tone(bp, t, 'square', 1400 * p, 1300 * p, 0.07, 0.06, 0.001);
+    crackle(o, t, 0.07, 4, 0.08);
+    return 0.1;
+  }, 0.05, 3, { low: true }),
+
+  /** Passing a rival: a doppler whoosh, high to low. */
+  pass: S((t, p, o) => {
+    noise(o, t, 0.45, 'bandpass', 3000 * p, 500 * p, 2, 0.3, 0.03);
+    const lp = filt(o, 'lowpass', 1800);
+    tone(lp, t, 'sawtooth', 340 * p, 150 * p, 0.42, 0.1, 0.02);
+    return 0.5;
+  }, 0.15, 2),
+
+  /** Through a gate: a bright two-note chime, climbing with the chain (pitch). */
+  gate: S((t, p, o) => {
+    const f = mtof(81) * p;
+    tone(o, t, 'triangle', f, f, 0.12, 0.07, 0.002);
+    tone(o, t + 0.05, 'triangle', f * 1.5, f * 1.5, 0.2, 0.06, 0.002);
+    noise(o, t, 0.12, 'bandpass', 5000, 7000, 3, 0.06, 0.002);
+    return 0.25;
+  }, 0.06, 2, { tuned: true, rev: 0.25 }),
+
+  /** Past a gate: a buzzer, and the engine coughing. */
+  gate_miss: S((t, p, o) => {
+    tone(o, t, 'square', 140 * p, 120 * p, 0.28, 0.08, 0.002);
+    tone(o, t, 'square', 147 * p, 125 * p, 0.28, 0.06, 0.002);
+    for (const d of [0.08, 0.2, 0.31]) noise(o, t + d, 0.06, 'lowpass', 500, 200, 1, 0.22, 0.002);
+    return 0.4;
+  }, 0.2, 1),
+
+  /** A drift turbo fired: a rising whoosh, a kick, a sparkle on top (higher for a higher tier). */
+  turbo: S((t, p, o) => {
+    noise(o, t, 0.5, 'bandpass', 500 * p, 6000 * p, 1.5, 0.32, 0.005);
+    const lp = filt(o, 'lowpass', 3000);
+    tone(lp, t, 'sawtooth', 90 * p, 400 * p, 0.35, 0.14, 0.004);
+    tone(o, t, 'sine', 80, 38, 0.25, 0.45, 0.002);
+    for (const [n, d] of [[0, 0], [7, 0.05], [12, 0.1]] as const) tone(o, t + d, 'triangle', mtof(84 + n) * p, mtof(84 + n) * p, 0.16, 0.04, 0.003);
+    return 0.55;
+  }, 0.12, 2, { rev: 0.2 }),
+
+  /** A drift's turbo charged up a tier: a little rising blip. */
+  drift_tier: S((t, p, o) => {
+    const f = mtof(72) * p;
+    tone(o, t, pulse25, f, f * 1.5, 0.1, 0.06, 0.002);
+    return 0.12;
+  }, 0.05, 2, { tuned: true }),
+
+  /** Wrecked on a rock: a crunch, a boom, metal shrieking. */
+  wreck: S((t, p, o) => {
+    boom(o, t, p * 0.8, 1, 0.5);
+    const bp = filt(o, 'bandpass', 900, 4);
+    tone(bp, t, 'square', 380 * p, 160 * p, 0.35, 0.18, 0.001);
+    crackle(o, t, 0.4, 10, 0.16);
+    return 0.7;
+  }, 0.15, 2, { rev: 0.25 }),
+
+  /** A takedown: a big crunch of metal, a boom, a bright ring over it. */
+  takedown: S((t, p, o) => {
+    boom(o, t, p, 1.1, 0.42);
+    const bp = filt(o, 'bandpass', 1500, 5);
+    tone(bp, t, 'square', 700 * p, 420 * p, 0.3, 0.16, 0.001);
+    tone(bp, t, 'square', 1030 * p, 600 * p, 0.25, 0.1, 0.001);
+    for (const [n, d] of [[0, 0.05], [7, 0.12], [12, 0.2]] as const) tone(o, t + d, 'triangle', mtof(79 + n) * p, mtof(79 + n) * p, 0.35, 0.05, 0.003);
+    return 0.9;
+  }, 0.15, 2, { rev: 0.3 }),
 
   risk_up: S((t, p, o) => {
     const f = mtof(76) * p;
@@ -732,6 +865,41 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.08;
   }, 0.03, 3),
 
+  // a card turning over: a papery flick and a little rising blip
+  card_flip: S((t, p, o) => {
+    noise(o, t, 0.06, 'bandpass', 3800 * p, 1800 * p, 1.2, 0.09, 0.002);
+    tone(o, t + 0.02, 'triangle', 520 * p, 780 * p, 0.07, 0.07, 0.002, 0.05);
+    return 0.1;
+  }, 0.05, 4, { tuned: true }),
+
+  // an epic part: a bright shimmer up an arpeggio
+  loot_epic: S((t, p, o) => {
+    [0, 7, 12, 19].forEach((n, i) => {
+      const f = mtof(76 + n) * p;
+      tone(o, t + i * 0.04, 'sine', f, f, 0.35, 0.06, 0.003);
+      tone(o, t + i * 0.04, pulse25, f * 2, f * 2, 0.12, 0.015, 0.002);
+    });
+    noise(o, t + 0.1, 0.5, 'highpass', 8000, 11000, 0.7, 0.03, 0.05);
+    return 0.6;
+  }, 0.2, 1, { tuned: true, rev: 0.35 }),
+
+  // a legendary: a low swell, a brass-ish chord, a long glittering tail
+  loot_legendary: S((t, p, o) => {
+    tone(o, t, 'sine', 55 * p, 110 * p, 0.9, 0.18, 0.25, 0.6);
+    const chord = [0, 4, 7, 11, 14];
+    chord.forEach((n, i) => {
+      const f = mtof(64 + n) * p;
+      tone(o, t + 0.12 + i * 0.05, 'sawtooth', f, f, 1.1, 0.025, 0.04);
+      tone(o, t + 0.12 + i * 0.05, 'triangle', f * 2, f * 2, 1.3, 0.05, 0.01);
+    });
+    [24, 28, 31, 36].forEach((n, i) => {
+      const f = mtof(64 + n) * p;
+      tone(o, t + 0.5 + i * 0.09, 'sine', f, f, 0.5, 0.035, 0.002);
+    });
+    noise(o, t + 0.3, 1.4, 'highpass', 6000, 12000, 0.6, 0.035, 0.2);
+    return 1.8;
+  }, 1, 1, { tuned: true, rev: 0.5 }),
+
   ui_buy: S((t, p, o) => {
     tone(o, t, 'square', 988 * p, 988 * p, 0.07, 0.06, 0.001);
     tone(o, t + 0.07, 'square', 1319 * p, 1319 * p, 0.25, 0.06, 0.001);
@@ -878,6 +1046,19 @@ function makeLoop(name: Loop): LoopVoice {
       const n = ctx.currentTime;
       bp.frequency.setTargetAtTime(400 + 1600 * i, n, 0.08);
       lvl.gain.setTargetAtTime(0.18 * i, n, 0.06);
+    };
+  } else if (name === 'drift') {
+    // a drift: the thrusters screaming sideways, a hiss that climbs with the turbo's charge
+    const bp = bq('bandpass', 1800, 3, lvl);
+    nz(bp, 0.8);
+    const lp = bq('lowpass', 1400, 4, lvl);
+    const o1 = osc('sawtooth', 220, lp, 0.18);
+    osc('sine', 9, o1.frequency, 14);
+    set = (i) => {
+      const n = ctx.currentTime;
+      bp.frequency.setTargetAtTime(1400 + 2600 * i, n, 0.06);
+      o1.frequency.setTargetAtTime(200 + 260 * i, n, 0.08);
+      lvl.gain.setTargetAtTime(0.06 + 0.07 * i, n, 0.05);
     };
   } else {
     // engine: soft low hum that rises with thrust
@@ -1879,7 +2060,7 @@ export const audio = {
         if (wantTrack) switchTrack(wantTrack);
         for (const key of [...loopWant.keys()]) applyLoop(key);
       }
-      if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+      if (ctx.state !== 'running' && !document.hidden) void ctx.resume().catch(() => undefined);
     } catch {
       /* no audio available */
     }
@@ -1945,5 +2126,6 @@ export const audio = {
 const hot = (import.meta as unknown as { hot?: { dispose(cb: () => void): void } }).hot;
 hot?.dispose(() => {
   window.clearInterval(timer);
+  document.removeEventListener('visibilitychange', onVisibility);
   if (ready) void ctx.close();
 });

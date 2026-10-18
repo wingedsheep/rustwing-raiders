@@ -1,3 +1,5 @@
+// (first: it patches three's shaders before any material is made)
+import './render/bend';
 import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
@@ -27,7 +29,7 @@ async function boot() {
   await library.load(loading);
   const q = game.params;
   if (q.has('planet') || q.has('mode')) {
-    // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule
+    // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule&biomes=prism,jade
     const planet = PLANETS.find((p) => p.id === q.get('planet')) ?? PLANETS[0];
     const mode = (q.get('mode') ?? 'raid') as Mode;
     const seed = Number(q.get('seed') ?? 1);
@@ -37,7 +39,17 @@ async function boot() {
     const pads = input.padIds();
     if (pads.length) game.devices = coop ? [pads[0], pads[1] ?? 'keys'] : [pads[0]];
     const builds = (coop ? [0, 1] : [0]).map((i) => startBuild(frames[i] ?? frames[0]));
+    // &guns=rivet,rail;flak,mine: these guns across the front row (per ship, split by ';')
+    q.get('guns')?.split(';').forEach((list, i) => {
+      const b = builds[i];
+      if (!b) return;
+      b.parts = b.parts.filter((p) => p.r > 0);
+      list.split(',').forEach((id, c) => b.parts.push({ id, c, r: 0 }));
+    });
     const spec = levelSpec(planet, mode, seed, Number(q.get('difficulty') ?? 0.2));
+    // &biomes=mesarun,saltpans: fly these of the planet's biomes, in this order
+    const only = q.get('biomes')?.split(',').map((id) => planet.biomes.find((b) => b.id === id)).filter((b) => !!b);
+    if (only?.length) spec.biomes = only;
     const fly = () => game.go(new Flight(game, spec, builds, undefined, () => fly()));
     fly();
   } else if (q.has('crew')) {
@@ -50,7 +62,15 @@ async function boot() {
     const screen = q.get('screen');
     const node = (kind: string) => run.chart.nodes.find((n) => n.kind === kind) ?? run.chart.nodes[1];
     if (screen === 'hangar') {
-      run.crew.forEach((c) => c.cargo.push('scatter', 'amp', 'burner', 'plate', 'rail'));
+      run.crew.forEach((c) =>
+        c.cargo.push(
+          { id: 'scatter' },
+          { id: 'amp', tier: 'legendary', trait: 'wireless', mods: [{ k: 'potent', roll: 0.8 }] },
+          { id: 'burner', tier: 'rare', mods: [{ k: 'thrust', roll: 0.6 }] },
+          { id: 'plate' },
+          { id: 'rail', tier: 'epic', mods: [{ k: 'dmg', roll: 0.95 }, { k: 'light', roll: 0.4 }] },
+        ),
+      );
       flow.toHangar(game, () => flow.toChart(game));
     } else if (screen && ['shop', 'event', 'dock'].includes(screen)) {
       run.scrap = 140;

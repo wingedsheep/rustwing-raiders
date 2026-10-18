@@ -31,7 +31,7 @@ const MUTED = '#a89cb8';
 export const KIND: Record<NodeKind, { label: string; icon: string; color: string; text: string }> = {
   start: { label: 'JUMP POINT', icon: 'start', color: '#8a8098', text: 'Where you came in.' },
   raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
-  run: { label: 'RACE', icon: 'run', color: CYAN, text: 'A fast run through rough country. Thread the rings for scrap.' },
+  run: { label: 'RACE', icon: 'run', color: CYAN, text: 'A race against three rivals across open country, gate to gate. Drift the corners; finish first for the purse.' },
   hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
   salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
@@ -947,7 +947,8 @@ export class ChartScreen implements Screen {
           lx += 8;
           lx += drawText(ctx, rw[0], lx, ty, rw[1]) + 6;
         } else lx += drawText(ctx, 'PARTS', lx, ty, INK) + 6;
-        if (rich) drawText(ctx, 'RARE+', lx, ty, '#6ad0ff');
+        if (n.kind === 'gate') drawText(ctx, 'ONE LEGENDARY', lx, ty, '#ffb03a');
+        else if (rich) drawText(ctx, 'RARE+', lx, ty, '#6ad0ff');
       });
       if (DANGER_PAY[d] > 1) row('', (x0) => drawText(ctx, `SCRAP ×${DANGER_PAY[d]}: DANGER PAY`, x0, ty, GOLD));
     }

@@ -27,6 +27,9 @@ export class ShipModel {
   /** A little glowing dot at the ship's core (shown when focusing). */
   readonly core: THREE.Mesh;
   readonly shield: THREE.Mesh;
+  /** A legendary part's halo: a slow gold ring and a glint above it. */
+  private halos: THREE.Object3D[] = [];
+  private t = 0;
 
   constructor(build: Build, livery: Skin) {
     this.root.add(this.body);
@@ -63,6 +66,16 @@ export class ShipModel {
       }
       this.body.add(obj);
       if (inst) this.instances.push(inst);
+      if (p.tier === 'legendary') {
+        const cc = centre(f, p);
+        const halo = new THREE.Group();
+        halo.position.set(cc.x, DECK + 0.75, cc.z);
+        const span = Math.max(1, Math.sqrt(def.shape.length));
+        halo.add(part(GEO.torus, flat(0xffb03a, { additive: true }), [0, 0, 0], [span * 1.1, span * 1.1, 0.6], [Math.PI / 2, 0, 0]));
+        halo.add(part(GEO.oct, flat(0xffe6a0, { additive: true }), [0, 0.45, 0], 0.32));
+        this.body.add(halo);
+        this.halos.push(halo);
+      }
       if (def.cls === 'engine') {
         // exhaust glow behind it
         const cells = cellsOf(p);
@@ -93,6 +106,13 @@ export class ShipModel {
 
   update(dt: number) {
     for (const i of this.instances) i.update(dt);
+    this.t += dt;
+    this.halos.forEach((h, k) => {
+      h.rotation.y = this.t * 1.6 + k;
+      const s = 1 + 0.08 * Math.sin(this.t * 4 + k);
+      h.scale.set(s, s, s);
+      h.children[1].position.y = 0.45 + 0.12 * Math.sin(this.t * 2.5 + k);
+    });
   }
 
   flash(k: number) {

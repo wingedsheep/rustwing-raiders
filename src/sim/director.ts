@@ -63,11 +63,12 @@ export class Director {
     const roster = lv.spec.planet.enemies;
     const race = mode === 'run';
     // gaps between waves shrink as the run goes on (the field is wide: it takes a lot to fill)
-    const gap = race ? lerp(120, 80, Math.min(d, 1)) : lerp(54, 35, Math.min(d, 1.2));
+    const gap = race ? lerp(520, 380, Math.min(d, 1)) : lerp(54, 35, Math.min(d, 1.2));
     const end = mode === 'boss' ? L - 40 : L - 70;
-    let at = race ? 120 : 70;
+    let at = race ? 420 : 70;
     let n = 0;
-    while (at < end) {
+    // (a race has no waves: the road and the rivals are the fight)
+    while (!race && at < end) {
       // a breather as each new biome comes in, so it can be looked at
       const bz = -at;
       const b = lv.terrain.blend(bz - HALF_H);
@@ -85,7 +86,7 @@ export class Director {
       this.wave(at, first);
       // later on, waves come in pairs
       if (!race && r() < 0.2 + t * 0.35 + d * 0.2) {
-        const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw'];
+        const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw', 'rigger'];
         const second = weighted(r, weights.filter(([a]) => !solo.includes(a) && a !== first));
         this.wave(at + 8, second);
       }
@@ -103,7 +104,8 @@ export class Director {
       else this.beats.push({ at: f * L, run: () => this.spawnArch(s.archetype, true) });
     }
     // bounties: something worth chasing, briefly, before it gets away
-    const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : race ? 1 : 0;
+    // (a race has its rivals instead: see rivals.ts)
+    const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : 0;
     for (let k = 0; k < bounties; k++) {
       const f = (k + 0.3 + r() * 0.5) / bounties;
       const zf = -(f * L);
@@ -112,18 +114,7 @@ export class Director {
       const part = r() < 0.3 + d * 0.15;
       this.beats.push({ at: f * L, run: () => this.spawnFoe(foe, false, { reward: Math.round(20 + 15 * d + (foe === 'ace' ? 10 : 0)), part, life: BOUNTY_LIFE[foe] ?? 10 }) });
     }
-    if (race) {
-      // rings to thread, along a line you can fly
-      for (let z = 100; z < L - 40; z += 14) {
-        const wz = -z;
-        const canyon = lv.terrain.biome(wz).shape === 'canyon';
-        const x = canyon ? lv.terrain.pathX(wz) : Math.sin(z * 0.024 + lv.spec.seed) * 20 + Math.sin(z * 0.061 + lv.spec.seed * 2) * 5;
-        if (lv.terrain.solid(x, wz, 1)) continue;
-        // never inside an obstacle (or so close to one it's a trap)
-        if ([...lv.terrain.colliders(x, wz, 4)].some((c) => (c.x - x) ** 2 + (c.z - wz) ** 2 < (c.r + 3) ** 2)) continue;
-        lv.pickups.push({ x, z: wz, vx: 0, vz: 0, kind: 'ring', value: 2, t: 0, dead: false, done: 0 });
-      }
-    }
+    // (a race's gates are its rings now: see course.ts)
     if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss() });
     this.beats.sort((a, b) => a.at - b.at);
     void n;
@@ -160,6 +151,14 @@ export class Director {
       case 'hookjaw': {
         const dir = r() < 0.5 ? -1 : 1;
         lv.spawn(foe, skin, dir * (HALF_W + 5), lv.scroll - 6, { dir, hz: lerp(-12, 2, r()) }, opts);
+        break;
+      }
+      case 'rigger': {
+        const n = elite ? 1 : 1 + (r() < d * 0.25 ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+          const hx = n === 1 ? rx(16) : (k === 0 ? -1 : 1) * lerp(12, 20, r());
+          lv.spawn(foe, skin, hx, top, { hx, x0: hx * 0.6, hz: lerp(-18, -14, r()) }, { ...opts, t: -k * 1.4 });
+        }
         break;
       }
       case 'ace': {
@@ -261,7 +260,7 @@ export class Director {
     const b = lv.spawn('gatekeeper', skin, ends[1].x, z, {}, { ...opts, y: ends[1].y });
     // the gap: on the racing line in a canyon, else anywhere it can be reached
     const canyon = lv.terrain.biome(zg).shape === 'canyon';
-    const gx = canyon ? lv.terrain.pathX(z) : lerp(-HALF_W + 10, HALF_W - 10, r());
+    const gx = canyon ? lv.terrain.lineX(z) : lerp(-HALF_W + 10, HALF_W - 10, r());
     // it closes about when it would reach you at the level's own pace: arrive early and it's wide
     const reach = (lv.bottom - 8 - z) / Math.max(lv.speed, 1);
     strike(lv, 'gate', -HALF_W, z, { gx, gap0: 16, gap1: 3.6, active: reach * 0.9, owner: a.id, owner2: b.id, color: skin.colors[2] });
@@ -383,7 +382,8 @@ export class Director {
       this.beats.shift()!.run();
       lv.closeWave();
     }
-    if (lv.state !== 'flying') return;
+    // (a race's dangers are its course and its rivals: nothing dropped on you out of the sky)
+    if (lv.state !== 'flying' || lv.race) return;
     // the biome's own dangers
     const biome = lv.terrain.biome(lv.top);
     if (!biome.hazards.length) return;

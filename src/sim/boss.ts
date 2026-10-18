@@ -274,13 +274,13 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
   const pz = p?.z ?? lv.bottom - 8;
   const aim = Math.atan2(px - e.x, pz - e.z);
   e.aim = aim;
-  const line = (len: number, w: number, lock: number): Tele => ({ shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * len, z2: e.z + Math.cos(aim) * len, w, lock });
+  const line = (len: number, w: number, lock: number, body = false): Tele => ({ shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * len, z2: e.z + Math.cos(aim) * len, w, lock, body });
   switch (m) {
     case 'charge':
     case 'lunge': {
       b.len = m === 'lunge' ? Math.max(14, e.z - pz + 8) : clamp(Math.hypot(px - e.x, pz - e.z) + 6, 16, 40);
       if (m === 'lunge') e.aim = Math.PI;
-      go(lv, e, 'windup', 1.2, 'charge', m === 'lunge' ? { shape: 'line', x: e.x, z: e.z, x2: e.x, z2: e.z - b.len, w: e.r * 1.4, lock: 0.8 } : line(b.len, e.r * 1.4, 0.8));
+      go(lv, e, 'windup', 1.2, 'charge', m === 'lunge' ? { shape: 'line', x: e.x, z: e.z, x2: e.x, z2: e.z - b.len, w: e.r * 1.4, lock: 0.8, body: true } : line(b.len, e.r * 1.4, 0.8, true));
       break;
     }
     case 'slam':

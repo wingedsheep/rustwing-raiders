@@ -4,8 +4,11 @@ import { CHUNK } from '../sim/terrain';
 import type { Biome } from '../world/planets';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
-import { enliven, weather, NOISE_GLSL } from '../render/alive';
+import { enliven, weather, NOISE_GLSL, WASH } from '../render/alive';
+import { BEND_GLSL } from '../render/bend';
 import { clamp, noise2 } from '../util';
+import { metaOf, height as metaHeight } from '../sim/meta';
+import type { Fx } from './fx';
 
 /**
  * The land as you see it, a chunk at a time: soft-shaded ground painted in the biome's colours,
@@ -14,9 +17,9 @@ import { clamp, noise2 } from '../util';
  * up the screen and dropped once they've gone by.
  */
 
-/** Across: wide enough for a wide screen and the tilted camera. */
-const X0 = -62;
-const X1 = 62;
+/** Across: wide enough for a wide screen and the tilted camera (a race's, bent round its course, wider). */
+const SPAN = 62;
+const RACE_SPAN = 88;
 const STEP = 0.8;
 const WATER_STEP = 1;
 /** Grass blades per square unit of grassy ground. */
@@ -28,7 +31,33 @@ interface ChunkView {
   instances: Instance[];
   wildlife: { inst: Instance | null; obj: THREE.Object3D; w: Wildlife; x: number; z: number; y: number; t: number }[];
   geos: THREE.BufferGeometry[];
+  emitters: Emitter[];
 }
+
+/** Something that breathes out into the air: steam, smoke, sparks, spores. */
+interface Emitter {
+  kind: EmitKind;
+  x: number;
+  y: number;
+  z: number;
+  s: number;
+  t: number;
+}
+type EmitKind = 'steam' | 'lava' | 'fire' | 'spores' | 'stack' | 'smoulder' | 'glint';
+const EMITS: Record<string, EmitKind> = {
+  steam_vent: 'steam',
+  lava_vent: 'lava',
+  bonfire: 'fire',
+  spore_vent: 'spores',
+  smokestack: 'stack',
+  mech_wreck: 'smoulder',
+  scrap_pile: 'smoulder',
+  glowcap: 'spores',
+  glowcap_tall: 'spores',
+  crystal_cluster: 'glint',
+  crystal_spire: 'glint',
+  ice_spire: 'glint',
+};
 
 const groundMat = enliven(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRADIENT }), { grain: 0.11 });
 
@@ -100,14 +129,25 @@ export class WorldView {
       group.add(wm);
     }
     const instances: Instance[] = [];
+    const emitters: Emitter[] = [];
     for (const p of chunk.props) {
       const inst = library.clone(p.kind, p.variant);
       const obj = inst ? inst.obj : placeholder(p);
       obj.position.set(p.x, p.y, p.z);
       obj.rotation.y = p.rot;
       obj.scale.setScalar(p.s);
+      if (!p.obstacle) {
+        // no two alike: a lean, and a shade of their patch's colour (neighbours share a cast, as
+        // a stand of trees does)
+        obj.rotation.x = (hash(p.x * 3.7, p.z) - 0.5) * 0.12;
+        obj.rotation.z = (hash(p.z * 1.9, p.x) - 0.5) * 0.12;
+        const k = Math.round(clamp(noise2(p.x * 0.03, p.z * 0.03, 9) * 4.4 - 0.2 + (hash(p.x, p.z * 2.3) - 0.5) * 1.4, 0, TINTS - 1));
+        if (k !== MID) tint(obj, k);
+      } else if (this.terrain.race) hot(obj);
       group.add(obj);
       if (inst?.mixer) instances.push(inst);
+      const e = EMITS[p.kind];
+      if (e) emitters.push({ kind: e, x: p.x, y: p.y + (e === 'stack' ? metaTop(p) : 0.4 * p.s), z: p.z, s: p.s, t: hash(p.x, p.z) * 3 });
     }
     const wildlife: ChunkView['wildlife'] = [];
     for (const w of chunk.wildlife) {
@@ -118,7 +158,7 @@ export class WorldView {
       wildlife.push({ inst, obj, w, x: w.x, z: w.z, y: 0, t: Math.random() * 10 });
     }
     group.updateMatrixWorld(true);
-    return { index: chunk.index, group, instances, wildlife, geos };
+    return { index: chunk.index, group, instances, wildlife, geos, emitters };
   }
 
   private moveCreature(c: ChunkView['wildlife'][number], dt: number) {
@@ -138,8 +178,23 @@ export class WorldView {
     else if (flyer) y = Math.max(y + 2.5, 5.5) + Math.sin(c.t) * 0.4;
     else if (w.kind === 'plesiosaur') y = water + Math.sin(c.t * 1.3) * 0.15;
     c.obj.position.set(c.x, y, c.z);
-    c.obj.rotation.y = h;
+    // the models face -z
+    c.obj.rotation.y = h + Math.PI;
     c.inst?.update(dt);
+  }
+
+  /** The land's breath: every vent, fire and wreck in view puts out its smoke, steam or sparks. */
+  emit(fx: Fx, dt: number, zFar: number, zNear: number) {
+    for (const c of this.chunks.values())
+      for (const e of c.emitters) {
+        if (e.z < zFar || e.z > zNear) continue;
+        e.t += dt;
+        const rate = RATE[e.kind];
+        while (e.t > rate) {
+          e.t -= rate * (0.6 + Math.random() * 0.8);
+          puff(fx, e);
+        }
+      }
   }
 
   lerpWater(a: Biome, b: Biome, t: number) {
@@ -163,6 +218,118 @@ export class WorldView {
     this.chunks.clear();
     this.group.clear();
   }
+}
+
+const RATE: Record<EmitKind, number> = { steam: 0.12, lava: 0.1, fire: 0.05, spores: 0.35, stack: 0.14, smoulder: 0.4, glint: 0.5 };
+const wind = () => weather.uWindDir.value;
+const C = {
+  steam: new THREE.Color(0xf4f2ee),
+  steamEnd: new THREE.Color(0xc8ccd4),
+  smoke: new THREE.Color(0x5a5250),
+  smokeEnd: new THREE.Color(0x3a3438),
+  ember: new THREE.Color(0xffd070),
+  emberEnd: new THREE.Color(0xc0381a),
+  flame: new THREE.Color(0xfff0a0),
+  spore: new THREE.Color(0xc8ffb0),
+  glint: new THREE.Color(0xffffff),
+};
+function puff(fx: Fx, e: Emitter) {
+  const w = wind();
+  const j = () => (Math.random() - 0.5) * e.s;
+  switch (e.kind) {
+    case 'steam':
+      fx.add({ x: e.x + j(), y: e.y, z: e.z + j(), vx: w.x * 2, vz: w.y * 2, vy: 4 + Math.random() * 2, size: 0.9 * e.s, grow: 3.5, life: 2, glow: false, color: C.steam, to: C.steamEnd });
+      break;
+    case 'lava':
+      fx.add({ x: e.x + j(), y: e.y, z: e.z + j(), vx: (Math.random() - 0.5) * 3, vz: (Math.random() - 0.5) * 3, vy: 5 + Math.random() * 5, gravity: 4, size: 0.2, life: 1.4, color: C.ember, to: C.emberEnd });
+      if (Math.random() < 0.4) fx.add({ x: e.x + j(), y: e.y, z: e.z + j(), vx: w.x * 2, vz: w.y * 2, vy: 3, size: 1 * e.s, grow: 3, life: 2.2, glow: false, color: C.smoke, to: C.smokeEnd });
+      break;
+    case 'fire':
+      fx.add({ x: e.x + j() * 0.6, y: e.y, z: e.z + j() * 0.6, vy: 3 + Math.random() * 2, size: 0.6 * e.s, grow: 0.2, life: 0.45, color: C.flame, to: C.emberEnd });
+      if (Math.random() < 0.12) fx.add({ x: e.x, y: e.y + 1, z: e.z, vx: w.x * 1.5, vz: w.y * 1.5, vy: 2.5, size: 0.6 * e.s, grow: 3, life: 2, glow: false, color: C.smoke, to: C.smokeEnd });
+      if (Math.random() < 0.3) fx.add({ x: e.x, y: e.y, z: e.z, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, vy: 4 + Math.random() * 3, size: 0.12, life: 1.2, color: C.ember, to: C.emberEnd });
+      break;
+    case 'spores':
+      fx.add({ x: e.x + j() * 2, y: e.y + Math.random() * 2 * e.s, z: e.z + j() * 2, vx: w.x * 0.8, vz: w.y * 0.8, vy: 0.8, size: 0.18, life: 3, color: C.spore });
+      break;
+    case 'stack':
+      fx.add({ x: e.x + j() * 0.3, y: e.y, z: e.z + j() * 0.3, vx: w.x * 3, vz: w.y * 3, vy: 2.5, size: 1.2 * e.s, grow: 3.5, life: 2.6, glow: false, color: C.smoke, to: C.smokeEnd });
+      break;
+    case 'smoulder':
+      fx.add({ x: e.x + j(), y: e.y + 0.5, z: e.z + j(), vx: w.x * 1.5, vz: w.y * 1.5, vy: 1.8, size: 0.6 * e.s, grow: 3, life: 2.4, glow: false, color: C.smoke, to: C.smokeEnd });
+      break;
+    case 'glint':
+      fx.add({ x: e.x + j() * 1.5, y: e.y + Math.random() * 6 * e.s, z: e.z + j() * 1.5, size: 0.5, grow: 0.1, life: 0.25, color: C.glint });
+      break;
+  }
+}
+
+/** Height of a prop's top, placed. */
+function metaTop(p: Placed) {
+  return metaHeight(metaOf(p.kind, p.variant)) * p.s;
+}
+
+// ── shades: each lit material in a few casts either side of its own ─────────────────────────
+const TINTS = 5;
+const MID = 2;
+const tints = new WeakMap<THREE.Material, THREE.Material[]>();
+function shade(m: THREE.Material, k: number): THREE.Material {
+  const t = m as THREE.MeshToonMaterial;
+  if (!t.isMeshToonMaterial || t.userData.skin || (t.emissiveIntensity > 0 && t.emissive.getHex() !== 0)) return m;
+  let list = tints.get(m);
+  if (!list) {
+    list = [];
+    for (let i = 0; i < TINTS; i++) {
+      if (i === MID) {
+        list.push(m);
+        continue;
+      }
+      const n = t.clone();
+      n.userData = { ...t.userData };
+      enliven(n, { sway: !!t.userData.sway });
+      const d = i - MID;
+      // warmer and lighter one way, cooler and deeper the other
+      n.color.offsetHSL(d * 0.014, d * 0.04, d * 0.035);
+      list.push(n);
+    }
+    tints.set(m, list);
+  }
+  return list[k];
+}
+function tint(obj: THREE.Object3D, k: number) {
+  obj.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => shade(m, k)) : shade(mesh.material, k);
+  });
+}
+
+/**
+ * A race's obstacles run hot: a red glow through their own colours, so what you'd crash into never
+ * reads as land to fly over (with the ring of light at flight height, see track.ts).
+ */
+const HOT = new Map<THREE.Material, THREE.Material>();
+function hot(obj: THREE.Object3D) {
+  const warm = (m: THREE.Material) => {
+    let h = HOT.get(m);
+    if (!h) {
+      h = m.clone();
+      h.userData = { ...m.userData };
+      if ((m as THREE.MeshToonMaterial).isMeshToonMaterial) enliven(h, { sway: !!m.userData.sway });
+      const e = (h as THREE.MeshToonMaterial).emissive;
+      if (e) {
+        e.setHex(0xa01e0e);
+        (h as THREE.MeshToonMaterial).emissiveIntensity = 0.55;
+      }
+      HOT.set(m, h);
+    }
+    return h;
+  };
+  obj.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(warm) : warm(mesh.material);
+  });
 }
 
 function placeholder(p: Placed) {
@@ -196,6 +363,8 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
     const layer = Math.floor(h * 0.9 + noise2(x * 0.05, z * 0.05) * 2) % 3;
     out.lerp(tmpC.setHex(layer === 0 ? b.cliff : g[Math.min(3, 1 + layer)]), 0.7);
   }
+  // down in a canyon it's darker, the walls' tops in the full sun: the drop shows from straight above
+  if (b.shape === 'canyon') out.multiplyScalar(1 - 0.32 * (1 - clamp(h / (top * 1.9), 0, 1)));
   switch (b.id) {
     case 'fernwood':
     case 'tundra':
@@ -223,6 +392,10 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
   out.multiplyScalar(0.9 + noise2(x * 0.05, z * 0.05, 11) * 0.2 + (hash(x, z) - 0.5) * 0.04);
 }
 
+const FLOWERS = [0xffe070, 0xff8aa0, 0xf4f0ff, 0xc8a0ff, 0xff9a50].map((h) => new THREE.Color(h));
+/** Where flowers grow thick (0 none … 1 a carpet). */
+const smoothNoise = (x: number, z: number) => clamp((noise2(x * 0.08, z * 0.08, 17) - 0.45) * 4, 0, 1);
+
 /** How green (so how likely to grow grass), 0..1: thins out towards the edge of a meadow. */
 function grassy(c: THREE.Color) {
   if (c.g < c.b * 1.02) return 0;
@@ -234,6 +407,8 @@ function grassy(c: THREE.Color) {
  * themselves (so neighbouring chunks agree at the seam), a colour per vertex. And its grass.
  */
 function groundGeometry(t: Terrain, z0: number) {
+  const X1 = t.race ? RACE_SPAN : SPAN;
+  const X0 = -X1;
   const nx = Math.round((X1 - X0) / STEP);
   const nz = Math.ceil(CHUNK / STEP);
   // heights with a one-cell border all round, for the normals
@@ -287,7 +462,10 @@ function groundGeometry(t: Terrain, z0: number) {
           if (hash(x * 1.9 + b, z * 2.7) > green * (0.75 + noise2(x * 0.4, z * 0.4, 3) * 0.5)) continue;
           const gx = x + hash(x + b * 1.3, z) * STEP;
           const gz = z - hash(x, z + b * 2.1) * STEP;
-          spots.push(gx, h + (at(i + 1, j) - h) * ((gx - x) / STEP) + (at(i, j + 1) - h) * ((z - gz) / STEP) - 0.05, gz, c.r, c.g, c.b);
+          // and here and there in a meadow, flowers: patches of one colour, not confetti
+          const bloom = hash(gx * 5.1, gz * 3.3) < 0.06 * smoothNoise(gx, gz) ? FLOWERS[Math.floor(noise2(gx * 0.05, gz * 0.05, 13) * FLOWERS.length * 0.999)] : null;
+          const fc = bloom ?? c;
+          spots.push(gx, h + (at(i + 1, j) - h) * ((gx - x) / STEP) + (at(i, j + 1) - h) * ((z - gz) / STEP) - 0.05, gz, fc.r, fc.g, fc.b);
         }
       }
     }
@@ -352,6 +530,8 @@ function grassMesh(spots: number[]) {
 /** The water over a chunk (where there is any), with its depth at each corner for the shader. */
 function waterGeometry(t: Terrain, z0: number): THREE.BufferGeometry | null {
   const step = WATER_STEP;
+  const X1 = t.race ? RACE_SPAN : SPAN;
+  const X0 = -X1;
   const nx = Math.round((X1 - X0) / step);
   const nz = Math.ceil(CHUNK / step);
   const pos: number[] = [];
@@ -407,6 +587,8 @@ function waterMaterial() {
       varying float vDepth;
       varying vec3 vWorld;
       varying vec3 vNormal2;
+      uniform vec4 uWash[${WASH}];
+      ${BEND_GLSL}
       // swell rolling downwind, and a cross chop
       float waveH(vec2 p) {
         float a = dot(p, uWindDir);
@@ -422,9 +604,16 @@ function waterMaterial() {
         float hx = waveH(w.xz + vec2(e, 0.0)) * amp - h;
         float hz = waveH(w.xz + vec2(0.0, e)) * amp - h;
         vNormal2 = normalize(vec3(-hx / e, 1.0, -hz / e));
+        // a ship's wash pushes the water down under it
+        for (int i = 0; i < ${WASH}; i++) {
+          vec4 k = uWash[i];
+          if (k.z <= 0.0) continue;
+          float l = length(w.xz - k.xy);
+          h -= k.z * 0.35 * (1.0 - smoothstep(0.0, k.w * 0.7, l)) * amp;
+        }
         w.y += h;
         vWorld = w.xyz;
-        gl_Position = projectionMatrix * viewMatrix * w;
+        gl_Position = projectionMatrix * viewMatrix * vec4(bendPos(w.xyz), 1.0);
       }
     `,
     fragmentShader: /* glsl */ `
@@ -438,6 +627,7 @@ function waterMaterial() {
       uniform float uCloud;
       uniform float uCloudDark;
       uniform vec2 uCloudOffset;
+      uniform vec4 uWash[${WASH}];
       varying float vDepth;
       varying vec3 vWorld;
       varying vec3 vNormal2;
@@ -489,6 +679,16 @@ function waterMaterial() {
         foam = max(foam * 0.95, max(surf * 0.75, streak * smoothstep(0.5, 1.5, vDepth)));
         // broken up a little, in soft patches rather than speckle
         foam *= smoothstep(0.25, 0.55, aNoise(p * 1.6 + flow * 0.3));
+        // under a ship: whipped up in a ring of spray rippling out from it
+        for (int i = 0; i < ${WASH}; i++) {
+          vec4 k = uWash[i];
+          if (k.z <= 0.0) continue;
+          float l = length(p - k.xy) / k.w;
+          if (l > 1.0) continue;
+          float ring = 0.5 + 0.5 * sin(l * 14.0 - uTime * 18.0);
+          float churn = smoothstep(0.3, 0.75, aNoise(p * 2.4 + uTime * vec2(3.1, -2.7)));
+          foam = max(foam, k.z * (1.0 - l) * mix(churn, ring, 0.5) * 1.3);
+        }
         col = mix(col, vec3(0.93, 0.96, 0.97), clamp(foam, 0.0, 1.0));
         col *= 1.0 - cloudShadow(vWorld);
         float alpha = mix(0.45, 0.94, smoothstep(0.0, 2.2, vDepth));

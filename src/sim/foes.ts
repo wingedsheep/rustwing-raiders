@@ -4,10 +4,10 @@
  * as in enemies.ts: `s` is z from the middle of the screen (negative is up, towards the top).
  */
 
-import type { Enemy, Level, Player } from './level';
+import { TORPEDO, type Enemy, type Level, type Player } from './level';
 import { DT, FLIGHT_Y, HALF_H, HALF_W } from './types';
 import { clamp, lerp, smooth } from '../util';
-import { go, over, release, type Tele } from './combat';
+import { go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
 
 export const sz = (lv: Level, e: Enemy) => e.z - lv.scroll;
@@ -26,6 +26,8 @@ function turn(a: number, b: number, rate: number) {
 /** Put a flier at screen position (x, s), facing the way it moved. */
 export function moveTo(lv: Level, e: Enemy, x: number, s: number) {
   const nz = lv.scroll + s;
+  // (down a canyon: between its walls, not into them)
+  if (!e.ground) x = lv.terrain.intoCanyon(x, nz, e.r);
   const dx = x - e.x;
   const dz = nz - e.z;
   e.vx = dx / DT;
@@ -50,8 +52,8 @@ export const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun
 const quick = (lv: Level) => 1 / (1 + Math.min(lv.spec.difficulty, 1.5) * 0.15);
 
 /** A line tell from the enemy along its aim. */
-function line(e: Enemy, len: number, w: number, lock: number): Tele {
-  return { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * len, z2: e.z + Math.cos(e.aim) * len, w, lock };
+function line(e: Enemy, len: number, w: number, lock: number, body = false): Tele {
+  return { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * len, z2: e.z + Math.cos(e.aim) * len, w, lock, body };
 }
 
 /** Keep a tracking line tell on the enemy, following its aim until it locks. */
@@ -113,7 +115,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         if (e.stateT > 0.35 && ok && p && down && Math.abs(s - hz) < 3) {
           const len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 8, 20, 44);
           d.len = len;
-          go(lv, e, 'windup', 0.85 * quick(lv), 'lunge', line(e, len, e.r * 1.5, 0.5 * quick(lv)));
+          go(lv, e, 'windup', 0.85 * quick(lv), 'lunge', line(e, len, e.r * 1.5, 0.5 * quick(lv), true));
         }
       } else if (e.state === 'windup') {
         track(lv, e);
@@ -190,7 +192,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
         if (p && ok && s - ps(lv, p) > 0 && s - ps(lv, p) < 7 && Math.abs(e.x - p.x) < 4) {
           d.ph = 2;
-          go(lv, e, 'windup', 0.35, 'ram', line(e, 14, e.r * 1.4, 0));
+          go(lv, e, 'windup', 0.35, 'ram', line(e, 14, e.r * 1.4, 0, true));
         }
         break;
       }
@@ -282,6 +284,56 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (over(e)) go(lv, e, 'idle');
       break;
     }
+    case 'rigger': {
+      // a torpedo rig: locks on to you (brackets close in), then lets go a pair of torpedoes that
+      // chase you until their fuel's out. Turn hard, dash through them, or shoot them down; it's
+      // open while it reloads
+      const hx = d.hx ?? 0;
+      const hz = d.hz ?? -17;
+      if (e.t < 1.6) {
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        e.aim = lv.aim(e.x, e.z);
+        e.heading = e.aim;
+        break;
+      }
+      if (((d.n ?? 0) >= 3 || e.t > 20) && e.state !== 'windup') {
+        leave(lv, e, (hx < 0 ? -1 : 1) * 10);
+        break;
+      }
+      ease(lv, e, hx + Math.sin(e.t * 0.45) * 7, hz + Math.sin(e.t * 0.8) * 1.5, 1.5, 6);
+      e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.06);
+      e.heading = e.aim;
+      if (e.state === 'idle') {
+        if (e.stateT > (d.n ? 2.2 : 1.2) && ok && p) {
+          d.prey = p.id;
+          go(lv, e, 'windup', 1.15 * quick(lv), 'torpedo', { shape: 'lock', id: p.id });
+        }
+      } else if (e.state === 'windup') {
+        if (over(e)) {
+          d.n = (d.n ?? 0) + 1;
+          // out to the sides first, so they come at you from two angles
+          const n = lv.spec.difficulty > 0.9 ? 3 : 2;
+          for (let k = 0; k < n; k++) {
+            const side = n === 2 ? (k ? 1 : -1) : k - 1;
+            const px = Math.cos(e.aim);
+            const pz = -Math.sin(e.aim);
+            lv.bullet(e.x + px * side * 1.4, e.z + pz * side * 1.4, e.aim + side * 1.25, 9, {
+              kind: 'torpedo',
+              r: 0.55,
+              life: TORPEDO.life,
+              seek: d.prey ?? 0,
+              color: e.skin.colors[2],
+              look: lookOf(lv, e),
+            });
+          }
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          go(lv, e, 'attack', 0.3, 'torpedo');
+        }
+      } else if (e.state === 'attack') {
+        if (over(e)) go(lv, e, 'recover', 1.8);
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
     case 'ace': {
       // a rival: overtakes you, sits in your line, shoots in short bursts and rolls away from your fire
       if (!p) break;
@@ -349,7 +401,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
-          lv.bullet(e.x, e.z, e.aim, 15, { color: e.skin.colors[2], kind: 'needle', r: 0.35 });
+          lv.bullet(e.x, e.z, e.aim, 15, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
           d.shots = (d.shots ?? 0) + 1;
           d.fire = 0.1;
           if (d.shots >= 3) {
@@ -550,7 +602,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           // a bar: five abreast, square to its aim
           const px = Math.cos(e.aim);
           const pz = -Math.sin(e.aim);
-          for (let k = -2; k <= 2; k++) lv.bullet(e.x + px * k * 1.3, e.z + pz * k * 1.3, e.aim, 10, { color: e.skin.colors[2], kind: 'needle', r: 0.4 });
+          for (let k = -2; k <= 2; k++) lv.bullet(e.x + px * k * 1.3, e.z + pz * k * 1.3, e.aim, 10, { color: e.skin.colors[2], kind: 'needle', r: 0.4, look: lookOf(lv, e) });
           go(lv, e, 'attack', 0.3, 'bar');
         }
       } else if (e.state === 'attack') {
@@ -716,7 +768,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         d.mine = (d.mine ?? 2) - DT;
         if (d.mine <= 0 && ok) {
           d.mine = 2.4;
-          lv.bullet(e.x, e.z + 1, 0, 3, { kind: 'mine', r: 0.7, life: 1.6, split: 6, color: e.skin.colors[2] });
+          lv.bullet(e.x, e.z + 1, 0, 3, { kind: 'mine', r: 0.7, life: 1.6, split: 6, color: e.skin.colors[2], look: lookOf(lv, e) });
         }
         if (p && Math.abs(p.x - e.x) < 3 && e.stateT > 0.8) {
           d.dir = e.x > 0 ? -1 : 1;

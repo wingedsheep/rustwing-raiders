@@ -10,7 +10,7 @@ import type { Enemy, Level } from './level';
 import { DT, HALF_H, HALF_W } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { updateBoss } from './boss';
-import { go, over, tickFoe } from './combat';
+import { go, lookOf, over, tickFoe } from './combat';
 import { foeDef } from './combat';
 import { lerpAngle, moveTo, sz, updateFoe } from './foes';
 import { strike } from './strikes';
@@ -109,13 +109,13 @@ const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun <= 0 &
 
 function fan(lv: Level, e: Enemy, n: number, spread: number, speed: number, opts = {}) {
   const a = lv.aim(e.x, e.z);
-  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, a + (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread), speed, { color: e.skin.colors[2], ...opts });
-  lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2] });
+  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, a + (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread), speed, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
+  lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
 }
 
 function ring(lv: Level, e: Enemy, n: number, speed: number, off = 0, opts = {}) {
-  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, off + (i / n) * Math.PI * 2, speed, { color: e.skin.colors[2], ...opts });
-  lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2] });
+  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, off + (i / n) * Math.PI * 2, speed, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
+  lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
 }
 
 /** How much more often everything shoots as the run goes on. */
@@ -151,7 +151,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
           if (!d.shots && live(lv, e)) {
             d.shots = 1;
             fan(lv, e, 2, 0.35, 11);
-            go(lv, e, 'windup', 0.6, 'dive', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 40, z2: e.z + Math.cos(e.aim) * 40, w: e.r, lock: 0.45 });
+            go(lv, e, 'windup', 0.6, 'dive', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 40, z2: e.z + Math.cos(e.aim) * 40, w: e.r, lock: 0.45, body: true });
           }
           const tl = e.tele;
           if (tl && tl.shape === 'line') {
@@ -174,7 +174,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         d.fire = (d.fire ?? 0.6) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e)) {
           d.fire = 0.8;
-          lv.bullet(e.x, e.z, 0, 10, { color: e.skin.colors[2], kind: 'needle' });
+          lv.bullet(e.x, e.z, 0, 10, { color: e.skin.colors[2], kind: 'needle', look: lookOf(lv, e) });
         }
       } else if (d.path === 'loop') {
         // down, a loop, and off the way it came
@@ -257,8 +257,8 @@ export function updateEnemy(lv: Level, e: Enemy) {
       if (d.fire <= 0 && live(lv, e) && sz(lv, e) < HALF_H - 8) {
         if (e.state === 'windup') go(lv, e, 'idle');
         d.shots = (d.shots ?? 0) + 1;
-        lv.bullet(e.x, e.z, e.heading, 12, { color: e.skin.colors[2] });
-        lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2] });
+        lv.bullet(e.x, e.z, e.heading, 12, { color: e.skin.colors[2], look: lookOf(lv, e) });
+        lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
         d.fire = d.shots % 3 === 0 ? 2.2 : 0.16;
       }
       break;
@@ -271,7 +271,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       d.fire = (d.fire ?? 0.8) - DT * pace(lv) * slow;
       if (d.fire <= 0 && live(lv, e)) {
         d.fire = 0.95;
-        lv.bullet(e.x, e.z + 1, 0, 3.5, { kind: 'mine', r: 0.7, life: 1.8, split: 6 + Math.round(lv.spec.difficulty * 3), color: e.skin.colors[2] });
+        lv.bullet(e.x, e.z + 1, 0, 3.5, { kind: 'mine', r: 0.7, life: 1.8, split: 6 + Math.round(lv.spec.difficulty * 3), color: e.skin.colors[2], look: lookOf(lv, e) });
       }
       break;
     }
@@ -334,7 +334,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
           d.fire = (d.fire ?? 0) - DT * pace(lv) * slow;
           const burst = (e.stateT % 3.2) < 1.1 && e.stateT > 0.6;
           if (d.fire <= 0 && burst && live(lv, e)) {
-            for (let k = 0; k < 3; k++) lv.bullet(e.x, e.z, d.angle + (k / 3) * Math.PI * 2, 8, { color: e.skin.colors[2] });
+            for (let k = 0; k < 3; k++) lv.bullet(e.x, e.z, d.angle + (k / 3) * Math.PI * 2, 8, { color: e.skin.colors[2], look: lookOf(lv, e) });
             d.fire = 0.2;
           }
           if (e.stateT > 4.4 && live(lv, e) && lv.nearest(e.x, e.z)) {
@@ -343,7 +343,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
             d.len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 3, 10, 30);
             d.bx = e.x;
             d.bs = sz(lv, e);
-            go(lv, e, 'windup', 1.2, 'charge', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * d.len, z2: e.z + Math.cos(e.aim) * d.len, w: e.r * 1.6, lock: 0.6 });
+            go(lv, e, 'windup', 1.2, 'charge', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * d.len, z2: e.z + Math.cos(e.aim) * d.len, w: e.r * 1.6, lock: 0.6, body: true });
           }
         } else if (e.state === 'windup') {
           if (e.stateT < 0.6) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.1);
@@ -412,8 +412,8 @@ export function updateEnemy(lv: Level, e: Enemy) {
         if (d.fire <= 0 && live(lv, e) && lv.spec.difficulty > 0.3) {
           d.fire = 5;
           const side = e.heading + Math.PI / 2;
-          lv.bullet(e.x, e.z, side, 7, { color: e.skin.colors[2] });
-          lv.bullet(e.x, e.z, side + Math.PI, 7, { color: e.skin.colors[2] });
+          lv.bullet(e.x, e.z, side, 7, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.bullet(e.x, e.z, side + Math.PI, 7, { color: e.skin.colors[2], look: lookOf(lv, e) });
         }
       }
       break;

@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import type { Enemy, Level } from '../sim/level';
+import { TORPEDO, type Enemy, type Level } from '../sim/level';
 import type { Tele } from '../sim/combat';
 import type { Strike } from '../sim/strikes';
 import { FOES, type Faction } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
 import { clamp } from '../util';
-import { laneX } from '../sim/terrain';
 
 /**
  * What's about to hurt you, drawn flat on the flight plane over the finished picture (in the
@@ -20,6 +19,7 @@ import { laneX } from '../sim/terrain';
 /** The colour each faction warns in; anything older warns in plain danger red. */
 export const TELL_COLOR: Record<Faction, number> = { scrap: 0xffb02a, lattice: 0x4ae8ff, wild: 0xff5a8a, bloom: 0xb0ff4a };
 const DANGER = 0xff4a3a;
+const INK = 0x140c18;
 
 const Y = FLIGHT_Y + 1.5;
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -82,7 +82,7 @@ export class Threats {
       if (e.dead || e.t < 0) continue;
       const col = colorOf(e);
       if (e.tele && (e.state === 'windup' || e.state === 'attack')) this.tele(e, e.tele, col, lv, halfW, halfH);
-      if (e.guard > 0 && e.state !== 'hidden') this.guard(e, col);
+      if (!e.boss && e.hitT < 1.4 && e.hp > 0 && e.state !== 'hidden') this.health(e);
       if (e.bounty) this.bounty(e);
       for (const id of e.links) {
         const o = lv.enemies.find((x) => x.id === id && !x.dead);
@@ -94,7 +94,7 @@ export class Threats {
       }
     }
     for (const s of lv.strikes) if (!s.dead) this.strike(s, lv, halfW);
-    this.shortcuts(lv, halfH);
+    this.fire(lv);
     this.planes.end();
     this.discs.end();
     this.rings.end();
@@ -123,6 +123,10 @@ export class Threats {
     const a = (0.25 + 0.5 * k) * flick;
     switch (t.shape) {
       case 'line': {
+        if (t.body) {
+          this.charge(t, k, locked, col, flick);
+          break;
+        }
         this.line(t.x, t.z, t.x2, t.z2, t.w, col, a * 0.5);
         // the core fills in from the source as it ripens
         const fx = t.x + (t.x2 - t.x) * k;
@@ -172,7 +176,128 @@ export class Threats {
       case 'gate':
         this.gate(t.x, t.x2, t.z, t.gx, t.gap, col, a);
         break;
+      case 'lock':
+        this.lock(e, t.id, k, col, flick, lv);
+        break;
     }
+  }
+
+  /**
+   * A lock-on: four brackets close in on the ship from wide and turned, squaring up as the lock
+   * ripens, with a dotted line back to who's locking. At the end they snap tight and go white.
+   */
+  private lock(e: Enemy, id: number, k: number, col: number, flick: number, lv: Level) {
+    const p = lv.players[id];
+    if (!p || p.down) return;
+    const ease = 1 - (1 - k) ** 2;
+    const r = 9 - 6.2 * ease;
+    const turn = (1 - ease) * Math.PI * 0.75;
+    const hot = k > 0.85 ? 0xffffff : col;
+    const a = (0.55 + 0.45 * k) * flick;
+    const arm = Math.min(r * 0.45, 1.6);
+    // ink first, then the light on it, so the brackets read on any ground
+    for (const [w, c, o] of [[0.62, INK, 0.7 * flick], [0.3, hot, a]] as const)
+      for (let n = 0; n < 4; n++) {
+        const ang = turn + Math.PI / 4 + (n * Math.PI) / 2;
+        const cx = p.x + Math.sin(ang) * r;
+        const cz = p.z + Math.cos(ang) * r;
+        // the corner's two arms run back along the box's sides
+        for (const side of [-1, 1]) {
+          const ea = ang + Math.PI + (side * Math.PI) / 4;
+          this.line(cx - Math.sin(ea) * w * 0.4, cz - Math.cos(ea) * w * 0.4, cx + Math.sin(ea) * arm, cz + Math.cos(ea) * arm, w, c, o);
+        }
+      }
+    // the line back to the launcher, marching towards you
+    const dx = p.x - e.x;
+    const dz = p.z - e.z;
+    const len = Math.hypot(dx, dz);
+    if (len > 4) {
+      const ux = dx / len;
+      const uz = dz / len;
+      const step = 2.4;
+      for (let d = 2 + ((this.time * 8) % step); d < len - r; d += step) this.line(e.x + ux * d, e.z + uz * d, e.x + ux * (d + 1), e.z + uz * (d + 1), 0.16, col, 0.35 * flick);
+    }
+  }
+
+  /**
+   * What enemy fire is about to do: an arrow at your ship's edge for every torpedo still
+   * chasing you (pointing where it's coming from, brighter the nearer it is), and the lanes a
+   * mine's shrapnel will fly, drawn out from it as it ripens.
+   */
+  private fire(lv: Level) {
+    for (const b of lv.bullets) {
+      if (b.dead) continue;
+      if (b.kind === 'torpedo' && b.t < TORPEDO.fuel) {
+        const p = lv.players[b.seek];
+        if (!p || p.down) continue;
+        const dx = b.x - p.x;
+        const dz = b.z - p.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 3.5) continue;
+        const near = clamp(1 - (dist - 4) / 30, 0.15, 1);
+        const blink = near > 0.75 && Math.floor(this.time * 16) % 2 ? 0.55 : 1;
+        const ch = this.chevrons.take(near > 0.75 ? 0xffffff : 0xff6a3a, (0.35 + 0.6 * near) * blink);
+        ch.position.set(p.x + (dx / dist) * 3.6, Y, p.z + (dz / dist) * 3.6);
+        ch.scale.setScalar(0.8 + 0.3 * near);
+        ch.rotation.y = Math.atan2(-dx, -dz);
+      } else if (b.split > 0) {
+        const k = clamp(b.t / b.life, 0, 1);
+        if (k < 0.25) continue;
+        const ripe = (k - 0.25) / 0.75;
+        const r0 = b.r * 2 * 1.6 * 1.5;
+        const len = 1 + ripe * 3.5;
+        const hot = ripe > 0.8 ? 0xffffff : b.color;
+        for (let n = 0; n < b.split; n++) {
+          const a = b.splitA + (n / b.split) * Math.PI * 2;
+          const sx = Math.sin(a);
+          const cz = Math.cos(a);
+          this.line(b.x + sx * r0, b.z + cz * r0, b.x + sx * (r0 + len), b.z + cz * (r0 + len), 0.22, hot, 0.25 + 0.55 * ripe);
+        }
+      }
+    }
+  }
+
+  /**
+   * Where a charging enemy will run: a faint lane with rails along its edges, chevrons marching
+   * down it towards where it ends, and a bar across the end. Reads as a path, not a beam: the
+   * chevrons light up from the enemy outwards as it ripens, and go white once it's locked.
+   */
+  private charge(t: Extract<Tele, { shape: 'line' }>, k: number, locked: boolean, col: number, flick: number) {
+    const dx = t.x2 - t.x;
+    const dz = t.z2 - t.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.5) return;
+    const ux = dx / len;
+    const uz = dz / len;
+    const half = t.w / 2;
+    const hot = locked ? 0xffffff : col;
+    // the lane: a whisper of a fill, and its two edges
+    this.line(t.x, t.z, t.x2, t.z2, t.w, col, (0.06 + 0.08 * k) * flick);
+    for (const sd of [-1, 1]) {
+      const ox = -uz * half * sd;
+      const oz = ux * half * sd;
+      this.line(t.x + ox, t.z + oz, t.x2 + ox, t.z2 + oz, 0.14, col, (0.3 + 0.35 * k) * flick);
+    }
+    // chevrons from just past the body to the end, lit up to how ripe it is, sliding forwards
+    const step = Math.max(2.2, t.w * 0.9);
+    const start = Math.min(len * 0.3, 2 + t.w * 0.5);
+    const off = (this.time * (locked ? 14 : 5)) % step;
+    const size = clamp(t.w * 0.35, 0.7, 1.8);
+    const angle = Math.atan2(dx, dz);
+    for (let d = start + off; d < len - size; d += step) {
+      const f = d / len;
+      const lit = f <= k;
+      // fade in at the start of the lane and out at its end, so the march reads smoothly
+      const edge = clamp(Math.min((d - start) / step, (len - size - d) / step), 0, 1);
+      const ch = this.chevrons.take(lit ? hot : col, (lit ? 0.85 : 0.22) * edge * flick);
+      ch.position.set(t.x + ux * d, Y + 0.02, t.z + uz * d);
+      ch.scale.setScalar(size);
+      ch.rotation.y = angle;
+    }
+    // where it stops
+    const bx = t.x2 - ux * 0.3;
+    const bz = t.z2 - uz * 0.3;
+    this.line(bx + uz * half, bz - ux * half, bx - uz * half, bz + ux * half, 0.45, k >= 1 || locked ? hot : col, (0.4 + 0.5 * k) * flick);
   }
 
   private strike(s: Strike, lv: Level, halfW: number) {
@@ -233,37 +358,6 @@ export class Threats {
     }
   }
 
-  /**
-   * Race shortcuts: chevrons at the mouth pointing in, then a dotted line of light down the
-   * middle of the lane, so the hard line is a choice you can see coming.
-   */
-  private shortcuts(lv: Level, halfH: number) {
-    const top = lv.scroll - halfH * 1.3;
-    const bottom = lv.scroll + halfH * 1.3;
-    for (const sc of lv.terrain.shortcuts ?? []) {
-      if (sc.z1 > bottom || sc.z0 < top) continue;
-      const inside = lv.players.some((p) => p.shortcut === sc.id);
-      const pulse = 0.5 + 0.3 * Math.sin(this.time * 6);
-      // the mouth: two chevrons, beckoning
-      if (sc.z0 > top && sc.z0 < bottom + 6)
-        for (let n = 0; n < 3; n++) {
-          const ch = this.chevrons.take(0x8affe0, (0.9 - n * 0.25) * pulse + 0.2);
-          ch.position.set(laneX(sc, sc.z0) , Y, sc.z0 + 3 + n * 2.2 - ((this.time * 4) % 2.2));
-          ch.scale.setScalar(1.3);
-          ch.rotation.y = Math.PI;
-        }
-      // the lane's line of lights, marching inwards
-      const step = 3.5;
-      const off = (this.time * 14) % step;
-      for (let z = sc.z0 - off; z > sc.z1; z -= step) {
-        if (z < top || z > bottom) continue;
-        const d = this.discs.take(0x8affe0, inside ? 0.7 : 0.35);
-        d.position.set(laneX(sc, z), Y, z);
-        d.scale.setScalar(0.5);
-      }
-    }
-  }
-
   /** A strike going off: a hot disc that fades over its active time. */
   private blast(s: Strike, col: number) {
     const f = s.active > 0 ? clamp((s.t - s.warn) / s.active, 0, 1) : 1;
@@ -297,13 +391,21 @@ export class Threats {
     m.rotation.y = Math.PI;
   }
 
-  /** A shield's arc about where it aims. */
-  private guard(e: Enemy, col: number) {
-    const r = e.r + 1.2;
-    const lit = e.hitT < 0.12 ? 1 : 0.55;
-    const m = this.arc(`g${e.id}:${e.guard.toFixed(2)}`, r - 0.35, r, -e.guard, e.guard, e.hitT < 0.12 ? 0xffffff : col, lit);
-    m.position.set(e.x, Y, e.z);
-    m.rotation.y = e.aim;
+  /**
+   * Hit, it shows how much it has left for a moment: a slim bar under it, what the last hits
+   * took flashing white at its end. (Shields are drawn in the scene, see shields.ts.)
+   */
+  private health(e: Enemy) {
+    const fade = clamp((1.4 - e.hitT) / 0.3, 0, 1);
+    const w = clamp(e.r * 2.2, 2.4, 6);
+    const z = e.z + e.r + 1.3;
+    const f = clamp(e.hp / e.max, 0, 1);
+    const ink = this.planes.take(INK, 0.75 * fade);
+    ink.position.set(e.x, Y, z);
+    ink.scale.set(w + 0.3, 1, 0.55);
+    const fill = this.planes.take(e.hitT < 0.07 ? 0xffffff : f > 0.5 ? 0xfff0c0 : f > 0.25 ? 0xffb04a : 0xff5a3a, 0.95 * fade);
+    fill.position.set(e.x - (w * (1 - f)) / 2, Y + 0.05, z);
+    fill.scale.set(Math.max(0.05, w * f), 1, 0.3);
   }
 
   /** A flat band from (x, z) to (x2, z2), w wide. */

@@ -188,11 +188,13 @@ function convert(m: THREE.Material): THREE.Material {
   const name = m.name;
   const std = m as THREE.MeshStandardMaterial;
   let out: THREE.MeshToonMaterial;
-  const skin = /^skin(glow)?_([abc])/.exec(name);
+  const skin = /^skin(glow)?_([abc])(?:_s(\d+))?/.exec(name);
   if (skin) {
     out = toon(std.color ?? 0xffffff, { own: true, glow: skin[1] ? 0.9 : 0 });
     out.userData.skin = skin[2];
     out.userData.glow = !!skin[1];
+    // a shaded slot: the wearer's colour, darker or lighter (worn plates)
+    out.userData.shade = skin[3] ? Number(skin[3]) / 100 : 1;
     return out;
   }
   const glow = /^glow_([0-9a-f]{6})/.exec(name);
@@ -247,7 +249,7 @@ function paint(m: THREE.MeshToonMaterial, skin: Skin | undefined, own: boolean):
   n.userData = { ...m.userData };
   enliven(n, { sway: !!m.userData.sway });
   if (slot && skin) {
-    const col = new THREE.Color(skin['abc'.indexOf(slot)]);
+    const col = new THREE.Color(skin['abc'.indexOf(slot)]).multiplyScalar(m.userData.shade ?? 1);
     n.color.copy(col);
     if (m.userData.glow) {
       n.emissive.copy(col);

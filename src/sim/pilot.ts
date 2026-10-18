@@ -2,9 +2,8 @@
  * The autopilot: flies a ship through a level using only what a player has (an Intent) and only
  * what's on the screen. Every frame it tries a fan of moves a half-second ahead against where the
  * bullets, lasers, hazards, the land and the enemies will be, and picks the one that stays clear
- * and gets it somewhere useful: under an enemy to shoot it, onto scrap, through a race ring, to a
- * downed partner, after a bounty before it gets away; on a race, into the shortcuts it can reach
- * (and up into the push band at the top of the screen, which drives it on). It boosts when the Burn is high and the screen is calm, likes to skim past
+ * and gets it somewhere useful: under an enemy to shoot it, onto scrap, to a downed partner,
+ * after a bounty before it gets away. (A race is flown by race-pilot.ts.) It boosts when the Burn is high and the screen is calm, likes to skim past
  * obstacles a little, and dashes through bullets at the last moment when it sees a perfect with a
  * safe place to come out. It's not meant to be perfect; it's meant to find unfair bits. A level that
  * the autopilot can't survive with a decent ship probably has a spot nobody could.
@@ -15,7 +14,7 @@
 import type { Level, Player } from './level';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
 import { clamp } from '../util';
-import { laneX } from './terrain';
+import { newRacePilot, racePilot, type RacePilot } from './race-pilot';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
 
 const DIRS: [number, number][] = [[0, 0]];
@@ -35,13 +34,16 @@ export interface PilotState {
   boost: boolean;
   /** Never boost (to tell a hard layout from a greedy pilot). */
   noBoost: boolean;
+  /** On a race, it flies with race-pilot.ts. */
+  race: RacePilot;
 }
 
 export function newPilot(opts: { noBoost?: boolean } = {}): PilotState {
-  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost };
+  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost, race: newRacePilot() };
 }
 
 export function pilot(lv: Level, p: Player, st: PilotState): Intent {
+  if (lv.race) return racePilot(lv, p, st.race, st.noBoost);
   const intent: Intent = { x: 0, y: 0, fire: true, boost: 0, dash: false, special: false, aux: false, focus: false };
   if (p.down) return intent;
   const goal = goalFor(lv, p);
@@ -90,10 +92,9 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   const near = lv.bullets.filter((b) => (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14).length;
   const gates = lv.hazards.some((h) => h.kind === 'laser_gate' && h.z < p.z + 2);
   const dives = lv.enemies.some((e) => !e.dead && e.d.path === 'dive' && lv.onScreen(e.x, e.z));
-  const race = lv.spec.mode === 'run';
   const calm = !gates && !dives;
   if (st.boost) st.boost = calm && p.burn > 0.06 && best < 120 && near < 8;
-  else st.boost = calm && best < 60 && near < 5 && p.burn > (race ? 0.25 : 0.45) && lv.state === 'flying';
+  else st.boost = calm && best < 60 && near < 5 && p.burn > 0.45 && lv.state === 'flying';
   if (lv.state === 'boss') st.boost = p.burn > 0.4 && Math.abs(goal.x - p.x) > 10;
   if (chasing(lv, p) && p.burn > 0.15 && best < 150) st.boost = true;
   intent.boost = st.boost && !st.noBoost ? 1 : 0;
@@ -111,7 +112,6 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   const partner = lv.players.find((q) => q !== p && q.down);
   if (partner) return { x: partner.x, z: partner.z };
   const bottom = lv.bottom - 9;
-  if (lv.race) return raceGoal(lv, p);
   const bounty = bountyGoal(lv, p);
   if (bounty) return bounty;
   // race rings coming up
@@ -138,38 +138,9 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   if (target) return { x: target.x, z: clamp(target.z + 15, lv.scroll - 4, bottom) };
   // a canyon: keep to the middle of it
   const ahead = lv.top + 10;
-  // (a race: up where it pushes the screen on)
-  const rest = lv.race ? lv.top + 12 : bottom;
-  if (lv.terrain.biome(ahead).shape === 'canyon') return { x: lv.terrain.pathX(p.z - 12), z: rest };
+  const rest = bottom;
+  if (lv.terrain.biome(ahead).shape === 'canyon') return { x: lv.terrain.lineX(p.z - 12), z: rest };
   return { x: 0, z: rest };
-}
-
-/**
- * On a race: up in the push band (that's the speed) unless it's busy, lower (more warning) when it
- * is; across, into a shortcut it can make, else through the next ring, else down a canyon's middle.
- */
-function raceGoal(lv: Level, p: Player) {
-  const fliers = lv.enemies.some((e) => !e.dead && !e.ground && e.t >= 0 && lv.onScreen(e.x, e.z) && e.z < p.z && Math.abs(e.x - p.x) < 11);
-  const busy = fliers || lv.bullets.filter((b) => b.z > lv.top && Math.abs(b.x - p.x) < 16).length > 10 || lv.hazards.some((h) => h.kind === 'laser_gate');
-  const z = busy ? lv.scroll - 4 : lv.top + 5;
-  const lane = raceLane(lv, p);
-  if (lane !== null) return { x: lane, z };
-  const ring = lv.pickups.filter((k) => k.kind === 'ring' && !(k.done! & (1 << p.id)) && k.z < p.z + 1 && k.z > lv.top - 10).sort((a, b) => b.z - a.z)[0];
-  if (ring) return { x: ring.x, z };
-  if (lv.terrain.biome(lv.top + 10).shape === 'canyon') return { x: lv.terrain.pathX(p.z - 14), z };
-  return { x: p.x * 0.9, z };
-}
-
-/** On a race: the middle of the shortcut it's in, or of the next one it can get to in time. */
-function raceLane(lv: Level, p: Player): number | null {
-  for (const sc of lv.terrain.shortcuts) {
-    if (p.shortcut === sc.id) return laneX(sc, p.z - 10);
-    if (sc.z1 > p.z || sc.z0 < p.z - 90) continue;
-    const x = laneX(sc, sc.z0);
-    const time = (p.z - sc.z0) / Math.max(1, lv.speedNow - p.vz);
-    if (p.z > sc.z0 && Math.abs(x - p.x) < p.stats.speed * time * 0.7) return x;
-  }
-  return null;
 }
 
 /** A bounty on the screen: get after it (under it, or alongside it if it's low). */
@@ -299,6 +270,12 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
         if ((ex - x) ** 2 + (ez - z) ** 2 < r * r) c += 700 * weight;
       }
       c += threatCost(lv, x, z, t, s.core) * weight;
+    }
+    for (const rv of lv.rivals) {
+      const rx = rv.x + rv.vx * t;
+      const rz = rv.z - rv.v * t;
+      const dd = (rx - x) ** 2 + (rz - z) ** 2;
+      if (dd < 3.2 * 3.2) c += 120 * weight;
     }
     if (p.phase <= t) {
       if (lv.terrain.solid(x, z, 1.4)) c += 950 * weight;

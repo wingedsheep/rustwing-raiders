@@ -4,8 +4,9 @@
  * hangar draws this; stats() uses it. See game/parts.ts for the rules.
  */
 
-import { CLASHES, STRENGTH, frameById, partById, type FrameDef, type PartDef, type Side, type Want } from '../game/parts';
+import { CLASHES, STRENGTH, frameById, type FrameDef, type PartDef, type Side, type Want } from '../game/parts';
 import { cellsOf, rotOf, socket, type Build, type Placement } from './build';
+import { itemDef, type ItemDef } from '../game/loot';
 
 const STEP: Record<Side, [number, number]> = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
@@ -73,7 +74,7 @@ export function matches(def: PartDef, w: Want) {
 export function links(b: Build): Links {
   const f: FrameDef = frameById(b.frame);
   const parts = b.parts;
-  const defs = new Map(parts.map((p) => [p, partById(p.id)]));
+  const defs = new Map<Placement, PartDef>(parts.map((p) => [p, itemDef(p)]));
   const at = new Map<string, Placement>();
   for (const p of parts) for (const [c, r] of cellsOf(p)) at.set(key(c, r), p);
   const adj = new Map<Placement, Set<Placement>>(parts.map((p) => [p, new Set()]));
@@ -110,7 +111,9 @@ export function links(b: Build): Links {
     for (const n of netsBy.get(a)!) if (netsBy.get(b)!.has(n)) return nets[n];
     return null;
   };
-  const touch = (a: Placement, b: Placement) => a !== b && !defs.get(a)!.conduit && !defs.get(b)!.conduit && via(a, b) !== null;
+  // a wireless part touches everything aboard
+  const touch = (a: Placement, b: Placement) =>
+    a !== b && !defs.get(a)!.conduit && !defs.get(b)!.conduit && (a.trait === 'wireless' || b.trait === 'wireless' || via(a, b) !== null);
 
   const out: PartLinks[] = [];
   const edges: Edge[] = [];
@@ -168,11 +171,17 @@ export function links(b: Build): Links {
         for (const o of parts) if (touch(p, o) && matches(defs.get(o)!, l.want)) pl.partners.push(o);
         pl.link = { ok: pl.partners.length > 0, c, r, side: null };
       }
-      if (pl.link.ok) pl.str *= l.need ? 1 : STRENGTH.linked;
+      // a keystone is linked wherever it sits, and runs as if it were
+      if (p.trait === 'keystone') {
+        pl.link.ok = true;
+        pl.str *= STRENGTH.linked;
+      } else if (pl.link.ok) pl.str *= l.need ? 1 : STRENGTH.linked;
       else if (l.need) pl.str = STRENGTH.idle;
     }
     if (pl.clashes.some((c) => !c.fused)) pl.str *= STRENGTH.clash;
     else if (pl.clashes.length) pl.str *= STRENGTH.fused;
+    // its rolls: potency, overclocking
+    pl.str *= (def as ItemDef).potency ?? 1;
     if (pl.idle) pl.str = 0;
   }
   // what to draw: boosters and drone bays on the guns they reach, links, clashes

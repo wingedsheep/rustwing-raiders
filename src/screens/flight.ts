@@ -3,6 +3,7 @@ import { Level, type LevelSpec } from '../sim/level';
 import { DT, type Intent } from '../sim/types';
 import { LevelView } from '../view/level-view';
 import { Hud } from '../ui/hud';
+import { ordinal } from '../view/track';
 import { input } from '../input';
 import { audio, type Track } from '../audio';
 import { newPilot, pilot, type PilotState } from '../sim/pilot';
@@ -103,8 +104,8 @@ export class Flight implements Screen {
       // the scene as rendered, no outlines or grade (for debugging the look)
       g.renderer.setRenderTarget(null);
       g.renderer.setViewport(0, 0, g.dw, g.dh);
-      g.renderer.render(this.view.scene, this.view.camera);
-    } else g.pixel.render(this.view.scene, this.view.camera, 0, 0, g.dw, g.dh, g.px, this.view.overlay);
+      g.renderer.render(this.view.scene, this.view.eye);
+    } else g.pixel.render(this.view.scene, this.view.eye, 0, 0, g.dw, g.dh, g.px, this.view.overlay);
     const names = g.devices.map((d) => input.padName(d));
     this.hud.dw = g.dw;
     this.hud.dh = g.dh;
@@ -125,9 +126,13 @@ function report(lv: Level): string[] {
   const out: string[] = [];
   const bonus = lv.parBonus ? `  +${lv.parBonus} SCRAP` : '';
   if (lv.race) {
+    const turbos = lv.players.reduce((n, p) => n + p.drifts, 0);
     const cuts = lv.players.reduce((n, p) => n + p.shortcuts, 0);
-    out.push(`TIME ${clock(lv.time + lv.penalty)}  PAR ${clock(lv.parTime)}${bonus}`);
-    out.push(`${cuts} SHORTCUT${cuts === 1 ? '' : 'S'} TAKEN${lv.penalty > 0 ? `  +${lv.penalty.toFixed(1)}s TOWED` : ''}`);
+    const passes = lv.players.reduce((n, p) => n + p.passes, 0);
+    const downs = lv.players.reduce((n, p) => n + p.takedowns, 0);
+    const place = lv.place ? `${ordinal(lv.place)} OF ${lv.rivals.length + 1}  ` : '';
+    out.push(`${place}TIME ${clock(lv.time + lv.penalty)}  PAR ${clock(lv.parTime)}${bonus}`);
+    out.push(`${passes} OVERTAKE${passes === 1 ? '' : 'S'}  ${downs} TAKEDOWN${downs === 1 ? '' : 'S'}  ${turbos} TURBO${turbos === 1 ? '' : 'S'}  ${cuts} SHORTCUT${cuts === 1 ? '' : 'S'}${lv.penalty > 0 ? `  +${lv.penalty.toFixed(1)}s TOWED` : ''}`);
   } else if (lv.spawned > 0) {
     const cleared = lv.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
     out.push(`KILLED ${lv.killed}/${lv.spawned}  WAVES WIPED ${cleared}/${lv.waves.length}${lv.fullClear ? '  FULL CLEAR' : ''}${bonus}`);

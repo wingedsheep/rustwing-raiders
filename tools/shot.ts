@@ -37,12 +37,20 @@ const chrome = spawn(CHROME, [
   `--user-data-dir=${profile}`,
   `--window-size=${W},${H}`,
   '--autoplay-policy=no-user-gesture-required',
+  '--mute-audio',
   '--enable-unsafe-swiftshader',
   '--ignore-gpu-blocklist',
   '--no-first-run',
   'about:blank',
 ]);
 chrome.stderr.on('data', () => {});
+// never leave a headless Chrome behind, however the script ends
+process.on('exit', () => chrome.kill());
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => process.exit(1));
+process.on('uncaughtException', (e) => {
+  console.error(e);
+  process.exit(1);
+});
 
 const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
 

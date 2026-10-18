@@ -107,7 +107,7 @@ Current numbers referred to below come from `src/sim/level.ts`: `SLIP 0.12`, `DA
 | 6 | **One tell grammar per faction** plus a visible punish window (vent glow, extra damage taken) after big attacks | factions | High | Med |
 | 7 | **Hit-stop and camera punch** on perfect dash and on taking damage only; a slow-mo cam on terrain takedowns | dash, race | Med-High | Low |
 | 8 | **Duo parts** gated on owning two tags; name the synergy on screen when it switches on | grid, shop | High | Med |
-| 9 | **Redline boost**: beyond Burn, keep boosting for Heat that "rattles" a part (Galactic Racer Ramjet, Ep. I engine heat) | Burn, grid | Med-High | Med |
+| 9 | ~~**Redline boost**~~ (tried and removed: Vincent didn't like it, too close to Galactic Racer): beyond Burn, keep boosting for Heat that "rattles" a part (Galactic Racer Ramjet, Ep. I engine heat) | Burn, grid | Med-High | Med |
 | 10 | **Crashes rattle a part** (50% until repaired) instead of only stalling; repair at shops or events | race, shop | Med | Low-Med |
 | 11 | **Par time opens hidden chart nodes** (Dead Cells timed doors); add a pursuit front on the chart (FTL) | map, race | High | Med |
 | 12 | **Three optional goals per raid level** (full clear, carrier caught, no hits), shown on the chart node (Sky Force) | waves, bounties | Med | Low |

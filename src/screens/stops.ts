@@ -10,7 +10,10 @@ import { input } from '../input';
 import { drawText, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, VIEW, W, frame, hex } from '../ui/hud';
 import { LIVERY } from '../view/ship-model';
-import { backdrop, button, heading, hearts, hints, partCard, RARITY_COLOR } from '../ui/widgets';
+import { backdrop, button, heading, hearts, hints, TIER_COLOR } from '../ui/widgets';
+import { itemName, tierOf, type Item } from '../game/loot';
+import { bestFit, type Fit } from '../sim/fit';
+import { lootCard, TIER_WORD } from '../ui/loot-card';
 import { drawArt } from './art';
 import { minigame, type Minigame, type Pad } from './minigames';
 import { rng } from '../util';
@@ -66,6 +69,9 @@ export class Shop implements Screen {
   private who = 0;
   private msg = '';
   private msgT = 0;
+  private t = 0;
+  /** What each part would do on each buyer's ship, worked out when first looked at. */
+  private fits: Map<Item, Fit>[] = [];
 
   constructor(
     private game: Game,
@@ -90,8 +96,16 @@ export class Shop implements Screen {
     return FUEL_PRICE + 2;
   }
 
+  private fitFor(it: Item) {
+    const byWho = (this.fits[this.who] ??= new Map());
+    let f = byWho.get(it);
+    if (!f) byWho.set(it, (f = bestFit(this.run.crew[this.who].build, it)));
+    return f;
+  }
+
   update(dt: number) {
     this.msgT -= dt;
+    this.t += dt;
     const m = this.game.menu();
     if (this.game.params.has('autorun') && m.confirm) return this.onDone();
     const rows = this.rows();
@@ -145,8 +159,8 @@ export class Shop implements Screen {
         break;
       }
       case 'sell': {
-        const id = crew.cargo.splice(row.index, 1)[0];
-        run.scrap += run.sellPrice(id, this.node);
+        const it = crew.cargo.splice(row.index, 1)[0];
+        run.scrap += run.sellPrice(it, this.node);
         audio.play('pickup_scrap');
         break;
       }
@@ -160,6 +174,18 @@ export class Shop implements Screen {
     this.msg = msg;
     this.msgT = 1.6;
     audio.play('ui_error');
+  }
+
+  /** A part on a row: its name in its tier's colour, a gem for anything better than stock. */
+  private itemRow(ctx: CanvasRenderingContext2D, it: Item, x: number, y: number, ink: string, on: boolean) {
+    const tier = tierOf(it);
+    const name = itemName(it);
+    const col = ink === '#4a3e58' ? ink : tier === 'common' ? ink : on ? '#ffffff' : TIER_COLOR[tier];
+    if (tier !== 'common' && ink !== '#4a3e58') {
+      ctx.fillStyle = TIER_COLOR[tier];
+      ctx.fillRect(x - 1, y + 2, 3, 3);
+    }
+    drawText(ctx, name.length > 24 ? name.slice(0, 23) + '.' : name, x + (tier !== 'common' ? 5 : 0), y, col);
   }
 
   draw() {
@@ -184,7 +210,7 @@ export class Shop implements Screen {
     const rows = this.rows();
     const x = 40;
     let y = 64;
-    let focus: string | null = null;
+    let focus: Item | null = null;
     rows.forEach((row, k) => {
       const on = k === this.at;
       if (row.kind === 'repair' || row.kind === 'leave' || (row.kind === 'sell' && row.index === 0)) y += 5;
@@ -200,11 +226,13 @@ export class Shop implements Screen {
       }
       const ink = on ? INK : '#c8bcd8';
       if (row.kind === 'buy') {
-        const def = partById(row.item.part);
-        if (on) focus = def.id;
+        const it = row.item.part;
+        const def = partById(it.id);
+        if (on) focus = it;
         const cheap = def.cls === mk.sells;
-        drawText(ctx, def.name, x, y, row.item.sold ? '#4a3e58' : ink);
-        drawText(ctx, cheap ? 'CHEAP' : def.rarity, x + 150, y, row.item.sold ? '#4a3e58' : cheap ? GREEN : RARITY_COLOR[def.rarity]);
+        const tier = tierOf(it);
+        this.itemRow(ctx, it, x, y, row.item.sold ? '#4a3e58' : ink, on);
+        drawText(ctx, cheap ? 'CHEAP' : tier === 'common' ? '' : TIER_WORD[tier], x + 176, y, row.item.sold ? '#4a3e58' : cheap ? GREEN : TIER_COLOR[tier], { align: 'right' });
         drawText(ctx, row.item.sold ? 'SOLD' : `${row.item.price}`, x + 262, y, row.item.sold ? '#4a3e58' : run.scrap >= row.item.price ? GOLD : RED, { align: 'right' });
       } else if (row.kind === 'repair') {
         drawText(ctx, `REPAIR P${this.who + 1}: +1 HULL`, x, y, ink);
@@ -216,12 +244,12 @@ export class Shop implements Screen {
         drawText(ctx, `PAY MAMA RUZZ (OWE ${run.debt})`, x, y, on ? INK : '#ff8a7a');
         drawText(ctx, `${Math.min(run.scrap, run.debt)}`, x + 262, y, GOLD, { align: 'right' });
       } else if (row.kind === 'sell') {
-        const id = run.crew[this.who].cargo[row.index];
-        const def = partById(id);
-        if (on) focus = id;
-        const price = run.sellPrice(id, this.node);
-        drawText(ctx, def.name, x, y, ink);
-        if (def.cls === mk.wants || def.cls === mk.boom) drawText(ctx, def.cls === mk.boom ? 'BOOM' : 'WANTED', x + 150, y, GOLD);
+        const it = run.crew[this.who].cargo[row.index];
+        const def = partById(it.id);
+        if (on) focus = it;
+        const price = run.sellPrice(it, this.node);
+        this.itemRow(ctx, it, x, y, ink, on);
+        if (def.cls === mk.wants || def.cls === mk.boom) drawText(ctx, def.cls === mk.boom ? 'BOOM' : 'WANTED', x + 176, y, GOLD, { align: 'right' });
         drawText(ctx, `+${price}`, x + 262, y, GREEN, { align: 'right' });
       } else drawText(ctx, 'LEAVE', x, y, ink);
       y += 12;
@@ -236,7 +264,11 @@ export class Shop implements Screen {
       drawText(ctx, `HOLD ${c.cargo.length}/${CARGO}`, rx + 254, cy + 16, c.cargo.length >= CARGO ? GOLD : DIM, { align: 'right' });
       if (i === 0) drawText(ctx, `SCRAP ${run.scrap}  FUEL ${run.fuel}`, rx + 6, cy + 16, GOLD);
     });
-    if (focus) partCard(ctx, focus, rx, 64 + run.crew.length * 34 + 6, 260, false);
+    if (focus) {
+      const cy = 64 + run.crew.length * 34 + 8;
+      const sold = this.stock.some((s) => s.part === focus && s.sold);
+      lootCard(ctx, focus, run.crew[this.who].build, rx, cy, 260, 318 - cy, { t: this.t, fit: sold ? null : this.fitFor(focus), terse: run.crew.length > 1, dim: sold });
+    }
     if (this.msgT > 0) drawText(ctx, this.msg, W / 2, 322, RED, { align: 'center' });
     const dev = g.devices[0] ?? 'keys';
     hints(ctx, dev, run.crew.length > 1 ? [['confirm', 'DEAL'], ['next', 'SWAP BUYER'], ['back', 'LEAVE']] : [['confirm', 'DEAL'], ['back', 'LEAVE']], W / 2, 340, 'center');
@@ -520,6 +552,8 @@ export class EventScreen implements Screen {
     }
     const m = this.game.menu();
     if (this.phase === 'scored') {
+      // the game goes on ticking, idle, so its sparks settle
+      this.mini!.update(dt, { x: 0, y: 0, hold: false, press: false });
       if (this.pt > 1.6 || (this.pt > 0.5 && m.confirm)) this.finish(this.mini!.result!);
       return;
     }

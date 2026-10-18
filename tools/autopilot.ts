@@ -56,6 +56,16 @@ interface Result extends Job {
   skim: number;
   /** Races: shortcuts made / there were. Fights: killed share, full clear, waves wiped, bounties claimed / seen. */
   shortcuts: string;
+  /** Races: where it finished, rivals passed, takedowns, average pace, pads taken / there were, wrecks, wall scrapes, drift turbos, close shaves. */
+  place: number;
+  passes: number;
+  takedowns: number;
+  pace: number;
+  pads: string;
+  wrecks: number;
+  scrapes: number;
+  drifts: number;
+  shaves: number;
   killShare: number;
   fullClear: boolean;
   waves: string;
@@ -120,11 +130,20 @@ function fly(job: Job): Result {
   const lv = new Level(spec, builds);
   const pilots = lv.players.map(() => newPilot({ noBoost: job.noboost }));
   const log: string[] = [];
+  let wrecks = 0;
+  let travelled = 0;
   const limit = 60 * 60 * 6;
   for (let f = 0; f < limit; f++) {
     const intents = lv.players.map((p, i) => pilot(lv, p, pilots[i]));
     lv.step(intents);
+    travelled += lv.speedNow / 60;
+    if (job.verbose && lv.race && f % 120 === 0) {
+      const p = lv.players[0];
+      const c = lv.terrain.course!;
+      log.push(`    ${(f / 60).toFixed(0)}s  x ${p.x.toFixed(1)} z ${p.z.toFixed(0)} mid ${c.x(p.z).toFixed(1)} half ${c.half(p.z).toFixed(1)} hd ${p.hd.toFixed(2)} fwd ${p.fwd.toFixed(0)} vx ${p.vx.toFixed(1)} wall ${p.wallT.toFixed(1)} k ${(c.k(p.z) * 95).toFixed(2)}`);
+    }
     for (const e of lv.events) {
+      if (e.type === 'wreck') wrecks++;
       if (!job.verbose) continue;
       const at = `${lv.time.toFixed(1)}s ${Math.round(lv.progress * 100)}%`;
       const biome = lv.terrain.biome(lv.scroll).id;
@@ -140,6 +159,13 @@ function fly(job: Job): Result {
       if (e.type === 'waveClear') log.push(`${at} wave ${e.wave} wiped out +${e.bonus}`);
       if (e.type === 'bounty' && e.state !== 'appear') log.push(`${at} bounty ${e.state} (${e.reward})`);
       if (e.type === 'tally') log.push(`${at} killed ${e.killed}/${e.spawned}, missed ${e.missed}, waves ${e.cleared}/${e.waves}${e.full ? ' FULL CLEAR' : ''}: rank ${e.rank} +${e.bonus}`);
+      if (e.type === 'wreck') log.push(`${at} [${biome}] P${e.id + 1} WRECKED at ${e.speed.toFixed(0)} (x ${e.x.toFixed(1)}, z ${e.z.toFixed(0)}, line ${lv.terrain.course?.x(e.z).toFixed(1)}, half ${lv.terrain.course?.half(e.z).toFixed(1)}, k 1/${(1 / Math.abs(lv.terrain.course?.k(e.z) || 1e-9)).toFixed(0)}, ${lv.terrain.course?.sections.find((s) => s.z0 >= e.z && s.z1 < e.z)?.kind}, drift ${lv.players[e.id].driftDir}, solid ${lv.terrain.solid(e.x, e.z, 1)})`);
+      if (e.type === 'shortcut' && e.state !== 'enter') log.push(`${at} [${biome}] P${e.id + 1} shortcut ${e.shortcut} ${e.state} (${e.saved.toFixed(1)}s)`);
+      if (e.type === 'driftBoost') log.push(`${at} P${e.id + 1} drift turbo ${e.tier}`);
+      if (e.type === 'takedown') log.push(`${at} P${e.id + 1} TAKEDOWN ${lv.rivals[e.rival].name}`);
+      if (e.type === 'pass') log.push(`${at} P${e.id + 1} passed ${lv.rivals[e.rival].name}: P${e.place}`);
+      if (e.type === 'passed') log.push(`${at} ${lv.rivals[e.rival].name} passed P${e.id + 1}: P${e.place}`);
+      if (e.type === 'launch') log.push(`${at} P${e.id + 1} launch ${e.perfect ? 'PERFECT' : 'flooded'}`);
       if (e.type === 'par') log.push(`${at} ${e.time.toFixed(1)}s against par ${e.par}s: rank ${e.rank}, +${e.bonus} scrap`);
     }
     lv.events.length = 0;
@@ -164,6 +190,15 @@ function fly(job: Job): Result {
     boost: lv.players.reduce((s, p) => s + p.boostTime, 0) / lv.players.length / Math.max(1, lv.time),
     skim: lv.players.reduce((s, p) => s + p.skimTime, 0),
     shortcuts: `${lv.players.reduce((s, p) => s + p.shortcuts, 0)}/${lv.terrain.shortcuts.length}`,
+    place: lv.place,
+    passes: lv.players.reduce((s, p) => s + p.passes, 0),
+    takedowns: lv.players.reduce((s, p) => s + p.takedowns, 0),
+    pace: travelled / Math.max(1, lv.time),
+    pads: `${[...lv.padDone.values()].filter((v) => v).length}/${lv.terrain.course?.pads.length ?? 0}`,
+    wrecks,
+    scrapes: lv.players.reduce((s, p) => s + p.scrapes, 0),
+    drifts: lv.players.reduce((s, p) => s + p.drifts, 0),
+    shaves: lv.players.reduce((s, p) => s + p.shaves, 0),
     killShare: lv.killed / Math.max(1, lv.killed + lv.missed),
     fullClear: lv.fullClear,
     waves: `${lv.waves.filter((w) => w.missed === 0 && w.killed === w.total).length}/${lv.waves.length}`,
@@ -230,7 +265,7 @@ if (!isMainThread) {
           `${mark} ${r.planet.padEnd(9)} ${r.mode.padEnd(5)} seed ${String(r.seed).padEnd(3)} ${r.time.toFixed(0).padStart(4)}s  ` +
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
             `kills ${r.kills}  grazes ${r.grazes}  perfects ${r.perfects}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
-            (r.mode === 'run' ? `shortcuts ${r.shortcuts}  par ${r.par}s` : `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}`) +
+            (r.mode === 'run' ? `P${r.place || '-'}  pace ${r.pace.toFixed(1)}  passes ${r.passes}  takedowns ${r.takedowns}  pads ${r.pads}  wrecks ${r.wrecks}  scrapes ${r.scrapes}  shaves ${r.shaves}  cuts ${r.shortcuts}  drifts ${r.drifts}  par ${r.par}s` : `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}`) +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}`,
         );
         for (const l of r.log) console.log('    ' + l);
@@ -256,6 +291,7 @@ if (!isMainThread) {
       `shortcuts ${results.reduce((s, r) => s + Number(r.shortcuts.split('/')[0]), 0)}/${results.reduce((s, r) => s + Number(r.shortcuts.split('/')[1]), 0)}, ` +
       `bounties ${results.reduce((s, r) => s + Number(r.bounties.split('/')[0]), 0)}/${results.reduce((s, r) => s + Number(r.bounties.split('/')[1]), 0)}, ` +
       `scrap ${(results.reduce((s, r) => s + r.scrap, 0) / results.length).toFixed(0)}. ` +
+      (results.some((r) => r.mode === 'run') ? `Places ${[1, 2, 3, 4, 0].map((k) => `P${k || '-'} ${results.filter((r) => r.mode === 'run' && r.place === k).length}`).join(' ')}, pace ${(results.filter((r) => r.mode === 'run').reduce((s, r) => s + r.pace, 0) / Math.max(1, results.filter((r) => r.mode === 'run').length)).toFixed(1)}. ` : '') +
       `Ranks ${['S', 'A', 'B', 'C', '-'].map((k) => `${k} ${results.filter((r) => r.rank === k).length}`).join(' ')}. ` +
       `What hit: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`,
   );

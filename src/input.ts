@@ -285,7 +285,10 @@ class Input {
       out.next = edge(5);
     } else {
       const k = SCHEMES[dev as keyof typeof SCHEMES];
-      dirs = [any(k.up, held), any(k.down, held), any(k.left, held), any(k.right, held)];
+      // a tap shorter than a frame is still a press
+      const tapped = [k.up, k.down, k.left, k.right].map((c) => any(c, pressed));
+      tapped.forEach((t, i) => t && repeat.delete(`${dev}:${['up', 'down', 'left', 'right'][i]}`));
+      dirs = [k.up, k.down, k.left, k.right].map((c, i) => tapped[i] || any(c, held));
       out.confirm = any(k.confirm, pressed);
       out.back = any(k.back, pressed) && !out.confirm;
       out.start = any(k.start, pressed);
@@ -317,7 +320,11 @@ class Input {
   /** Every device that pressed its confirm/fire this frame (for joining in). */
   joining(): DeviceId[] {
     const out: DeviceId[] = [];
-    for (const id of this.padIds()) if (this.menu(id).confirm || this.menu(id).start) out.push(id);
+    // only the buttons: running menu() here would eat the first press of a direction
+    for (const [i, g] of padNow) {
+      const pb = padPrev.get(i)?.buttons ?? [];
+      if ([0, 9].some((k) => btn(g, k) && !pb[k])) out.push(`pad${i}` as DeviceId);
+    }
     if (any(SCHEMES.keys.confirm, pressed)) out.push('keys');
     return out;
   }

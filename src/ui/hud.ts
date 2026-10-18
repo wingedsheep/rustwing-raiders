@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import type { Level, Player } from '../sim/level';
-import { FLIGHT_Y } from '../sim/types';
+import { FLIGHT_Y, HALF_H } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { frameById, partById, type PartClass } from '../game/parts';
 import { cellsOf } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
+import { DRIFT_TIERS, TIERS } from '../sim/level';
+import { bendPoint } from '../render/bend';
+import { ordinal } from '../view/track';
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -103,6 +106,7 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
  */
 export class Hud {
   private v = new THREE.Vector3();
+  private bp = { x: 0, z: 0 };
   time = 0;
   /** Device pixels, and device pixels per UI texel (to put world points on the UI). */
   dw = 1;
@@ -136,6 +140,14 @@ export class Hud {
       ctx.fillRect(x0, 16, x1 - x0, 3);
       ctx.globalAlpha = 1;
     });
+    // a race: where the rivals are along it, a tick in each one's colour
+    const c = lv.terrain.course;
+    if (c)
+      for (const r of lv.rivals) {
+        const f = clamp((HALF_H - 8 - r.z) / (HALF_H - 8 - c.finish), 0, 1);
+        ctx.fillStyle = hex(r.livery[2]);
+        ctx.fillRect(rx + Math.round(rw * f) - 1, 13, 2, 3);
+      }
     const fx = rx + Math.round(rw * clamp(lv.progress, 0, 1));
     ctx.fillStyle = INK;
     ctx.fillRect(fx - 1, 14, 3, 7);
@@ -161,7 +173,7 @@ export class Hud {
     ctx.fillRect(sx - 0 + textWidth(`${lv.scrap}`) + 3, 9, 3, 3);
     drawText(ctx, String(lv.score).padStart(7, '0'), ps[1] ? tx + 98 : tx - 4, 7, INK, { align: 'right', shadow: false });
     void align;
-    if (lv.combo > 1) {
+    if (lv.combo > 1 && !lv.race) {
       const big = lv.combo > 20;
       drawText(ctx, `${lv.combo}× CHAIN`, w / 2, 30, big ? GOLD : CYAN, { align: 'center' });
     }
@@ -223,8 +235,11 @@ export class Hud {
 
   /** A world point (on the flight plane) in UI texels. */
   private toScreen(view: LevelView, x: number, y: number, z: number) {
-    this.v.set(x, y, z).project(view.camera);
-    return { x: (((this.v.x + 1) / 2) * this.dw) / this.scale, y: (((1 - this.v.y) / 2) * this.dh) / this.scale };
+    // (a race's world is drawn bent round its course: so is this)
+    const b = bendPoint(x, z, this.bp);
+    this.v.set(b.x, y, b.z).project(view.eye);
+    // (behind a chase camera it projects mirrored: flagged, so it's never drawn as if in view)
+    return { x: (((this.v.x + 1) / 2) * this.dw) / this.scale, y: (((1 - this.v.y) / 2) * this.dh) / this.scale, behind: Math.abs(this.v.z) > 1 };
   }
 
   private field(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
@@ -242,15 +257,8 @@ export class Hud {
       // P1/P2 tags over the ships in co-op
       if (lv.players.length > 1) drawText(ctx, `P${p.id + 1}`, s.x, s.y + 18, hex(LIVERY[p.id][2]), { align: 'center' });
       if (p.down) continue;
-      // boosting with the tank nearly dry: say so where the eyes are; past empty, the redline heat
-      if (p.redline > 0.02) {
-        const gw = 22;
-        ctx.fillStyle = 'rgba(14,10,22,0.6)';
-        ctx.fillRect(Math.round(s.x - gw / 2) - 1, Math.round(s.y + 18), gw + 2, 4);
-        ctx.fillStyle = p.redline > 0.7 && Math.floor(this.time * 12) % 2 ? '#ffffff' : RED;
-        ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 19), Math.round(gw * p.redline), 2);
-        drawText(ctx, 'REDLINE', s.x, s.y + 24, RED, { align: 'center' });
-      } else if (p.boosting > 0 && p.burn < 0.2 && Math.floor(this.time * 8) % 2) drawText(ctx, 'BURN LOW', s.x, s.y + 20, '#ff8a3a', { align: 'center' });
+      // boosting with the tank nearly dry: say so where the eyes are
+      if (p.boosting > 0 && p.burn < 0.2 && Math.floor(this.time * 8) % 2) drawText(ctx, 'BURN LOW', s.x, s.y + 20, '#ff8a3a', { align: 'center' });
       // guns running hot: a little gauge under the ship, only while it matters
       const heat = Math.max(...p.heat, 0);
       const jam = p.jam.some((j) => j > 0);
@@ -264,7 +272,8 @@ export class Hud {
     }
     // the biome coming in: big, low, and gone again
     const b = view.biomeBanner;
-    if (b && b.t < 4.5) {
+    // (not over a race's lights)
+    if (b && b.t < 4.5 && !(lv.race && lv.time < 1 && b.t > lv.time)) {
       const fade = Math.min(1, b.t * 2.5) * (b.t > 3.6 ? Math.max(0, 1 - (b.t - 3.6) * 1.2) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.2);
@@ -291,11 +300,193 @@ export class Hud {
       ctx.fillStyle = DARK;
       for (const f of [1 / 3, 2 / 3]) ctx.fillRect(bx + 4 + Math.round((bw - 8) * f), 41, 1, 3);
     }
-    if (lv.state === 'clear' && lv.ending > 0.4) {
+    if (lv.race && view.track) this.race(ctx, lv, view);
+    if (lv.state === 'clear' && lv.ending > 0.4 && lv.race) {
+      // over the line: the place, big, and what it means
+      const t = lv.ending;
+      const col = lv.place === 1 ? GOLD : lv.place <= 3 ? INK : DIM;
+      const pop = t < 0.9 ? 1 + Math.max(0, 0.25 - (t - 0.4)) * 2 : 1;
+      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, ordinal(lv.place), mid, h * 0.32, col, { scale: Math.round(5 * pop), align: 'center' });
+      if (t > 0.9) drawText(ctx, lv.place === 1 ? 'VICTORY' : lv.place <= 3 ? 'ON THE PODIUM' : 'OFF THE PACE', mid, h * 0.32 + 46, col, { scale: 2, align: 'center' });
+    } else if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
       if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, lv.spec.mode === 'boss' ? 'WARDEN DOWN' : 'CLEAR', mid, h * 0.4, GOLD, { scale: 4, align: 'center' });
     }
-    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, lv.race ? 'WRECKED' : 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+  }
+
+  /**
+   * A race's HUD: the lights, your place (big, jumping when it changes), a speedometer, the
+   * rivals named over their ships and pointed to when they're off the screen, and the big words.
+   */
+  private race(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const tv = view.track!;
+    const w = VIEW.w;
+    const h = VIEW.h;
+    const mid = w / 2;
+    // the lights: three reds, then all green on GO
+    if (lv.countdown > 0 || lv.time < 0.8) {
+      const n = lv.countdown > 0 ? 3 - Math.ceil(lv.countdown) + 1 : 4;
+      const go = lv.countdown <= 0;
+      const y = Math.round(h * 0.2);
+      plate(ctx, mid - 52, y - 6, 104, 30, 0.75);
+      for (let i = 0; i < 3; i++) {
+        const lit = go || i < n;
+        ctx.fillStyle = lit ? (go ? GREEN : RED) : '#2a2236';
+        ctx.fillRect(mid - 40 + i * 30, y, 20, 18);
+        if (lit) {
+          ctx.fillStyle = 'rgba(255,255,255,0.45)';
+          ctx.fillRect(mid - 40 + i * 30, y, 20, 3);
+        }
+      }
+      const word = go ? 'GO!' : String(Math.ceil(lv.countdown));
+      const k = go ? lv.time : 1 - (lv.countdown % 1);
+      drawText(ctx, word, mid, y + 36, go ? GREEN : INK, { scale: k < 0.15 ? 5 : 4, align: 'center' });
+      if (!go) {
+        drawText(ctx, 'BOOST ON GO FOR A PERFECT START', mid, y + 76, DIM, { align: 'center' });
+        drawText(ctx, 'STEER LEFT AND RIGHT  -  UP: THROTTLE  -  DOWN: BRAKE', mid, y + 92, DIM, { align: 'center' });
+        drawText(ctx, 'HOLD FIRE AND STEER INTO A BEND TO DRIFT IT TIGHT: LET GO FOR A TURBO', mid, y + 104, DIM, { align: 'center' });
+        drawText(ctx, 'BOOST REFILLS ON ITS OWN, FASTER FLYING CLOSE: ROCKS, GAPS, WAKES', mid, y + 116, DIM, { align: 'center' });
+      }
+    }
+    // your place
+    const best = lv.living().reduce<Player | undefined>((a, p) => (!a || p.z < a.z ? p : a), undefined);
+    if (best && lv.state !== 'clear') {
+      const place = 1 + lv.rivals.filter((r) => r.done !== null || r.z < best.z).length;
+      const jump = tv.placeT < 0.35 ? 1 : 0;
+      const col = tv.placeT < 0.6 ? (tv.placeUp ? GOLD : RED) : place === 1 ? GOLD : INK;
+      const x = lv.players.length > 1 ? mid - 150 : 8;
+      plate(ctx, x - 2, 28, 64, 30);
+      drawText(ctx, ordinal(place), x + 2, 31 - jump * 2, col, { scale: 2 + jump, shadow: false });
+      drawText(ctx, `/${lv.rivals.length + 1}`, x + 50, 44, DIM, { shadow: false });
+      this.paceNote(ctx, lv, best);
+    }
+    // a drift charging: three pips under the ship, filling in the turbo's colour
+    for (const p of lv.players) {
+      if (p.down || p.driftT <= 0) continue;
+      const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
+      const cols = ['#6ab8ff', '#ffa040', '#d070ff'];
+      for (let k = 0; k < 3; k++) {
+        const from = k === 0 ? 0 : DRIFT_TIERS[k - 1];
+        const fill = clamp((p.driftT - from) / (DRIFT_TIERS[k] - from), 0, 1);
+        const x = Math.round(s.x - 17 + k * 12);
+        const y = Math.round(s.y + 14);
+        ctx.fillStyle = 'rgba(14,10,22,0.7)';
+        ctx.fillRect(x - 1, y - 1, 12, 5);
+        ctx.fillStyle = fill >= 1 ? (Math.floor(this.time * 14) % 2 ? '#ffffff' : cols[k]) : cols[k];
+        ctx.fillRect(x, y, Math.round(10 * fill), 3);
+      }
+    }
+    // the speedometer: km/h and a bar that runs through the tiers' colours
+    const fwd = best?.fwd ?? 0;
+    const kmh = Math.round(fwd * 18);
+    const sw = 110;
+    const sx = w - sw - 8;
+    const sy = h - 30;
+    plate(ctx, sx - 4, sy - 4, sw + 8, 28);
+    const tierCol = lv.tier >= 3 ? GOLD : lv.tier >= 2 ? '#9ae8ff' : lv.tier >= 1 ? INK : DIM;
+    drawText(ctx, String(kmh).padStart(4, ' '), sx + 2, sy - 1, tierCol, { scale: 2, shadow: false });
+    drawText(ctx, 'KM/H', sx + 70, sy + 4, DIM, { shadow: false });
+    // the boost tank over it: what boosting spends, refilling on its own and quicker for flying close
+    if (best) {
+      const by = sy - 17;
+      const low = best.burn < 0.15;
+      plate(ctx, sx - 4, by - 3, sw + 8, 12);
+      drawText(ctx, 'BOOST', sx, by - 1, low ? '#a04a3a' : '#ffb04a', { shadow: false });
+      const col = best.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : best.dry || low ? '#a04a3a' : '#ff8a3a';
+      bar(ctx, sx + 40, by + 1, sw - 40, 4, best.burn, col, 'rgba(60,48,80,0.6)');
+    }
+    const segs = 22;
+    const max = TIERS[2] + 14;
+    for (let i = 0; i < segs; i++) {
+      const v = ((i + 1) / segs) * max;
+      const on = fwd >= v - max / segs / 2;
+      ctx.fillStyle = !on ? '#2a2236' : v >= TIERS[2] ? GOLD : v >= TIERS[1] ? '#9ae8ff' : v >= TIERS[0] ? INK : '#8a8098';
+      ctx.fillRect(sx + i * 5, sy + 16, 4, 3);
+    }
+    // the rivals: names over the ones in view, arrows at the edge for the ones ahead or close behind
+    // (labels at the edges kept from piling on top of each other)
+    const used: number[] = [];
+    const ahead: [number, number][] = [];
+    const room = (x: number) => {
+      let ax = clamp(x, 20, w - 20);
+      for (let k = 0; k < 4 && used.some((u) => Math.abs(u - ax) < 34); k++) ax += ax > w / 2 ? -34 : 34;
+      used.push(ax);
+      return ax;
+    };
+    for (const r of lv.rivals) {
+      const s = this.toScreen(view, r.x, FLIGHT_Y, r.z);
+      const col = hex(r.livery[2]);
+      const gap = best ? best.z - r.z : 0;
+      // (the course runs off sideways too: off any edge, it's ahead or behind)
+      if (!s.behind && s.y > 14 && s.y < h - 4 && s.x > 8 && s.x < w - 8) {
+        drawText(ctx, r.spin > 0 ? `${r.name} !` : r.name, s.x, s.y - 22, col, { align: 'center' });
+      } else if (gap > 0 && r.done === null) {
+        // ahead, off the top: a marker in a row under the pace note, kept clear of each other
+        const label = gap < 150 ? `${r.name} ${Math.round(gap)}M` : `${Math.round(gap)}M`;
+        const tw = textWidth(label);
+        let ax = clamp(s.x, 96 + tw / 2, w - 96 - tw / 2);
+        for (let k = 0; k < 6 && ahead.some(([u, uw]) => Math.abs(u - ax) < (uw + tw) / 2 + 6); k++) ax += ax > mid ? -(tw / 2 + 10) : tw / 2 + 10;
+        ahead.push([ax, tw]);
+        const ay = 62;
+        ctx.fillStyle = col;
+        ctx.fillRect(Math.round(ax) - 3, ay, 7, 2);
+        ctx.fillRect(Math.round(ax) - 2, ay - 1, 5, 1);
+        ctx.fillRect(Math.round(ax) - 1, ay - 2, 3, 1);
+        drawText(ctx, label, ax, ay + 4, col, { align: 'center' });
+      } else if (gap <= 0 && gap > -60) {
+        // (behind the camera: which side of you it's on, roughly)
+        const ax = room(s.behind && best ? mid + clamp((r.x - best.x) * 12, -mid + 30, mid - 30) : s.x);
+        ctx.fillStyle = col;
+        ctx.fillRect(Math.round(ax) - 3, h - 6, 7, 2);
+        drawText(ctx, `${Math.round(-gap)}M`, ax, h - 16, col, { align: 'center' });
+      }
+    }
+    // the big words
+    const b = tv.banner;
+    if (b) {
+      const a = b.t < 1.6 || Math.floor(b.t * 12) % 2 === 0;
+      if (a) {
+        const y = Math.round(h * 0.36);
+        drawText(ctx, b.text, mid, y, b.color, { scale: b.t < 0.12 ? 4 : 3, align: 'center' });
+        drawText(ctx, b.sub, mid, y + 30, '#d8cce8', { align: 'center' });
+      }
+    }
+  }
+
+  /**
+   * The co-driver's call: the next turn, which way and how sharp, and how far off, in a box at the
+   * top; flashing as it closes. (A hairpin is the tightest; a fast one barely needs a lift.)
+   */
+  private paceNote(ctx: CanvasRenderingContext2D, lv: Level, p: Player) {
+    const c = lv.terrain.course;
+    if (!c || lv.countdown > 0) return;
+    const t = c.turns.find((u) => u.z1 < p.z - 4 && u.z0 < p.z + 30 && p.z - u.z0 < 170);
+    if (!t) return;
+    const dist = Math.max(0, Math.round(p.z - t.z0));
+    const word = t.kind === 'hairpin' ? 'HAIRPIN' : t.k >= 1 / 105 ? 'SHARP' : t.k >= 1 / 125 ? 'MEDIUM' : 'FAST';
+    const text = t.kind === 'chicane' ? `CHICANE ${t.dir > 0 ? 'RIGHT' : 'LEFT'}` : `${word} ${t.dir > 0 ? 'RIGHT' : 'LEFT'}`;
+    const col = word === 'HAIRPIN' || word === 'SHARP' ? RED : word === 'MEDIUM' ? GOLD : INK;
+    const mid = VIEW.w / 2;
+    const flash = dist < 50 && dist > 0 && Math.floor(this.time * 8) % 2 === 0;
+    plate(ctx, mid - 70, 26, 140, 26, 0.7);
+    // the arrow: a bent stem and a head, the way it goes
+    const ax = mid - 56;
+    const d = t.dir;
+    ctx.fillStyle = flash ? '#ffffff' : col;
+    ctx.fillRect(ax + 6, 36, 3, 12);
+    ctx.fillRect(d > 0 ? ax + 6 : ax, 34, 9, 3);
+    ctx.fillRect(d > 0 ? ax + 14 : ax - 3, 32, 2, 7);
+    ctx.fillRect(d > 0 ? ax + 16 : ax - 5, 34, 2, 3);
+    drawText(ctx, text, mid + 6, 30, flash ? '#ffffff' : col, { align: 'center', shadow: false });
+    drawText(ctx, dist > 0 ? `${dist}M` : 'NOW', mid + 6, 41, DIM, { align: 'center', shadow: false });
+    // a shortcut opening off this turn: say which side, in its colour
+    const sc = c.shortcuts.find((s) => s.z0 < p.z + 2 && p.z - s.z0 < 140);
+    if (sc) {
+      const on = Math.floor(this.time * 6) % 2 === 0 || p.z - sc.z0 > 40;
+      plate(ctx, mid - 70, 54, 140, 13, 0.6);
+      drawText(ctx, `SHORTCUT ${sc.side > 0 ? 'RIGHT' : 'LEFT'} ${sc.side > 0 ? '>>' : '<<'}`, mid, 56, on ? '#8affe0' : '#ffffff', { align: 'center', shadow: false });
+    }
   }
 
   private pause(ctx: CanvasRenderingContext2D) {

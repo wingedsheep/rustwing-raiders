@@ -5,6 +5,7 @@ import { FLIGHT_Y } from '../sim/types';
 import { toon } from '../render/toon';
 import { weather } from '../render/alive';
 import type { Fx } from './fx';
+import { library, type Instance } from '../render/assets';
 
 /**
  * The small things that make a place look lived in, none of which the sim knows about: flocks of
@@ -46,8 +47,21 @@ function birdy(b: Biome) {
   return true;
 }
 
+/** Something huge, drifting by under you now and then: the planet's wonders. */
+interface Giant {
+  inst: Instance;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vz: number;
+  t: number;
+}
+
 export class Life {
   private flocks: Flock[] = [];
+  private giants: Giant[] = [];
+  private giantT = 12 + Math.random() * 10;
   private flockT = 3;
   private fishT = 1;
   private sprayT = 0;
@@ -60,6 +74,7 @@ export class Life {
   update(dt: number, lv: Level, halfW: number) {
     const b = lv.terrain.biome(lv.scroll);
     this.birds(dt, lv, b, halfW);
+    this.wonders(dt, lv, b, halfW);
     this.fish(dt, lv, halfW);
     this.spray(dt, lv);
   }
@@ -127,6 +142,40 @@ export class Life {
     }
   }
 
+  /** Every half a minute or so where there's life, a pod of sky whales glides across, low and slow. */
+  private wonders(dt: number, lv: Level, b: Biome, halfW: number) {
+    this.giantT -= dt;
+    if (this.giantT <= 0 && birdy(b) && !this.giants.length) {
+      this.giantT = 25 + Math.random() * 25;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const n = 1 + Math.floor(Math.random() * 3);
+      const speed = 3 + Math.random() * 2;
+      for (let k = 0; k < n; k++) {
+        const inst = library.clone('sky_whale');
+        if (!inst) break;
+        inst.obj.scale.setScalar(k === 0 ? 1.3 : 0.6 + Math.random() * 0.3);
+        inst.obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
+        this.scene.add(inst.obj);
+        this.giants.push({ inst, x: side * (halfW + 16 + k * 7), y: 3.5 + k * 0.6, z: lv.scroll - 30 + k * 6 + Math.random() * 6, vx: -side * speed, vz: -speed * 0.35, t: Math.random() * 6 });
+      }
+    }
+    for (let i = this.giants.length - 1; i >= 0; i--) {
+      const g = this.giants[i];
+      g.t += dt;
+      g.x += g.vx * dt;
+      g.z += g.vz * dt;
+      g.inst.update(dt);
+      g.inst.obj.position.set(g.x, g.y + Math.sin(g.t * 0.6) * 0.4, g.z);
+      // (the models face -z)
+      g.inst.obj.rotation.set(Math.sin(g.t * 0.6) * 0.05, Math.atan2(g.vx, g.vz) + Math.PI, Math.sin(g.t * 0.4) * 0.06);
+      if (Math.abs(g.x) > halfW + 50 || g.z > lv.bottom + 40) {
+        this.scene.remove(g.inst.obj);
+        g.inst.dispose();
+        this.giants.splice(i, 1);
+      }
+    }
+  }
+
   /** Now and then something leaps out of the water and falls back in. */
   private fish(dt: number, lv: Level, halfW: number) {
     this.fishT -= dt;
@@ -173,6 +222,11 @@ export class Life {
   }
 
   dispose() {
+    for (const g of this.giants) {
+      this.scene.remove(g.inst.obj);
+      g.inst.dispose();
+    }
+    this.giants = [];
     for (const f of this.flocks) for (const b of f.birds) this.scene.remove(b.obj);
     this.flocks = [];
   }

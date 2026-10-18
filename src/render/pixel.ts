@@ -97,6 +97,8 @@ export class PixelRenderer {
         uHurt: { value: 0 }, // red at the edges when you're hit
         uHeat: { value: 0 }, // shimmer (lava, flares)
         uSpeed: { value: 0 }, // boosting: the edges smear back
+        uRadial: { value: 0 }, // 1: the smear runs out from the middle (a chase view), not down the screen
+        uPersp: { value: 0 }, // 1: a perspective camera (its depth isn't linear)
         uTime: { value: 0 },
         uFade: { value: 0 },
         uFadeColor: { value: new THREE.Color(0x0b0912) },
@@ -122,6 +124,8 @@ export class PixelRenderer {
         uniform float uHurt;
         uniform float uHeat;
         uniform float uSpeed;
+        uniform float uRadial;
+        uniform float uPersp;
         uniform float uTime;
         uniform float uFade;
         uniform vec3 uFadeColor;
@@ -130,7 +134,9 @@ export class PixelRenderer {
         ivec2 size;
 
         float viewZ(ivec2 p) {
-          return uNear + texelFetch(tDepth, clamp(p, ivec2(0), size - 1), 0).r * (uFar - uNear);
+          float d = texelFetch(tDepth, clamp(p, ivec2(0), size - 1), 0).r;
+          if (uPersp > 0.5) return uNear * uFar / (uFar - d * (uFar - uNear));
+          return uNear + d * (uFar - uNear);
         }
         vec3 at(ivec2 p) { return texelFetch(tColor, clamp(p, ivec2(0), size - 1), 0).rgb; }
 
@@ -170,7 +176,8 @@ export class PixelRenderer {
             // speed: the edges of the picture smear back down the screen
             float e = smoothstep(0.35, 0.95, length(q)) * uSpeed;
             vec3 acc = col;
-            for (int k = 1; k <= 4; k++) acc += at(p + ivec2(0, k * 2));
+            vec2 dir = uRadial > 0.5 ? normalize(q + 1e-4) : vec2(0.0, 1.0);
+            for (int k = 1; k <= 4; k++) acc += at(p + ivec2(dir * float(k * 2)));
             col = mix(col, acc / 5.0, e);
           }
           float z = viewZ(p);
@@ -183,7 +190,8 @@ export class PixelRenderer {
           dz = max(dz, viewZ(p + ivec2(-1, 0)) - z);
           dz = max(dz, viewZ(p + ivec2(0, 1)) - z);
           dz = max(dz, viewZ(p + ivec2(0, -1)) - z);
-          float edge = smoothstep(0.9, 2.2, dz) * (sky ? 0.0 : 1.0);
+          // (in perspective the gaps grow with distance: judged against how far off it is)
+          float edge = (uPersp > 0.5 ? smoothstep(0.9, 2.2, dz / max(1.0, z * 0.06)) : smoothstep(0.9, 2.2, dz)) * (sky ? 0.0 : 1.0);
           col = mix(col, col * uOutline * 2.4, edge * uOutlineStrength);
 
           // bloom: what glows lights the air around it
@@ -261,22 +269,14 @@ export class PixelRenderer {
    * device pixels), `px` device pixels to an art pixel. The camera's frustum is what shows in
    * the rectangle; it's widened by a texel of margin and snapped to the texel grid here.
    * `overlay` is drawn on top after the post pass, untouched by paint, grade and bloom: for what
-   * must always read (enemy fire).
+   * must always read (the tells of what's about to hurt you).
    */
-  render(scene: THREE.Scene, camera: THREE.OrthographicCamera, x: number, y: number, w: number, h: number, px: number, overlay?: THREE.Scene) {
-    const r = this.renderer;
+  render(scene: THREE.Scene, cam: THREE.OrthographicCamera | THREE.PerspectiveCamera, x: number, y: number, w: number, h: number, px: number, overlay?: THREE.Scene) {
+    if ((cam as THREE.PerspectiveCamera).isPerspectiveCamera) return this.renderPerspective(scene, cam as THREE.PerspectiveCamera, x, y, w, h, px, overlay);
+    const camera = cam as THREE.OrthographicCamera;
     const fw = w / px; // texels across, exactly (the picture)
     const fh = h / px;
-    const tw = Math.ceil(fw) + 2; // with a texel of margin each side
-    const th = Math.ceil(fh) + 2;
-    if (this.target.width !== tw || this.target.height !== th) {
-      this.target.setSize(tw, th);
-      this.graded.setSize(tw, th);
-      const bw = Math.max(1, Math.ceil(tw / 2));
-      const bh = Math.max(1, Math.ceil(th / 2));
-      this.bloomA.setSize(bw, bh);
-      this.bloomB.setSize(bw, bh);
-    }
+    const [tw, th] = this.size(fw, fh); // with a texel of margin each side
     // world units per texel, and the camera snapped to whole texels along its own axes
     const f = this.frustum;
     f[0] = camera.left;
@@ -304,6 +304,26 @@ export class PixelRenderer {
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
 
+    this.post.uniforms.uPersp.value = 0;
+    this.draw(scene, camera, overlay);
+
+    // the camera back as it was
+    pos.copy(this.saved);
+    camera.left = f[0];
+    camera.right = f[1];
+    camera.top = f[2];
+    camera.bottom = f[3];
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+
+    // blow it up: the picture's middle is the (unsnapped) camera's middle, which sits -da, -db
+    // world units off the target's middle
+    this.blowUp(tw / 2 - da / u - fw / 2, th / 2 - db / u - fh / 2, x, y, w, h, px);
+  }
+
+  /** The scene into the target, bloom, the post pass, and the overlay over it. */
+  private draw(scene: THREE.Scene, camera: THREE.Camera & { near: number; far: number }, overlay?: THREE.Scene) {
+    const r = this.renderer;
     this.post.uniforms.uNear.value = camera.near;
     this.post.uniforms.uFar.value = camera.far;
     r.setScissorTest(false);
@@ -329,20 +349,50 @@ export class PixelRenderer {
       r.render(overlay, camera);
       r.autoClear = auto;
     }
+  }
 
-    // the camera back as it was
-    pos.copy(this.saved);
-    camera.left = f[0];
-    camera.right = f[1];
-    camera.top = f[2];
-    camera.bottom = f[3];
+  /** Sizes the targets for a picture fw × fh texels (with a texel of margin all round); returns the target's size. */
+  private size(fw: number, fh: number) {
+    const tw = Math.ceil(fw) + 2;
+    const th = Math.ceil(fh) + 2;
+    if (this.target.width !== tw || this.target.height !== th) {
+      this.target.setSize(tw, th);
+      this.graded.setSize(tw, th);
+      const bw = Math.max(1, Math.ceil(tw / 2));
+      const bh = Math.max(1, Math.ceil(th / 2));
+      this.bloomA.setSize(bw, bh);
+      this.bloomB.setSize(bw, bh);
+    }
+    return [tw, th];
+  }
+
+  /**
+   * A perspective camera (a race's chase view): nothing to snap, it moves every frame anyway. The
+   * view is widened by the margin texels so the picture is exactly what the camera framed.
+   */
+  private renderPerspective(scene: THREE.Scene, camera: THREE.PerspectiveCamera, x: number, y: number, w: number, h: number, px: number, overlay?: THREE.Scene) {
+    const fw = w / px;
+    const fh = h / px;
+    const [tw, th] = this.size(fw, fh);
+    const fov = camera.fov;
+    const aspect = camera.aspect;
+    camera.fov = (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * (th / fh)) * 180) / Math.PI;
+    camera.aspect = tw / th;
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+    this.post.uniforms.uPersp.value = 1;
+    this.draw(scene, camera, overlay);
+    camera.fov = fov;
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    this.blowUp((tw - fw) / 2, (th - fh) / 2, x, y, w, h, px);
+  }
 
-    // blow it up: the picture's middle is the (unsnapped) camera's middle, which sits -da, -db
-    // world units off the target's middle
+  /** The graded target onto the canvas rectangle, nearest-neighbour, from texel (sx, sy). */
+  private blowUp(sx: number, sy: number, x: number, y: number, w: number, h: number, px: number) {
+    const r = this.renderer;
     const bu = this.blit.uniforms;
-    bu.uStart.value.set(tw / 2 - da / u - fw / 2, th / 2 - db / u - fh / 2);
+    bu.uStart.value.set(sx, sy);
     bu.uOrigin.value.set(x, y);
     bu.uPixel.value = px;
     r.setRenderTarget(null);

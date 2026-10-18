@@ -1,7 +1,7 @@
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run } from '../sim/run';
 import { cellsOf, fits, gunDir, partAt, rotOf, stats, type Build, type Placement, type Stats } from '../sim/build';
-import { frameById, partById, TAG_BONUS, verbOf, type PartDef, type Tag, type Verb } from '../game/parts';
+import { frameById, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -9,7 +9,9 @@ import { clamp } from '../util';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
-import { backdrop, hearts, hints, partStats, RARITY_COLOR, shapeIcon } from '../ui/widgets';
+import { backdrop, hearts, hints, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
+import { itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
+import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
 import type { DeviceId } from '../input';
 
 interface Bay {
@@ -37,17 +39,8 @@ const RULES = [
   'BACK-ROW ENGINES PUSH HARDER. 3 OF A TAG WAKE ITS SET BONUS, 5 MAKE IT STRONGER.',
 ];
 
-export const VERB_COLOR: Record<Verb, string> = {
-  GUN: '#ff8a4a',
-  'DASH MOD': '#6ad0ff',
-  AUX: '#ffd04a',
-  SPECIAL: '#8affb0',
-  PASSIVE: '#d08aff',
-};
-
 const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', drone: CYAN, link: GREEN, clash: RED, fuse: GOLD };
 
-/** Damage per second from every gun, roughly (for the stat preview). */
 /** One beat of the placement replay: a cell to light, and what it means. */
 interface Step {
   c: number;
@@ -217,8 +210,8 @@ export class Hangar implements Screen {
           audio.play('ui_select');
           this.remodel(i);
         } else if (crew.cargo.length) {
-          const id = crew.cargo.splice(bay.sel, 1)[0];
-          bay.hand = { id, c: bay.cur.c, r: bay.cur.r };
+          const it = crew.cargo.splice(bay.sel, 1)[0];
+          bay.hand = { ...it, c: bay.cur.c, r: bay.cur.r };
           bay.from = null;
           this.drop(bay, i, true);
         } else this.say(bay, 'THE HOLD IS EMPTY');
@@ -259,7 +252,7 @@ export class Hangar implements Screen {
   /** Bolts the carried part on at the cursor, if it fits. */
   private drop(bay: Bay, i: number, quiet = false) {
     const b = this.run.crew[i].build;
-    const p: Placement = { id: bay.hand!.id, c: bay.cur.c, r: bay.cur.r, rot: rotOf(bay.hand!) };
+    const p: Placement = { ...toItem(bay.hand!), c: bay.cur.c, r: bay.cur.r, rot: rotOf(bay.hand!) };
     if (!fits(b, p)) {
       if (!quiet) this.say(bay, "IT DOESN'T FIT THERE");
       else audio.play('ui_select');
@@ -281,7 +274,7 @@ export class Hangar implements Screen {
   private stow(bay: Bay, i: number) {
     const crew = this.run.crew[i];
     if (crew.cargo.length < CARGO) {
-      crew.cargo.push(bay.hand!.id);
+      crew.cargo.push(toItem(bay.hand!));
       bay.sel = crew.cargo.length - 1;
       audio.play('ui_back');
     } else if (bay.from && fits(crew.build, bay.from)) {
@@ -366,28 +359,33 @@ export class Hangar implements Screen {
     frame(ctx, x, 152, 140, 84);
     drawText(ctx, `HOLD ${crew.cargo.length}/${CARGO}`, x + 6, 156, DIM);
     for (let k = 0; k < CARGO; k++) {
-      const id = crew.cargo[k];
+      const it = crew.cargo[k];
       const y = 168 + k * 11;
-      const on = id !== undefined && k === bay.sel && !bay.hand;
+      const on = it !== undefined && k === bay.sel && !bay.hand;
       if (on) {
         ctx.fillStyle = '#2c2240';
         ctx.fillRect(x + 2, y - 2, 136, 11);
       }
-      if (id === undefined) {
+      if (it === undefined) {
         drawText(ctx, '-', x + 8, y, '#3a2e48');
         continue;
       }
-      const def = partById(id);
+      const def = partById(it.id);
+      const tier = tierOf(it);
       shapeIcon(ctx, def, x + 6, y, 3);
-      drawText(ctx, def.name, x + 18, y, on ? GOLD : '#d8cce8');
+      // the name in its tier's colour (stock parts plain); a legendary's glints
+      const name = itemName(it);
+      const col = tier === 'common' ? '#d8cce8' : TIER_COLOR[tier];
+      const glint = tier === 'legendary' && Math.floor(this.t * 3 + k) % 6 === 0;
+      drawText(ctx, name.length > 19 ? name.slice(0, 18) + '.' : name, x + 18, y, on ? (tier === 'common' ? GOLD : '#ffffff') : glint ? '#fff0c0' : col);
       // its verb, as a coloured pip
       ctx.fillStyle = VERB_COLOR[verbOf(def)];
       ctx.fillRect(x + 133, y + 2, 3, 3);
     }
     if (!coop) this.tagsBox(ctx, s, after, x + 145, 152, 166, 84);
     // the part in focus: what it is, what it does, what it's linked to
-    const id = bay.hand?.id ?? (view.focus ? view.focus.id : crew.cargo[bay.sel]);
-    if (id) this.focusCard(ctx, partById(id), bay.hand || view.focus ? view : null, x, 242, AREA_W - 2);
+    const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
+    if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2);
     // message, ready, hints
     if (bay.msgT > 0) drawText(ctx, bay.msg, x + AREA_W / 2, 310, bay.msg.startsWith('HANDED') ? GREEN : RED, { align: 'center' });
     const dev = this.dev(i);
@@ -407,15 +405,26 @@ export class Hangar implements Screen {
    * A part: name, verb, what it does, and (on the grid, or about to be) what it's linked to, what
    * it clashes with and how strong that leaves it.
    */
-  private focusCard(ctx: CanvasRenderingContext2D, def: PartDef, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number) {
-    frame(ctx, x, y, w, 64);
+  private focusCard(ctx: CanvasRenderingContext2D, it: Item, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number) {
+    const def = itemDef(it);
+    const tier = tierOf(it);
+    frame(ctx, x, y, w, 64, '#1c1526', tier === 'common' ? undefined : TIER_COLOR[tier]);
+    if (tier !== 'common') {
+      ctx.fillStyle = TIER_COLOR[tier];
+      ctx.globalAlpha = 0.12;
+      ctx.fillRect(x + 1, y + 1, w - 2, 11);
+      ctx.globalAlpha = 1;
+    }
     shapeIcon(ctx, def, x + 6, y + 5, 4);
-    drawText(ctx, def.name, x + 22, y + 4, INK);
+    drawText(ctx, itemName(it), x + 22, y + 4, tier === 'common' ? INK : TIER_COLOR[tier]);
     const verb = verbOf(def);
     const vw = drawText(ctx, verb, x + w - 6, y + 4, VERB_COLOR[verb], { align: 'right' });
-    drawText(ctx, def.rarity, x + w - 12 - vw, y + 4, RARITY_COLOR[def.rarity], { align: 'right' });
+    if (tier !== 'common') drawText(ctx, TIER_WORD[tier], x + w - 12 - vw, y + 4, TIER_COLOR[tier], { align: 'right' });
     const lines: [string, string][] = [];
-    for (const l of wrap(def.text, w - 12).slice(0, 2)) lines.push([l, '#b8acc8']);
+    // what was rolled for it, then a legendary's rule, then what it is
+    if (it.mods?.length) lines.push([it.mods.map((m) => MODS[m.k].short(modValue(m))).join('   '), '#e8e0f0']);
+    if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, w - 12).slice(0, 2)) lines.push([l, GOLD]);
+    for (const l of wrap(def.text, w - 12).slice(0, it.trait ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     if (def.duo) lines.push([`DUO PART: ${def.duo[0]} + ${def.duo[1]}`, CYAN]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     if (pl) {
@@ -515,6 +524,30 @@ export class Hangar implements Screen {
       }
       const [c, r] = cells[0];
       if (!def.conduit) drawText(ctx, def.name.slice(0, 2), x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, DARK, { align: 'center', shadow: false });
+      // its tier: a corner pip; a legendary is ringed in moving gold
+      const tier = tierOf(p);
+      if (tier !== 'common' && !bad) {
+        ctx.fillStyle = DARK;
+        ctx.fillRect(x0 + c * cell + cell - 7, y0 + r * cell + 1, 5, 5);
+        ctx.fillStyle = TIER_COLOR[tier];
+        ctx.fillRect(x0 + c * cell + cell - 6, y0 + r * cell + 2, 3, 3);
+      }
+      if (tier === 'legendary' && !bad) {
+        ctx.fillStyle = GOLD;
+        for (const [cc, rr] of cells) {
+          const px = x0 + cc * cell;
+          const py = y0 + rr * cell;
+          const k = Math.floor(this.t * 12) % 16;
+          for (let s = 0; s < 4; s++) {
+            const d = ((k + s * 4) % 16) / 16;
+            const e = d * 4;
+            const side = Math.floor(e);
+            const u = (e - side) * (cell - 3);
+            const [gx, gy] = side === 0 ? [u, 0] : side === 1 ? [cell - 3, u] : side === 2 ? [cell - 3 - u, cell - 3] : [0, cell - 3 - u];
+            ctx.fillRect(Math.round(px + gx), Math.round(py + gy), 2, 2);
+          }
+        }
+      }
       if (def.gun && !bad) {
         // the way it fires
         const d = gunDir(f, p);
@@ -560,6 +593,22 @@ export class Hangar implements Screen {
         ctx.fillRect(mx - 3, my - 3, 6, 6);
         ctx.fillStyle = EDGE_COLOR[e.kind];
         ctx.fillRect(mx - 2, my - 2, 4, 4);
+      }
+      // a wireless link has no edge to show: a dotted line, part to part
+      if (!e.edges.length && !e.via.length) {
+        const ca = cellsOf(e.a);
+        const cb = cellsOf(e.b);
+        const ax = x0 + mid(ca.reduce((s2, [c]) => s2 + c, 0) / ca.length);
+        const ay = y0 + mid(ca.reduce((s2, [, r]) => s2 + r, 0) / ca.length);
+        const bx = x0 + mid(cb.reduce((s2, [c]) => s2 + c, 0) / cb.length);
+        const by = y0 + mid(cb.reduce((s2, [, r]) => s2 + r, 0) / cb.length);
+        const n = Math.max(2, Math.round(Math.hypot(bx - ax, by - ay) / 4));
+        const off = (this.t * 3) % 1;
+        ctx.fillStyle = EDGE_COLOR[e.kind];
+        for (let k = 0; k < n; k++) {
+          const f = (k + off) / n;
+          ctx.fillRect(Math.round(ax + (bx - ax) * f) - 1, Math.round(ay + (by - ay) * f) - 1, 2, 2);
+        }
       }
       ctx.fillStyle = EDGE_COLOR[e.kind];
       if (on && focus)

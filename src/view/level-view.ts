@@ -1,11 +1,17 @@
 import * as THREE from 'three';
-import type { Bullet, Enemy, Level, LevelEvent, Player } from '../sim/level';
+import type { Enemy, Level, LevelEvent, Player } from '../sim/level';
 import { FLIGHT_Y, HALF_H, HALF_W, TILT, fromFlight } from '../sim/types';
 import { WorldView } from './world-view';
 import { Fx } from './fx';
 import { Life } from './life';
 import { Threats } from './threats';
-import { FOES } from '../sim/factions';
+import { BulletArt } from './bullets';
+import { ShotArt } from './shots';
+import { Shields } from './shields';
+import { FOES, type Faction } from '../sim/factions';
+import { TORPEDO } from '../sim/level';
+import { TrackView } from './track';
+import { bendPoint, clearBend, setBend } from '../render/bend';
 import { ShipModel, LIVERY } from './ship-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
@@ -18,8 +24,16 @@ import { weather, tickWeather } from '../render/alive';
 /** The playfield as it shows on screen (world units): the camera always fits all of it. */
 export const FIELD_W = HALF_W * 2;
 export const FIELD_H = HALF_H * 2 * Math.cos(TILT);
+/** For looking closely while testing: &zoom=0.5 shows half as much. */
+const DEV_ZOOM = Number(new URLSearchParams(location.search).get('zoom') ?? 1) || 1;
 /** Screen units of margin under the field. */
 const MARGIN = 3;
+/** A race's chase view: its field of view (degrees, before speed widens it), how far it sees, and where it sits: behind the ship, over it, and how far ahead it looks. */
+const CHASE_FOV = 64;
+const CHASE_FAR = 230;
+const CHASE_BACK = 12;
+const CHASE_UP = 4.6;
+const CHASE_LOOK = 30;
 
 const SHOT_COLORS: Record<string, number> = {
   slug: 0xffe08a,
@@ -33,12 +47,31 @@ const SHOT_COLORS: Record<string, number> = {
   arc: 0xc8b0ff,
 };
 
+interface Wreck {
+  obj: THREE.Object3D;
+  inst: Instance | null;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  axis: THREE.Vector3;
+  spin: number;
+  t: number;
+  ground: boolean;
+  size: number;
+}
+
 interface EnemyView {
   inst: Instance | null;
   obj: THREE.Object3D;
   head: THREE.Object3D | null;
   ring: THREE.Mesh | null;
   seen: boolean;
+  boss: boolean;
+  ground: boolean;
+  skin: [number, number, number];
   /** Hit reaction: a squash that springs back, and a shove away from the guns. */
   punch: number;
   knock: number;
@@ -55,6 +88,13 @@ export class LevelView {
   private hitboxes: THREE.Group[] = [];
   private threats = new Threats();
   readonly camera = new THREE.OrthographicCamera(-HALF_W, HALF_W, FIELD_H / 2, -FIELD_H / 2, 1, 400);
+  /** Races: the chase view, low behind the leading ship looking down the track. */
+  readonly chase = new THREE.PerspectiveCamera(CHASE_FOV, 16 / 9, 0.5, CHASE_FAR);
+  /** Where the chase camera's swinging round to (its yaw, lagging the ship's), and its pull back on a boost. */
+  private chaseYaw = 0;
+  private chaseBack = 0;
+  /** Races: the camera's height over the flight height (after the leader's, off a jump, lagging). */
+  private chaseAlt = 0;
   /** Half the view on screen (world units), from the window's shape. */
   halfW = HALF_W;
   halfH = FIELD_H / 2;
@@ -67,14 +107,24 @@ export class LevelView {
   private enemies = new Map<number, EnemyView>();
   private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null }>();
   private hazards = new Map<object, THREE.Group>();
-  private bulletRim: THREE.InstancedMesh;
-  private bulletBody: THREE.InstancedMesh;
-  private bulletCore: THREE.InstancedMesh;
+  private bullets = new BulletArt();
+  private shotArt = new ShotArt();
+  private shields: Shields;
+  /** Bullet pops this frame: past a handful, a mass cancel just flashes. */
+  private popped = 0;
+  /** Where each smoking thing was last frame, so its smoke is laid evenly along the way it came. */
+  private wakes = new WeakMap<object, { x: number; z: number }>();
   private shots: THREE.InstancedMesh;
   private beams: THREE.Mesh[] = [];
   private laserMeshes: THREE.Mesh[] = [];
   private bolts: { mesh: THREE.Mesh; t: number }[] = [];
   private clouds: { obj: THREE.Group; x: number; z: number; drift: number }[] = [];
+  /** The shot down, on their way to the ground. */
+  private wrecks: Wreck[] = [];
+  /** Blasts still to go off (the second and third bangs of a kill). */
+  private later: { t: number; x: number; y: number; z: number; size: number; carried: boolean }[] = [];
+  /** Lights for blasts to light the land with: a few, always there (so the shaders never change). */
+  private blasts: { light: THREE.PointLight; t: number; life: number; power: number; carried: boolean }[] = [];
   private lastScroll = 0;
   private time = 0;
   /** Juice. */
@@ -94,9 +144,13 @@ export class LevelView {
   private recoil = [0, 0];
   /** How fast it feels, 0..1: the screen smears and the view pulls back. */
   speedFx = 0;
+  /** Races: the road, its pylons and the rivals (see track.ts). */
+  readonly track: TrackView | null = null;
+  /** Races: how far ahead of the field the camera looks (world z), so the road reads at speed. */
+  lead = 0;
   private zoom = 1;
   private lines: THREE.InstancedMesh;
-  private lineData: { x: number; z: number; len: number; v: number }[] = [];
+  private lineData: { x: number; y: number; z: number; len: number; v: number }[] = [];
   /** Kills close together, for the chain's rising pitch and the multi-kill call. */
   private chain = 0;
   private chainT = 0;
@@ -120,6 +174,8 @@ export class LevelView {
     this.world = new WorldView(lv.terrain);
     this.scene.add(this.world.group, this.fx.group);
     this.life = new Life(this.scene, this.fx);
+    this.shields = new Shields(this.fx);
+    this.scene.add(this.shields.group);
     this.fx.ground = (x, z) => Math.max(lv.terrain.height(x, z), lv.terrain.water(z));
     this.sun.position.set(-30, 60, 25);
     this.sun.castShadow = true;
@@ -135,6 +191,11 @@ export class LevelView {
     this.sun.shadow.normalBias = 0.04;
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target, this.hemi);
+    for (let k = 0; k < 4; k++) {
+      const light = new THREE.PointLight(0xffa860, 0, 34, 1.2);
+      this.scene.add(light);
+      this.blasts.push({ light, t: 1, life: 1, power: 0, carried: false });
+    }
     lv.players.forEach((p, i) => {
       const ship = new ShipModel(p.build, LIVERY[i]);
       ship.root.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
@@ -157,19 +218,7 @@ export class LevelView {
       this.overlay.add(g);
       this.hitboxes.push(g);
     });
-    const mk = (mat: THREE.Material, n: number, order: number) => {
-      const im = new THREE.InstancedMesh(disc, mat, n);
-      im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
-      im.frustumCulled = false;
-      im.count = 0;
-      im.renderOrder = order;
-      (mat as THREE.MeshBasicMaterial).depthTest = false;
-      this.overlay.add(im);
-      return im;
-    };
-    this.bulletRim = mk(new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500, 30);
-    this.bulletBody = mk(new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500, 31);
-    this.bulletCore = mk(new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500, 32);
+    this.scene.add(this.bullets.group, this.shotArt.group);
     this.shots = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500);
     this.shots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(1500 * 3), 3);
     this.shots.frustumCulled = false;
@@ -183,7 +232,19 @@ export class LevelView {
     this.lines.count = 0;
     this.lines.renderOrder = 40;
     this.scene.add(this.lines);
-    for (let k = 0; k < 48; k++) this.lineData.push({ x: 0, z: 1e9, len: 0, v: 0 });
+    for (let k = 0; k < 48; k++) this.lineData.push({ x: 0, y: FLIGHT_Y + 4, z: 1e9, len: 0, v: 0 });
+    if (lv.race) {
+      this.track = new TrackView(lv, this.fx);
+      this.scene.add(this.track.group);
+      this.overlay.add(this.track.overlay);
+      // (the chase view sees a long way: the shadows cover the stretch ahead)
+      sc.left = -80;
+      sc.right = 80;
+      sc.top = 90;
+      sc.bottom = -90;
+      sc.far = 260;
+      sc.updateProjectionMatrix();
+    }
     this.lastScroll = lv.scroll;
     this.placeCamera(0);
   }
@@ -193,12 +254,21 @@ export class LevelView {
   handle(events: LevelEvent[]) {
     const lv = this.lv;
     for (const e of events) {
+      this.track?.handle(e, this);
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
           const col = SHOT_COLORS[e.kind];
           const heavy = e.kind === 'rail' || e.kind === 'flak' || e.kind === 'pellet';
-          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z - 0.3, size: e.kind === 'rail' ? 1.8 : heavy ? 1.2 : 0.8, grow: 0.2, life: 0.06, color: new THREE.Color(col), carried: true });
+          // the muzzle: a white-hot blink in a bloom of the gun's colour, a spit of sparks forward,
+          // and from the heavy guns a puff of smoke
+          const flash = e.kind === 'rail' ? 1.8 : heavy ? 1.2 : 0.8;
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.7, z: e.z - 0.3, size: flash * 0.6, grow: 0.3, life: 0.04, color: HOT, carried: true });
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z - 0.4, size: flash * 1.3, grow: 0.5, life: 0.07, color: this.c.setHex(col), carried: true });
+          if (Math.random() < (heavy ? 1 : 0.35))
+            for (let k = 0; k < (heavy ? 3 : 1); k++)
+              this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z - 0.5, vx: (Math.random() - 0.5) * 8, vz: -18 - Math.random() * 14, size: 0.14, grow: 0.3, life: 0.08 + Math.random() * 0.06, drag: 8, color: SPARK, carried: true });
+          if (heavy) this.fx.add({ x: e.x, y: FLIGHT_Y + 0.5, z: e.z - 0.6, vz: 2, vy: 1, size: 0.6, grow: 2.4, life: 0.35, color: TORP_SMOKE, to: TORP_SMOKE_END, glow: false, carried: true });
           this.recoil[e.owner] = Math.min(0.5, (this.recoil[e.owner] ?? 0) + (e.kind === 'rail' ? 0.45 : heavy ? 0.22 : 0.07));
           const pan = e.x / HALF_W;
           if (e.kind === 'slug') audio.play('shot_rivet', { pan, vol: 0.5 });
@@ -217,33 +287,63 @@ export class LevelView {
           const y = ev ? ev.obj.position.y : FLIGHT_Y;
           const en = lv.enemies.find((o) => o.id === e.enemy);
           const big = en ? en.r : 1;
+          // a heavy hit (a rail, a shell, a crit) lands like one; a stream of rivets patters
+          const heavy = e.dmg >= 10 || e.crit;
           if (ev) {
-            ev.punch = Math.min(1, ev.punch + (e.crit ? 0.8 : 0.35) / Math.sqrt(big));
-            ev.knock = Math.min(1, ev.knock + 0.25 / big);
+            ev.punch = Math.min(1, ev.punch + (heavy ? 0.9 : 0.4) / Math.sqrt(big));
+            ev.knock = Math.min(1, ev.knock + (heavy ? 0.7 : 0.3) / big);
           }
           if (!e.kill) {
-            // sparks thrown back the way the shot came, and a white star where it bit
-            for (let k = 0; k < (e.crit ? 7 : 3); k++) {
-              const a = Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-              const v = 10 + Math.random() * 12;
-              this.fx.add({ x: e.x + (Math.random() - 0.5), y: y + 0.6, z: e.z + 0.3, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: Math.random() * 3, size: 0.2, grow: 0.3, life: 0.16 + Math.random() * 0.1, drag: 5, color: new THREE.Color(e.crit ? 0xffffff : 0xffe0a0), carried: true });
+            const bite = clamp(0.8 + e.dmg * 0.05, 0.8, 2.6) * (e.crit ? 1.4 : 1);
+            const hx = e.x + (Math.random() - 0.5) * big * 0.6;
+            const hz = e.z + big * 0.35;
+            // the bite: white-hot where it struck, a hot bloom round it
+            this.fx.add({ x: hx, y: y + 0.9, z: hz, size: bite, grow: 0.5, life: 0.05, color: HOT, carried: true });
+            this.fx.add({ x: hx, y: y + 0.8, z: hz, size: bite * 1.7, grow: 1.5, life: 0.13, color: BITE, to: EMBER_END, carried: true });
+            // sparks thrown back the way the shot came, some bouncing off down to the ground
+            const n = 4 + Math.min(10, Math.round(e.dmg * 0.4)) + (e.crit ? 5 : 0);
+            for (let k = 0; k < n; k++) {
+              const a = Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+              const v = 10 + Math.random() * (heavy ? 22 : 14);
+              this.fx.add({ x: hx, y: y + 0.6, z: hz, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1 + Math.random() * 4, gravity: 12, size: 0.16 + Math.random() * 0.1, grow: 0.3, life: 0.16 + Math.random() * 0.16, drag: 4, color: e.crit ? HOT : SPARK, to: EMBER, carried: true });
             }
-            this.fx.add({ x: e.x, y: y + 0.8, z: e.z + 0.2, size: e.crit ? 1.6 : 0.9, grow: 0.4, life: 0.05, color: HOT, carried: true });
-            if (e.crit) this.pop('CRIT', e.x, e.z - 1, '#ffffff');
-            audio.play(e.crit ? 'hit_armor' : 'hit', { pan: e.x / HALF_W, vol: 0.4 });
+            // bits knocked off it: chips of its own hull tumbling down, a puff of smoke
+            const skin = en?.skin.colors;
+            if (skin && (heavy || Math.random() < 0.22)) {
+              for (let k = 0; k < (heavy ? 3 + Math.round(Math.random() * 3) : 1); k++) {
+                const a = Math.random() * Math.PI * 2;
+                const v = 4 + Math.random() * 8;
+                this.fx.add({ x: hx, y: y + 0.4, z: hz, vx: Math.cos(a) * v, vz: Math.sin(a) * v * 0.6 + 4, vy: 3 + Math.random() * 5, size: 0.14 + Math.random() * 0.18, life: 1.6 + Math.random(), color: this.c.setHex(Math.random() < 0.6 ? skin[0] : skin[1]), solid: true, gravity: 24, spin: 10 + Math.random() * 10 });
+              }
+              this.fx.add({ x: hx, y: y + 0.7, z: hz, vy: 1.5, vz: 2, size: 0.7, grow: 2.4, life: 0.5, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+            }
+            if (heavy) {
+              this.fx.ring(hx, y + 0.6, hz, 1.5 + bite, 0.16, true, e.crit ? 0xffffff : 0xffd8a0);
+              this.hitstop = Math.max(this.hitstop, e.crit || e.dmg >= 25 ? 2 : 1);
+              this.trauma = Math.min(1, this.trauma + Math.min(0.14, e.dmg * 0.004));
+              this.pop(e.crit ? `CRIT ${Math.round(e.dmg)}` : `${Math.round(e.dmg)}`, e.x + (Math.random() - 0.5) * 2, e.z - big - 0.5, e.crit ? '#ffffff' : '#ffe0b0');
+            }
+            audio.play(e.crit ? 'hit_armor' : 'hit', { pan: e.x / HALF_W, vol: heavy ? 0.65 : 0.4, pitch: heavy ? 0.8 : 0.9 + Math.random() * 0.25 });
           } else this.kill(e.x, y, e.z, big);
           break;
         }
         case 'explode': {
           const ev = e.enemy !== undefined ? this.enemies.get(e.enemy) : undefined;
           const y = ev ? ev.obj.position.y : e.y;
-          const groundZ = ev && y < FLIGHT_Y - 1 ? fromFlight(e.z, y) : e.z;
-          this.fx.explode(e.x, y, groundZ, e.size, e.color, y >= FLIGHT_Y - 1);
-          // a blink of light bigger than the fireball, and a scorch left on the ground
-          this.fx.add({ x: e.x, y: y + 1.5, z: groundZ, size: 3 + e.size * 2.5, grow: 1.3, life: 0.09, color: HOT, carried: y >= FLIGHT_Y - 1 });
-          if (y < FLIGHT_Y - 1) this.fx.add({ x: e.x, y: y + 0.15, z: groundZ, size: 1.2 + e.size * 0.9, grow: 1.1, life: 4, color: SCORCH, to: SCORCH_END, glow: false });
-          this.trauma = Math.min(1, this.trauma + 0.08 * e.size);
-          this.shove(Math.sign(e.x - lv.players[0].x) * 0.3, -1, 0.15 * e.size);
+          const air = y >= FLIGHT_Y - 1;
+          const groundZ = ev && !air ? fromFlight(e.z, y) : e.z;
+          this.fx.explode(e.x, y, groundZ, e.size, e.color, air);
+          // a blink of light bigger than the fireball, and the land lit up under it
+          this.fx.add({ x: e.x, y: y + 1.5, z: groundZ, size: 3 + e.size * 2.5, grow: 1.3, life: 0.09, color: HOT, carried: air });
+          this.blast(e.x, y, groundZ, e.size);
+          if (!air) this.fx.add({ x: e.x, y: y + 0.15, z: groundZ, size: 1.2 + e.size * 0.9, grow: 1.1, life: 4, color: SCORCH, to: SCORCH_END, glow: false });
+          if (ev && e.enemy !== undefined && !ev.boss) {
+            // shot down: what's left of it, and more of it going up as it goes
+            this.wreck(e.enemy, ev, e.size);
+            this.shotDown(e.x, y, groundZ, e.size, ev.skin, air);
+          }
+          this.trauma = Math.min(1, this.trauma + 0.1 * e.size);
+          this.shove(Math.sign(e.x - lv.players[0].x) * 0.3, -1, 0.18 * e.size);
           if (e.size >= 3) {
             this.hitstop = Math.max(this.hitstop, Math.min(8, Math.round(e.size)));
             this.flash = Math.max(this.flash, 0.25);
@@ -254,8 +354,20 @@ export class LevelView {
           break;
         }
         case 'enemyShot':
-          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.5, z: e.z, size: 1.2, grow: 0.3, life: 0.08, color: new THREE.Color(e.color), carried: true });
-          audio.play('enemy_shot', { pan: e.x / HALF_W, vol: 0.35 });
+          this.muzzle(e.x, e.z, e.color, e.look);
+          audio.play('enemy_shot', { pan: e.x / HALF_W, vol: 0.35, pitch: e.look === 'lattice' ? 1.3 : e.look === 'wild' ? 0.7 : e.look === 'bloom' ? 0.55 : 1 });
+          break;
+        case 'bulletPop':
+          this.pop1(e.x, e.z, e.color, e.look);
+          break;
+        case 'torpedo':
+          this.fx.explode(e.x, FLIGHT_Y, e.z, e.shot ? 0.55 : 0.4, e.color, false);
+          this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.6, 0.22, false, e.shot ? 0xffffff : e.color);
+          if (e.shot) {
+            this.pop('SHOT DOWN', e.x, e.z - 2, '#ffe08a');
+            this.hitstop = Math.max(this.hitstop, 2);
+          }
+          audio.play('torpedo_down', { pan: e.x / HALF_W, vol: e.shot ? 0.8 : 0.5 });
           break;
         case 'playerHit': {
           const p = lv.players[e.id];
@@ -342,11 +454,17 @@ export class LevelView {
           break;
         case 'windup': {
           const en = lv.enemies.find((o) => o.id === e.enemy);
-          if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
+          if (en && e.kind === 'torpedo') {
+            audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5 });
+            const prey = e.tele?.shape === 'lock' ? lv.players[e.tele.id] : undefined;
+            if (prey) this.pop('LOCK ON', prey.x, prey.z + 4, '#ff8a4a');
+          }
+          else if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
           break;
         }
         case 'release':
-          if (e.kind === 'lunge' || e.kind === 'ram' || e.kind === 'charge' || e.kind === 'dive') {
+          if (e.kind === 'torpedo') audio.play('torpedo_launch', { pan: e.x / HALF_W, vol: 0.6 });
+          else if (e.kind === 'lunge' || e.kind === 'ram' || e.kind === 'charge' || e.kind === 'dive') {
             this.fx.ring(e.x, FLIGHT_Y, e.z, 3, 0.18, true, 0xfff0d0);
             audio.play('dash', { pan: e.x / HALF_W, pitch: 0.7 });
           }
@@ -360,15 +478,30 @@ export class LevelView {
           }
           break;
         case 'crack':
+          this.shields.shatter(e.enemy);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, 0xd8e0f0, 16, 0.35, 0.25);
           this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.2, true, 0xd8e0f0);
           this.pop('CRACKED', e.x, e.z - 2, '#d8e0f0');
           audio.play('shield_break', { pan: e.x / HALF_W, vol: 0.7 });
           break;
-        case 'guard':
-          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 3, 0x9af0ff, 10, 0.15, 0.18);
-          audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.3, pitch: 1.4 });
+        case 'guard': {
+          // the shot meets the shield: a ripple runs over it from there, and the shot glances off
+          // in sparks along its face; the whole thing gives a little
+          const en = lv.enemies.find((o) => o.id === e.enemy);
+          const n = en ? this.shields.hit(en, e.x, e.z) : null;
+          const out = n ? Math.atan2(n.nx, n.nz) : Math.PI;
+          const col = en ? this.c.setHex(en.skin.colors[2]).lerp(GLINT, 0.5) : GLINT;
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.9, z: e.z, size: 1.3, grow: 0.4, life: 0.06, color: HOT, carried: true });
+          for (let k = 0; k < 5; k++) {
+            const a = out + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.9);
+            const v = 14 + Math.random() * 14;
+            this.fx.add({ x: e.x, y: FLIGHT_Y + 0.7, z: e.z, vx: Math.sin(a) * v, vz: Math.cos(a) * v, size: 0.17, grow: 0.3, life: 0.14 + Math.random() * 0.1, drag: 5, color: k < 2 ? HOT : col, carried: true });
+          }
+          const ev = this.enemies.get(e.enemy);
+          if (ev) ev.knock = Math.min(1, ev.knock + 0.08);
+          audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.3, pitch: 1.5 + Math.random() * 0.3 });
           break;
+        }
         case 'reflect':
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 4, 0xffffff, 12, 0.15, 0.2);
           audio.play('graze', { pan: e.x / HALF_W, pitch: 0.7 });
@@ -438,13 +571,6 @@ export class LevelView {
         case 'escaped':
           this.pop('MISSED', e.x, Math.min(e.z, lv.scroll + this.halfH - 3), '#8a7a98');
           break;
-        case 'redline': {
-          this.trauma = Math.min(1, this.trauma + 0.5);
-          this.fx.explode(e.x, FLIGHT_Y, e.z + 1.5, 0.8, 0xff6a2a);
-          this.pop('ENGINE BURST', e.x, e.z + 3, '#ff6a4a');
-          audio.play('explode_small', { pan: e.x / HALF_W });
-          break;
-        }
         case 'tally':
           if (e.full) {
             this.pop('FULL CLEAR', lv.players[0].x, lv.players[0].z - 6, '#8affe0');
@@ -608,8 +734,9 @@ export class LevelView {
           audio.play('explode_big');
           break;
         case 'biome': {
+          // named only as the level starts, not at every biome after
           const b = lv.terrain.segments[e.index]?.biome;
-          if (b) this.biomeBanner = { name: b.name, line: b.line, t: 0 };
+          if (b && !this.biomeBanner) this.biomeBanner = { name: b.name, line: b.line, t: 0 };
           break;
         }
         case 'hazard':
@@ -636,7 +763,7 @@ export class LevelView {
   }
 
   /** Shoves the camera along (dx, dz), screen-ish: +z is down the screen. */
-  private shove(dx: number, dz: number, amount: number) {
+  shove(dx: number, dz: number, amount: number) {
     const l = Math.hypot(dx, dz) || 1;
     this.kickV.x += (dx / l) * amount * 14;
     this.kickV.y += (dz / l) * amount * 14;
@@ -661,6 +788,143 @@ export class LevelView {
     // the chain climbs a pentatonic scale
     const semi = Math.floor(Math.min(this.chain, 14) / 5) * 12 + [0, 2, 4, 7, 9][Math.min(this.chain, 14) % 5];
     audio.play('kill', { pan: x / HALF_W, pitch: Math.pow(2, semi / 12), vol: 0.7 });
+  }
+
+  /** A flare of light on the land from a blast, dying away. */
+  private blast(x: number, y: number, z: number, size: number) {
+    // the dimmest of the pool goes to the new blast
+    let b = this.blasts[0];
+    for (const o of this.blasts) if (o.power * (1 - o.t / o.life) < b.power * (1 - b.t / b.life)) b = o;
+    b.light.position.set(x, y + 3, z);
+    b.t = 0;
+    b.life = 0.25 + Math.min(0.5, size * 0.12);
+    b.power = 10 + size * 9;
+    b.carried = y >= FLIGHT_Y - 1;
+  }
+
+  /**
+   * The rest of a kill, past the sim's fireball: a ball of white heat, fire blooming outward in
+   * petals, a second and third blast going off in it, chunks of its own hull flung off, and embers
+   * left drifting up.
+   */
+  private shotDown(x: number, y: number, z: number, size: number, skin: [number, number, number], carried: boolean) {
+    const k = Math.sqrt(size);
+    this.fx.add({ x, y: y + 1, z, size: 1.2 + size * 1.1, grow: 1.5, life: 0.08, color: HOT, carried });
+    for (let i = 0; i < 10 + size * 4; i++) {
+      const a = (i / (10 + size * 4)) * Math.PI * 2 + Math.random() * 0.4;
+      const v = (9 + Math.random() * 9) * k;
+      this.fx.add({ x, y: y + 0.8, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: Math.random() * 3, size: 0.9 * k, grow: 2.2, life: 0.3 + Math.random() * 0.2, drag: 6, color: FIRE_PETAL, to: FIRE_DARK, carried });
+    }
+    for (let i = 0; i < 2 + Math.round(size); i++)
+      this.later.push({ t: 0.07 + i * 0.09 + Math.random() * 0.06, x: x + (Math.random() - 0.5) * 2.5 * k, y, z: z + (Math.random() - 0.5) * 2.5 * k, size: 0.35 + Math.random() * 0.3 * size, carried });
+    for (let i = 0; i < 5 + size * 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = (8 + Math.random() * 12) * k;
+      this.fx.add({ x, y: y + 0.5, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 6 + Math.random() * 8, size: 0.25 + Math.random() * 0.35 * k, life: 2.5 + Math.random() * 1.5, color: this.c.setHex(skin[Math.floor(Math.random() * 2)]).multiplyScalar(0.7), solid: true, gravity: 24, spin: 8 + Math.random() * 12 });
+    }
+    for (let i = 0; i < 6 + size * 3; i++)
+      this.fx.add({ x: x + (Math.random() - 0.5) * 3 * k, y: y + 1, z: z + (Math.random() - 0.5) * 3 * k, vx: (Math.random() - 0.5) * 3, vz: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, size: 0.14, life: 1 + Math.random(), color: EMBER, to: EMBER_END, carried });
+    this.fx.ring(x, y + 0.4, z, size * 4.2, 0.45, carried, 0xffe0a0);
+  }
+
+  /** Its hull, charred, tumbling out of the sky (or slumped where it stood), on fire. */
+  private wreck(id: number, ev: EnemyView, size: number) {
+    this.enemies.delete(id);
+    if (ev.ring) this.scene.remove(ev.ring);
+    for (const m of ev.inst?.mats ?? []) {
+      m.color.multiplyScalar(0.32);
+      m.emissive.setHex(0xff5a1a);
+      m.emissiveIntensity = 0.7;
+    }
+    const p = ev.obj.position;
+    const a = Math.random() * Math.PI * 2;
+    this.wrecks.push({
+      obj: ev.obj,
+      inst: ev.inst,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      vx: Math.cos(a) * 4,
+      vy: ev.ground ? 0 : 3 + Math.random() * 3,
+      vz: Math.sin(a) * 3 + 2,
+      axis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+      spin: (4 + Math.random() * 6) / Math.sqrt(size),
+      t: 0,
+      ground: ev.ground,
+      size,
+    });
+  }
+
+  private updateWrecks(dt: number, scrollDz: number) {
+    for (const b of this.blasts) {
+      b.t += dt;
+      if (b.carried) b.light.position.z += scrollDz;
+      const f = Math.min(1, b.t / b.life);
+      b.light.intensity = b.power * (1 - f) * (1 - f);
+    }
+    for (let i = this.later.length - 1; i >= 0; i--) {
+      const l = this.later[i];
+      l.t -= dt;
+      if (l.carried) l.z += scrollDz;
+      if (l.t > 0) continue;
+      this.later.splice(i, 1);
+      this.fx.explode(l.x, l.y, l.z, l.size, 0xffb040, l.carried);
+      this.fx.add({ x: l.x, y: l.y + 1, z: l.z, size: 2 + l.size * 3, grow: 1.3, life: 0.07, color: HOT, carried: l.carried });
+      this.blast(l.x, l.y, l.z, l.size);
+      this.trauma = Math.min(1, this.trauma + 0.04);
+      audio.play('explode_small', { pan: l.x / HALF_W, vol: 0.45, pitch: 1.2 + Math.random() * 0.3 });
+    }
+    for (let i = this.wrecks.length - 1; i >= 0; i--) {
+      const w = this.wrecks[i];
+      w.t += dt;
+      const embers = Math.max(0, 0.7 - w.t * 0.3);
+      for (const m of w.inst?.mats ?? []) m.emissiveIntensity = embers * (0.8 + Math.random() * 0.4);
+      let gone = w.t > 5;
+      if (!w.ground) {
+        w.vy -= 24 * dt;
+        w.x += w.vx * dt;
+        w.y += w.vy * dt;
+        w.z += w.vz * dt;
+        w.obj.rotateOnWorldAxis(w.axis, w.spin * dt);
+        // a trail of fire and black smoke behind it
+        this.fx.add({ x: w.x + (Math.random() - 0.5) * 0.6, y: w.y, z: w.z, vy: 1, size: 0.7 + w.size * 0.3, grow: 0.3, life: 0.2, color: FIRE_PETAL, to: FIRE_DARK });
+        if (Math.random() < 0.5) this.fx.add({ x: w.x, y: w.y + 0.3, z: w.z, vy: 1.5, size: 0.45 + w.size * 0.2, grow: 2.6, life: 0.9, color: WRECK_SMOKE, to: WRECK_SMOKE_END, glow: false });
+        const g = this.fx.ground(w.x, w.z);
+        if (w.y <= g + 0.3) {
+          gone = true;
+          const wet = this.lv.terrain.water(w.z) > this.lv.terrain.height(w.x, w.z);
+          if (wet) {
+            // into the water: a column of spray, rings, and steam
+            for (let k = 0; k < 14; k++) {
+              const a = Math.random() * Math.PI * 2;
+              const v = 2 + Math.random() * 4;
+              this.fx.add({ x: w.x, y: g + 0.2, z: w.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 8 + Math.random() * 8, gravity: 22, size: 0.35, grow: 1.5, life: 0.9, color: SPLASH, glow: false });
+            }
+            this.fx.ring(w.x, g + 0.1, w.z, 4 + w.size * 2, 0.7, false, 0xe8f4f8);
+            this.fx.ring(w.x, g + 0.1, w.z, 2 + w.size, 0.5, false, 0xffffff);
+            this.fx.add({ x: w.x, y: g + 0.5, z: w.z, vy: 2, size: 1.5 + w.size, grow: 3, life: 1.6, color: STEAM, glow: false });
+            audio.play('crash', { pan: w.x / HALF_W, vol: 0.35, pitch: 0.7 });
+          } else {
+            // into the land: a second blast, a scorch, the wreck in bits
+            this.fx.explode(w.x, g, w.z, 0.5 + w.size * 0.5, 0xff8a3a, false);
+            this.fx.add({ x: w.x, y: g + 0.12, z: w.z, size: 1.8 + w.size, grow: 1.2, life: 6, color: SCORCH, to: SCORCH_END, glow: false });
+            this.blast(w.x, g, w.z, w.size);
+            this.trauma = Math.min(1, this.trauma + 0.06);
+            audio.play('explode_small', { pan: w.x / HALF_W, vol: 0.4, pitch: 0.75 });
+          }
+        }
+      } else if (Math.random() < 0.4) {
+        // slumped where it stood, burning down
+        this.fx.add({ x: w.x + (Math.random() - 0.5), y: w.y + 0.5, z: w.z, vy: 2, vx: weather.uWindDir.value.x, vz: weather.uWindDir.value.y, size: 0.8 + w.size * 0.3, grow: 3, life: 1.6, color: WRECK_SMOKE, to: SMOKE_END, glow: false });
+        if (w.t > 3) w.y -= dt * 0.8;
+      }
+      w.obj.position.set(w.x, w.y, w.z);
+      if (gone) {
+        this.scene.remove(w.obj);
+        w.inst?.dispose();
+        this.wrecks.splice(i, 1);
+      }
+    }
   }
 
   pop(text: string, x: number, z: number, color: string) {
@@ -709,6 +973,8 @@ export class LevelView {
     }
     this.halfW *= this.zoom;
     this.halfH *= this.zoom;
+    this.chase.aspect = aspect;
+    this.chase.updateProjectionMatrix();
     const c = this.camera;
     c.left = -this.halfW;
     c.right = this.halfW;
@@ -725,17 +991,26 @@ export class LevelView {
     this.lastScroll = lv.scroll;
     // what the tilted camera sees of the ground, plus a margin to build ahead
     const reach = this.halfH / Math.cos(TILT);
-    this.world.update(lv.scroll - reach - 30, lv.scroll + reach + 18, dt);
+    // (a race: the chase view looks far down the track, and hardly behind)
+    if (this.track) this.world.update(lv.scroll - CHASE_FAR + 20, lv.scroll + 40, dt);
+    else this.world.update(lv.scroll - this.lead - reach - 30, lv.scroll - this.lead + reach + 18, dt);
+    this.world.emit(this.fx, dt, lv.scroll - reach - 6, lv.scroll + reach + 6);
     this.lighting(dt);
     this.updateShips(dt);
     this.updateEnemies(dt);
+    this.updateWrecks(dt, scrollDz);
     this.updateBullets();
     this.updateShots();
     this.updateBeams();
     this.updateLasers();
     this.updatePickups(dt);
     this.updateDecoys();
-    this.threats.update(dt, lv, this.halfW, this.halfH);
+    this.threats.update(dt, lv, this.halfW, this.halfH + this.lead * Math.cos(TILT));
+    if (this.track) {
+      this.track.tick(dt);
+      this.track.update(dt, lv.scroll - CHASE_FAR + 30, lv.scroll + 30);
+    }
+    this.shields.update(dt, lv);
     this.updateHazards(dt);
     this.ambient(dt);
     this.updateClouds(dt);
@@ -749,7 +1024,7 @@ export class LevelView {
         this.bolts.splice(i, 1);
       }
     }
-    this.fx.update(dt, this.camera, scrollDz);
+    this.fx.update(dt, this.eye, scrollDz);
     for (const p of this.pops) {
       p.t += dt;
       p.z += scrollDz - dt * 3;
@@ -776,6 +1051,8 @@ export class LevelView {
     }
     this.placeCamera(dt);
     audio.intensity(clamp(0.35 + lv.enemies.length * 0.03 + lv.bullets.length * 0.004 + (lv.state === 'boss' ? 0.4 : 0), 0, 1));
+    // a race's music rides the speed, and goes all in for the last stretch
+    if (this.track) audio.intensity(clamp(0.4 + this.speedFx * 0.45 + (lv.progress > 0.86 ? 0.25 : 0), 0, 1));
   }
 
   /** Boosting: the view pulls back, the edges smear, streaks rush past, the air roars. */
@@ -784,28 +1061,43 @@ export class LevelView {
     const boost = Math.max(0, ...lv.players.map((p) => (p.down ? 0 : p.boosting)));
     const fast = clamp((lv.speedNow / Math.max(1, lv.speed) - 1) / 1.2, 0, 1);
     this.speedFx = damp(this.speedFx, Math.max(boost * 0.7, fast), 6, dt);
-    this.zoom = damp(this.zoom, 1 + this.speedFx * 0.06, 3, dt);
+    if (!this.track) this.zoom = damp(this.zoom, (1 + this.speedFx * 0.06) * DEV_ZOOM, 3, dt);
     audio.loop('wind', 'all', this.speedFx > 0.05, this.speedFx);
-    audio.loop('engine', 'p1', true, 0.3 + boost * 0.7);
+    audio.loop('engine', 'p1', true, this.track ? clamp(0.15 + (lv.leader()?.fwd ?? 0) / 65 + boost * 0.2, 0, 1) : 0.3 + boost * 0.7);
+    const lead = this.track ? (lv.leader() ?? lv.players[0]) : null;
     let n = 0;
     for (const l of this.lineData) {
-      l.z += (l.v + scrollDz / Math.max(dt, 1e-4)) * dt;
-      if (l.z > lv.scroll + this.halfH * 1.6) {
+      // (a race: streaks of air round the ship, rushing back past the camera)
+      l.z += (l.v + (lead ? 0 : scrollDz / Math.max(dt, 1e-4))) * dt;
+      const gone = lead ? l.z > lead.z + 14 : l.z > lv.scroll + this.halfH * 1.6;
+      if (gone) {
         if (this.speedFx < 0.1 || Math.random() > this.speedFx) {
           l.z = 1e9;
           continue;
         }
-        l.x = (Math.random() * 2 - 1) * this.halfW;
-        l.z = lv.scroll - this.halfH * 1.6 - Math.random() * 20;
+        if (lead) {
+          const a = Math.random() * Math.PI * 2;
+          const r = 3 + Math.random() * 9;
+          l.x = lead.x + Math.cos(a) * r * 1.4;
+          l.y = FLIGHT_Y + 1.5 + Math.sin(a) * r * 0.6;
+          l.z = lead.z - 30 - Math.random() * 40;
+          l.v = lead.fwd * 0.6 + 40 + Math.random() * 40;
+        } else {
+          l.x = (Math.random() * 2 - 1) * this.halfW;
+          l.y = FLIGHT_Y + 4;
+          l.z = lv.scroll - this.lead - this.halfH * 1.6 - Math.random() * 20;
+          l.v = 60 + Math.random() * 60;
+        }
         l.len = 4 + Math.random() * 10;
-        l.v = 60 + Math.random() * 60;
       }
       if (l.z > 1e8) continue;
       // brighter at the edges of the screen, where the smear is
-      const edge = Math.abs(l.x) / this.halfW;
-      this.m.compose(this.v.set(l.x, FLIGHT_Y + 4, l.z), this.q.identity(), this.s.set(0.12, 1, l.len * (0.5 + this.speedFx)));
+      const edge = lead ? 0.7 : Math.min(1, Math.abs(l.x) / this.halfW);
+      this.m.compose(this.v.set(l.x, l.y, l.z), this.q.identity(), this.s.set(lead ? 0.06 : 0.12, lead ? 1.2 : 1, l.len * (0.5 + this.speedFx)));
       this.lines.setMatrixAt(n, this.m);
-      this.lines.setColorAt(n, this.c.setScalar(this.speedFx * (0.3 + edge * 0.7)));
+      // (a race: tinted by the speed tier, white, then ice blue, then gold)
+      const tint = this.track && lv.tier >= 2 ? (lv.tier >= 3 ? 0xffd04a : 0x9ae8ff) : 0xffffff;
+      this.lines.setColorAt(n, this.c.setHex(tint).multiplyScalar(this.speedFx * (0.3 + edge * 0.7)));
       n++;
     }
     this.lines.count = n;
@@ -813,20 +1105,68 @@ export class LevelView {
     if (this.lines.instanceColor) this.lines.instanceColor.needsUpdate = true;
   }
 
-  private placeCamera(_dt: number) {
+  /** The camera that shows the level: a race's chase view, else the tilted one over the field. */
+  get eye(): THREE.OrthographicCamera | THREE.PerspectiveCamera {
+    return this.track ? this.chase : this.camera;
+  }
+
+  private placeCamera(dt: number) {
     const lv = this.lv;
     // (the pixel renderer snaps the camera to whole art pixels and slides the picture by the rest)
     const t = this.time;
     const shake = this.trauma * this.trauma;
     const sx = (Math.sin(t * 61) + Math.sin(t * 37) * 0.5) * shake * 0.9;
     const sz = (Math.cos(t * 53) + Math.sin(t * 29) * 0.5) * shake * 0.9;
-    const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT));
+    const course = lv.terrain.course;
+    if (course) {
+      this.placeChase(dt, sx, sz);
+      return;
+    }
+    const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT) - this.lead);
     this.camera.position.set(target.x, target.y + Math.cos(TILT) * 120, target.z + Math.sin(TILT) * 120);
     this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
     // the sun (and its shadows) follow the view
     this.sun.target.position.set(0, 0, lv.scroll);
     this.sun.position.set(-30, 60, lv.scroll + 25);
+    this.sun.target.updateMatrixWorld();
+  }
+
+  /**
+   * A race: the chase view. The world's bent round the course so the track at the leading ship
+   * runs straight away from the camera; the camera sits low behind the ship, swinging round after
+   * where it's pointed (lagging, so a drift shows), and looks down the track ahead. The faster it
+   * goes, the wider the view and the lower and further back the camera (the land rushes); a boost
+   * or a pad punches it wider still. A rumble when it's flat out; the shake on top.
+   */
+  private placeChase(dt: number, sx: number, sz: number) {
+    const lv = this.lv;
+    const course = lv.terrain.course!;
+    const lead = lv.leader() ?? lv.players[0];
+    setBend(course, lead.z, true);
+    const boost = lead.down ? 0 : Math.max(lead.boosting, lead.surge > 0 ? 0.7 : 0);
+    const fast = clamp((lead.fwd - 25) / 40, 0, 1.3);
+    this.chaseAlt = damp(this.chaseAlt, lead.alt * 0.7, 5, dt);
+    this.chaseYaw = damp(this.chaseYaw, clamp(lead.hd * 0.55, -0.6, 0.6), 4, dt);
+    this.chaseBack = damp(this.chaseBack, boost, 3, dt);
+    const back = CHASE_BACK + fast * 1.5 + this.chaseBack * 2.5;
+    const up = CHASE_UP - fast * 0.6;
+    const rumble = (fast > 0.9 ? (fast - 0.9) * 0.08 : 0) + this.chaseBack * 0.05;
+    const rx = (Math.sin(this.time * 47) + Math.sin(this.time * 29)) * rumble;
+    const ry = (Math.cos(this.time * 53) + Math.sin(this.time * 31)) * rumble;
+    // behind the ship along its (lagged) heading, and the look ahead of it down the track
+    const yaw = this.chaseYaw;
+    const cam = bendPoint(lead.x - Math.sin(yaw) * back + this.kick.x * 0.6, lead.z + Math.cos(yaw) * back);
+    const look = bendPoint(lead.x + Math.sin(yaw) * CHASE_LOOK * 0.5, lead.z - CHASE_LOOK);
+    this.chase.position.set(cam.x + sx * 0.4 + rx, FLIGHT_Y + up + this.chaseAlt + sz * 0.3 + ry, cam.z);
+    this.chase.lookAt(look.x, FLIGHT_Y - 3.5 + this.chaseAlt * 0.5, look.z);
+    this.chase.fov = CHASE_FOV + fast * 12 + this.chaseBack * 9 + (this.track?.zoomKick ?? 0) * 80;
+    this.chase.updateProjectionMatrix();
+    this.chase.updateMatrixWorld();
+    // the sun (and its shadows) over the stretch ahead
+    const sun = bendPoint(lead.x, lead.z - 40);
+    this.sun.target.position.set(sun.x, 0, sun.z);
+    this.sun.position.set(sun.x - 30, 60, sun.z + 25);
     this.sun.target.updateMatrixWorld();
   }
 
@@ -847,7 +1187,13 @@ export class LevelView {
     const cloudy = (bi: Biome) => (bi.clouds !== null ? 0.6 : 0.3) + (bi.particles === 'rain' ? 0.3 : 0);
     weather.uWind.value = lerp(windy(a), windy(b), k);
     weather.uCloud.value = lerp(cloudy(a), cloudy(b), k);
-    this.scene.background = mix(a.ground[0], b.ground[0]).clone().multiplyScalar(0.5);
+    if (this.track) {
+      // a race's chase view sees the sky: the haze of it, and the land fading into it far off
+      const sky = mix(a.sky, b.sky).clone().lerp(mix(a.ground[0], b.ground[0]), 0.35);
+      this.scene.background = sky;
+      if (!this.scene.fog) this.scene.fog = new THREE.Fog(sky, CHASE_FAR * 0.3, CHASE_FAR * 0.95);
+      (this.scene.fog as THREE.Fog).color.copy(sky);
+    } else this.scene.background = mix(a.ground[0], b.ground[0]).clone().multiplyScalar(0.5);
     const idx = k < 0.5 ? bl.a : bl.b;
     if (idx !== this.biomeIdx) {
       this.biomeIdx = idx;
@@ -866,7 +1212,8 @@ export class LevelView {
     u.uLight.value.setHex(a.light).lerp(new THREE.Color(b.light), bl.t);
     u.uFlash.value.set(this.flashColor.r, this.flashColor.g, this.flashColor.b, this.flash);
     u.uHurt.value = this.hurt;
-    u.uSpeed.value = this.speedFx;
+    u.uSpeed.value = this.speedFx * (this.track ? 0.6 : 1);
+    u.uRadial.value = this.track ? 1 : 0;
     u.uTime.value = this.time;
     const hot = (bi: Biome) => (bi.waterGlow && bi.waterGlow >= 1 ? 0.6 : 0);
     u.uHeat.value = lerp(hot(a), hot(b), bl.t);
@@ -881,15 +1228,23 @@ export class LevelView {
       const r = ship.root;
       const blink = p.inv > 0 && !p.down && p.dashT <= 0 && Math.floor(p.inv * 16) % 2 === 0;
       r.visible = !blink || p.phase > 0;
-      r.position.set(p.x, FLIGHT_Y + (p.down ? -1.5 : 0), p.z);
-      // lean into turns, nose down when pushing forward
-      this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
-      ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
-      ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0);
+      r.position.set(p.x, FLIGHT_Y + (p.down ? -1.5 : 0) + (lv.race ? p.alt : 0), p.z);
+      if (lv.race) {
+        // a race: the nose where it's pointed, leaning hard into the turn and the slide
+        r.rotation.y = -p.hd;
+        this.banks[i] = damp(this.banks[i], clamp(-p.yaw * 0.28 - p.slide * 0.6, -0.8, 0.8), 10, dt);
+        ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
+        ship.body.rotation.x = clamp((p.boosting + (p.surge > 0 ? 0.6 : 0)) * -0.12 + (p.handbrake ? 0.12 : 0), -0.25, 0.25) + (p.down ? 0.2 : 0) - clamp(p.vy * 0.025, -0.35, 0.35);
+      } else {
+        // lean into turns, nose down when pushing forward
+        this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
+        ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
+        ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0);
+      }
       ship.body.position.y = Math.sin(this.time * 2.3 + i) * 0.12;
       ship.body.position.z = this.recoil[i] ?? 0;
       // engines burn hotter going forward
-      const push = (clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6) * (p.down ? 0 : 1);
+      const push = (lv.race ? clamp(p.fwd / 30, 0.4, 2) + (p.surge > 0 ? 1 : 0) + p.boosting * 1.6 : clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6) * (p.down ? 0 : 1);
       for (const f of ship.flames) {
         const fl = 0.8 + Math.random() * 0.4;
         f.scale.set(0.45 * fl, (0.6 + push * 0.6) * fl, 0.45 * fl);
@@ -899,7 +1254,7 @@ export class LevelView {
       if (hb) {
         hb.visible = p.focus && !p.down;
         hb.position.set(p.x, FLIGHT_Y + 1.2, p.z);
-        hb.quaternion.copy(this.camera.quaternion);
+        hb.quaternion.copy(this.eye.quaternion);
       }
       ship.shield.visible = p.shield > 0 && !p.down;
       ship.flash(p.inv > 1.2 ? 1 : p.phase > 0 ? 0.5 : 0);
@@ -907,9 +1262,6 @@ export class LevelView {
       // a down ship smokes; a partner reviving it gets a ring
       if (p.down && Math.random() < 0.3) this.fx.add({ x: p.x, y: FLIGHT_Y, z: p.z, vy: 3, vz: 4, size: 0.8, grow: 2.5, life: 1, color: new THREE.Color(0x4a4040), to: new THREE.Color(0x2a2228), carried: true });
       if (p.down && p.revive > 0 && Math.random() < 0.5) this.fx.sparks(p.x, FLIGHT_Y, p.z, 2, 0x8affb0, 6, 0.3, 0.2);
-      // redlining: the engines run red and smoke, more the hotter they get
-      if (p.redline > 0.05 && Math.random() < p.redline)
-        this.fx.add({ x: p.x + (Math.random() - 0.5), y: FLIGHT_Y, z: p.z + 1.8, vz: 8, vy: 2, size: 0.5, grow: 2.5, life: 0.5, color: new THREE.Color(0xff5a2a), to: new THREE.Color(0x3a2a2a), carried: true });
       // the parry's window: a bright rim round the ship while it's open
       if (p.parryT > 0) this.fx.add({ x: p.x, y: FLIGHT_Y + 0.8, z: p.z, size: 5, grow: 1.1, life: 0.04, color: this.c.setHex(0xffffff).multiplyScalar(0.5), carried: true });
       // the siphon: a purple whirl pulling in
@@ -959,7 +1311,7 @@ export class LevelView {
       const bob = e.ground ? 0 : Math.sin(this.time * 3 + e.id) * 0.15;
       v.punch = Math.max(0, v.punch - dt * 7);
       v.knock = Math.max(0, v.knock - dt * 6);
-      v.obj.position.set(e.x, e.y + bob, groundZ - v.knock * 0.8);
+      v.obj.position.set(e.x, e.y + bob, groundZ - v.knock * 1.3);
       const foe = (FOES as Record<string, { scale: number } | undefined>)[e.arch];
       const base = (e.elite ? 1.3 : 1) * (foe?.scale ?? 1);
       v.obj.scale.set(base * (1 + v.punch * 0.22), base * (1 - v.punch * 0.15), base * (1 - v.punch * 0.12));
@@ -989,6 +1341,8 @@ export class LevelView {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      // the hurt crackle with sparks, and the badly hurt smoke
+      if (e.hp < e.max * 0.6 && Math.random() < (e.boss ? 0.3 : 0.06)) this.fx.sparks(e.x + (Math.random() - 0.5) * e.r, e.y + 0.6, groundZ, 2, 0xffd890, 8, 0.2, 0.14, !e.ground);
       // smoke from the badly hurt
       if (e.hp < e.max * 0.35 && Math.random() < (e.boss ? 0.5 : 0.15))
         this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r, y: e.y + 0.5, z: groundZ, vy: 2, vz: 3, size: 0.6, grow: 2, life: 0.8, color: new THREE.Color(0x3a3030), carried: !e.ground });
@@ -1032,7 +1386,7 @@ export class LevelView {
       ring = part(new THREE.RingGeometry(e.r * 1.4, e.r * 1.6, 6), flat(0xffd04a), [0, 0, 0], 1, [-Math.PI / 2, 0, 0]);
       this.scene.add(ring);
     }
-    return { inst, obj, head, ring, seen: true, punch: 0, knock: 0 };
+    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0 };
   }
 
   /** Flares burn and fizz; afterimages are the ship's ghost, flickering. */
@@ -1048,54 +1402,119 @@ export class LevelView {
   }
 
   private updateBullets() {
+    this.popped = 0;
     const bs = this.lv.bullets;
-    const n = Math.min(bs.length, 1500);
-    const cam = this.camera.quaternion;
-    const flick = Math.floor(this.time * 15) % 2;
-    for (let i = 0; i < n; i++) {
-      const b = bs[i];
-      const big = b.kind === 'big' ? 2.2 : b.kind === 'mine' ? 1.6 : 1;
-      const r = b.r * 2 * big;
-      const stretch = b.kind === 'needle' ? 1.9 : 1;
-      // turned to point along its motion, on the screen
-      const ang = Math.atan2(b.vx, b.vz * Math.cos(TILT));
-      this.q.copy(cam).multiply(ROT.setFromAxisAngle(Z, -ang));
-      const pos = this.v.set(b.x, FLIGHT_Y + 1, b.z);
-      const mineBlink = b.kind === 'mine' && b.t > b.life - 0.6 && flick ? 1 : 0;
-      this.m.compose(pos, this.q, this.s.set(r * 1.35, r * 1.35 * stretch, 1));
-      this.bulletRim.setMatrixAt(i, this.m);
-      this.bulletRim.setColorAt(i, RIM);
-      this.m.compose(pos, this.q, this.s.set(r, r * stretch, 1));
-      this.bulletBody.setMatrixAt(i, this.m);
-      this.bulletBody.setColorAt(i, mineBlink ? HOT : this.c.setHex(b.color).multiplyScalar(1.5));
-      this.m.compose(pos, this.q, this.s.set(r * 0.5, r * 0.5 * stretch, 1));
-      this.bulletCore.setMatrixAt(i, this.m);
-      this.bulletCore.setColorAt(i, bulletCoreColor(b));
+    this.bullets.update(this.time, bs, this.eye.quaternion);
+    // torpedoes leave smoke once they've lit, and spit sparks off the motor
+    for (const b of bs) {
+      if (b.kind !== 'torpedo' || b.t < TORPEDO.launch) continue;
+      const sp = Math.hypot(b.vx, b.vz) || 1;
+      const bx = b.x - (b.vx / sp) * 1.1;
+      const bz = b.z - (b.vz / sp) * 1.1;
+      this.wake(b, bx, bz, 0.35, (x, z) =>
+        this.fx.add({ x, y: FLIGHT_Y + 0.6, z, vx: (Math.random() - 0.5) * 1, vz: (Math.random() - 0.5) * 1, vy: 0.6, size: 0.3 + Math.random() * 0.12, grow: 3, life: 0.6 + Math.random() * 0.2, color: TORP_SMOKE, to: TORP_SMOKE_END, glow: false }),
+      );
+      if (Math.random() < 0.25) this.fx.add({ x: bx, y: FLIGHT_Y + 0.7, z: bz, vx: -b.vx * 0.2 + (Math.random() - 0.5) * 4, vz: -b.vz * 0.2 + (Math.random() - 0.5) * 4, size: 0.15, grow: 0.3, life: 0.18, drag: 3, color: HOT });
     }
-    for (const im of [this.bulletRim, this.bulletBody, this.bulletCore]) {
-      im.count = n;
-      im.instanceMatrix.needsUpdate = true;
-      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  }
+
+  /** Calls `puff` every `step` along the way `key` has come since last frame (smoke that stays a line, whatever the frame rate). */
+  private wake(key: object, x: number, z: number, step: number, puff: (x: number, z: number) => void) {
+    const was = this.wakes.get(key);
+    if (!was) {
+      this.wakes.set(key, { x, z });
+      return;
+    }
+    const d = Math.hypot(x - was.x, z - was.z);
+    const n = Math.min(8, Math.floor(d / step));
+    for (let k = 1; k <= n; k++) {
+      const f = 1 - (k * step) / Math.max(d, 1e-6);
+      puff(x + (was.x - x) * f, z + (was.z - z) * f);
+    }
+    // (a jump too long to fill, like a wrap or a respawn, starts afresh)
+    const f = d > step * 12 ? 0 : 1 - (n * step) / Math.max(d, 1e-6);
+    was.x = x + (was.x - x) * f;
+    was.z = z + (was.z - z) * f;
+  }
+
+  /** A muzzle: each faction fires in its own way (a flash and smoke, a crisp ring, a spatter, a puff). */
+  private muzzle(x: number, z: number, color: number, look: Faction | undefined) {
+    const y = FLIGHT_Y + 0.5;
+    const col = new THREE.Color(color);
+    switch (look) {
+      case 'lattice':
+        this.fx.ring(x, y, z, 1.8, 0.14, false, color);
+        this.fx.add({ x, y, z, size: 1.0, grow: 0.2, life: 0.06, color: HOT });
+        break;
+      case 'wild':
+        for (let k = 0; k < 4; k++) this.fx.add({ x, y, z, vx: (Math.random() - 0.5) * 8, vz: 2 + Math.random() * 5, vy: 3 + Math.random() * 3, gravity: 16, size: 0.3, grow: 0.6, life: 0.35, color: col, glow: false });
+        this.fx.add({ x, y, z, size: 1.2, grow: 0.4, life: 0.07, color: col });
+        break;
+      case 'bloom':
+        for (let k = 0; k < 4; k++) {
+          const a = Math.random() * Math.PI * 2;
+          this.fx.add({ x, y, z, vx: Math.cos(a) * 2.5, vz: Math.sin(a) * 2.5, vy: 0.5, size: 0.6, grow: 2.2, life: 0.6, drag: 2, color: col.clone().multiplyScalar(0.7), glow: false });
+        }
+        break;
+      default:
+        this.fx.add({ x, y, z, size: 1.4, grow: 0.3, life: 0.07, color: HOT });
+        this.fx.add({ x, y, z, vz: 2, vy: 1, size: 0.6, grow: 2.2, life: 0.4, color: TORP_SMOKE, to: TORP_SMOKE_END, glow: false });
+    }
+  }
+
+  /** A cancelled bullet pops in its faction's way, rather than winking out. */
+  private pop1(x: number, z: number, color: number, look: Faction) {
+    const y = FLIGHT_Y + 0.6;
+    if (++this.popped > 28) {
+      if (this.popped < 90) this.fx.add({ x, y, z, size: 0.9, grow: 0.2, life: 0.08, color: new THREE.Color(color), carried: true });
+      return;
+    }
+    switch (look) {
+      case 'lattice':
+        // the shard breaks into light
+        this.fx.ring(x, y, z, 1.3, 0.16, true, color);
+        this.fx.sparks(x, y, z, 3, 0xffffff, 12, 0.14, 0.18);
+        break;
+      case 'wild':
+        // a splash
+        for (let k = 0; k < 4; k++) {
+          const a = Math.random() * Math.PI * 2;
+          this.fx.add({ x, y, z, vx: Math.cos(a) * 5, vz: Math.sin(a) * 5, vy: 3 + Math.random() * 2, gravity: 18, size: 0.32, grow: 0.5, life: 0.3, color: new THREE.Color(color), glow: false, carried: true });
+        }
+        break;
+      case 'bloom':
+        // a soft puff
+        this.fx.add({ x, y, z, size: 1.2, grow: 1.8, life: 0.4, color: new THREE.Color(color).multiplyScalar(0.7), glow: false, carried: true });
+        this.fx.sparks(x, y, z, 2, color, 5, 0.3, 0.2);
+        break;
+      default:
+        // hot metal: sparks and a flash
+        this.fx.add({ x, y, z, size: 1.1, grow: 0.3, life: 0.06, color: HOT, carried: true });
+        this.fx.sparks(x, y, z, 4, 0xffb04a, 14, 0.2, 0.18);
     }
   }
 
   private updateShots() {
     const ss = this.lv.shots;
     let n = 0;
+    this.shotArt.update(this.time, ss, this.eye.quaternion, LIVERY.map((l) => l[2]));
     for (const s of ss) {
       if (n >= 1500) break;
-      if (s.kind === 'flame') continue; // drawn as fire particles
-      const ang = Math.atan2(s.vx, s.vz);
-      const len = s.kind === 'rail' ? 5 : s.kind === 'slug' ? 1.3 : s.kind === 'missile' ? 0.9 : s.kind === 'mine' || s.kind === 'flak' ? 0.7 : 0.6;
-      const w = s.kind === 'rail' ? 0.45 : s.kind === 'flak' || s.kind === 'mine' ? 0.7 : s.kind === 'pellet' ? 0.35 : 0.3;
-      this.q.setFromAxisAngle(Y, ang);
-      this.m.compose(this.v.set(s.x, FLIGHT_Y + 0.6, s.z), this.q, this.s.set(w, 0.3, len));
+      if (s.kind === 'missile') {
+        // a thin wisp of smoke, laid evenly along the way it came
+        this.wake(s, s.x, s.z, 0.3, (x, z) =>
+          this.fx.add({ x: x + (Math.random() - 0.5) * 0.12, y: FLIGHT_Y + 0.5, z: z + (Math.random() - 0.5) * 0.12, vy: 0.4, size: 0.2 + Math.random() * 0.08, grow: 2.6, life: 0.3 + Math.random() * 0.15, color: MISSILE_SMOKE, to: MISSILE_SMOKE_END, glow: false }),
+        );
+      }
+      if (s.kind === 'rail' && Math.random() < 0.8) this.fx.add({ x: s.x, y: FLIGHT_Y + 0.5, z: s.z, size: 0.5, grow: 0.1, life: 0.15, color: new THREE.Color(0x9af0ff), carried: true });
+      if (s.kind === 'flame' || ShotArt.draws(s.kind)) continue; // fire particles, and the shot art
+      // (anything else that flies: a plain bolt)
+      this.q.setFromAxisAngle(Y, Math.atan2(s.vx, s.vz));
+      this.m.compose(this.v.set(s.x, FLIGHT_Y + 0.6, s.z), this.q, this.s.set(0.3, 0.3, 0.6));
       this.shots.setMatrixAt(n, this.m);
-      const col = s.owner === 1 && s.kind === 'slug' ? 0xb0ffe8 : SHOT_COLORS[s.kind];
+      const col = SHOT_COLORS[s.kind];
       this.shots.setColorAt(n, this.c.setHex(col).multiplyScalar(1.7));
       n++;
-      if (s.kind === 'missile' && Math.random() < 0.7) this.fx.add({ x: s.x, y: FLIGHT_Y + 0.5, z: s.z, size: 0.4, grow: 2, life: 0.3, color: new THREE.Color(0xd0c0b0), to: new THREE.Color(0x5a5050) });
-      if (s.kind === 'rail' && Math.random() < 0.8) this.fx.add({ x: s.x, y: FLIGHT_Y + 0.5, z: s.z, size: 0.5, grow: 0.1, life: 0.15, color: new THREE.Color(0x9af0ff), carried: true });
     }
     this.shots.count = n;
     this.shots.instanceMatrix.needsUpdate = true;
@@ -1104,30 +1523,35 @@ export class LevelView {
 
   private updateBeams() {
     let k = 0;
-    for (const p of this.lv.players) {
+    this.lv.players.forEach((p, i) => {
       p.stats.guns.forEach((g, gi) => {
         const len = p.beam[gi];
         if (!len) return;
         let m = this.beams[k];
         if (!m) {
-          m = part(GEO.box, flat(0xffffff), [0, 0, 0], 1);
+          m = new THREE.Mesh(BEAM_GEO, beamMaterial());
           m.renderOrder = 24;
-          const glow = part(GEO.box, flat(SHOT_COLORS.beam, { additive: true }), [0, 0, 0], [3, 0.5, 1]);
-          m.add(glow);
+          m.frustumCulled = false;
           this.beams.push(m);
           this.scene.add(m);
         }
         m.visible = true;
-        const w = 0.35 + Math.sin(this.time * 60) * 0.08;
         const x = p.x + g.x;
         const z = p.z + g.z;
         m.position.set(x + (Math.sin(g.dir) * len) / 2, FLIGHT_Y + 0.7, z - (Math.cos(g.dir) * len) / 2);
-        m.rotation.y = -g.dir;
-        m.scale.set(w, 0.2, len);
+        m.rotation.set(0, -g.dir, 0);
+        m.scale.set(1.6 + Math.sin(this.time * 60) * 0.12, 1, len);
+        const u = (m.material as THREE.ShaderMaterial).uniforms;
+        u.uTime.value = this.time;
+        u.uLen.value = len;
+        u.uColor.value.setHex(i === 0 ? SHOT_COLORS.beam : LIVERY[i][2]);
+        // where it bites: a hot glow
+        this.fx.add({ x: x + Math.sin(g.dir) * len, y: FLIGHT_Y + 0.8, z: z - Math.cos(g.dir) * len, size: 1.6 + Math.random() * 0.6, grow: 0.5, life: 0.05, color: this.c.setHex(0xc8faff).multiplyScalar(1.2), carried: true });
+        this.fx.add({ x, y: FLIGHT_Y + 0.8, z: z - 0.4, size: 1.2, grow: 0.4, life: 0.04, color: HOT, carried: true });
         if (Math.random() < 0.5) this.fx.sparks(x + Math.sin(g.dir) * len, FLIGHT_Y + 0.6, z - Math.cos(g.dir) * len, 1, 0x8af8ff, 10, 0.15, 0.25);
         k++;
       });
-    }
+    });
     for (; k < this.beams.length; k++) this.beams[k].visible = false;
   }
 
@@ -1393,23 +1817,62 @@ export class LevelView {
   }
 
   dispose() {
+    clearBend();
+    this.track?.dispose();
     this.world.dispose();
     this.life.dispose();
+    this.shields.dispose();
     this.fx.clear();
     for (const s of this.ships) s?.dispose();
     for (const v of this.enemies.values()) v.inst?.dispose();
+    for (const w of this.wrecks) w.inst?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);
     audio.loop('flame', 'p0', false);
     audio.loop('flame', 'p1', false);
     audio.loop('engine', 'p1', false);
+    audio.loop('wind', 'all', false);
   }
 }
 
-const ROT = new THREE.Quaternion();
-const Z = new THREE.Vector3(0, 0, 1);
 const Y = new THREE.Vector3(0, 1, 0);
-const RIM = new THREE.Color(0x1a1020);
+/** A beam: a flat strip from the gun (z 0.5) up to where it ends (z -0.5), across x. */
+const BEAM_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+/** Light poured down a strip: a white-hot core, a coloured sheath, pulses running up it, and a ragged, crawling edge. */
+function beamMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uLen: { value: 10 }, uColor: { value: new THREE.Color(0x8af8ff) } },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uLen;
+      uniform vec3 uColor;
+      varying vec2 vUv;
+      void main() {
+        float along = vUv.y * uLen;
+        float x = abs(vUv.x - 0.5) * 2.0;
+        // the edge crawls
+        float wob = 0.12 * sin(along * 2.3 - uTime * 40.0) + 0.08 * sin(along * 5.1 + uTime * 27.0);
+        float sheath = 1.0 - smoothstep(0.35, 1.0, x + wob);
+        float core = 1.0 - smoothstep(0.0, 0.22, x);
+        // pulses running out from the gun
+        float pulse = 0.6 + 0.4 * smoothstep(0.6, 1.0, sin(along * 0.9 - uTime * 50.0));
+        // fading in from the muzzle and out at the tip
+        float ends = smoothstep(0.0, 0.6, along) * smoothstep(0.0, 1.2, uLen - along);
+        vec3 col = uColor * sheath * pulse * 1.4 + vec3(1.0, 0.98, 0.92) * core * 2.2;
+        gl_FragColor = vec4(col * ends, 1.0);
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+}
 const ASH = new THREE.Color(0xb8b0b0);
 const SNOW = new THREE.Color(0xf4f8ff);
 const EMBER = new THREE.Color(0xffc040);
@@ -1419,7 +1882,6 @@ const SPORE2 = new THREE.Color(0xd0a0ff);
 const POLLEN = new THREE.Color(0xfff0a0);
 const RAIN = new THREE.Color(0x9ab8e8);
 const STEAM = new THREE.Color(0xf8f0f4);
-const CORE = new THREE.Color(0xfffff0).multiplyScalar(1.8);
 const HOT = new THREE.Color(2, 2, 2);
 
 /** A soft round puff, lighter on top: one texture for every cloud. */
@@ -1451,9 +1913,6 @@ function cloudMaterial(col: THREE.Color, opacity: number) {
   return m;
 }
 
-function bulletCoreColor(b: Bullet) {
-  return b.kind === 'big' ? HOT : CORE;
-}
 
 import { partById } from '../game/parts';
 function PART_NAMES(id: string) {
@@ -1462,8 +1921,22 @@ function PART_NAMES(id: string) {
 
 export type { Player };
 const SCORCH = new THREE.Color(0x2e2620);
+const BITE = new THREE.Color(0xffb060);
+const FIRE_PETAL = new THREE.Color(0xffd880);
+const FIRE_DARK = new THREE.Color(0xb02a10);
+const WRECK_SMOKE = new THREE.Color(0x5a5050);
+const WRECK_SMOKE_END = new THREE.Color(0x8a8288);
+const SPLASH = new THREE.Color(0xeaf4f8);
+const SPARK = new THREE.Color(0xffe0a0);
+const GLINT = new THREE.Color(0xd8f8ff);
+const HIT_SMOKE = new THREE.Color(0x4a4040);
+const SMOKE_END = new THREE.Color(0x2a2228);
 const SCORCH_END = new THREE.Color(0x3a3430);
 const AIR = new THREE.Color(0xe8f0f8);
 const SKIM = new THREE.Color(0xffd890);
 const SIPHON = new THREE.Color(0xb08aff);
 const FLARE = new THREE.Color(0xffe0a0).multiplyScalar(1.6);
+const TORP_SMOKE = new THREE.Color(0xeee6dc);
+const TORP_SMOKE_END = new THREE.Color(0x9a9298);
+const MISSILE_SMOKE = new THREE.Color(0xc8bcb0);
+const MISSILE_SMOKE_END = new THREE.Color(0x6a6266);
