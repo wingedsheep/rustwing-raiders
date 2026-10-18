@@ -680,7 +680,7 @@ export class Level {
       const seen = this.killed + this.missed;
       const share = seen ? this.killed / seen : 1;
       this.fullClear = this.missed === 0 && this.spawned > 0;
-      this.rank = this.fullClear || share >= 0.95 ? 'S' : share >= 0.85 ? 'A' : share >= 0.65 ? 'B' : 'C';
+      this.rank = this.fullClear || share >= 0.9 ? 'S' : share >= 0.7 ? 'A' : share >= 0.45 ? 'B' : 'C';
       this.parBonus = this.fullClear ? Math.round(FULL_CLEAR * hard) : 0;
       const cleared = this.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
       this.emit({
