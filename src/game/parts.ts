@@ -221,7 +221,7 @@ export const PARTS: PartDef[] = [
     text: 'A plain engine. Push it from the back.',
   },
   {
-    id: 'burner', name: 'Afterburner', cls: 'engine', tags: ['drive', 'heat'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.6, power: 1, thrust: 18, dash: 1,
+    id: 'burner', name: 'Blast Pipes', cls: 'engine', tags: ['drive', 'heat'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.6, power: 1, thrust: 18, dash: 1,
     text: 'Big thrust and a second dash charge.',
   },
   {

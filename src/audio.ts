@@ -5,7 +5,7 @@
  *   sfx voices -> per-play gain/pan -> sfxBus ----------------------\
  *                                   \-> sfxVerb (short convolver) ---+-> master (mute/volume)
  *   music players -> fade -> duck -> musicVol ------------------------/     -> compressor -> limiter -> out
- *                 \-> reverb send -> musicVerb (long convolver) -> duck
+ *                 \-> reverb send -> its own long convolver -> fade -> duck
  *
  * Music is sequenced step by step (16 steps a bar) by a lookahead scheduler running on
  * AudioContext time. Each track's song (32 bars: A B A' B') is generated once from a seed
@@ -36,7 +36,7 @@ let sfxBus!: GainNode;
 let sfxVerb!: GainNode;
 let musicDuck!: GainNode;
 let musicVol!: GainNode;
-let musicVerb!: ConvolverNode;
+let musicVerbIR!: AudioBuffer;
 let noiseBuf!: AudioBuffer;
 let pulse12!: PeriodicWave;
 let pulse25!: PeriodicWave;
@@ -98,11 +98,7 @@ function init(): boolean {
   const nd = noiseBuf.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
 
-  musicVerb = ctx.createConvolver();
-  musicVerb.buffer = impulse(2.6, 2.4);
-  const mvRet = ctx.createGain();
-  mvRet.gain.value = 0.8;
-  musicVerb.connect(mvRet).connect(musicDuck);
+  musicVerbIR = impulse(2.6, 2.4);
 
   const sv = ctx.createConvolver();
   sv.buffer = impulse(1.4, 3);
@@ -1701,10 +1697,15 @@ function makePlayer(name: Track, start: number): Player {
   out.gain.setValueAtTime(0, ctx.currentTime);
   out.gain.linearRampToValueAtTime(1, start + 0.8);
   out.connect(musicDuck);
+  // each player has its own reverb, faded after the convolver, so a retired song's tail
+  // doesn't keep ringing under the next one
+  const verb = ctx.createConvolver();
+  verb.buffer = musicVerbIR;
+  const revIn = ctx.createGain();
   const revOut = ctx.createGain();
   revOut.gain.setValueAtTime(0, ctx.currentTime);
-  revOut.gain.linearRampToValueAtTime(1, start + 0.8);
-  revOut.connect(musicVerb);
+  revOut.gain.linearRampToValueAtTime(0.8, start + 0.8);
+  revIn.connect(verb).connect(revOut).connect(musicDuck);
   const dly = ctx.createDelay(2);
   dly.delayTime.value = Math.min(1.9, sd * 3);
   const fb = ctx.createGain();
@@ -1714,7 +1715,7 @@ function makePlayer(name: Track, start: number): Player {
   dlp.frequency.value = 2600;
   dly.connect(dlp).connect(fb).connect(dly);
   dlp.connect(out);
-  const nodes: AudioNode[] = [out, revOut, dly, fb, dlp];
+  const nodes: AudioNode[] = [out, revIn, verb, revOut, dly, fb, dlp];
   const ch = {} as Record<Chan, GainNode>;
   for (const c of Object.keys(MIX) as Chan[]) {
     const g = ctx.createGain();
@@ -1724,7 +1725,7 @@ function makePlayer(name: Track, start: number): Player {
     if (rv > 0) {
       const s = ctx.createGain();
       s.gain.value = rv;
-      g.connect(s).connect(revOut);
+      g.connect(s).connect(revIn);
       nodes.push(s);
     }
     const dl = def.dly?.[c] ?? DLY[c];
@@ -1755,13 +1756,14 @@ function switchTrack(name: Track | null) {
   const now = ctx.currentTime;
   const running = ctx.state === 'running';
   // only one tune at a time: anything still fading out from an earlier switch goes now, and the
-  // one playing fades out before the next one comes in (a song that never got to play, because
+  // one playing is silent before the next one comes in (a song that never got to play, because
   // the context wasn't running yet, is dropped outright)
+  const fade = running && current ? 0.6 : 0;
   for (const p of players) if (p !== current) retire(p, now, running ? 0.12 : 0);
-  if (current) retire(current, now, running ? 0.7 : 0);
+  if (current) retire(current, now, fade);
   current = null;
   if (name) {
-    current = makePlayer(name, now + (running ? 0.45 : 0.05));
+    current = makePlayer(name, now + fade + 0.05);
     players.push(current);
   }
 }
