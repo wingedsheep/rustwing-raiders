@@ -57,6 +57,13 @@ export const INTEREST = 0.1;
 export const DANGER_HARDER = [0, 0, 0.2, 0.42];
 export const DANGER_PAY = [1, 1, 1.4, 1.9];
 
+/** A threat (see Run.threat) as a word and a step on a five-step scale. */
+export function threatTier(t: number): { step: number; word: string } {
+  const steps = [0.25, 0.55, 0.9, 1.3];
+  const step = steps.filter((s) => t >= s).length;
+  return { step, word: ['EASY', 'FAIR', 'TOUGH', 'HARD', 'BRUTAL'][step] };
+}
+
 export interface ShopItem {
   part: string;
   price: number;
@@ -164,6 +171,16 @@ export class Run {
   danger(n: ChartNode) {
     if (n.kind === 'raid' || n.kind === 'run' || n.kind === 'hunt') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
     return n.danger;
+  }
+
+  /**
+   * How hard a site's fight would be if you went now: the run's difficulty at the next stop, and
+   * the site's danger on top. Null where there's no fight to be had (or none you know of).
+   */
+  threat(n: ChartNode): number | null {
+    if (n.kind !== 'raid' && n.kind !== 'run' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
+    const next = this.sector * 0.55 + Math.min(this.stops + 1, 8) * 0.07;
+    return next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]);
   }
 
   /** Three parts to choose from after a level (`rich`: hunts and bosses lean rare). */

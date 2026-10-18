@@ -266,7 +266,7 @@ export class Dock implements Screen {
     const c = run.chart;
     const lines = [
       `They say the Warden at the gate is ${c.bossPlanet.boss.name}, over ${c.bossPlanet.name}. Bring something that hits hard.`,
-      `${c.bodies[c.alert]?.planet?.name ?? 'Someone'} is on alert this sector: everything there bites harder, and pays better.`,
+      c.alert >= 0 ? `${c.bodies[c.alert].planet!.name} is on alert this sector: everything there bites harder, and pays better.` : 'Quiet system, this. Nobody on alert. Enjoy it while it lasts.',
       'A trader comet goes round the wrong way. She buys anything, and pays a little over.',
       run.debt ? `Mama Ruzz's boys were in asking after you. You owe her ${run.debt}, and it grows every jump.` : 'Mama Ruzz lends to anyone. Paying her back is the expensive part.',
       run.bounty ? `There's a poster of you in the mess. Kaspar was asking. ${run.bounty * 40} scrap, it says.` : 'Kaspar the hunter came through last watch. Glad it wasn\'t you he wanted.',

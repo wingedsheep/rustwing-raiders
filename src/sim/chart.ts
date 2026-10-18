@@ -12,6 +12,9 @@
  * what it pays in (a class of part, scrap, fuel, intelligence), what the planet's market sells
  * cheap and wants dear. Some things are hidden: what's out in the dark (an event) stays a question
  * mark until a rumour names it.
+ *
+ * Systems get harder as the run goes on, and so does each crossing: the first sector has no
+ * elites and no planet on alert, and whatever you can reach from the jump point is a gentle start.
  */
 
 import { PLANETS, type Planet } from '../world/planets';
@@ -73,6 +76,8 @@ export const HOP = 12;
 export const RANGE = 18;
 export const SWEEP_SPEED = 4.6;
 export const EDGE = 28;
+/** How likely a raid or hunt is to be elite, by sector. */
+const ELITE = [0, 0.18, 0.3];
 
 export class Chart {
   bodies: Body[] = [];
@@ -118,7 +123,8 @@ export class Chart {
     });
     // a trader going round the wrong way
     this.bodies.push({ planet: null, radius: 14.5, angle0: r() * Math.PI * 2, speed: -0.32, size: 0.6, kind: 'trader' });
-    this.alert = Math.floor(r() * 4);
+    // no planet on alert in the first system: it's where you learn the trade
+    this.alert = this.sector > 0 ? Math.floor(r() * 4) : -1;
 
     // events, dealt like cards: each at most once a sector, ones met already this run less likely
     const deck = (where: 'planet' | 'space', p: Planet | null) => {
@@ -140,7 +146,7 @@ export class Chart {
     const kinds: [NodeKind, number][] = [
       ['raid', 40],
       ['run', 17],
-      ['hunt', 14],
+      ['hunt', this.sector > 0 ? 14 : 7],
       ['salvage', 11],
       ['dock', 5],
       ['event', 15],
@@ -154,7 +160,7 @@ export class Chart {
         const kind = weighted(r, kinds);
         const node = add(kind, i, off + (k / n) * Math.PI * 2, this.bodies[i].size + 1.6, '', p);
         if (kind === 'raid' || kind === 'hunt' || kind === 'run') {
-          node.elite = kind !== 'run' && r() < 0.24;
+          node.elite = kind !== 'run' && r() < ELITE[Math.min(this.sector, ELITE.length - 1)];
           node.danger = Math.min(3, (kind === 'hunt' ? 2 : 1) + hot + (node.elite ? 1 : 0));
           if (kind === 'run') node.reward = r() < 0.35 ? 'fuel' : 'scrap';
           else {
@@ -199,6 +205,15 @@ export class Chart {
     if (!this.nodes.some((n) => n.kind === 'dock')) {
       const n = this.nodes.find((n) => n.kind === 'event' && n.body < 0)!;
       Object.assign(n, { kind: 'dock', name: 'OUTER BUOY', event: null, known: true, danger: 0, reward: 'hull' });
+    }
+    // the first jump is a gentle one: nothing elite in reach of the jump point, and in the first
+    // system nothing above the lowest danger
+    for (const n of this.reachable(this.nodes[0], 0)) {
+      if (n.kind !== 'raid' && n.kind !== 'hunt' && n.kind !== 'run') continue;
+      const was = n.elite;
+      n.elite = false;
+      n.danger = Math.min(n.danger, this.sector > 0 ? 2 : 1);
+      if (was && n.planet) n.name = siteName(r, n.planet, n);
     }
     return boss;
   }
