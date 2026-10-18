@@ -1,0 +1,1201 @@
+{
+ "alien_pylon#0": {
+  "colliders": [
+   {
+    "r": 1.5,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "alien_pylon",
+  "max": [
+   2.175,
+   17.1,
+   2.466
+  ],
+  "min": [
+   -2.175,
+   0.0,
+   -2.466
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "alien_pylon#1": {
+  "colliders": [
+   {
+    "r": 2.0,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "alien_pylon",
+  "max": [
+   2.46,
+   16.1,
+   2.466
+  ],
+  "min": [
+   -2.46,
+   0.0,
+   -2.466
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "bonfire#0": {
+  "colliders": [],
+  "kind": "bonfire",
+  "max": [
+   2.075,
+   1.45,
+   1.675
+  ],
+  "min": [
+   -2.395,
+   -0.06,
+   -2.329
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "bonfire#1": {
+  "colliders": [],
+  "kind": "bonfire",
+  "max": [
+   1.559,
+   2.32,
+   1.872
+  ],
+  "min": [
+   -0.838,
+   -0.005,
+   -0.859
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "conifer#0": {
+  "colliders": [],
+  "kind": "conifer",
+  "max": [
+   2.195,
+   5.2,
+   2.263
+  ],
+  "min": [
+   -2.263,
+   0.0,
+   -2.195
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "conifer#1": {
+  "colliders": [],
+  "kind": "conifer",
+  "max": [
+   1.485,
+   4.725,
+   1.549
+  ],
+  "min": [
+   -1.576,
+   0.0,
+   -1.497
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "conifer#2": {
+  "colliders": [],
+  "kind": "conifer",
+  "max": [
+   1.965,
+   3.95,
+   2.143
+  ],
+  "min": [
+   -1.775,
+   0.0,
+   -2.297
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "copper_tree#0": {
+  "colliders": [],
+  "kind": "copper_tree",
+  "max": [
+   1.863,
+   4.214,
+   1.71
+  ],
+  "min": [
+   -1.86,
+   -0.05,
+   -1.849
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "copper_tree#1": {
+  "colliders": [],
+  "kind": "copper_tree",
+  "max": [
+   2.192,
+   4.4,
+   2.34
+  ],
+  "min": [
+   -2.345,
+   -0.05,
+   -2.254
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "copper_tree#2": {
+  "colliders": [],
+  "kind": "copper_tree",
+  "max": [
+   2.688,
+   4.285,
+   2.582
+  ],
+  "min": [
+   -2.526,
+   -0.05,
+   -2.552
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "coral_brain#0": {
+  "colliders": [],
+  "kind": "coral_brain",
+  "max": [
+   2.146,
+   1.227,
+   2.11
+  ],
+  "min": [
+   -2.146,
+   -0.957,
+   -2.11
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "coral_brain#1": {
+  "colliders": [],
+  "kind": "coral_brain",
+  "max": [
+   2.5,
+   0.92,
+   2.596
+  ],
+  "min": [
+   -1.602,
+   -0.762,
+   -2.142
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "coral_brain#2": {
+  "colliders": [],
+  "kind": "coral_brain",
+  "max": [
+   2.653,
+   1.443,
+   2.633
+  ],
+  "min": [
+   -2.653,
+   -1.137,
+   -2.633
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "coral_fan#0": {
+  "colliders": [],
+  "kind": "coral_fan",
+  "max": [
+   2.047,
+   1.886,
+   2.236
+  ],
+  "min": [
+   -2.114,
+   -0.631,
+   -2.222
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "coral_fan#1": {
+  "colliders": [],
+  "kind": "coral_fan",
+  "max": [
+   1.504,
+   1.542,
+   1.584
+  ],
+  "min": [
+   -1.693,
+   -0.712,
+   -1.593
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "coral_fan#2": {
+  "colliders": [],
+  "kind": "coral_fan",
+  "max": [
+   2.253,
+   2.299,
+   1.836
+  ],
+  "min": [
+   -2.185,
+   -0.617,
+   -1.976
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "coral_tube#0": {
+  "colliders": [],
+  "kind": "coral_tube",
+  "max": [
+   1.831,
+   2.904,
+   1.932
+  ],
+  "min": [
+   -1.849,
+   -0.965,
+   -1.86
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "coral_tube#1": {
+  "colliders": [],
+  "kind": "coral_tube",
+  "max": [
+   1.359,
+   2.114,
+   1.506
+  ],
+  "min": [
+   -1.18,
+   -0.806,
+   -1.305
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "coral_tube#2": {
+  "colliders": [],
+  "kind": "coral_tube",
+  "max": [
+   2.475,
+   3.471,
+   2.626
+  ],
+  "min": [
+   -2.382,
+   -0.894,
+   -2.3
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "giant_rib#0": {
+  "colliders": [
+   {
+    "r": 2.35,
+    "x": 5.1,
+    "z": -1.8
+   },
+   {
+    "r": 2.27,
+    "x": -5.51,
+    "z": -1.8
+   }
+  ],
+  "kind": "giant_rib",
+  "max": [
+   9.521,
+   15.113,
+   2.491
+  ],
+  "min": [
+   -9.389,
+   -2.285,
+   -3.628
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "giant_rib#1": {
+  "colliders": [
+   {
+    "r": 2.35,
+    "x": 6.06,
+    "z": 2.08
+   },
+   {
+    "r": 2.45,
+    "x": -5.51,
+    "z": 2.08
+   }
+  ],
+  "kind": "giant_rib",
+  "max": [
+   10.031,
+   15.461,
+   3.89
+  ],
+  "min": [
+   -10.111,
+   -2.214,
+   -2.464
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glass_shard#0": {
+  "colliders": [],
+  "kind": "glass_shard",
+  "max": [
+   2.754,
+   3.561,
+   2.795
+  ],
+  "min": [
+   -2.741,
+   -0.458,
+   -2.798
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glass_shard#1": {
+  "colliders": [],
+  "kind": "glass_shard",
+  "max": [
+   3.084,
+   4.918,
+   2.935
+  ],
+  "min": [
+   -2.561,
+   -0.508,
+   -2.706
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glass_shard#2": {
+  "colliders": [],
+  "kind": "glass_shard",
+  "max": [
+   4.303,
+   2.243,
+   4.449
+  ],
+  "min": [
+   -4.277,
+   -0.409,
+   -4.078
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "greenhouse#0": {
+  "colliders": [],
+  "kind": "greenhouse",
+  "max": [
+   1.8,
+   3.042,
+   3.3
+  ],
+  "min": [
+   -1.8,
+   -0.005,
+   -3.3
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "greenhouse#1": {
+  "colliders": [],
+  "kind": "greenhouse",
+  "max": [
+   2.95,
+   2.427,
+   3.31
+  ],
+  "min": [
+   -1.8,
+   -0.005,
+   -3.31
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ice_block#0": {
+  "colliders": [],
+  "kind": "ice_block",
+  "max": [
+   2.643,
+   1.72,
+   2.35
+  ],
+  "min": [
+   -2.302,
+   -0.2,
+   -2.585
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ice_block#1": {
+  "colliders": [],
+  "kind": "ice_block",
+  "max": [
+   2.615,
+   1.636,
+   2.346
+  ],
+  "min": [
+   -2.344,
+   -0.596,
+   -2.361
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ice_block#2": {
+  "colliders": [],
+  "kind": "ice_block",
+  "max": [
+   2.926,
+   1.779,
+   2.352
+  ],
+  "min": [
+   -3.062,
+   -0.94,
+   -2.43
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ice_spire#0": {
+  "colliders": [
+   {
+    "r": 1.9,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "ice_spire",
+  "max": [
+   4.999,
+   15.553,
+   3.583
+  ],
+  "min": [
+   -6.463,
+   -1.048,
+   -4.231
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ice_spire#1": {
+  "colliders": [
+   {
+    "r": 1.6,
+    "x": -1.6,
+    "z": -0.3
+   },
+   {
+    "r": 1.5,
+    "x": 1.6,
+    "z": 0.4
+   }
+  ],
+  "kind": "ice_spire",
+  "max": [
+   3.882,
+   13.882,
+   4.931
+  ],
+  "min": [
+   -3.805,
+   -1.056,
+   -5.328
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "light_strip#0": {
+  "colliders": [],
+  "kind": "light_strip",
+  "max": [
+   1.2,
+   0.33,
+   4.2
+  ],
+  "min": [
+   -1.2,
+   -0.025,
+   -4.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "light_strip#1": {
+  "colliders": [],
+  "kind": "light_strip",
+  "max": [
+   3.15,
+   0.35,
+   3.289
+  ],
+  "min": [
+   -3.15,
+   -0.05,
+   -2.159
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "light_strip#2": {
+  "colliders": [],
+  "kind": "light_strip",
+  "max": [
+   1.387,
+   0.683,
+   5.346
+  ],
+  "min": [
+   -1.346,
+   -0.676,
+   -5.339
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "machine_dome#0": {
+  "colliders": [],
+  "kind": "machine_dome",
+  "max": [
+   2.683,
+   2.1,
+   2.683
+  ],
+  "min": [
+   -3.738,
+   -2.65,
+   -3.05
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "machine_dome#1": {
+  "colliders": [],
+  "kind": "machine_dome",
+  "max": [
+   3.794,
+   3.01,
+   3.217
+  ],
+  "min": [
+   -2.772,
+   -1.123,
+   -2.772
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mangrove#0": {
+  "colliders": [],
+  "kind": "mangrove",
+  "max": [
+   2.234,
+   4.813,
+   2.015
+  ],
+  "min": [
+   -2.048,
+   -0.396,
+   -2.244
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mangrove#1": {
+  "colliders": [],
+  "kind": "mangrove",
+  "max": [
+   3.186,
+   5.209,
+   2.993
+  ],
+  "min": [
+   -2.95,
+   -0.354,
+   -3.123
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mangrove#2": {
+  "colliders": [],
+  "kind": "mangrove",
+  "max": [
+   1.707,
+   3.33,
+   1.535
+  ],
+  "min": [
+   -1.288,
+   -0.393,
+   -1.656
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mech_arm#0": {
+  "colliders": [],
+  "kind": "mech_arm",
+  "max": [
+   3.467,
+   7.455,
+   4.939
+  ],
+  "min": [
+   -3.454,
+   -1.507,
+   -2.741
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mech_arm#1": {
+  "colliders": [],
+  "kind": "mech_arm",
+  "max": [
+   6.479,
+   5.85,
+   3.744
+  ],
+  "min": [
+   -6.361,
+   -1.163,
+   -3.0
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mech_wreck#0": {
+  "colliders": [],
+  "kind": "mech_wreck",
+  "max": [
+   4.68,
+   4.806,
+   5.399
+  ],
+  "min": [
+   -4.749,
+   -2.965,
+   -7.699
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mech_wreck#1": {
+  "colliders": [],
+  "kind": "mech_wreck",
+  "max": [
+   5.596,
+   4.729,
+   5.028
+  ],
+  "min": [
+   -6.543,
+   -2.286,
+   -4.54
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "pipe_run#0": {
+  "colliders": [],
+  "kind": "pipe_run",
+  "max": [
+   1.6,
+   2.41,
+   4.5
+  ],
+  "min": [
+   -1.6,
+   0.0,
+   -4.5
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "pipe_run#1": {
+  "colliders": [],
+  "kind": "pipe_run",
+  "max": [
+   0.9,
+   5.475,
+   4.5
+  ],
+  "min": [
+   -0.9,
+   0.0,
+   -4.5
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "pipe_run#2": {
+  "colliders": [],
+  "kind": "pipe_run",
+  "max": [
+   1.6,
+   2.85,
+   4.5
+  ],
+  "min": [
+   -1.6,
+   0.0,
+   -4.5
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "refinery_tank#0": {
+  "colliders": [],
+  "kind": "refinery_tank",
+  "max": [
+   4.531,
+   3.95,
+   6.321
+  ],
+  "min": [
+   -4.621,
+   0.0,
+   -4.465
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "refinery_tank#1": {
+  "colliders": [],
+  "kind": "refinery_tank",
+  "max": [
+   3.103,
+   5.72,
+   2.814
+  ],
+  "min": [
+   -2.783,
+   0.0,
+   -2.739
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "refinery_tank#2": {
+  "colliders": [],
+  "kind": "refinery_tank",
+  "max": [
+   3.377,
+   3.027,
+   3.838
+  ],
+  "min": [
+   -4.164,
+   0.0,
+   -3.731
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "scav_tent#0": {
+  "colliders": [],
+  "kind": "scav_tent",
+  "max": [
+   3.51,
+   2.15,
+   2.596
+  ],
+  "min": [
+   -2.721,
+   -0.178,
+   -2.576
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "scav_tent#1": {
+  "colliders": [],
+  "kind": "scav_tent",
+  "max": [
+   2.532,
+   2.458,
+   2.083
+  ],
+  "min": [
+   -2.619,
+   -0.258,
+   -2.286
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "scav_tent#2": {
+  "colliders": [],
+  "kind": "scav_tent",
+  "max": [
+   2.827,
+   4.52,
+   2.827
+  ],
+  "min": [
+   -2.827,
+   -0.003,
+   -2.827
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "scrap_pile#0": {
+  "colliders": [],
+  "kind": "scrap_pile",
+  "max": [
+   2.695,
+   2.029,
+   2.485
+  ],
+  "min": [
+   -2.713,
+   -0.308,
+   -2.778
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "scrap_pile#1": {
+  "colliders": [],
+  "kind": "scrap_pile",
+  "max": [
+   3.35,
+   1.506,
+   2.563
+  ],
+  "min": [
+   -2.805,
+   -0.32,
+   -2.807
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "scrap_pile#2": {
+  "colliders": [],
+  "kind": "scrap_pile",
+  "max": [
+   4.8,
+   2.205,
+   3.559
+  ],
+  "min": [
+   -3.669,
+   -0.276,
+   -4.984
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "silo#0": {
+  "colliders": [],
+  "kind": "silo",
+  "max": [
+   1.8,
+   7.1,
+   1.8
+  ],
+  "min": [
+   -1.8,
+   0.0,
+   -1.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "silo#1": {
+  "colliders": [],
+  "kind": "silo",
+  "max": [
+   3.1,
+   6.5,
+   4.253
+  ],
+  "min": [
+   -3.1,
+   0.0,
+   -1.8
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "skull_isle#0": {
+  "colliders": [],
+  "kind": "skull_isle",
+  "max": [
+   7.007,
+   6.024,
+   7.98
+  ],
+  "min": [
+   -7.391,
+   -1.453,
+   -8.565
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "smokestack#0": {
+  "colliders": [
+   {
+    "r": 1.9,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "smokestack",
+  "max": [
+   3.48,
+   18.45,
+   1.906
+  ],
+  "min": [
+   -3.175,
+   0.0,
+   -2.948
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "smokestack#1": {
+  "colliders": [
+   {
+    "r": 2.4,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "smokestack",
+  "max": [
+   2.359,
+   18.75,
+   2.6
+  ],
+  "min": [
+   -2.252,
+   0.0,
+   -2.6
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "snow_rock#0": {
+  "colliders": [],
+  "kind": "snow_rock",
+  "max": [
+   1.336,
+   1.309,
+   1.699
+  ],
+  "min": [
+   -1.373,
+   -0.599,
+   -1.423
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "snow_rock#1": {
+  "colliders": [],
+  "kind": "snow_rock",
+  "max": [
+   1.573,
+   1.054,
+   1.706
+  ],
+  "min": [
+   -2.17,
+   -0.342,
+   -0.984
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "snow_rock#2": {
+  "colliders": [],
+  "kind": "snow_rock",
+  "max": [
+   2.199,
+   1.192,
+   2.198
+  ],
+  "min": [
+   -2.372,
+   -0.165,
+   -2.167
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "steam_vent#0": {
+  "colliders": [],
+  "kind": "steam_vent",
+  "max": [
+   2.502,
+   1.146,
+   2.638
+  ],
+  "min": [
+   -2.523,
+   0.0,
+   -2.581
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "steam_vent#1": {
+  "colliders": [],
+  "kind": "steam_vent",
+  "max": [
+   3.006,
+   2.25,
+   3.007
+  ],
+  "min": [
+   -2.275,
+   -0.078,
+   -2.151
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "tide_rock#0": {
+  "colliders": [],
+  "kind": "tide_rock",
+  "max": [
+   2.962,
+   2.5,
+   3.008
+  ],
+  "min": [
+   -3.022,
+   -0.577,
+   -2.975
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "tide_rock#1": {
+  "colliders": [],
+  "kind": "tide_rock",
+  "max": [
+   2.359,
+   4.7,
+   2.476
+  ],
+  "min": [
+   -2.502,
+   -0.587,
+   -2.315
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "tide_rock#2": {
+  "colliders": [],
+  "kind": "tide_rock",
+  "max": [
+   2.547,
+   0.695,
+   2.989
+  ],
+  "min": [
+   -2.649,
+   -0.563,
+   -2.635
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "white_tree#0": {
+  "colliders": [],
+  "kind": "white_tree",
+  "max": [
+   2.007,
+   5.813,
+   1.936
+  ],
+  "min": [
+   -2.051,
+   -0.791,
+   -2.186
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "white_tree#1": {
+  "colliders": [],
+  "kind": "white_tree",
+  "max": [
+   2.567,
+   5.681,
+   3.046
+  ],
+  "min": [
+   -1.585,
+   -0.959,
+   -3.072
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "white_tree#2": {
+  "colliders": [],
+  "kind": "white_tree",
+  "max": [
+   4.325,
+   3.493,
+   2.629
+  ],
+  "min": [
+   -1.846,
+   -0.808,
+   -4.171
+  ],
+  "mounts": [],
+  "variant": 2
+ }
+}

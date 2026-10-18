@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+.idea
+*.iml
+__pycache__/
+*.pyc
+*.blend1
+.env
+.env.*
+*.log

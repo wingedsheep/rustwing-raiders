@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rustwing Raiders</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b0912; overflow: hidden; }
+      #stage { position: absolute; inset: 0; }
+      #stage canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><canvas id="gl"></canvas><canvas id="ui"></canvas></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

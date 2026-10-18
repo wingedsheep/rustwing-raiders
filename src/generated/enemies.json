@@ -1,0 +1,354 @@
+{
+ "enemy_bomber_beast": {
+  "colliders": [],
+  "kind": "enemy_bomber_beast",
+  "max": [
+   3.4,
+   0.632,
+   3.843
+  ],
+  "min": [
+   -3.4,
+   -0.45,
+   -2.005
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_bomber_mech": {
+  "colliders": [],
+  "kind": "enemy_bomber_mech",
+  "max": [
+   2.886,
+   0.907,
+   2.0
+  ],
+  "min": [
+   -2.876,
+   -0.407,
+   -1.7
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_brute_beast": {
+  "colliders": [],
+  "kind": "enemy_brute_beast",
+  "max": [
+   3.3,
+   1.631,
+   3.881
+  ],
+  "min": [
+   -3.3,
+   -1.0,
+   -3.77
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_brute_mech": {
+  "colliders": [],
+  "kind": "enemy_brute_mech",
+  "max": [
+   2.025,
+   1.28,
+   3.99
+  ],
+  "min": [
+   -2.015,
+   -0.63,
+   -3.256
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_carrier_beast": {
+  "colliders": [],
+  "kind": "enemy_carrier_beast",
+  "max": [
+   3.15,
+   1.616,
+   5.308
+  ],
+  "min": [
+   -3.15,
+   -2.059,
+   -3.45
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_carrier_mech": {
+  "colliders": [],
+  "kind": "enemy_carrier_mech",
+  "max": [
+   2.65,
+   2.073,
+   4.41
+  ],
+  "min": [
+   -2.637,
+   -0.632,
+   -3.85
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_dart_beast": {
+  "colliders": [],
+  "kind": "enemy_dart_beast",
+  "max": [
+   1.289,
+   0.301,
+   1.35
+  ],
+  "min": [
+   -1.289,
+   -0.225,
+   -1.102
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_dart_mech": {
+  "colliders": [],
+  "kind": "enemy_dart_mech",
+  "max": [
+   1.146,
+   0.465,
+   1.558
+  ],
+  "min": [
+   -1.134,
+   -0.175,
+   -1.15
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_gunship_beast": {
+  "colliders": [],
+  "kind": "enemy_gunship_beast",
+  "max": [
+   3.05,
+   0.95,
+   2.156
+  ],
+  "min": [
+   -3.05,
+   -0.6,
+   -2.278
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_gunship_mech": {
+  "colliders": [],
+  "kind": "enemy_gunship_mech",
+  "max": [
+   2.657,
+   1.028,
+   2.527
+  ],
+  "min": [
+   -2.639,
+   -0.429,
+   -2.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_lancer_beast": {
+  "colliders": [],
+  "kind": "enemy_lancer_beast",
+  "max": [
+   1.95,
+   0.55,
+   1.75
+  ],
+  "min": [
+   -1.95,
+   -0.4,
+   -2.6
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_lancer_mech": {
+  "colliders": [],
+  "kind": "enemy_lancer_mech",
+  "max": [
+   1.35,
+   0.65,
+   1.56
+  ],
+  "min": [
+   -1.35,
+   -0.615,
+   -2.188
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_body_beast": {
+  "colliders": [],
+  "kind": "enemy_serpent_body_beast",
+  "max": [
+   1.516,
+   0.812,
+   0.863
+  ],
+  "min": [
+   -1.516,
+   -0.645,
+   -0.863
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_body_mech": {
+  "colliders": [],
+  "kind": "enemy_serpent_body_mech",
+  "max": [
+   1.559,
+   0.87,
+   1.0
+  ],
+  "min": [
+   -1.559,
+   -0.75,
+   -1.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_head_beast": {
+  "colliders": [],
+  "kind": "enemy_serpent_head_beast",
+  "max": [
+   1.25,
+   0.666,
+   1.06
+  ],
+  "min": [
+   -1.25,
+   -0.374,
+   -1.17
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_head_mech": {
+  "colliders": [],
+  "kind": "enemy_serpent_head_mech",
+  "max": [
+   0.82,
+   0.75,
+   1.05
+  ],
+  "min": [
+   -0.82,
+   -0.4,
+   -1.809
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_tail_beast": {
+  "colliders": [],
+  "kind": "enemy_serpent_tail_beast",
+  "max": [
+   0.972,
+   0.75,
+   1.976
+  ],
+  "min": [
+   -0.715,
+   -0.6,
+   -1.065
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_serpent_tail_mech": {
+  "colliders": [],
+  "kind": "enemy_serpent_tail_mech",
+  "max": [
+   1.316,
+   0.85,
+   1.78
+  ],
+  "min": [
+   -1.147,
+   -0.55,
+   -1.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_swarm_beast": {
+  "colliders": [],
+  "kind": "enemy_swarm_beast",
+  "max": [
+   0.9,
+   0.36,
+   0.64
+  ],
+  "min": [
+   -0.9,
+   -0.17,
+   -0.48
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_swarm_mech": {
+  "colliders": [],
+  "kind": "enemy_swarm_mech",
+  "max": [
+   0.903,
+   0.387,
+   0.45
+  ],
+  "min": [
+   -0.827,
+   -0.188,
+   -0.36
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_turret_beast": {
+  "colliders": [],
+  "kind": "enemy_turret_beast",
+  "max": [
+   1.357,
+   1.832,
+   1.443
+  ],
+  "min": [
+   -1.493,
+   -0.3,
+   -1.504
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_turret_mech": {
+  "colliders": [],
+  "kind": "enemy_turret_mech",
+  "max": [
+   1.155,
+   1.35,
+   1.155
+  ],
+  "min": [
+   -1.2,
+   0.0,
+   -1.58
+  ],
+  "mounts": [],
+  "variant": 0
+ }
+}
