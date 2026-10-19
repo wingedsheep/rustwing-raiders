@@ -16,6 +16,7 @@ import { flat, GEO, part, toon } from '../render/toon';
 import { drawArt } from './art';
 import { land, toChart, toHangar, caught } from '../game/flow';
 import { CARGO } from '../sim/run';
+import { convoyRoles, ROLES } from '../sim/convoy';
 import { clamp, hashStr, lerp, noise2, rng, smoothstep } from '../util';
 
 const MAP_W = 440;
@@ -969,11 +970,13 @@ export class ChartScreen implements Screen {
           drawText(ctx, rw[0], lx, ty, rw[1]);
         } else drawText(ctx, 'PARTS', lx, ty, INK);
       });
-      // the three haulers: a crate (and pay) for each that gets home
+      // the three haulers, each in its role's colour: a crate (and pay) for each that gets home
+      const roles = convoyRoles(n.seed);
       row('CARGO', (x0) => {
-        for (let h = 0; h < 3; h++) haulerIcon(ctx, x0 + h * 9, ty, ESCORT);
+        roles.forEach((role, h) => haulerIcon(ctx, x0 + h * 9, ty, ROLES[role].color));
         drawText(ctx, 'A CRATE EACH', x0 + 30, ty, GOLD);
       });
+      for (const role of roles) if (role !== 'freighter') row('', (x0) => drawText(ctx, `${ROLES[role].name}: ${ROLES[role].text}`, x0, ty, ROLES[role].color));
     }
     if (n.kind === 'heist') {
       row('LOOT', (x0) => {

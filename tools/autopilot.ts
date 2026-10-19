@@ -12,6 +12,7 @@
  *   just autopilot --frame mule --difficulty 1.2  a later sector
  *   just autopilot --loadout strong               a well-built ship instead of the starter
  *   just autopilot --loadout parry                an archetype: parry, speed, assassin, turret, alchemist (each picks its frame)
+ *   just autopilot --loadout gun:rail             the starter ship with only that gun (a bench)
  *   just autopilot --noboost                      a pilot that never boosts (is it the layout, or the speed?)
  *
  * Runs are shared out over every core (--cores to say how many). Exits non-zero if any run fails.
@@ -22,6 +23,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { Level, type Mode } from '../src/sim/level';
 import { levelSpec } from '../src/sim/run';
 import { startBuild, type Build } from '../src/sim/build';
+import { partById } from '../src/game/parts';
 import { newPilot, pilot } from '../src/sim/pilot';
 import { PLANETS } from '../src/world/planets';
 
@@ -84,9 +86,10 @@ const LOADOUTS: Record<string, (frame: string) => Build> = {
       ['shield', 0, 1], ['exchanger', 1, 1], ['parry', 2, 1], ['skin', 3, 1], ['mirror', 4, 1],
       ['reactor', 1, 2], ['thruster', 3, 2],
     ]),
+  // (the lance is a heavy: a rivet in the nose to hold the trigger on between its rounds)
   speed: () =>
     ship('kestrel', [
-      ['lance', 1, 0], ['gambler', 0, 1], ['skin', 2, 1], ['throttle', 0, 2], ['shield', 2, 2], ['thruster', 0, 3], ['thruster', 2, 3],
+      ['rivet', 1, 0], ['lance', 0, 1], ['skin', 1, 1], ['gambler', 2, 1], ['shield', 1, 2], ['throttle', 2, 2], ['thruster', 2, 3],
     ]),
   assassin: () =>
     ship('wasp', [
@@ -124,10 +127,24 @@ const LOADOUTS: Record<string, (frame: string) => Build> = {
   }),
 };
 
+/**
+ * A named loadout, or a bench: `gun:<id>` is the starter frame with only that gun up front (a
+ * second gun after a comma, `gun:rivet,rail`), to set the guns against each other.
+ */
+function loadout(name: string, frame: string): Build {
+  if (!name.startsWith('gun:')) return LOADOUTS[name](frame);
+  const b = startBuild(frame);
+  const guns = name.slice(4).split(',');
+  const fronts = b.parts.filter((p) => partById(p.id).cls === 'gun');
+  b.parts = b.parts.filter((p) => partById(p.id).cls !== 'gun');
+  fronts.forEach((p, i) => guns[i] && b.parts.push({ id: guns[i], c: p.c, r: p.r }));
+  return b;
+}
+
 function fly(job: Job): Result {
   const planet = PLANETS.find((p) => p.id === job.planet)!;
   const spec = levelSpec(planet, job.mode, job.seed, job.difficulty);
-  const builds = (job.coop ? [0, 1] : [0]).map(() => LOADOUTS[job.loadout](job.frame));
+  const builds = (job.coop ? [0, 1] : [0]).map(() => loadout(job.loadout, job.frame));
   const lv = new Level(spec, builds);
   const pilots = lv.players.map(() => newPilot({ noBoost: job.noboost }));
   const log: string[] = [];

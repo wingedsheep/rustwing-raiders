@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Level } from '../sim/level';
-import type { Hauler } from '../sim/convoy';
+import { ROLES, type Hauler } from '../sim/convoy';
 import { FLIGHT_Y, fromFlight } from '../sim/types';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
@@ -75,7 +75,7 @@ export class ConvoyView {
         obj.add(part(GEO.box, toon(HAULER_SKINS[h.id][0]), [0, 0, 0], [3, 1, 7]));
       }
       obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
-      const halo = new THREE.Mesh(this.ringGeo, flat(0x8ad0ff, { opacity: 0.22, own: true }));
+      const halo = new THREE.Mesh(this.ringGeo, flat(new THREE.Color(ROLES[h.role].color).getHex(), { opacity: 0.22, own: true }));
       halo.rotation.x = -Math.PI / 2;
       halo.scale.set(0.8, 1.35, 1);
       halo.renderOrder = 2;
@@ -148,8 +148,11 @@ export class ConvoyView {
       s.obj.rotation.x = over ? -0.12 : 0;
       s.halo.position.set(h.x, HAUL_Y - 0.9, gz);
       const hm = s.halo.material as THREE.MeshBasicMaterial;
-      hm.opacity = over ? 0 : h.boarders ? 0.3 + 0.2 * Math.sin(this.time * 14) : 0.18;
-      hm.color.setHex(h.boarders ? 0xff6a4a : 0x8ad0ff);
+      // its role's colour (the prize's gold breathes), red while it's boarded
+      const prize = h.role === 'prize';
+      hm.opacity = over ? 0 : h.boarders ? 0.3 + 0.2 * Math.sin(this.time * 14) : prize ? 0.24 + 0.1 * Math.sin(this.time * 3) : 0.18;
+      if (h.boarders) hm.color.setHex(0xff6a4a);
+      else hm.color.set(ROLES[h.role].color);
       // hit: a flash; worn down: it smokes, then burns
       const flash = h.hitT < 0.06 ? 0.8 : h.boarders ? 0.15 + 0.15 * Math.sin(this.time * 20) : 0;
       s.inst?.flash(flash);

@@ -10,7 +10,7 @@
 
 import type { Enemy, Level } from './level';
 import { DT, HALF_H, HALF_W } from './types';
-import { clamp, damp, lerp, pick } from '../util';
+import { clamp, damp, lerp, pick, rng, shuffle } from '../util';
 import { go } from './combat';
 import { lerpAngle, moveTo, sz } from './foes';
 import type { EnemySkin } from '../world/planets';
@@ -34,8 +34,38 @@ const BOARD_AIM = 1.1;
 const BOARD_SPEED = 34;
 const BOARD_BITE = 0.65;
 
+/**
+ * What a hauler is, so that no two convoys ask the same of you. Each convoy is three of the four,
+ * drawn from the site's seed (the chart shows them before you jump):
+ *
+ * - a FREIGHTER, plain;
+ * - an ARMOURED barge, with two-thirds again of the hull, riding at the back where it's safest:
+ *   the one you can leave alone a while;
+ * - a COURIER, fast and thin-skinned, flying out ahead where the waves come in and wandering
+ *   wide, paying half again for a quick run: the one that drags you up the screen;
+ * - a PRIZE tanker, already shot up when it joins and smoking, carrying the best crate (a tier
+ *   up, rare at the least): the one the boarders want, and so do you.
+ */
+export type Role = 'freighter' | 'armoured' | 'courier' | 'prize';
+export const ROLES: Record<Role, { name: string; hull: number; start: number; pay: number; ahead: number; wander: number; variant: number | null; color: string; text: string }> = {
+  freighter: { name: 'FREIGHTER', hull: 1, start: 1, pay: 1, ahead: 0, wander: 1, variant: null, color: '#8ad0ff', text: 'PLAIN' },
+  armoured: { name: 'ARMOURED', hull: 1.7, start: 1, pay: 0.8, ahead: 5, wander: 0.7, variant: 2, color: '#b8c4d8', text: 'TOUGH, SLOW' },
+  courier: { name: 'COURIER', hull: 0.75, start: 1, pay: 1.6, ahead: -7, wander: 1.5, variant: 0, color: '#8affb0', text: 'FRAIL, PAYS ×1.6' },
+  prize: { name: 'PRIZE', hull: 1, start: 0.65, pay: 1, ahead: 0, wander: 1, variant: 1, color: '#ffd04a', text: 'HURT, BEST CRATE' },
+};
+
+/** The convoy a site's seed flies: three different roles, in their slots (lead, left, right). */
+export function convoyRoles(seed: number): Role[] {
+  const r = rng(Math.floor(seed) * 7919 + 13);
+  return shuffle(r, ['freighter', 'armoured', 'courier', 'prize'] as Role[]).slice(0, 3);
+}
+
+/** A hauler's model: its role's, or the seed's for a plain freighter. */
+export const haulerVariant = (role: Role, i: number, seed: number) => ROLES[role].variant ?? (i + Math.floor(seed)) % 3;
+
 export interface Hauler {
   id: number;
+  role: Role;
   /** Which model (0 containers, 1 tanks, 2 ore). */
   variant: number;
   /** Where it is on the flight plane, and its sideways speed (for banking). */
@@ -64,22 +94,29 @@ export class Convoy {
   /** Seconds flown, for the formation's wander. */
   private t = 0;
   private phase: number;
+  /** A plain freighter's hull, at this difficulty (the others' are measured against it). */
+  readonly baseHull: number;
   /** Paid out at the end (for the results). */
   paid = 0;
   allLost = false;
 
   constructor(private lv: Level) {
     this.phase = lv.rand() * 10;
-    const hp = Math.round(HULL * (1 + lv.spec.difficulty * 0.25));
+    const hull = HULL * (1 + lv.spec.difficulty * 0.25);
+    this.baseHull = Math.round(hull);
+    const roles = convoyRoles(lv.spec.seed);
     SLOTS.forEach((s, i) => {
+      const role = ROLES[roles[i]];
+      const max = Math.round(hull * role.hull);
       this.haulers.push({
         id: i,
-        variant: (i + Math.floor(lv.spec.seed)) % 3,
+        role: roles[i],
+        variant: haulerVariant(roles[i], i, lv.spec.seed),
         x: s.x,
-        z: lv.scroll + s.s,
+        z: lv.scroll + s.s + role.ahead,
         vx: 0,
-        hp,
-        max: hp,
+        hp: Math.round(max * role.start),
+        max,
         dead: false,
         hitT: 99,
         burnT: 0,
@@ -135,9 +172,10 @@ export class Convoy {
         continue;
       }
       const slot = SLOTS[h.id];
-      // carried along with the screen, easing to its slot
+      const role = ROLES[h.role];
+      // carried along with the screen, easing to its slot (a courier out ahead, the armour behind)
       h.z -= dz;
-      const ts = slot.s;
+      const ts = slot.s + role.ahead;
       h.z = damp(h.z, lv.scroll + ts, 1.2, DT);
       // an obstacle ahead in its lane: ease round it
       let push = 0;
@@ -149,7 +187,9 @@ export class Convoy {
         if (Math.abs(side) < room) push += (side >= 0 ? 1 : -1) * (room - Math.abs(side)) * 1.4;
       }
       h.dodge = damp(h.dodge, clamp(push, -10, 10), 2, DT);
-      let tx = cx + slot.x * spread + h.dodge;
+      // a courier weaves on a line of its own, wider and quicker than the rest
+      const own = role.wander > 1 ? 7 * Math.sin(this.t * 0.31 + this.phase * 3) : 0;
+      let tx = (cx + own) * (canyon ? 1 : role.wander) + slot.x * spread + h.dodge;
       tx = lv.terrain.intoCanyon(clamp(tx, -HALF_W + 6, HALF_W - 6), h.z, BEAM + 1);
       const nx = damp(h.x, tx, 0.9, DT);
       h.vx = (nx - h.x) / DT;
@@ -218,8 +258,9 @@ export class Convoy {
     for (const h of this.haulers) {
       if (h.dead) continue;
       h.delivered = true;
-      // a hull that came through whole pays a little extra
-      h.pay = Math.round(PAY * hard * (h.hp >= h.max * 0.75 ? 1.25 : 1));
+      // a hull that came through whole pays a little extra (the prize came in hurt: half its hull will do)
+      const whole = h.hp >= h.max * (h.role === 'prize' ? 0.5 : 0.75);
+      h.pay = Math.round(PAY * hard * ROLES[h.role].pay * (whole ? 1.25 : 1));
       this.paid += h.pay;
       lv.scrap += h.pay;
       lv.score += h.pay * 100;

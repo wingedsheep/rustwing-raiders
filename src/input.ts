@@ -6,14 +6,17 @@
  *   keyboard (solo)   move WASD / arrows   fire J Z Space   heavy O N    dash K X        boost L C (held)   special I V        aux U B        focus Shift
  *   keyboard left     move WASD            fire Space        heavy G      dash LShift     boost F            special E          aux R          focus Q
  *   keyboard right    move arrows          fire / Num0       heavy ; Num5 dash RShift Num.  boost . Num3     special Enter      aux ' Num2     focus RCtrl Num1
- *   pad               move stick / d-pad   fire A (✕)        heavy RB X (R1 □)  dash B (○)      boost RT analog (R2)   special Y (△)   aux LB (L1)   focus LT (L2)
+ *   pad               move stick / d-pad   fire RT (R2)      heavy X RB (□ R1)  dash A (✕)      boost LT analog (L2)   special Y (△)   aux LB (L1)   focus B (○) or L3
  *
- * Fire is held; heavy is pressed, a round at a time (see GunSpec.heavy). On a pad it sits on the
- * right shoulder, so the thumb can hold A while a finger fires the heavies (X too, for the thumb).
+ * On a pad, fire is held on the right trigger, so the thumb is free: dash on A, the heavies on X
+ * next to it (dash, then the heavy, is the dash-strike, one roll of the thumb). With fire on a
+ * face button, every dash let go of the guns. RB fires the heavies too, for a finger.
  *
- * Aux is on a shoulder so it can be pressed (a parry is all timing) with fire held on A.
+ * Aux is on a shoulder so it can be pressed (a parry is all timing) with fire held.
  *
- * Boost is analog on a pad's trigger (how far it's pulled), all or nothing on a key or a shoulder.
+ * Boost is analog on the left trigger (how far it's pulled), all or nothing on a key.
+ *
+ * Fire is held; heavy is pressed, a round at a time (see GunSpec.heavy).
  */
 
 import type { Intent } from './sim/types';
@@ -245,7 +248,7 @@ class Input {
     if (dev === 'keys') return 'O';
     if (dev === 'keys-left') return 'G';
     if (dev === 'keys-right') return ';';
-    return this.padName(dev) === 'PS PAD' ? 'R1' : 'RB';
+    return this.padName(dev) === 'PS PAD' ? 'SQUARE' : 'X';
   }
 
   /** What a player's device asks of their ship. */
@@ -259,13 +262,13 @@ class Input {
       return {
         x: s.x,
         y: -s.y,
-        fire: btn(g, 0),
-        heavy: buffer(dev, 'heavy', edge(5, 2)),
-        boost: pull(g, 7),
-        dash: buffer(dev, 'dash', edge(1)),
+        fire: pull(g, 7) > 0.2,
+        heavy: buffer(dev, 'heavy', edge(2, 5)),
+        boost: pull(g, 6),
+        dash: buffer(dev, 'dash', edge(0)),
         special: buffer(dev, 'special', edge(3)),
         aux: buffer(dev, 'aux', edge(4)),
-        focus: (g.buttons[6]?.value ?? 0) > 0.3,
+        focus: btn(g, 1) || btn(g, 10),
       };
     }
     const k = SCHEMES[dev as keyof typeof SCHEMES];

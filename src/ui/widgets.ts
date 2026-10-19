@@ -191,21 +191,21 @@ export function button(dev: DeviceId, a: Action): string {
   return names[dev][a];
 }
 
-export type FlightAction = 'fire' | 'dash' | 'boost' | 'special' | 'aux' | 'focus';
+export type FlightAction = 'move' | 'fire' | 'heavy' | 'dash' | 'boost' | 'special' | 'aux' | 'focus';
 
 /** The button for a flight control on a device, as printed on it (see input.ts). */
 export function flightButton(dev: DeviceId, a: FlightAction): string {
   if (dev.startsWith('pad')) {
     const ps = input.padName(dev) === 'PS PAD';
     const names: Record<FlightAction, string> = ps
-      ? { fire: 'CROSS', dash: 'CIRCLE', boost: 'R2', special: 'TRIANGLE', aux: 'L1', focus: 'L2' }
-      : { fire: 'A', dash: 'B', boost: 'RT', special: 'Y', aux: 'LB', focus: 'LT' };
+      ? { move: 'STICK', fire: 'R2', heavy: 'SQUARE', dash: 'CROSS', boost: 'L2', special: 'TRIANGLE', aux: 'L1', focus: 'CIRCLE' }
+      : { move: 'STICK', fire: 'RT', heavy: 'X', dash: 'A', boost: 'LT', special: 'Y', aux: 'LB', focus: 'B' };
     return names[a];
   }
   const names: Record<string, Record<FlightAction, string>> = {
-    keys: { fire: 'J', dash: 'K', boost: 'L', special: 'I', aux: 'U', focus: 'SHIFT' },
-    'keys-left': { fire: 'SPACE', dash: 'LSHIFT', boost: 'F', special: 'E', aux: 'R', focus: 'Q' },
-    'keys-right': { fire: '/', dash: 'RSHIFT', boost: '.', special: 'ENTER', aux: "'", focus: 'RCTRL' },
+    keys: { move: 'WASD', fire: 'J', heavy: 'O', dash: 'K', boost: 'L', special: 'I', aux: 'U', focus: 'SHIFT' },
+    'keys-left': { move: 'WASD', fire: 'SPACE', heavy: 'G', dash: 'LSHIFT', boost: 'F', special: 'E', aux: 'R', focus: 'Q' },
+    'keys-right': { move: 'ARROWS', fire: '/', heavy: ';', dash: 'RSHIFT', boost: '.', special: 'ENTER', aux: "'", focus: 'RCTRL' },
   };
   return names[dev][a];
 }

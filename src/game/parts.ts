@@ -219,7 +219,7 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'ion', name: 'Ion Lance', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 2, power: 3,
-    gun: { rate: 20, damage: 1.6, speed: 0, count: 1, spread: 0, life: 0, shot: 'beam', heat: 0.012, edge: 'locked' },
+    gun: { rate: 20, damage: 2.2, speed: 0, count: 1, spread: 0, life: 0, shot: 'beam', heat: 0.012, edge: 'locked' },
     text: 'A held beam that melts through anything in a line. Thirsty.',
   },
   {
@@ -234,17 +234,17 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'seeker', name: 'Seeker Pod', cls: 'gun', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 1.4, power: 1,
-    gun: { rate: 0.8, damage: 9, speed: 28, count: 4, spread: 0.9, life: 2.2, shot: 'missile', heat: 0, edge: 'tell', heavy: 2 },
+    gun: { rate: 0.8, damage: 8, speed: 28, count: 3, spread: 0.8, life: 1.5, shot: 'missile', heat: 0, edge: 'tell', heavy: 2 },
     text: 'A salvo of little missiles that find their own way. Slow to arrive.',
   },
   {
     id: 'flak', name: 'Flak Cannon', cls: 'gun', tags: ['explosive', 'kinetic'], rarity: 'rare', shape: [[0, 0], [1, 0]], mass: 2.5, power: 1,
-    gun: { rate: 1.25, damage: 20, speed: 40, count: 1, spread: 0, life: 0.45, shot: 'flak', heat: 0, edge: 'crowd', heavy: 3 },
+    gun: { rate: 1.25, damage: 24, speed: 40, count: 1, spread: 0, life: 0.6, shot: 'flak', heat: 0, edge: 'crowd', heavy: 3 },
     text: 'Shells that burst into shrapnel. Clears a crowd.',
   },
   {
     id: 'torch', name: 'Plasma Torch', cls: 'gun', tags: ['heat', 'energy'], rarity: 'common', shape: [[0, 0]], mass: 1, power: 2,
-    gun: { rate: 24, damage: 1.4, speed: 30, count: 1, spread: 0.25, life: 0.28, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
+    gun: { rate: 24, damage: 1.5, speed: 30, count: 1, spread: 0.25, life: 0.34, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
     text: 'A short tongue of plasma. Melts bullets it touches.',
   },
   {
@@ -259,7 +259,7 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'lance', name: 'Velocity Lance', cls: 'gun', tags: ['kinetic', 'drive'], rarity: 'epic', shape: [[0, 0], [0, 1], [0, 2]], mass: 2.4, power: 2,
-    gun: { rate: 1.2, damage: 20, speed: 120, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 3, heat: 0, speedy: true, edge: 'skim', heavy: 2 },
+    gun: { rate: 1.2, damage: 26, speed: 120, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 3, heat: 0, speedy: true, edge: 'skim', heavy: 2 },
     text: 'A spike that hits harder the faster you go: double at full boost. Skim the land and it crits.',
   },
   // --- engines -----------------------------------------------------------------------------

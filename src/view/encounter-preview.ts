@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { convoyRoles, haulerVariant } from '../sim/convoy';
 import type { Game } from '../game/game';
 import type { ChartNode } from '../sim/chart';
 import type { Run } from '../sim/run';
@@ -140,6 +141,7 @@ export class EncounterPreview {
   /** An escort: three haulers in their column, and boarders closing in from one side. */
   private convoy(planet: Planet, node: ChartNode, r: Rng) {
     const side = r() < 0.5 ? -1 : 1;
+    const roles = convoyRoles(node.seed);
     // the lead up front, two behind it, the boarders' side left clear
     const at = [
       [-side * 1.4, -2.2],
@@ -147,7 +149,7 @@ export class EncounterPreview {
       [side * 2.2, 0.8],
     ];
     at.forEach(([x, z], i) => {
-      const inst = library.clone('hauler', (i + node.seed) % 3, HAULER_SKINS[i], true);
+      const inst = library.clone('hauler', haulerVariant(roles[i], i, node.seed), HAULER_SKINS[i], true);
       if (!inst) return;
       this.insts.push(inst);
       inst.obj.position.set(x, 1.6, z);

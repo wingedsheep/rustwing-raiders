@@ -10,7 +10,10 @@ import { clamp } from '../util';
 import { markIcon } from './mark-icons';
 import { haulerIcon, strongboxIcon } from './widgets';
 import { RUNNER } from '../sim/heist';
+import { ROLES } from '../sim/convoy';
 import type { MarkKind } from '../game/parts';
+import type { DeviceId } from '../input';
+import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -118,14 +121,16 @@ export class Hud {
   dw = 1;
   dh = 1;
   scale = 1;
-  /** Each player's heavy button, as a prompt names it ('RB', 'O'). */
+  /** Each player's heavy button, as a prompt names it ('X', 'O'). */
   heavyKeys: string[] = [];
+  /** Each player's device (the pause shows their controls). */
+  devs: DeviceId[] = [];
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
     this.topBar(ctx, lv);
     this.field(ctx, lv, view);
-    if (paused) this.pause(ctx);
+    if (paused) this.pause(ctx, lv);
   }
 
   private topBar(ctx: CanvasRenderingContext2D, lv: Level) {
@@ -171,7 +176,7 @@ export class Hud {
       lv.convoy.haulers.forEach((h, i) => {
         const hx = rx + rw - 3 * 20 + i * 20 + 4;
         const hit = h.hitT < 0.12 && !h.dead;
-        haulerIcon(ctx, hx, 6, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : HAULER, h.dead);
+        haulerIcon(ctx, hx, 6, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : ROLES[h.role].color, h.dead);
         if (!h.dead) bar(ctx, hx + 7, 9, 8, 2, h.hp / h.max, hullColor(h.hp / h.max, this.time), 'rgba(60,48,80,0.8)');
       });
     } else if (lv.heist) {
@@ -301,7 +306,7 @@ export class Hud {
     ctx.globalAlpha = 1;
     const fired = guns.some(({ k }) => p.shotCount[k] > 0);
     if (!fired && lv.time < 20 && Math.floor(this.time * 3) % 3) {
-      const key = this.heavyKeys[p.id] ?? 'RB';
+      const key = this.heavyKeys[p.id] ?? 'X';
       drawText(ctx, `HEAVY ${key}`, x, y + 8, '#ffd88a', { align: 'center' });
     }
   }
@@ -505,7 +510,8 @@ export class Hud {
     for (const hl of c.haulers) {
       if (hl.dead || over) continue;
       const s = this.toScreen(view, hl.x, FLIGHT_Y, hl.z + 4.4);
-      const bw = 30;
+      // the bar is as long as the hull is deep: an armoured barge's is longer, a courier's short
+      const bw = Math.round(30 * Math.sqrt(hl.max / c.baseHull));
       const x = Math.round(s.x - bw / 2);
       const y = Math.round(s.y);
       const f = hl.hp / hl.max;
@@ -518,6 +524,16 @@ export class Hud {
       // a notch every quarter
       ctx.fillStyle = 'rgba(14,10,22,0.8)';
       for (let k = 1; k < 4; k++) ctx.fillRect(x + Math.round((bw * k) / 4), y, 1, 3);
+      // what it is, under the bar: spelled out as the level opens, then just the prize's tag
+      const role = ROLES[hl.role];
+      const intro = clamp(1 - (lv.time - 9) / 1.5, 0, 1);
+      if (hl.role !== 'freighter' && (intro > 0 || hl.role === 'prize')) {
+        ctx.globalAlpha = Math.max(intro, hl.role === 'prize' ? 0.8 : 0);
+        drawText(ctx, role.name, x + bw / 2, y + 6, role.color, { align: 'center' });
+        ctx.globalAlpha = intro;
+        if (intro > 0) drawText(ctx, role.text, x + bw / 2, y + 16, INK, { align: 'center' });
+        ctx.globalAlpha = 1;
+      }
       if (hl.boarders && Math.floor(this.time * 6) % 2 === 0) {
         const top = this.toScreen(view, hl.x, FLIGHT_Y, hl.z - 4.6);
         drawText(ctx, hl.boarders > 1 ? `BOARDED ×${hl.boarders}` : 'BOARDED', top.x, top.y - 4, RED, { align: 'center' });
@@ -584,13 +600,19 @@ export class Hud {
     for (const k of [...this.markAge.keys()]) if (!live.has(k)) this.markAge.delete(k);
   }
 
-  private pause(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = 'rgba(12,8,18,0.65)';
+  /** Paused: the controls of every pilot, as their device and their ship have them. */
+  private pause(ctx: CanvasRenderingContext2D, lv: Level) {
+    ctx.fillStyle = 'rgba(12,8,18,0.72)';
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     const mid = VIEW.w / 2;
-    const y = VIEW.h / 2 - 40;
+    const n = lv.players.length;
+    const y = Math.round(VIEW.h / 2 - (CONTROLS_H + 74) / 2);
     drawText(ctx, 'PAUSED', mid, y, INK, { scale: 3, align: 'center' });
-    drawText(ctx, 'START / ESC: RESUME', mid, y + 40, DIM, { align: 'center' });
-    drawText(ctx, 'BACK / Q: ABANDON RUN', mid, y + 54, DIM, { align: 'center' });
+    const gap = 12;
+    const x0 = Math.round(mid - (n * CONTROLS_W + (n - 1) * gap) / 2);
+    lv.players.forEach((p, i) => {
+      controlsCard(ctx, this.devs[i] ?? 'keys', p, hex(LIVERY[i][2]), x0 + i * (CONTROLS_W + gap), y + 34);
+    });
+    drawText(ctx, 'START / ESC: RESUME      BACK / Q: ABANDON RUN', mid, y + 46 + CONTROLS_H, DIM, { align: 'center' });
   }
 }

@@ -3,7 +3,9 @@ import type { FlightResult } from './flight';
 import type { LevelSpec } from '../sim/level';
 import { CARGO, Run, SELL } from '../sim/run';
 import { partById } from '../game/parts';
-import { itemName, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
+import { itemName, rollItem, TIER_VALUE, tierOf, TIERS, type Item, type Tier } from '../game/loot';
+import { rng } from '../util';
+import { ROLES } from '../sim/convoy';
 import { bestFit, type Fit } from '../sim/fit';
 import { audio } from '../audio';
 import { drawText, textWidth } from '../ui/font';
@@ -76,6 +78,12 @@ export class Results implements Screen {
       const options = run.lootChoice(spec.seed * 31 + i * 7 + run.levels, rich, spec.mode === 'boss');
       // ?legendary: for testing, the first card is one
       if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : 'prismatic' };
+      // the prize hauler's crate is a tier better than it would have been (rare at the least)
+      res.convoy?.roles.forEach((role, k) => {
+        if (role !== 'prize' || !options[k]) return;
+        const tier = TIERS[Math.min(3, Math.max(1, TIERS.indexOf(tierOf(options[k])) + 1))];
+        options[k] = rollItem(rng(spec.seed * 13 + i * 5 + k), options[k].id, tier);
+      });
       const lost = options.map((_, k) => (!!res.convoy && !res.convoy.home[k]) || (!!res.heist && res.heist.fate[k] !== 'caught'));
       const at = lost.indexOf(false);
       return { options, fits: options.map((it) => bestFit(crew.build, it)), at: at < 0 ? 3 : at, done: false, doneT: 0, took: -1, salvaged, scrapped, lost };
@@ -247,7 +255,10 @@ export class Results implements Screen {
     const r = this.cardRect(i, k);
     const since = this.t - this.revealT(k);
     if (since < -0.3) return;
-    if (p.lost[k]) return this.lostCard(ctx, r, k, since);
+    if (p.lost[k]) {
+      this.lostCard(ctx, r, k, since);
+      return this.haulerTag(ctx, r, k, since);
+    }
     // sliding in face down, then turning over: squeeze to a line, open on the face
     if (since < FLIP / 2) {
       const slide = Math.max(0, Math.min(1, (since + 0.3) / 0.3));
@@ -279,6 +290,25 @@ export class Results implements Screen {
       drawText(ctx, '▲', r.x + r.w / 2, r.y + r.h + 3 + bob, GOLD, { align: 'center' });
     }
     if (p.done && p.took === k) this.stamp(ctx, r.x + r.w / 2, r.y + Math.round(r.h * 0.42), p.doneT, this.run.crew[i].cargo.includes(it) ? 'TAKEN' : 'SOLD: HOLD FULL');
+    this.haulerTag(ctx, { ...r, y: r.y + lift }, k, since);
+  }
+
+  /** An escort's crate: which hauler brought it (or didn't), over its card. */
+  private haulerTag(ctx: CanvasRenderingContext2D, r: { x: number; y: number; w: number }, k: number, since: number) {
+    const role = this.res.convoy?.roles[k];
+    if (!role) return;
+    const home = this.res.convoy!.home[k];
+    const def = ROLES[role];
+    const word = role === 'prize' && home ? 'PRIZE: A TIER UP' : def.name;
+    const w = textWidth(word) + 15;
+    const x = Math.round(r.x + r.w / 2 - w / 2);
+    const y = r.y - 4;
+    // a tab on the card's top edge, in the hauler's colour
+    ctx.globalAlpha = Math.min(1, Math.max(0, (since + 0.3) / 0.3));
+    frame(ctx, x, y, w, 10, '#1c1526', home ? def.color : '#3a2028');
+    haulerIcon(ctx, x + 3, y + 1, home ? def.color : '#4a3a52', !home);
+    drawText(ctx, word, x + 11, y + 2, home ? def.color : DIM, { shadow: false });
+    ctx.globalAlpha = 1;
   }
 
   /**

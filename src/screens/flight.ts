@@ -1,4 +1,5 @@
 import type { Game, Screen } from '../game/game';
+import type { Role } from '../sim/convoy';
 import { Level, type LevelSpec } from '../sim/level';
 import { DT, type Intent } from '../sim/types';
 import { LevelView } from '../view/level-view';
@@ -22,7 +23,7 @@ export interface FlightResult {
   /** How it went, for the results: the rank and a line or two on what earned it. */
   report: { rank: string | null; lines: string[] };
   /** An escort: which haulers made it (each carried a crate: a card at the results), and their pay. */
-  convoy?: { delivered: number; home: boolean[]; paid: number };
+  convoy?: { delivered: number; home: boolean[]; paid: number; roles: Role[] };
   /** A heist: what became of each strongbox (each caught one is a card at the results), and was the runner taken down. */
   heist?: { fate: PodFate[]; downed: boolean; paid: number };
 }
@@ -113,7 +114,7 @@ export class Flight implements Screen {
       hull: lv.players.map((p) => (p.down ? 1 : p.hp)),
       stats: lv.players.map((p) => ({ hits: p.hits, grazes: p.grazes, kills: p.kills, crashes: p.crashes })),
       report: { rank: lv.rank, lines: report(lv) },
-      convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid } : undefined,
+      convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid, roles: lv.convoy.haulers.map((h) => h.role) } : undefined,
       heist: lv.heist ? { fate: [...lv.heist.fate], downed: lv.heist.state === 'down', paid: lv.heist.paid } : undefined,
     });
   }
@@ -133,6 +134,7 @@ export class Flight implements Screen {
     this.hud.dh = g.dh;
     this.hud.scale = g.uiScale;
     this.hud.heavyKeys = g.devices.map((d) => input.heavyKey(d));
+    this.hud.devs = g.devices;
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }
 
