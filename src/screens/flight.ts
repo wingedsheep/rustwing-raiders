@@ -17,6 +17,8 @@ export interface FlightResult {
   stats: { hits: number; grazes: number; kills: number; crashes: number }[];
   /** How it went, for the results: the rank and a line or two on what earned it. */
   report: { rank: string | null; lines: string[] };
+  /** An escort: which haulers made it (each carried a crate: a card at the results), and their pay. */
+  convoy?: { delivered: number; home: boolean[]; paid: number };
 }
 
 /**
@@ -94,6 +96,7 @@ export class Flight implements Screen {
       hull: lv.players.map((p) => (p.down ? 1 : p.hp)),
       stats: lv.players.map((p) => ({ hits: p.hits, grazes: p.grazes, kills: p.kills, crashes: p.crashes })),
       report: { rank: lv.rank, lines: report(lv) },
+      convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid } : undefined,
     });
   }
 
@@ -122,6 +125,13 @@ export class Flight implements Screen {
 /** What the results screen says about a level: the fight's tally. */
 function report(lv: Level): string[] {
   const out: string[] = [];
+  if (lv.convoy) {
+    const c = lv.convoy;
+    out.push(c.delivered ? `HAULERS HOME ${c.delivered}/3  +${c.paid} SCRAP${c.delivered === 3 ? '  CONVOY WHOLE' : ''}` : 'NO HAULER MADE IT HOME');
+    const lost = 3 - c.delivered;
+    if (lost) out.push(`${lost} CRATE${lost > 1 ? 'S' : ''} LOST WITH ${lost > 1 ? 'THEM' : 'IT'}`);
+    return out;
+  }
   const bonus = lv.parBonus ? `  +${lv.parBonus} SCRAP` : '';
   if (lv.spawned > 0) {
     const cleared = lv.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;

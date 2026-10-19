@@ -179,3 +179,24 @@ export function heading(ctx: CanvasRenderingContext2D, text: string, sub: string
   ctx.fillStyle = EDGE;
   ctx.fillRect(40, 44, W - 80, 1);
 }
+
+/** A hauler from above, seven texels long, its engines lit (crossed out in red, if it was lost). */
+export function haulerIcon(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, lost = false) {
+  const rows = ['01110', '11111', '10101', '11111', '10101', '11111', '01010'];
+  ctx.fillStyle = '#120c18';
+  ctx.fillRect(x - 1, y - 1, 7, 9);
+  rows.forEach((row, r) => {
+    for (let c = 0; c < 5; c++) {
+      if (row[c] !== '1') continue;
+      ctx.fillStyle = lost ? '#4a3a52' : r === 6 ? '#ffd890' : color;
+      ctx.fillRect(x + c, y + r, 1, 1);
+    }
+  });
+  if (!lost) return;
+  ctx.fillStyle = '#ff5a4a';
+  for (let k = 0; k < 7; k++) {
+    const d = Math.round((k * 4) / 6);
+    ctx.fillRect(x + d, y + k, 1, 1);
+    ctx.fillRect(x + 4 - d, y + k, 1, 1);
+  }
+}

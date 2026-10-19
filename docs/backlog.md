@@ -6,7 +6,7 @@ Playtest feedback and design to-dos. Not in priority order.
 - ~~The map is confusing. Rework its UI/UX.~~ Done: sites in reach shine and get a route line (cyan for a hop, amber for a long jump), the rest are dimmed, a crossing strip at the top shows where you are, the Sweep and the gate, and there's an icon legend.
 - ~~Make progression clearer. Start with simple encounters and make them harder step by step.~~ Done: sector 1 has no elites and no planet on alert, the first jumps of each sector are gentle, and every fight shows a five-step THREAT rating (EASY to BRUTAL) that rises with the sector and with each stop.
 - ~~Choices on the map should be clear and should matter. Before the player picks a node, show a preview of roughly what that encounter is.~~ Done: the encounter card shows a live 3D diorama for fights (the real biome, the planet's enemies, the elite and its ring, the Warden), painted art for docks, dealers and known events, and static for unknown ones. Below it: threat, loot, who you'll face, and the jump cost.
-  - Follow-up: escort and other objective modes will need their own diorama once they exist (`src/view/encounter-preview.ts`).
+  - Follow-up: other objective modes will need their own diorama once they exist (`src/view/encounter-preview.ts`). Escorts have one: the three haulers in their column, with boarders closing in.
 
 ## Controls & combat feel
 - Combat still feels one-dimensional. Rethink the controls from the ground up.
@@ -36,8 +36,9 @@ Playtest feedback and design to-dos. Not in priority order.
 
 ## Level variety
 - Most levels are wave fights or boss fights. Mix in occasional mission levels with their own objectives:
-  - Escort / protect a convoy
+  - ~~Escort / protect a convoy~~ Done: ESCORT sites on the chart (a blue shield; a planet's WATER RUN, ORE RUN, ...). Three haulers fly the level in a loose column (a container hauler, a tanker, an ore barge, `hauler` in `tools/models/ships.py`) and you fly cover (`src/sim/convoy.ts`). Aimed fire goes for a hauler when it's clearly nearer than you, so standing between a gun and a hull is the job. Five or six times a level raiders come to board one: a klaxon and an arrow at the edge they come from, then each lines up with a tell to its prey, dives in, clings on and cuts into the hull (sparks fly) until it's SHOT OFF. Each hauler shows its hull under it (blue, amber, then red and blinking), and the top bar shows all three. A lost one blows up, breaks and falls burning. At the end the survivors open up their engines and leave with a horn: each pays scrap (more with its hull mostly whole), and each carries a crate: the cards at the results are the ones that made it, the rest burnt and LOST. Ranked on haulers home (3 S, 2 A, 1 B). All three home and the planet's faction likes you more. `&length=60` in the dev URL makes a level's biomes shorter; `?crew=kestrel&site=escort` starts the chart beside an escort; `?crew=kestrel&screen=results&convoy=101` shows an escort's results with the middle hauler lost.
   - (other objective-based modes: strike a target, defend an outpost, run down a fleeing carrier)
+  - Follow-up: escorts could vary more: a hauler that's faster or slower than the screen, a damaged one that needs covering more, a convoy that splits round a mesa, events that offer an escort job with a named captain (Brask).
 
 ## Biomes & exploration
 - Every biome should feel different, unique and beautiful (Hollow Knight / Silksong as the benchmark).

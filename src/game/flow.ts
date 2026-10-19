@@ -73,7 +73,8 @@ function arrive(game: Game, node: ChartNode) {
   run.landing = node;
   switch (node.kind) {
     case 'raid':
-    case 'hunt': {
+    case 'hunt':
+    case 'escort': {
       const d = run.danger(node);
       fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[d], undefined, node);
       return;
@@ -191,6 +192,11 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         res.scrap += extra;
       }
       if (node?.kind === 'hunt' && node.planet) run.mood(node.planet.faction, -1);
+      // an escort that brought every hauler home is remembered
+      if (node?.kind === 'escort' && node.planet && res.convoy?.delivered === 3) {
+        run.mood(node.planet.faction, 1);
+        run.notes.push(`ALL THREE HAULERS HOME: THE ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
+      }
       run.scrap += res.scrap;
       // the insurance pays for what got shot off
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));

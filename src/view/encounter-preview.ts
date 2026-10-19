@@ -6,7 +6,7 @@ import { levelSpec } from '../sim/run';
 import type { Biome, EnemySkin, Planet } from '../world/planets';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
-import { LIVERY, ShipModel } from './ship-model';
+import { HAULER_SKINS, LIVERY, ShipModel } from './ship-model';
 import { Stage } from './stage';
 import { clamp, noise2, pick, rng, type Rng } from '../util';
 
@@ -29,7 +29,8 @@ export class EncounterPreview {
     const c = run.chart;
     const gate = node.kind === 'gate';
     const planet = gate ? c.bossPlanet : node.planet!;
-    const mode = gate ? 'boss' : node.kind === 'hunt' ? 'hunt' : 'raid';
+    const mode = gate ? 'boss' : node.kind === 'hunt' ? 'hunt' : node.kind === 'escort' ? 'escort' : 'raid';
+    const escort = node.kind === 'escort';
     // the ground you'll fly over first
     const biome = levelSpec(planet, mode, node.seed, 0).biomes[0];
     this.stage = new Stage(w, h, gate ? 6.5 : 11, 50, new THREE.Vector3(0, 3, gate ? -2 : -0.6));
@@ -43,11 +44,12 @@ export class EncounterPreview {
     this.props(biome, r);
 
     this.ship = new ShipModel(run.crew[0].build, LIVERY[0]);
-    this.ship.root.position.set(0, 3, gate ? 3.4 : 2.4);
-    this.ship.root.scale.setScalar(gate ? 1 : 0.85);
+    this.ship.root.position.set(0, 3, gate ? 3.4 : escort ? 3.6 : 2.4);
+    this.ship.root.scale.setScalar(gate ? 1 : escort ? 0.7 : 0.85);
     s.scene.add(this.ship.root);
 
     if (gate) this.warden(planet);
+    else if (escort) this.convoy(planet, node, r);
     else this.wing(planet, node, r);
   }
 
@@ -129,6 +131,33 @@ export class EncounterPreview {
       this.enemy(escort, -4.2, 3, -1.4, 1.1, false);
       this.enemy(mid, 0, 3.2, -2.6, 1.2, false);
       this.enemy(escort, 4.2, 3, -1.4, 1.1, false);
+    }
+  }
+
+  /** An escort: three haulers in their column, and boarders closing in from one side. */
+  private convoy(planet: Planet, node: ChartNode, r: Rng) {
+    const side = r() < 0.5 ? -1 : 1;
+    // the lead up front, two behind it, the boarders' side left clear
+    const at = [
+      [-side * 1.4, -2.2],
+      [-side * 5, 0.4],
+      [side * 2.2, 0.8],
+    ];
+    at.forEach(([x, z], i) => {
+      const inst = library.clone('hauler', (i + node.seed) % 3, HAULER_SKINS[i], true);
+      if (!inst) return;
+      this.insts.push(inst);
+      inst.obj.position.set(x, 1.6, z);
+      inst.obj.rotation.y = Math.PI;
+      inst.obj.scale.setScalar(0.62);
+      this.stage.scene.add(inst.obj);
+      this.bob.push({ obj: inst.obj, y: 1.6, k: i * 2.1 });
+    });
+    const skin = planet.enemies.find((e) => e.archetype === 'dart') ?? planet.enemies.find((e) => e.archetype === 'swarm') ?? planet.enemies[0];
+    for (let k = 0; k < 2; k++) {
+      this.enemy({ ...skin, archetype: 'dart' }, side * (5.4 + k * 1.2), 3.2, -2.8 + k * 1.8, 0.9, false);
+      // diving in on the haulers
+      this.bob[this.bob.length - 1].obj.rotation.y = -side * Math.PI * 0.6;
     }
   }
 

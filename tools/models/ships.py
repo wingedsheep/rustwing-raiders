@@ -1720,6 +1720,124 @@ def pickup_scrap():
     m.build(root)
 
 
+# --- the convoy's haulers --------------------------------------------------------------------------
+# `hauler` (variants 0..2): the slow freighters an escort mission flies cover for, ~7 long. Skin a =
+# hull paint, b = bridge and trim, c = engine and window glow (painted per hauler at runtime). What
+# they carry is in fixed colours, so a convoy reads as a string of different loads: 0 stacked
+# containers, 1 twin tanks, 2 an open hopper of glowing ore. Each loops `hauler_<v>_cruise_idle`.
+
+CRATES = ["#b8502e", "#2f8a8a", "#d8a43a", "#e8dcc0", "#4f74b0", "#7a8a3a"]
+NAV_GREEN = "#3ae070"
+
+
+def hauler(variant: int):
+    root = group(f"hauler_{variant}", kind="hauler", variant=variant)
+    clip = f"hauler_{variant}_cruise_idle"
+    T = 2.0
+    m = Model(f"hauler_{variant}_hull", seed=300 + variant)
+    # the hull: long and blunt, sloped sides, a tug's bow
+    out = [(-0.95, 3.5), (-1.4, 2.8), (-1.5, -2.6), (-1.25, -3.35), (1.25, -3.35), (1.5, -2.6), (1.4, 2.8), (0.95, 3.5)]
+    m.slab(out, -0.6, 0.25, A, top=[(x * 0.9, y * 0.97) for x, y in out])
+    m.box((2.45, 5.6, 0.08), (0, -0.05, 0.27), DECKC)
+    for s in (1, -1):
+        m.box((0.14, 5.9, 0.2), (s * 1.38, -0.1, 0.22), B)                          # gunwale
+        for k in range(4):
+            m.box((0.12, 0.16, 0.12), (s * 1.38, 2.2 - k * 1.5, 0.36), STEEL)         # bollards
+    # bow: a bumper with hazard stripes, nav lights, a searchlight
+    m.box((1.7, 0.4, 0.42), (0, 3.4, 0.05), STEEL, taper=0.85)
+    for k in range(4):
+        m.box((0.22, 0.08, 0.3), (-0.6 + k * 0.4, 3.62, 0.1), HAZARD if k % 2 else RUBBER)
+    m.box((0.2, 0.32, 0.16), (-1.36, 2.65, 0.4), RED, glow=True)
+    m.box((0.2, 0.32, 0.16), (1.36, 2.65, 0.4), NAV_GREEN, glow=True)
+    m.cyl(0.16, 0.18, (0, 3.1, 0.34), DARK, segs=6)
+    m.box((0.22, 0.1, 0.14), (0, 3.25, 0.5), "#fff4c8", glow=True)
+    # the bridge at the stern: a cab with a band of lit windows, a stack and a mast
+    m.box((2.0, 1.15, 0.8), (0, -2.6, 0.66), B, taper=0.9)
+    m.box((1.8, 0.14, 0.2), (0, -2.0, 0.86), C, glow=True)
+    m.box((1.25, 0.85, 0.16), (0, -2.7, 1.12), A)
+    m.box((0.7, 0.4, 0.1), (0.15, -2.6, 1.24), STEEL)
+    m.cyl(0.2, 0.55, (-0.6, -2.95, 1.05), DARK, segs=6)
+    m.cyl(0.24, 0.08, (-0.6, -2.95, 1.6), RUBBER, segs=6)
+    m.cyl(0.05, 0.9, (0.62, -2.95, 1.1), STEEL, segs=5)
+    m.box((0.5, 0.06, 0.06), (0.62, -2.95, 1.75), STEEL)
+    # engines: two fat nacelles on pylons at the stern, intakes dark, nozzles glowing
+    for s in (1, -1):
+        m.box((0.45, 1.0, 0.24), (s * 1.25, -2.5, 0.0), A)
+        m.cyl(0.46, 1.9, (s * 1.55, -1.5, -0.1), STEEL, segs=8, rot=BACK)
+        m.cyl(0.5, 0.2, (s * 1.55, -1.7, -0.1), A, segs=8, rot=BACK)
+        m.cyl(0.36, 0.06, (s * 1.55, -1.48, -0.1), DARK, segs=8, rot=FWD)
+        m.cyl(0.34, 0.08, (s * 1.55, -3.38, -0.1), C, segs=8, rot=BACK, glow=True)
+        m.box((0.5, 1.3, 0.12), (s * 1.75, 0.9, -0.1), B, taper=0.8)                 # side thruster pods
+        m.box((0.2, 0.3, 0.1), (s * 1.95, 0.4, -0.08), C, glow=True)
+    # what it carries
+    if variant == 0:
+        # containers, two across and three along, a fourth stacked up top
+        rng_cols = [CRATES[(i * 7 + 3) % len(CRATES)] for i in range(7)]
+        k = 0
+        for row, y in enumerate((1.95, 0.45, -1.05)):
+            for s in (1, -1):
+                col = rng_cols[k]
+                k += 1
+                m.box((1.0, 1.36, 0.72), (s * 0.54, y, 0.67), col)
+                for j in range(3):                                                   # ribs on the lid
+                    m.box((0.9, 0.08, 0.04), (s * 0.54, y - 0.42 + j * 0.42, 1.05), DARK)
+                m.box((0.06, 1.38, 0.74), (s * 0.04 + s * 0.02, y, 0.67), RUBBER)
+        m.box((1.0, 1.36, 0.72), (0.54, 0.45, 1.4), rng_cols[6])
+        for j in range(3):
+            m.box((0.9, 0.08, 0.04), (0.54, 0.03 + j * 0.42, 1.78), DARK)
+        m.box((0.2, 4.4, 0.06), (-1.12, 0.45, 0.72), HAZARD)                          # lashing strap
+    elif variant == 1:
+        # twin tanks with bands, a catwalk between, a warning placard on each
+        for s in (1, -1):
+            m.cyl(0.62, 4.3, (s * 0.66, 2.35, 0.95), "#d8d2c4", segs=10, rot=BACK)
+            m.ball(0.62, (s * 0.66, 2.35, 0.95), "#d8d2c4", subdiv=1, scale=(1, 0.5, 1))
+            m.ball(0.62, (s * 0.66, -1.95, 0.95), "#d8d2c4", subdiv=1, scale=(1, 0.5, 1))
+            for j in range(4):
+                m.cyl(0.65, 0.14, (s * 0.66, 1.75 - j * 1.15, 0.95), B, segs=10, rot=BACK)
+            m.box((0.5, 0.5, 0.06), (s * 0.66, 0.6, 1.6), HAZARD, rot=(0, 0, math.pi / 4))
+            m.box((0.24, 0.24, 0.07), (s * 0.66, 0.6, 1.62), RUBBER, rot=(0, 0, math.pi / 4))
+        m.box((0.3, 4.6, 0.08), (0, 0.2, 1.55), DECKP)
+        for j in range(6):
+            m.box((0.04, 0.04, 0.3), (0.16, 2.2 - j * 0.85, 1.7), STEEL)
+        m.cyl(0.12, 0.5, (0, 2.6, 0.3), STEEL, segs=6)                                # filler pipe
+    else:
+        # an open hopper heaped with ore that glows, and a crane to load it
+        m.box((2.3, 4.2, 0.12), (0, 0.4, 0.35), DARK)
+        for s in (1, -1):
+            m.box((0.16, 4.3, 0.8), (s * 1.1, 0.4, 0.7), A.shade(0.8))
+        for y in (2.5, -1.7):
+            m.box((2.36, 0.16, 0.8), (0, y, 0.7), A.shade(0.8))
+        ore = ["#5a4a6a", "#6a5a7a", "#4a3e58"]
+        for j in range(22):
+            x = m.rng.uniform(-0.85, 0.85)
+            y = m.rng.uniform(-1.4, 2.2)
+            m.ball(m.rng.uniform(0.25, 0.42), (x, y, 0.7 + m.rng.uniform(0, 0.3)), ore[j % 3], subdiv=0, jitter=0.06)
+        for j in range(7):
+            x = m.rng.uniform(-0.75, 0.75)
+            y = m.rng.uniform(-1.2, 2.0)
+            m.box((0.16, 0.16, 0.6), (x, y, 1.05), "#7af0ff", rot=(m.rng.uniform(-0.5, 0.5), m.rng.uniform(-0.5, 0.5), 0), glow=True)
+        m.box((0.24, 0.24, 1.1), (1.2, -1.95, 0.9), HAZARD)
+        m.box((0.16, 2.4, 0.16), (1.0, -0.8, 1.45), HAZARD, rot=(-0.25, 0, 0.25))
+        m.box((0.05, 0.05, 0.7), (0.72, 0.35, 1.25), STEEL)
+    body = m.build(root)
+    # the engines' flames, flickering; a beacon turning on the bridge roof
+    for s in (1, -1):
+        f = Model(f"hauler_{variant}_flame_{'r' if s > 0 else 'l'}")
+        f.cyl(0.3, 1.2, (0, 0, 0), C, segs=6, r_top=0.0, rot=BACK, glow=True)
+        obj = f.build(body, loc=(s * 1.55, -3.42, -0.1))
+        keys = [(t * T / 16, (0, (0.35 if (t + (s > 0)) % 2 else -0.15), 0)) for t in range(17)]
+        keys[-1] = (T, keys[0][1])
+        animate(obj, clip, "scale", keys)
+    b = Model(f"hauler_{variant}_beacon")
+    b.box((0.34, 0.12, 0.14), (0.12, 0, 0), "#ffb03a", glow=True)
+    b.cyl(0.1, 0.16, (0, 0, -0.08), DARK, segs=6)
+    beacon = b.build(body, loc=(0.15, -2.6, 1.38))
+    spin(beacon, clip, T, turns=2)
+    # a slow roll on the swell of the air
+    animate(body, clip, "rotation_euler", [(0, (0, 0, 0)), (T / 4, (0, 0.025, 0)), (T * 3 / 4, (0, -0.025, 0)), (T, (0, 0, 0))])
+    animate(body, clip, "location", [(0, (0, 0, 0)), (T / 2, (0, 0, 0.06)), (T, (0, 0, 0))])
+
+
 # --- build ----------------------------------------------------------------------------------------
 
 def build():
@@ -1731,6 +1849,8 @@ def build():
         fn(root)
     pickup_part()
     pickup_scrap()
+    for v in range(3):
+        hauler(v)
     if "--preview" in sys.argv or os.environ.get("SHIPS_DEMO"):
         for fid, fn in FRAME_BUILDERS.items():
             root = group(f"demo_{fid}", kind=f"demo_{fid}")

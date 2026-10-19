@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import type { Run } from '../sim/run';
 import { EDGE, type ChartNode, type NodeKind, type Reward } from '../sim/chart';
-import { DANGER_PAY, FUEL_MAX, SECTORS, threatTier, type Run as RunT } from '../sim/run';
+import { DANGER_PAY, FUEL_MAX, SECTORS, fights, threatTier, type Run as RunT } from '../sim/run';
 import { eventById } from '../sim/events';
 import { stats } from '../sim/build';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, hearts, hints } from '../ui/widgets';
+import { backdrop, haulerIcon, hearts, hints } from '../ui/widgets';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { EncounterPreview } from '../view/encounter-preview';
@@ -27,11 +27,13 @@ const VIG_H = 74;
 const FUEL = '#ffb04a';
 const VIOLET = '#c8a0ff';
 const MUTED = '#a89cb8';
+const ESCORT = '#7ab8ff';
 
 export const KIND: Record<NodeKind, { label: string; icon: string; color: string; text: string }> = {
   start: { label: 'JUMP POINT', icon: 'start', color: '#8a8098', text: 'Where you came in.' },
   raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
   hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
+  escort: { label: 'ESCORT', icon: 'escort', color: ESCORT, text: 'Fly cover for three haulers. Raiders will try to board them: shoot them off. Every hauler that gets home pays, and brings you a crate.' },
   salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
   event: { label: 'UNKNOWN', icon: 'unknown', color: VIOLET, text: 'Something out in the dark. Could be anything. A rumour would tell you.' },
@@ -43,6 +45,7 @@ const ICONS: Record<string, string[]> = {
   start: ['0000000', '0000000', '0011100', '0011100', '0011100', '0000000', '0000000'],
   raid: ['1000001', '0100010', '0010100', '0001000', '0010100', '0110110', '1100011'],
   hunt: ['0111110', '1111111', '1001001', '1111111', '0110110', '0101010', '0000000'],
+  escort: ['0111110', '1111111', '1100011', '1101011', '0110110', '0011100', '0001000'],
   salvage: ['1111111', '1000001', '1111111', '1010101', '1001001', '1010101', '1111111'],
   dock: ['0110110', '1111111', '1111111', '0111110', '0011100', '0001000', '0000000'],
   unknown: ['0111110', '1100011', '0000011', '0001110', '0001100', '0000000', '0001100'],
@@ -258,7 +261,9 @@ export class ChartScreen implements Screen {
     const c = this.chart;
     const prev = this.options[this.sel];
     this.options = c.reachable().sort((a, b) => c.along(c.pos(a, c.time + 1)) - c.along(c.pos(b, c.time + 1)));
-    const keep = prev ? this.options.indexOf(prev) : -1;
+    // (&site=escort, for testing: that kind of site picked to begin with)
+    const site = this.game.params.get('site');
+    const keep = prev ? this.options.indexOf(prev) : site ? this.options.findIndex((o) => o.kind === site) : -1;
     // default to the furthest-on thing that isn't the gate, so the obvious move is forward
     this.sel = keep >= 0 ? keep : Math.max(0, this.options.length - 1 - (this.options.length > 1 && this.options[this.options.length - 1].kind === 'gate' ? 1 : 0));
   }
@@ -407,7 +412,7 @@ export class ChartScreen implements Screen {
 
   /** Sites with a fight get a 3D picture; the rest are painted. */
   private previewOf(n: ChartNode): EncounterPreview | null {
-    if (n.kind !== 'raid' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
+    if (!fights(n)) return null;
     let p = this.previews.get(n.id);
     if (!p) {
       p = new EncounterPreview(this.run, n, VIG_W, VIG_H);
@@ -686,7 +691,7 @@ export class ChartScreen implements Screen {
     if (this.anim) return;
     const y = H - 9;
     let x = 12;
-    for (const k of ['raid', 'hunt', 'salvage', 'dock', 'event'] as NodeKind[]) {
+    for (const k of ['raid', 'hunt', 'escort', 'salvage', 'dock', 'event'] as NodeKind[]) {
       const look = KIND[k];
       chamfer(ctx, x + 5, y, 6, DARK);
       chamfer(ctx, x + 5, y, 5, look.color);
@@ -950,6 +955,24 @@ export class ChartScreen implements Screen {
       });
       if (DANGER_PAY[d] > 1) row('', (x0) => drawText(ctx, `SCRAP ×${DANGER_PAY[d]}: DANGER PAY`, x0, ty, GOLD));
     }
+    if (n.kind === 'escort') {
+      row('LOOT', (x0) => {
+        let lx = x0;
+        if (rw[0]) {
+          ctx.fillStyle = DARK;
+          ctx.fillRect(lx, ty, 6, 6);
+          ctx.fillStyle = rw[1];
+          ctx.fillRect(lx, ty, 5, 5);
+          lx += 8;
+          drawText(ctx, rw[0], lx, ty, rw[1]);
+        } else drawText(ctx, 'PARTS', lx, ty, INK);
+      });
+      // the three haulers: a crate (and pay) for each that gets home
+      row('CARGO', (x0) => {
+        for (let h = 0; h < 3; h++) haulerIcon(ctx, x0 + h * 9, ty, ESCORT);
+        drawText(ctx, 'A CRATE EACH', x0 + 30, ty, GOLD);
+      });
+    }
     if (n.kind === 'salvage') {
       const mk = run.market(n);
       if (mk.sells) row('CHEAP', (x0) => drawText(ctx, `${mk.sells!.toUpperCase()}S`, x0, ty, CLASS_COLOR[mk.sells!]));
@@ -974,6 +997,7 @@ export class ChartScreen implements Screen {
     // what it's like, in the room that's left
     const desc = wrap(unknown ? KIND.event.text : k.text, iw);
     if (n.kind === 'gate') desc.push(...wrap(`${planet!.boss.name}: ${planet!.boss.title}.`, iw));
+    else if (planet && n.kind === 'escort') desc.push(...wrap(`BOARDERS FROM ${planet.faction.toUpperCase()}, AND ${planet.enemies[0].name}.`, iw));
     else if (planet && (n.kind === 'raid' || n.kind === 'hunt')) {
       const names = planet.enemies.slice(0, 3).map((e) => e.name);
       desc.push(...wrap(`EXPECT: ${names.join(', ')}.`, iw));

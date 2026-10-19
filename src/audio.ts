@@ -23,7 +23,8 @@ export type Sfx =
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
-  | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate';
+  | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
+  | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
 export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
@@ -493,6 +494,56 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'sawtooth', 220 * p, 80 * p, 0.3, 0.08, 0.01);
     return 0.32;
   }, 0.1, 2),
+
+  // escorts: fire on a hauler's hull, a dull clank with a ring to it
+  hull_hit: S((t, p, o) => {
+    tone(o, t, 'triangle', 240 * p, 190 * p, 0.14, 0.12, 0.001);
+    tone(o, t, 'square', 1420 * p, 1380 * p, 0.09, 0.025, 0.001);
+    noise(o, t, 0.05, 'bandpass', 1800 * p, 900 * p, 1.2, 0.12);
+    return 0.16;
+  }, 0.06, 3, { low: true }),
+
+  // raiders coming to board: the convoy's klaxon, two falls
+  boarders: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 2400);
+    for (let i = 0; i < 2; i++) {
+      const tt = t + i * 0.32;
+      tone(lp, tt, 'sawtooth', 740 * p, 520 * p, 0.26, 0.09, 0.01);
+      tone(lp, tt, 'square', 370 * p, 260 * p, 0.26, 0.05, 0.01);
+    }
+    return 0.62;
+  }, 0.6, 1, { tuned: true }),
+
+  // a boarder clamps on, and its cutter bites into the hull
+  boarded: S((t, p, o) => {
+    tone(o, t, 'square', 180 * p, 90 * p, 0.06, 0.16, 0.001);
+    noise(o, t, 0.04, 'highpass', 3000, 3000, 0.7, 0.18);
+    noise(o, t + 0.05, 0.45, 'bandpass', 3800 * p, 5200 * p, 6, 0.12, 0.02);
+    tone(o, t + 0.05, 'sawtooth', 95 * p, 110 * p, 0.45, 0.05, 0.02);
+    return 0.52;
+  }, 0.15, 2),
+
+  // a hauler goes down: its tanks go up, and its horn sags as it falls
+  hauler_lost: S((t, p, o) => {
+    boom(o, t, p * 0.9, 1.4, 0.3);
+    boom(o, t + 0.3, p * 0.7, 1.1, 0.24);
+    const lp = filt(o, 'lowpass', 1400);
+    tone(lp, t + 0.1, 'sawtooth', 220 * p, 110 * p, 1.4, 0.08, 0.05, 1.3);
+    tone(lp, t + 0.1, 'sawtooth', 277 * p, 138 * p, 1.4, 0.06, 0.05, 1.3);
+    return 1.6;
+  }, 0.4, 1, { rev: 0.3 }),
+
+  // a hauler home: its horn, two notes, and a chime for the pay
+  horn: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 1600);
+    for (const [at, n] of [[0, 50], [0.28, 55]] as const) {
+      const f = mtof(n) * p;
+      tone(lp, t + at, 'sawtooth', f, f, 0.24, 0.1, 0.02);
+      tone(lp, t + at, 'sawtooth', f * 1.26, f * 1.26, 0.24, 0.06, 0.02);
+    }
+    tone(o, t + 0.55, 'triangle', mtof(84) * p, mtof(84) * p, 0.3, 0.06, 0.002);
+    return 0.9;
+  }, 0.2, 2, { tuned: true, rev: 0.2 }),
 
   eat: S((t, p, o) => {
     tone(o, t, 'sine', 900 * p, 200 * p, 0.07, 0.08, 0.002);

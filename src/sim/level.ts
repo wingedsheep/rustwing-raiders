@@ -18,8 +18,9 @@ import { FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
+import { Convoy } from './convoy';
 
-export type Mode = 'raid' | 'hunt' | 'boss';
+export type Mode = 'raid' | 'hunt' | 'escort' | 'boss';
 
 // Boosting, and what doing it well pays: the numbers the feel hangs on.
 /** Boost is a surge of your own ship: faster, up the screen unless steered, sliding more. */
@@ -401,6 +402,15 @@ export type LevelEvent =
   | { type: 'spread'; from: number; enemy: number; x: number; z: number; x2: number; z2: number; bits: number }
   /** A shocked enemy seized up for a beat. */
   | { type: 'jolt'; enemy: number; x: number; z: number }
+  /** Escorts (see convoy.ts): a hauler hit, lost, boarded, delivered; raiders coming to board one. */
+  | { type: 'haulerHit'; id: number; x: number; z: number; dmg: number; cause: 'fire' | 'laser' | 'boarder'; hp: number; max: number }
+  | { type: 'haulerLost'; id: number; x: number; z: number; left: number }
+  | { type: 'boarders'; id: number; x: number; z: number; n: number; side: number }
+  | { type: 'boarded'; id: number; enemy: number; x: number; z: number }
+  /** A boarder killed while it clung to a hull (or lining up on one: `clinging` false). */
+  | { type: 'shotOff'; id: number; x: number; z: number; clinging: boolean }
+  | { type: 'delivered'; id: number; x: number; z: number; pay: number }
+  | { type: 'convoyLost' }
   | { type: 'clear' }
   | { type: 'failed' };
 
@@ -423,6 +433,8 @@ export class Level {
   chase = false;
   readonly rand: Rng;
   readonly director: Director;
+  /** An escort's haulers (null in any other fight). */
+  readonly convoy: Convoy | null;
   /** Where the middle of the screen is (z on the flight plane). Decreases as you fly. */
   scroll = 0;
   /** The level's own speed (units/s), and how fast the screen is moving right now. */
@@ -544,6 +556,7 @@ export class Level {
         auxUses: 0,
       });
     });
+    this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
     this.director = new Director(this);
   }
 
@@ -605,6 +618,7 @@ export class Level {
 
     for (let i = 0; i < this.players.length; i++) this.updatePlayer(this.players[i], intents[i] ?? NEUTRAL, dz);
     this.updateRevives();
+    this.convoy?.update(dz);
     this.director.update();
     for (const e of this.enemies) {
       if (e.dead) continue;
@@ -614,7 +628,7 @@ export class Level {
       e.stun = Math.max(0, e.stun - DT);
       updateEnemy(this, e);
       if (!e.dead) tickMarks(this, e);
-      if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden') this.keepOffRock(e);
+      if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3)) this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
       if (e.z > this.bottom + 10 || e.z < this.top - 40 || Math.abs(e.x) > HALF_W + 26) {
         if (e.t > 1 && !e.boss) this.escape(e);
@@ -660,6 +674,8 @@ export class Level {
     const share = seen ? this.killed / seen : 1;
     this.fullClear = this.missed === 0 && this.spawned > 0;
     this.rank = this.fullClear || share >= 0.9 ? 'S' : share >= 0.7 ? 'A' : share >= 0.45 ? 'B' : 'C';
+    // an escort is ranked on what it brought home
+    if (this.convoy) this.rank = this.convoy.deliver();
     this.parBonus = this.fullClear ? Math.round(FULL_CLEAR * hard) : 0;
     const cleared = this.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
     this.emit({
@@ -1251,6 +1267,7 @@ export class Level {
     this.comboT = 2;
     this.score += Math.round(e.score * (1 + Math.min(this.combo, 50) * 0.1));
     this.tallyKill(e);
+    if (e.d.board !== undefined && (e.d.ph ?? 0) >= 1 && (e.d.ph ?? 0) <= 3) this.emit({ type: 'shotOff', id: e.d.board, x: e.x, z: e.z, clinging: e.d.ph === 3 });
     const p = this.players[owner];
     if (p) p.kills++;
     for (let i = 0; i < e.scrap * (close ? 2 : 1); i++) this.drop('scrap', e.x + (this.rand() - 0.5) * e.r, e.z + (this.rand() - 0.5) * e.r, 1 + (this.rand() < 0.2 ? 4 : 0));
@@ -1317,6 +1334,11 @@ export class Level {
       }
     }
     p ??= this.nearest(x, z);
+    // on an escort, a hauler's a target too, if it's clearly the nearer
+    if (this.convoy && this.state !== 'clear') {
+      const h = this.convoy.nearest(x, z);
+      if (h.h && (!p || h.d2 * HAULER_BIAS < (p.x - x) ** 2 + (p.z - z) ** 2)) p = h.h;
+    }
     return p ? Math.atan2(p.x - x, p.z - z) : 0;
   }
 
@@ -1480,6 +1502,7 @@ export class Level {
           else this.hurt(p, p.x, p.z, 'laser');
         }
       }
+      this.convoy?.laser(inBeam);
     }
   }
 
@@ -1618,6 +1641,8 @@ export class Level {
         }
       }
     }
+    // what's left of the enemy fire against the haulers' hulls
+    this.convoy?.collide();
     // player shots against enemies (and the torpedoes coming for them)
     const torps = this.bullets.some((b) => b.kind === 'torpedo' && !b.dead);
     for (const s of this.shots) {
@@ -2235,6 +2260,8 @@ const MIRROR_DMG = 8;
 const SENTRY_RANGE = 30;
 /** Catalyst: how close the dash must pass a marked enemy (past its edge) to set it off. */
 const CATALYST_REACH = 3;
+/** Escorts: a hauler draws aimed fire only when it's this much nearer (squared) than you. */
+const HAULER_BIAS = 1.6;
 
 function sweep<T extends { dead: boolean }>(xs: T[]) {
   let j = 0;

@@ -9,7 +9,8 @@ import { audio } from '../audio';
 import { drawText, textWidth } from '../ui/font';
 import { CYAN, DIM, EDGE, GOLD, GREEN, INK, W, frame, hex } from '../ui/hud';
 import { LIVERY } from '../view/ship-model';
-import { backdrop, heading, hints, shapeIcon, TIER_COLOR, TIER_DARK } from '../ui/widgets';
+import { backdrop, haulerIcon, heading, hints, shapeIcon, TIER_COLOR, TIER_DARK } from '../ui/widgets';
+import { HAULER, RED } from '../ui/hud';
 import { cardBack, lootCard } from '../ui/loot-card';
 
 interface Pick {
@@ -27,6 +28,8 @@ interface Pick {
   salvaged: Item[];
   /** Parts that didn't fit in the hold and went for scrap. */
   scrapped: Item[];
+  /** An escort: the cards whose hauler went down (they can't be taken). */
+  lost: boolean[];
 }
 
 interface Spark {
@@ -75,7 +78,9 @@ export class Results implements Screen {
       const options = run.lootChoice(spec.seed * 31 + i * 7 + run.levels, rich, spec.mode === 'boss');
       // ?legendary: for testing, the first card is one
       if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : 'prismatic' };
-      return { options, fits: options.map((it) => bestFit(crew.build, it)), at: 0, done: false, doneT: 0, took: -1, salvaged, scrapped };
+      const lost = options.map((_, k) => !!res.convoy && !res.convoy.home[k]);
+      const at = lost.indexOf(false);
+      return { options, fits: options.map((it) => bestFit(crew.build, it)), at: at < 0 ? 3 : at, done: false, doneT: 0, took: -1, salvaged, scrapped, lost };
     });
     audio.music('hangar');
   }
@@ -101,7 +106,7 @@ export class Results implements Screen {
     this.picks.forEach((p, i) =>
       p.options.forEach((it, k) => {
         const key = `${i}:${k}`;
-        if (this.shown.has(key) || this.t < this.revealT(k) + FLIP / 2) return;
+        if (p.lost[k] || this.shown.has(key) || this.t < this.revealT(k) + FLIP / 2) return;
         this.shown.add(key);
         const tier = tierOf(it);
         audio.play('card_flip', { pitch: 1 + TIERS_UP[tier] * 0.12 });
@@ -116,7 +121,7 @@ export class Results implements Screen {
     // a legendary card gives off the odd spark while it's on the table
     this.picks.forEach((p, i) =>
       p.options.forEach((it, k) => {
-        if (tierOf(it) !== 'legendary' || !this.shown.has(`${i}:${k}`) || (p.done && p.took !== k) || Math.random() > dt * 9) return;
+        if (p.lost[k] || tierOf(it) !== 'legendary' || !this.shown.has(`${i}:${k}`) || (p.done && p.took !== k) || Math.random() > dt * 9) return;
         const r = this.cardRect(i, k);
         this.sparks.push({ x: r.x + Math.random() * r.w, y: r.y + r.h - 4, vx: (Math.random() - 0.5) * 8, vy: -20 - Math.random() * 25, life: 1.2, max: 1.2, color: Math.random() < 0.5 ? GOLD : TIER_COLOR.legendary });
       }),
@@ -137,14 +142,21 @@ export class Results implements Screen {
         if (m.confirm && this.t > 0.3) this.t = this.revealT(2) + FLIP;
         return;
       }
+      const open = [0, 1, 2].filter((k) => !p.lost[k]);
+      const step = (d: number) => {
+        const i = open.indexOf(p.at);
+        p.at = open[(i + d + open.length) % open.length];
+      };
       if (p.at < 3) {
-        if (m.left) p.at = (p.at + 2) % 3;
-        if (m.right) p.at = (p.at + 1) % 3;
+        if (m.left) step(-1);
+        if (m.right) step(1);
         if (m.down) p.at = 3;
         if (m.up && this.picks.length > 1) p.at = 3;
-      } else if (m.up || m.down || m.left || m.right) p.at = 1;
-      if (m.prev) p.at = (p.at + 3) % 4;
-      if (m.next) p.at = (p.at + 1) % 4;
+      } else if ((m.up || m.down || m.left || m.right) && open.length) p.at = open.includes(1) ? 1 : open[0];
+      // (the bumpers go round the cards and the scrap button both)
+      const ring = [...open, 3];
+      if (m.prev) p.at = ring[(ring.indexOf(p.at) + ring.length - 1) % ring.length];
+      if (m.next) p.at = ring[(ring.indexOf(p.at) + 1) % ring.length];
       if (m.up || m.down || m.left || m.right || m.prev || m.next) audio.play('ui_move');
       if (m.confirm) {
         p.took = p.at;
@@ -180,7 +192,8 @@ export class Results implements Screen {
   }
 
   private scrapValue(p: Pick) {
-    return Math.max(...p.options.map((it) => Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]))) + 10;
+    const left = p.options.filter((_, k) => !p.lost[k]);
+    return Math.max(0, ...left.map((it) => Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]))) + 10;
   }
 
   /** Where the report lines end and the choosing starts. */
@@ -236,6 +249,7 @@ export class Results implements Screen {
     const r = this.cardRect(i, k);
     const since = this.t - this.revealT(k);
     if (since < -0.3) return;
+    if (p.lost[k]) return this.lostCard(ctx, r, k, since);
     // sliding in face down, then turning over: squeeze to a line, open on the face
     if (since < FLIP / 2) {
       const slide = Math.max(0, Math.min(1, (since + 0.3) / 0.3));
@@ -267,6 +281,41 @@ export class Results implements Screen {
       drawText(ctx, '▲', r.x + r.w / 2, r.y + r.h + 3 + bob, GOLD, { align: 'center' });
     }
     if (p.done && p.took === k) this.stamp(ctx, r.x + r.w / 2, r.y + Math.round(r.h * 0.42), p.doneT, this.run.crew[i].cargo.includes(it) ? 'TAKEN' : 'SOLD: HOLD FULL');
+  }
+
+  /**
+   * The crate of a hauler that went down: an empty, scorched slot where its card would have been,
+   * smouldering, with the hauler crossed out.
+   */
+  private lostCard(ctx: CanvasRenderingContext2D, r: { x: number; y: number; w: number; h: number }, k: number, since: number) {
+    const a = Math.min(1, Math.max(0, (since + 0.3) / 0.3));
+    ctx.globalAlpha = a;
+    frame(ctx, r.x, r.y, r.w, r.h, '#140e18', '#3a2028');
+    // scorch: dark blotches and a few embers rising off it
+    const rnd = (n: number) => ((Math.sin(n * 127.1 + k * 311.7) * 43758.5453) % 1 + 1) % 1;
+    for (let n = 0; n < 26; n++) {
+      ctx.fillStyle = n % 3 ? 'rgba(40,20,22,0.8)' : 'rgba(70,30,26,0.6)';
+      const s = 4 + Math.floor(rnd(n) * 14);
+      ctx.fillRect(r.x + 4 + Math.floor(rnd(n + 50) * (r.w - 8 - s)), r.y + 4 + Math.floor(rnd(n + 90) * (r.h - 8 - s)), s, s);
+    }
+    for (let n = 0; n < 6; n++) {
+      const life = (this.t * 0.35 + rnd(n + 7)) % 1;
+      ctx.globalAlpha = a * (1 - life);
+      ctx.fillStyle = n % 2 ? '#ff8a3a' : '#ffd060';
+      ctx.fillRect(r.x + 10 + Math.floor(rnd(n + 20) * (r.w - 20)), r.y + r.h - 10 - Math.floor(life * r.h * 0.7), 1, 2);
+    }
+    ctx.globalAlpha = a;
+    const cx = r.x + r.w / 2;
+    const cy = r.y + Math.round(r.h * 0.38);
+    ctx.save();
+    ctx.translate(Math.round(cx - 12.5), cy - 56);
+    ctx.scale(5, 5);
+    haulerIcon(ctx, 0, 0, HAULER, true);
+    ctx.restore();
+    drawText(ctx, 'LOST', cx, cy - 12, RED, { scale: 3, align: 'center' });
+    drawText(ctx, 'IT WENT DOWN', cx, cy + 16, DIM, { align: 'center' });
+    drawText(ctx, 'WITH ITS HAULER', cx, cy + 26, DIM, { align: 'center' });
+    ctx.globalAlpha = 1;
   }
 
   /** Slow rays of light, fanned round a point. */
@@ -370,6 +419,14 @@ export class Results implements Screen {
       const tier = tierOf(it);
       const on = !p.done && p.at === k;
       const ty = y + (on ? -2 : 0);
+      if (p.lost[k]) {
+        if (since > -0.3) {
+          frame(ctx, tx, ty, tw, 16, '#140e18', '#3a2028');
+          haulerIcon(ctx, tx + 5, ty + 4, HAULER, true);
+          drawText(ctx, 'LOST', tx + 15, ty + 5, RED);
+        }
+        return;
+      }
       if (since < FLIP / 2) {
         if (since > -0.3) cardBack(ctx, tier, tx, ty, tw, 16, this.t);
         return;

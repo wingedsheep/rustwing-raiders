@@ -79,6 +79,54 @@
   "mounts": [],
   "variant": 0
  },
+ "hauler#0": {
+  "colliders": [],
+  "kind": "hauler",
+  "max": [
+   2.05,
+   2.0,
+   5.04
+  ],
+  "min": [
+   -2.05,
+   -0.6,
+   -3.66
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "hauler#1": {
+  "colliders": [],
+  "kind": "hauler",
+  "max": [
+   2.05,
+   2.0,
+   5.04
+  ],
+  "min": [
+   -2.05,
+   -0.6,
+   -3.66
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "hauler#2": {
+  "colliders": [],
+  "kind": "hauler",
+  "max": [
+   2.05,
+   2.0,
+   5.04
+  ],
+  "min": [
+   -2.05,
+   -0.6,
+   -3.66
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "part_amp": {
   "colliders": [],
   "kind": "part_amp",

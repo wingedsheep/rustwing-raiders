@@ -11,6 +11,7 @@ import { makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
 import { BOUNTIES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
+import { boarderSkin } from './convoy';
 
 /** How much of a wave roll goes to the planet's old roster (the rest to the factions' foes). */
 const OLD_SHARE = 0.55;
@@ -61,7 +62,8 @@ export class Director {
     const r = this.r;
     const roster = lv.spec.planet.enemies;
     // gaps between waves shrink as the run goes on (the field is wide: it takes a lot to fill)
-    const gap = lerp(54, 35, Math.min(d, 1.2));
+    // (an escort leaves room for the boarders)
+    const gap = lerp(54, 35, Math.min(d, 1.2)) * (mode === 'escort' ? 1.15 : 1);
     const end = mode === 'boss' ? L - 40 : L - 70;
     let at = 70;
     let n = 0;
@@ -101,7 +103,7 @@ export class Director {
       else this.beats.push({ at: f * L, run: () => this.spawnArch(s.archetype, true) });
     }
     // bounties: something worth chasing, briefly, before it gets away
-    const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : 0;
+    const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : mode === 'escort' ? 1 : 0;
     for (let k = 0; k < bounties; k++) {
       const f = (k + 0.3 + r() * 0.5) / bounties;
       const zf = -(f * L);
@@ -111,6 +113,15 @@ export class Director {
       this.beats.push({ at: f * L, run: () => this.spawnFoe(foe, false, { reward: Math.round(20 + 15 * d + (foe === 'ace' ? 10 : 0)), part, life: BOUNTY_LIFE[foe] ?? 10 }) });
     }
     if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss() });
+    // an escort: raiders come to board the haulers, more of them as it goes on
+    if (mode === 'escort') {
+      const runs = 5 + (d > 0.8 ? 1 : 0);
+      for (let k = 0; k < runs; k++) {
+        const f = 0.1 + (k / runs) * 0.82 + r() * 0.04;
+        const n = 2 + (r() < 0.2 + d * 0.3 + f * 0.3 ? 1 : 0);
+        this.beats.push({ at: f * L, run: () => lv.convoy?.board(boarderSkin(lv), n) });
+      }
+    }
     this.beats.sort((a, b) => a.at - b.at);
     void n;
   }

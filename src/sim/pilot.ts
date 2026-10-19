@@ -108,6 +108,20 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   const partner = lv.players.find((q) => q !== p && q.down);
   if (partner) return { x: partner.x, z: partner.z };
   const bottom = lv.bottom - 9;
+  // an escort: boarders on a hull (or lining up on one) come first
+  if (lv.convoy) {
+    let board: { x: number; z: number } | undefined;
+    let bd = Infinity;
+    for (const e of lv.enemies) {
+      if (e.dead || e.d.board === undefined || (e.d.ph ?? 0) < 1 || (e.d.ph ?? 0) > 3 || !lv.onScreen(e.x, e.z, -2)) continue;
+      const d = Math.abs(e.x - p.x) + Math.abs(e.z - p.z) * 0.5 - (e.d.ph === 3 ? 20 : 0);
+      if (d < bd) {
+        bd = d;
+        board = { x: e.x, z: clamp(e.z + 8, lv.top + 6, bottom) };
+      }
+    }
+    if (board) return board;
+  }
   const bounty = bountyGoal(lv, p);
   if (bounty) return bounty;
   // rings coming up

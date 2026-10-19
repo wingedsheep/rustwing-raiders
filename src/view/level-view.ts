@@ -20,6 +20,7 @@ import type { PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
+import { ConvoyView } from './convoy-view';
 
 /** The playfield as it shows on screen (world units): the camera always fits all of it. */
 export const FIELD_W = HALF_W * 2;
@@ -100,6 +101,12 @@ export class LevelView {
   private bullets = new BulletArt();
   private shotArt = new ShotArt();
   private shields: Shields;
+  /** An escort's haulers. */
+  private convoy: ConvoyView | null = null;
+  /** For the HUD: the escort's orders, shown as it starts. */
+  missionBanner: { t: number } | null = null;
+  /** For the HUD: which side boarders are coming from, and how long ago they were called. */
+  boardWarn: { side: number; t: number } | null = null;
   /** Bullet pops this frame: past a handful, a mass cancel just flashes. */
   private popped = 0;
   /** Where each smoking thing was last frame, so its smoke is laid evenly along the way it came. */
@@ -219,6 +226,11 @@ export class LevelView {
     this.lines.renderOrder = 40;
     this.scene.add(this.lines);
     for (let k = 0; k < 48; k++) this.lineData.push({ x: 0, y: FLIGHT_Y + 4, z: 1e9, len: 0, v: 0 });
+    if (lv.convoy) {
+      this.convoy = new ConvoyView(lv, this.fx);
+      this.scene.add(this.convoy.group);
+      this.missionBanner = { t: 0 };
+    }
     this.lastScroll = lv.scroll;
     this.placeCamera(0);
   }
@@ -763,6 +775,50 @@ export class LevelView {
         case 'split':
           this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z, 4, 0xffffff, 16, 0.12, 0.16);
           break;
+        case 'haulerHit':
+          this.convoy?.hit(e.id, e.x, e.z, e.dmg, e.cause);
+          audio.play('hull_hit', { pan: e.x / HALF_W, vol: e.cause === 'boarder' ? 0.3 : 0.45, pitch: 0.9 + Math.random() * 0.2 });
+          // nearly gone: say so where it's happening (the hull bar says the rest)
+          if (e.hp > 0 && (e.hp + e.dmg > e.max * 0.2) !== (e.hp > e.max * 0.2)) this.pop('HAULER CRITICAL!', e.x, e.z - 4, '#ff6a4a', true);
+          break;
+        case 'haulerLost':
+          this.convoy?.lose(e.id);
+          this.pop(e.left ? 'HAULER LOST' : 'CONVOY LOST', e.x, e.z - 4, '#ff6a4a', true);
+          this.trauma = Math.min(1, this.trauma + 0.7);
+          this.hitstop = Math.max(this.hitstop, 8);
+          this.flash = Math.max(this.flash, 0.4);
+          this.flashColor.set(0xff8a4a);
+          this.blast(e.x, FLIGHT_Y, e.z, 4);
+          this.shove(0, -1, 1);
+          audio.play('hauler_lost', { pan: e.x / HALF_W });
+          audio.duck(0.6);
+          break;
+        case 'boarders':
+          this.boardWarn = { side: e.side, t: 0 };
+          audio.play('boarders', { pan: e.side * 0.8 });
+          break;
+        case 'boarded':
+          this.convoy?.boarded(e.x, e.z);
+          this.trauma = Math.min(1, this.trauma + 0.15);
+          audio.play('boarded', { pan: e.x / HALF_W });
+          break;
+        case 'delivered':
+          this.pop(`HOME +${e.pay}`, e.x, e.z - 4, '#8ad0ff', true);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.5, true, 0x8ad0ff);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.3, true, 0xffffff);
+          this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z, 24, 0xffe08a, 18, 0.6, 0.3);
+          audio.play('horn', { pan: e.x / HALF_W, pitch: 1 + e.id * 0.06 });
+          break;
+        case 'shotOff':
+          if (e.clinging) {
+            this.pop('SHOT OFF!', e.x, e.z - 3, '#8ad0ff');
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0x8ad0ff);
+            this.hitstop = Math.max(this.hitstop, 3);
+            audio.play('block', { pan: e.x / HALF_W, pitch: 1.3 });
+          }
+          break;
+        case 'convoyLost':
+          break;
         case 'beam':
         case 'spawn':
           break;
@@ -1087,6 +1143,9 @@ export class LevelView {
     this.updateShips(dt);
     this.updateEnemies(dt);
     this.updateWrecks(dt, scrollDz);
+    this.convoy?.update(dt, scrollDz);
+    if (this.missionBanner) this.missionBanner.t += dt;
+    if (this.boardWarn && (this.boardWarn.t += dt) > 2.2) this.boardWarn = null;
     this.updateBullets();
     this.updateShots();
     this.updateBeams();
@@ -1845,6 +1904,7 @@ export class LevelView {
     for (const s of this.ships) s?.dispose();
     for (const v of this.enemies.values()) v.inst?.dispose();
     for (const w of this.wrecks) w.inst?.dispose();
+    this.convoy?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);
     audio.loop('flame', 'p0', false);

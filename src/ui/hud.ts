@@ -8,6 +8,7 @@ import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
 import { markIcon } from './mark-icons';
+import { haulerIcon } from './widgets';
 import type { MarkKind } from '../game/parts';
 
 /**
@@ -28,6 +29,10 @@ export const GOLD = '#ffd04a';
 export const RED = '#ff5a4a';
 export const GREEN = '#8affb0';
 export const CYAN = '#8affe0';
+
+/** The convoy's colour (an escort's haulers), and what their hull bars go through as they're worn down. */
+export const HAULER = '#8ad0ff';
+export const hullColor = (f: number, t: number) => (f > 0.5 ? HAULER : f > 0.2 ? '#ffb04a' : Math.floor(t * 8) % 2 ? RED : '#ffffff');
 
 export const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
@@ -141,9 +146,17 @@ export class Hud {
     const fx = rx + Math.round(rw * clamp(lv.progress, 0, 1));
     ctx.fillStyle = INK;
     ctx.fillRect(fx - 1, 14, 3, 7);
-    const mode = { raid: 'RAID', hunt: 'HUNT', boss: 'WARDEN' }[lv.spec.mode];
+    const mode = { raid: 'RAID', hunt: 'HUNT', escort: 'ESCORT', boss: 'WARDEN' }[lv.spec.mode];
     drawText(ctx, `${lv.spec.planet.name} · ${mode}`, rx, 6, DIM, { shadow: false });
-    if (lv.spawned > 0) {
+    if (lv.convoy) {
+      // an escort: the three haulers, each with what's left of its hull
+      lv.convoy.haulers.forEach((h, i) => {
+        const hx = rx + rw - 3 * 20 + i * 20 + 4;
+        const hit = h.hitT < 0.12 && !h.dead;
+        haulerIcon(ctx, hx, 6, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : HAULER, h.dead);
+        if (!h.dead) bar(ctx, hx + 7, 9, 8, 2, h.hp / h.max, hullColor(h.hp / h.max, this.time), 'rgba(60,48,80,0.8)');
+      });
+    } else if (lv.spawned > 0) {
       // the hunt's tally: what's down, and what got past (a full clear pays)
       const clean = lv.missed === 0;
       drawText(ctx, `${lv.killed}/${lv.spawned}${lv.missed ? `  ${lv.missed} MISSED` : ''}`, rx + rw, 6, clean ? GOLD : DIM, { align: 'right', shadow: false });
@@ -229,6 +242,7 @@ export class Hud {
     const h = VIEW.h;
     const mid = w / 2;
     this.marks(ctx, lv, view);
+    if (lv.convoy) this.convoy(ctx, lv, view);
     // pops
     // the pops: big ones (a reaction's name) first, then the rest nudged down off them (numbers
     // may pile on numbers), and never up under the top bar
@@ -273,8 +287,20 @@ export class Hud {
         ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 14), Math.round(gw * (jam ? 1 : heat)), 2);
       }
     }
+    // an escort's orders, as it starts (in place of the biome's name)
+    const mb = view.missionBanner;
+    if (mb && mb.t < 5) {
+      const fade = Math.min(1, mb.t * 2.5) * (mb.t > 4 ? Math.max(0, 1 - (mb.t - 4)) : 1);
+      ctx.globalAlpha = fade;
+      const by = Math.round(h * 0.2);
+      drawText(ctx, 'ESCORT', mid, by, HAULER, { scale: 3, align: 'center' });
+      drawText(ctx, 'BRING THE HAULERS HOME', mid, by + 28, INK, { align: 'center' });
+      drawText(ctx, 'RAIDERS WILL TRY TO BOARD THEM: SHOOT THEM OFF', mid, by + 40, '#d8cce8', { align: 'center' });
+      for (let i = 0; i < 3; i++) haulerIcon(ctx, mid - 26 + i * 20, by + 54, HAULER);
+      ctx.globalAlpha = 1;
+    }
     // the biome coming in: big, low, and gone again
-    const b = view.biomeBanner;
+    const b = mb && mb.t < 5 ? null : view.biomeBanner;
     if (b && b.t < 4.5) {
       const fade = Math.min(1, b.t * 2.5) * (b.t > 3.6 ? Math.max(0, 1 - (b.t - 3.6) * 1.2) : 1);
       ctx.globalAlpha = fade;
@@ -304,9 +330,55 @@ export class Hud {
     }
     if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
-      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, lv.spec.mode === 'boss' ? 'WARDEN DOWN' : 'CLEAR', mid, h * 0.4, GOLD, { scale: 4, align: 'center' });
+      const word = lv.spec.mode === 'boss' ? 'WARDEN DOWN' : lv.convoy ? (lv.convoy.delivered ? `${lv.convoy.delivered}/3 HOME` : 'CONVOY LOST') : 'CLEAR';
+      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, word, mid, h * 0.4, lv.convoy && !lv.convoy.delivered ? RED : GOLD, { scale: 4, align: 'center' });
     }
     if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+  }
+
+  /**
+   * An escort, on the field: under each hauler what's left of its hull (pale blue, then amber, then
+   * red and blinking), BOARDED over it while raiders cling on, and an arrow at the screen's edge
+   * where boarders are coming in.
+   */
+  private convoy(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const c = lv.convoy!;
+    const over = lv.state === 'clear';
+    for (const hl of c.haulers) {
+      if (hl.dead || over) continue;
+      const s = this.toScreen(view, hl.x, FLIGHT_Y, hl.z + 4.4);
+      const bw = 30;
+      const x = Math.round(s.x - bw / 2);
+      const y = Math.round(s.y);
+      const f = hl.hp / hl.max;
+      ctx.fillStyle = 'rgba(14,10,22,0.7)';
+      ctx.fillRect(x - 1, y - 1, bw + 2, 5);
+      ctx.fillStyle = hl.hitT < 0.08 ? '#ffffff' : hullColor(f, this.time);
+      ctx.fillRect(x, y, Math.max(1, Math.round(bw * f)), 3);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(x, y, Math.round(bw * f), 1);
+      // a notch every quarter
+      ctx.fillStyle = 'rgba(14,10,22,0.8)';
+      for (let k = 1; k < 4; k++) ctx.fillRect(x + Math.round((bw * k) / 4), y, 1, 3);
+      if (hl.boarders && Math.floor(this.time * 6) % 2 === 0) {
+        const top = this.toScreen(view, hl.x, FLIGHT_Y, hl.z - 4.6);
+        drawText(ctx, hl.boarders > 1 ? `BOARDED ×${hl.boarders}` : 'BOARDED', top.x, top.y - 4, RED, { align: 'center' });
+      }
+    }
+    // boarders on the way: a chevron at the edge they come from
+    const bw = view.boardWarn;
+    if (bw && Math.floor(bw.t * 6) % 2 === 0) {
+      const y = Math.round(VIEW.h * 0.36);
+      const right = bw.side > 0;
+      const ex = right ? VIEW.w - 10 : 10;
+      ctx.fillStyle = RED;
+      for (let k = 0; k < 7; k++) {
+        const dx = right ? k : -k;
+        ctx.fillRect(ex - dx, y - 7 + k, 2, 1);
+        ctx.fillRect(ex - dx, y + 7 - k, 2, 1);
+      }
+      drawText(ctx, 'BOARDERS', right ? ex - 12 : ex + 12, y - 3, RED, { align: right ? 'right' : 'left' });
+    }
   }
 
   /** How long each enemy has carried each mark (for the pop-in). */

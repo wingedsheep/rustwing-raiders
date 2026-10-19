@@ -10,6 +10,13 @@ export const LIVERY: Skin[] = [
   [0x2a8a96, 0xe8e0c8, 0x6affe0],
 ];
 
+/** The haulers an escort flies cover for: worn civilian paint, all lit the same pale blue (the convoy's colour). */
+export const HAULER_SKINS: Skin[] = [
+  [0x7a90b0, 0xf0e6cc, 0x8ad0ff],
+  [0xa88e5e, 0xe8dcc0, 0x8ad0ff],
+  [0x967080, 0xe8dcc8, 0x8ad0ff],
+];
+
 export const DECK = 0.3;
 
 /**

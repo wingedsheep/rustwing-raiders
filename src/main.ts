@@ -49,6 +49,8 @@ async function boot() {
     // &biomes=mesarun,saltpans: fly these of the planet's biomes, in this order
     const only = q.get('biomes')?.split(',').map((id) => planet.biomes.find((b) => b.id === id)).filter((b) => !!b);
     if (only?.length) spec.biomes = only;
+    // &length=60: shorter biomes (to get to a level's end quickly)
+    if (q.has('length')) spec.length = Number(q.get('length')) || spec.length;
     const fly = () => game.go(new Flight(game, spec, builds, undefined, () => fly()));
     fly();
   } else if (q.has('crew')) {
@@ -60,6 +62,14 @@ async function boot() {
     const run = game.run!;
     run.crew.forEach((c) => fitParts(c.build));
     const screen = q.get('screen');
+    // &site=escort: start beside a site of that kind on the chart (to look at its card)
+    const site = q.get('site');
+    const want = site && run.chart.nodes.find((n) => n.kind === site);
+    const beside = want && run.chart.nodes.find((n) => n.body === want.body && n !== want);
+    if (beside) {
+      run.chart.here = beside.id;
+      flow.toChart(game);
+    }
     const node = (kind: string) => run.chart.nodes.find((n) => n.kind === kind) ?? run.chart.nodes[1];
     if (screen === 'hangar') {
       run.crew.forEach((c) =>
@@ -79,8 +89,14 @@ async function boot() {
       flow.land(game, n);
     } else if (screen === 'results') {
       const { Results } = await import('./screens/results');
-      const spec = levelSpec(PLANETS[0], 'raid', 1, 0.2);
+      // &convoy=101: an escort's results, the middle hauler lost
+      const home = q.get('convoy')?.split('').map((c) => c === '1');
+      const spec = levelSpec(PLANETS[0], home ? 'escort' : 'raid', 1, 0.2);
       const res = { cleared: true, scrap: 42, score: 12345, loot: [['seeker'], []], hull: [3, 3], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
+      if (home) {
+        const n = home.filter(Boolean).length;
+        Object.assign(res, { convoy: { delivered: n, home, paid: n * 17 }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });
+      }
       game.go(new Results(game, run, res, spec, () => flow.toChart(game)));
     }
   } else {

@@ -58,6 +58,8 @@ export interface EnemyData {
   a0?: number;
   a1?: number;
   link?: number;
+  /** A boarder: the hauler it's after (convoy.ts), `ph` its phase. */
+  board?: number;
   /** Heartpods: the enemy it's bound to (the hive boss). */
   host?: number;
   prey?: number;
@@ -132,6 +134,11 @@ export function updateEnemy(lv: Level, e: Enemy) {
   }
   if (e.arch !== 'boss') e.shielded = false;
   tickFoe(lv, e);
+  // an escort's boarders fly their own way (see convoy.ts)
+  if (d.board !== undefined && lv.convoy) {
+    lv.convoy.fly(e);
+    return;
+  }
   if (foeDef(e.arch)) {
     updateFoe(lv, e);
     return;
