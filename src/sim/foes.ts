@@ -176,7 +176,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (ph === 1) {
         const chase = lv.speed * 1.45;
         // in a fight the screen keeps its pace and boost moves the ship: count the target's boost
-        const ds = lv.speedNow - chase + (lv.race || !p ? 0 : p.boosting * lv.speed * 0.9);
+        const ds = lv.speedNow - chase + (!p ? 0 : p.boosting * lv.speed * 0.9);
         const tx = p ? p.x : e.x;
         moveTo(lv, e, e.x + clamp(tx - e.x, -9, 9) * DT * 1.5, s + ds * DT);
         e.heading = Math.PI;
@@ -358,7 +358,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       // the race: when you boost harder than it can, you pass it
-      const push = Math.max(0, lv.speedNow - lv.speed * 1.35 + (lv.race || !p ? 0 : p.boosting * lv.speed * 0.6));
+      const push = Math.max(0, lv.speedNow - lv.speed * 1.35 + (!p ? 0 : p.boosting * lv.speed * 0.6));
       if (e.state === 'dodge') {
         e.shielded = true;
         moveTo(lv, e, clamp(e.x + (d.rollDir ?? 1) * 18 * DT, -HALF_W + 3, HALF_W - 3), s + push * DT);

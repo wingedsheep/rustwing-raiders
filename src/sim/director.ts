@@ -1,6 +1,5 @@
 /**
- * Plans a level: when which waves come, where the turrets stand, the rings of a race, the
- * hazards of each biome, the elites of a hunt and the boss at the end of a boss level. Everything
+ * Plans a level: when which waves come, where the turrets stand, the hazards of each biome, the elites of a hunt and the boss at the end of a boss level. Everything
  * is planned up front from the seed (by distance flown), so a seed is the same level every time.
  */
 
@@ -10,7 +9,7 @@ import { HALF_H, HALF_W, toFlight } from './types';
 import { LOOT } from './build';
 import { makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
-import { BOUNTIES, RACE, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
+import { BOUNTIES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
 
 /** How much of a wave roll goes to the planet's old roster (the rest to the factions' foes). */
@@ -61,14 +60,12 @@ export class Director {
     const L = this.length;
     const r = this.r;
     const roster = lv.spec.planet.enemies;
-    const race = mode === 'run';
     // gaps between waves shrink as the run goes on (the field is wide: it takes a lot to fill)
-    const gap = race ? lerp(520, 380, Math.min(d, 1)) : lerp(54, 35, Math.min(d, 1.2));
+    const gap = lerp(54, 35, Math.min(d, 1.2));
     const end = mode === 'boss' ? L - 40 : L - 70;
-    let at = race ? 420 : 70;
+    let at = 70;
     let n = 0;
-    // (a race has no waves: the road and the rivals are the fight)
-    while (!race && at < end) {
+    while (at < end) {
       // a breather as each new biome comes in, so it can be looked at
       const bz = -at;
       const b = lv.terrain.blend(bz - HALF_H);
@@ -77,15 +74,15 @@ export class Director {
         continue;
       }
       const t = at / L;
-      const weights: [Archetype | Foe, number][] = roster.map((s) => [s.archetype, WEIGHT[s.archetype](t, d, race) * OLD_SHARE]);
+      const weights: [Archetype | Foe, number][] = roster.map((s) => [s.archetype, WEIGHT[s.archetype](t, d) * OLD_SHARE]);
       // the factions of the biome coming in
       const biome = lv.terrain.biome(bz - HALF_H);
       for (const f of factionsIn(lv.spec.planet, biome))
-        for (const [foe, w, from] of ROSTER[f]) if (t >= from) weights.push([foe, w * (race ? (RACE[foe] ?? 0.2) : 1)]);
+        for (const [foe, w, from] of ROSTER[f]) if (t >= from) weights.push([foe, w]);
       const first = weighted(r, weights);
       this.wave(at, first);
       // later on, waves come in pairs
-      if (!race && r() < 0.2 + t * 0.35 + d * 0.2) {
+      if (r() < 0.2 + t * 0.35 + d * 0.2) {
         const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw', 'rigger'];
         const second = weighted(r, weights.filter(([a]) => !solo.includes(a) && a !== first));
         this.wave(at + 8, second);
@@ -94,7 +91,7 @@ export class Director {
       n++;
     }
     // a supply drop in every level: an elite carrying a part
-    const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : race ? [] : [0.45 + r() * 0.2];
+    const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : [0.45 + r() * 0.2];
     for (const f of elites) {
       const options = roster.filter((s) => ['gunship', 'brute', 'carrier', 'bomber'].includes(s.archetype));
       const s = pick(r, options.length ? options : roster);
@@ -104,17 +101,15 @@ export class Director {
       else this.beats.push({ at: f * L, run: () => this.spawnArch(s.archetype, true) });
     }
     // bounties: something worth chasing, briefly, before it gets away
-    // (a race has its rivals instead: see rivals.ts)
     const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : 0;
     for (let k = 0; k < bounties; k++) {
       const f = (k + 0.3 + r() * 0.5) / bounties;
       const zf = -(f * L);
       const fac = factionsIn(lv.spec.planet, lv.terrain.biome(zf - HALF_H))[0];
-      const foe = race ? 'ace' : pick(r, BOUNTIES[fac]);
+      const foe = pick(r, BOUNTIES[fac]);
       const part = r() < 0.3 + d * 0.15;
       this.beats.push({ at: f * L, run: () => this.spawnFoe(foe, false, { reward: Math.round(20 + 15 * d + (foe === 'ace' ? 10 : 0)), part, life: BOUNTY_LIFE[foe] ?? 10 }) });
     }
-    // (a race's gates are its rings now: see course.ts)
     if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss() });
     this.beats.sort((a, b) => a.at - b.at);
     void n;
@@ -382,8 +377,7 @@ export class Director {
       this.beats.shift()!.run();
       lv.closeWave();
     }
-    // (a race's dangers are its course and its rivals: nothing dropped on you out of the sky)
-    if (lv.state !== 'flying' || lv.race) return;
+    if (lv.state !== 'flying') return;
     // the biome's own dangers
     const biome = lv.terrain.biome(lv.top);
     if (!biome.hazards.length) return;
@@ -440,14 +434,14 @@ const HAZARD_GAP: Record<HazardKind, number> = {
 };
 
 /** How likely each archetype is (t: how far through the level, d: difficulty). */
-const WEIGHT: Record<Archetype, (t: number, d: number, race: boolean) => number> = {
-  dart: (_t, _d, race) => (race ? 5 : 4),
-  swarm: (_t, _d, race) => (race ? 4 : 3),
-  gunship: (t, _d, race) => (race ? 0 : 2 + t * 2),
-  turret: (_t, _d, race) => (race ? 0.5 : 2.5),
-  bomber: (t, d, race) => (race ? 0 : t > 0.2 ? 1.2 + d : 0),
-  lancer: (t, d, race) => (race ? 0.5 : t > 0.15 ? 1.4 + d : 0.3),
-  brute: (t, d, race) => (race ? 0 : t > 0.45 ? 0.6 + d * 0.8 : 0),
-  serpent: (t, _d, race) => (race ? 1 : t > 0.25 ? 1.3 : 0),
-  carrier: (t, d, race) => (race ? 0 : t > 0.6 ? 0.3 + d * 0.6 : 0),
+const WEIGHT: Record<Archetype, (t: number, d: number) => number> = {
+  dart: () => 4,
+  swarm: () => 3,
+  gunship: (t) => 2 + t * 2,
+  turret: () => 2.5,
+  bomber: (t, d) => (t > 0.2 ? 1.2 + d : 0),
+  lancer: (t, d) => (t > 0.15 ? 1.4 + d : 0.3),
+  brute: (t, d) => (t > 0.45 ? 0.6 + d * 0.8 : 0),
+  serpent: (t) => (t > 0.25 ? 1.3 : 0),
+  carrier: (t, d) => (t > 0.6 ? 0.3 + d * 0.6 : 0),
 };

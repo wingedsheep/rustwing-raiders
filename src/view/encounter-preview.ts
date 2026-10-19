@@ -13,7 +13,7 @@ import { clamp, noise2, pick, rng, type Rng } from '../util';
 /**
  * A little diorama of what's waiting at a site, for the star chart's card: the ground you'll fly
  * over first, your ship, and what you'll meet there (a raid's wing of the planet's own fliers, a
- * hunt's elite and its escort, a race's rings, the Warden itself). Built once per site, shown
+ * hunt's elite and its escort, the Warden itself). Built once per site, shown
  * while it's picked.
  */
 export class EncounterPreview {
@@ -21,8 +21,6 @@ export class EncounterPreview {
   private ship: ShipModel;
   private insts: Instance[] = [];
   private bob: { obj: THREE.Object3D; y: number; k: number }[] = [];
-  private rings: THREE.Object3D[] = [];
-  private streaks: THREE.Mesh[] = [];
   private spin: THREE.Object3D[] = [];
   private owned: THREE.BufferGeometry[] = [];
   private t = 0;
@@ -31,7 +29,7 @@ export class EncounterPreview {
     const c = run.chart;
     const gate = node.kind === 'gate';
     const planet = gate ? c.bossPlanet : node.planet!;
-    const mode = gate ? 'boss' : node.kind === 'run' ? 'run' : node.kind === 'hunt' ? 'hunt' : 'raid';
+    const mode = gate ? 'boss' : node.kind === 'hunt' ? 'hunt' : 'raid';
     // the ground you'll fly over first
     const biome = levelSpec(planet, mode, node.seed, 0).biomes[0];
     this.stage = new Stage(w, h, gate ? 6.5 : 11, 50, new THREE.Vector3(0, 3, gate ? -2 : -0.6));
@@ -41,8 +39,8 @@ export class EncounterPreview {
     s.hemi.color.setHex(biome.sky);
     s.hemi.groundColor.setHex(biome.bounce);
     const r = rng(node.seed ^ 0x9e3);
-    this.ground(biome, r, node.kind === 'run');
-    this.props(biome, r, node.kind === 'run');
+    this.ground(biome, r);
+    this.props(biome, r);
 
     this.ship = new ShipModel(run.crew[0].build, LIVERY[0]);
     this.ship.root.position.set(0, 3, gate ? 3.4 : 2.4);
@@ -50,12 +48,11 @@ export class EncounterPreview {
     s.scene.add(this.ship.root);
 
     if (gate) this.warden(planet);
-    else if (node.kind === 'run') this.race();
     else this.wing(planet, node, r);
   }
 
   /** Rolling ground in the biome's colours, and its sea (or lava) in the low parts. */
-  private ground(b: Biome, r: Rng, canyon: boolean) {
+  private ground(b: Biome, r: Rng) {
     const geo = new THREE.PlaneGeometry(44, 30, 30, 20);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.getAttribute('position');
@@ -66,11 +63,9 @@ export class EncounterPreview {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       let n = noise2(x * 0.12 + seed, z * 0.12) * 0.7 + noise2(x * 0.4, z * 0.4 + seed) * 0.3;
-      // a race's gorge: walls up either side of a channel
-      if (canyon) n = n * 0.3 + clamp((Math.abs(x - Math.sin(z * 0.2) * 2) - 5) * 0.35, -0.6, 1.6);
-      pos.setY(i, n * (canyon ? 3 : 1.2));
+      pos.setY(i, n * 1.2);
       const k = clamp(Math.floor((n + 0.9) * 2), 0, 3);
-      col.setHex(k === 3 && canyon ? b.cliff : b.ground[k]);
+      col.setHex(b.ground[k]);
       cols.push(col.r, col.g, col.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -84,7 +79,7 @@ export class EncounterPreview {
   }
 
   /** A few of the biome's own props, off to the sides where they won't hide the fight. */
-  private props(b: Biome, r: Rng, canyon: boolean) {
+  private props(b: Biome, r: Rng) {
     const kinds = b.props.filter(([k]) => library.has(k));
     if (!kinds.length) return;
     for (let k = 0; k < 9; k++) {
@@ -92,7 +87,7 @@ export class EncounterPreview {
       const inst = library.clone(kind, Math.floor(r() * library.variants(kind)));
       if (!inst) continue;
       const side = k % 2 ? 1 : -1;
-      inst.obj.position.set(side * ((canyon ? 7.5 : 6.5) + r() * 5), 0, -8 + r() * 14);
+      inst.obj.position.set(side * (6.5 + r() * 5), 0, -8 + r() * 14);
       inst.obj.rotation.y = r() * Math.PI * 2;
       inst.obj.scale.setScalar(0.7 + r() * 0.4);
       this.stage.scene.add(inst.obj);
@@ -137,23 +132,6 @@ export class EncounterPreview {
     }
   }
 
-  /** A race: rings to thread, rushing at you. */
-  private race() {
-    for (let k = 0; k < 4; k++) {
-      const ring = part(GEO.torus, toon(0xffc24a, { glow: 0.35 }), [0, 3, 0], [2.6, 2.6, 1.4]);
-      this.rings.push(ring);
-      this.stage.scene.add(ring);
-    }
-    for (let k = 0; k < 14; k++) {
-      const m = part(GEO.box, flat(0xc8f0ff, { additive: true, opacity: 0.5 }), [0, 0, 0], [0.08, 0.08, 2.4]);
-      m.userData.x = (k % 2 ? 1 : -1) * (2 + ((k * 37) % 9));
-      m.userData.y = 1.5 + ((k * 13) % 5) * 0.6;
-      m.userData.z = -14 + ((k * 23) % 22);
-      this.streaks.push(m);
-      this.stage.scene.add(m);
-    }
-  }
-
   /** The Warden, filling the frame, lit red from below. */
   private warden(planet: Planet) {
     const b = planet.boss;
@@ -175,18 +153,8 @@ export class EncounterPreview {
     for (const s of this.spin) s.rotation.z += dt * 1.6;
     this.ship.update(dt);
     // the ship weaves a little, as if lining up
-    this.ship.root.position.x = Math.sin(this.t * 0.9) * (this.rings.length ? 1.6 : 0.6);
-    this.ship.body.rotation.z = -Math.cos(this.t * 0.9) * (this.rings.length ? 0.35 : 0.18);
-    // rings and streaks coming on at speed, round again when they're past
-    this.rings.forEach((ring, k) => {
-      const z = -12 + ((this.t * 7 + k * 4.5) % 18);
-      ring.position.set(Math.sin((z - this.t * 7) * 0.18) * 2.2, 3, z);
-      ring.scale.set(2.6, 2.6, 1.4).multiplyScalar(clamp((z + 12) / 3, 0, 1) * clamp((6 - z) / 2, 0, 1));
-    });
-    for (const m of this.streaks) {
-      const z = ((m.userData.z + this.t * 34 + 14) % 24) - 14;
-      m.position.set(m.userData.x, m.userData.y, z);
-    }
+    this.ship.root.position.x = Math.sin(this.t * 0.9) * 0.6;
+    this.ship.body.rotation.z = -Math.cos(this.t * 0.9) * 0.18;
   }
 
   render(game: Game, x: number, y: number) {

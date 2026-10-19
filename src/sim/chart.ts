@@ -22,7 +22,7 @@ import type { PartClass } from '../game/parts';
 import { EVENT_META } from './events';
 import { hashStr, pick, rng, shuffle, weighted, type Rng } from '../util';
 
-export type NodeKind = 'start' | 'raid' | 'run' | 'hunt' | 'salvage' | 'dock' | 'event' | 'gate';
+export type NodeKind = 'start' | 'raid' | 'hunt' | 'salvage' | 'dock' | 'event' | 'gate';
 
 /** What a site pays in: a class of part (it leans that way), or something else. */
 export type Reward = PartClass | 'scrap' | 'fuel' | 'hull' | 'intel' | 'trade' | 'none';
@@ -144,9 +144,8 @@ export class Chart {
     gate.reward = 'trade';
     // sites on each planet
     const kinds: [NodeKind, number][] = [
-      ['raid', 40],
-      ['run', 17],
-      ['hunt', this.sector > 0 ? 14 : 7],
+      ['raid', 54],
+      ['hunt', this.sector > 0 ? 17 : 7],
       ['salvage', 11],
       ['dock', 5],
       ['event', 15],
@@ -159,14 +158,11 @@ export class Chart {
       for (let k = 0; k < n; k++) {
         const kind = weighted(r, kinds);
         const node = add(kind, i, off + (k / n) * Math.PI * 2, this.bodies[i].size + 1.6, '', p);
-        if (kind === 'raid' || kind === 'hunt' || kind === 'run') {
-          node.elite = kind !== 'run' && r() < ELITE[Math.min(this.sector, ELITE.length - 1)];
+        if (kind === 'raid' || kind === 'hunt') {
+          node.elite = r() < ELITE[Math.min(this.sector, ELITE.length - 1)];
           node.danger = Math.min(3, (kind === 'hunt' ? 2 : 1) + hot + (node.elite ? 1 : 0));
-          if (kind === 'run') node.reward = r() < 0.35 ? 'fuel' : 'scrap';
-          else {
-            const roll = r();
-            node.reward = roll < 0.12 ? 'fuel' : roll < 0.22 ? 'intel' : roll < 0.75 ? market.sells : pick(r, ['gun', 'engine', 'defense', 'booster', 'special'] as const);
-          }
+          const roll = r();
+          node.reward = roll < 0.12 ? 'fuel' : roll < 0.22 ? 'intel' : roll < 0.75 ? market.sells : pick(r, ['gun', 'engine', 'defense', 'booster', 'special'] as const);
         } else if (kind === 'salvage') node.reward = 'trade';
         else if (kind === 'dock') node.reward = 'hull';
         else {
@@ -209,7 +205,7 @@ export class Chart {
     // the first jump is a gentle one: nothing elite in reach of the jump point, and in the first
     // system nothing above the lowest danger
     for (const n of this.reachable(this.nodes[0], 0)) {
-      if (n.kind !== 'raid' && n.kind !== 'hunt' && n.kind !== 'run') continue;
+      if (n.kind !== 'raid' && n.kind !== 'hunt') continue;
       const was = n.elite;
       n.elite = false;
       n.danger = Math.min(n.danger, this.sector > 0 ? 2 : 1);
@@ -361,8 +357,6 @@ function siteName(r: Rng, p: Planet, n: ChartNode) {
       if (n.reward === 'fuel') return `${word} FUEL DEPOT`;
       if (n.reward === 'intel') return `${word} LISTENING POST`;
       return `${n.elite ? 'ELITE: ' : ''}${b.name.toUpperCase()}`;
-    case 'run':
-      return `${pick(r, ['THE', 'OLD', 'NIGHT'])} ${word} RUN`;
     case 'hunt':
       return `${n.elite ? 'ARMED ' : ''}${p.faction.toUpperCase()} CONVOY`;
     case 'salvage':

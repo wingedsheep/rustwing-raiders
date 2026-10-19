@@ -248,8 +248,8 @@ export const EVENTS: RunEvent[] = [
     weight: 8,
     where: 'planet',
     open: false,
-    rumour: "Lana Vey's racer, down in the canyons. Her course is still lit.",
-    text: () => "Lana Vey's racer went down here last season. Her engines are still warm, somehow, and the beacons of her last course still blink across the dunes.",
+    rumour: "Lana Vey's runner, down in the canyons. Whoever shot her down is still about.",
+    text: () => "Lana Vey's runner went down here last season. Her engines are still warm, somehow, and the beacons of her last run still blink across the dunes.",
     choices: [
       {
         label: 'STRIP HER ENGINES',
@@ -260,12 +260,12 @@ export const EVENTS: RunEvent[] = [
         },
       },
       {
-        label: 'FLY HER LAST COURSE',
-        note: () => 'A RACE: +40 SCRAP AND +1 FUEL UP FRONT',
+        label: 'FINISH HER LAST RUN',
+        note: () => 'A RAID: +40 SCRAP AND +1 FUEL UP FRONT',
         outcome: (run) => {
           run.scrap += 40;
           run.addFuel(1);
-          return { text: 'You siphon her tank, light up her course, and go.', fight: 'run' };
+          return { text: 'You siphon her tank and fly the run she never finished. The ones who shot her down are waiting.', fight: 'raid' };
         },
       },
       {

@@ -5,6 +5,7 @@
 
 import { partById, type PartDef, type Rarity } from '../game/parts';
 import type { Tier } from '../game/loot';
+import { markNames, tagMarks } from '../sim/marks';
 import { input, type DeviceId } from '../input';
 import { drawText, textWidth, wrap } from './font';
 import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, H, INK, PANEL, RED, W, frame } from './hud';
@@ -35,6 +36,8 @@ export function partStats(def: PartDef): string[] {
     const dps = g.damage * g.count * g.rate;
     out.push(`DMG ${num(g.damage)}${g.count > 1 ? `×${g.count}` : ''}  RATE ${num(g.rate)}${g.pierce && g.pierce < 99 ? `  PIERCE ${g.pierce}` : ''}`);
     out.push(`DPS ${Math.round(dps)}  HEAT ${Math.round(g.heat * 100)}`);
+    const m = markNames(tagMarks(def.tags));
+    if (m) out.push(`MARKS: ${m}`);
   }
   if (def.thrust) out.push(`THRUST +${num(def.thrust)}`);
   if (def.grip) out.push(`GRIP ${def.grip > 0 ? '+' : ''}${def.grip}`);
@@ -51,13 +54,15 @@ export function partStats(def: PartDef): string[] {
       b.cool && 'COOLER',
       b.homing && 'HOMING',
       b.burst && 'BURST',
+      b.mark && `MARK ${b.mark.toUpperCase()}`,
+      b.flaw && 'CRIT MARKED',
     ].filter(Boolean);
     out.push(`TOUCHING GUNS: ${bits.join(' ')}`);
   }
   if (def.drone) out.push('A DRONE COPIES A GUN');
   if (def.special) out.push(`SPECIAL: ${def.special.toUpperCase()}`);
   if (def.aux) out.push(`AUX: ${def.aux.toUpperCase()}`);
-  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}`);
+  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}`);
   if (def.conduit) out.push('CONDUIT: RELAYS LINKS');
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
   out.push(`MASS ${num(def.mass)}  ${def.power < 0 ? `POWER +${num(-def.power)}` : def.power > 0 ? `DRAW ${num(def.power)}` : 'NO POWER'}`);

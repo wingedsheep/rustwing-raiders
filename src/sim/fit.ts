@@ -8,6 +8,7 @@ import { frameById, partById, TAG_BONUS, type Tag } from '../game/parts';
 import { itemName, type Item } from '../game/loot';
 import { fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
 import { links } from './links';
+import { markKinds, markNames, reactionsOf } from './marks';
 
 export interface Delta {
   label: string;
@@ -47,6 +48,11 @@ function worth(b: Build, s: Stats) {
   for (const p of b.parts) if (partById(p.id).gun && p.id !== 'mine' && Math.abs(gunDir(frameById(b.frame), p)) > 1) v -= 2;
   if (s.aux) v += 2;
   if (s.special) v += 2;
+  // marks, and more for the reactions they make; crits and detonations only count with marks to play on
+  const kinds = markKinds(s.marks).length;
+  v += kinds * 1.5 + reactionsOf(s.marks).length * 4;
+  if (s.guns.some((g) => g.flaw)) v += kinds ? 3 : -1;
+  if (s.mod.detonate) v += kinds ? 3 : -1;
   return v;
 }
 
@@ -119,6 +125,13 @@ function deltas(a: Stats, b: Stats): Delta[] {
   };
   verb('AUX', a.aux, b.aux);
   verb('SPECIAL', a.special, b.special);
+  // the marks the guns leave, and the reactions they can set off between them
+  verb('MARKS', markNames(a.marks) || null, markNames(b.marks) || null);
+  const ra = reactionsOf(a.marks).map((r) => r.name);
+  const rb = reactionsOf(b.marks).map((r) => r.name);
+  const fresh = rb.filter((r) => !ra.includes(r));
+  if (fresh.length) out.push({ label: 'REACTS', from: '', to: fresh.join(' '), good: true, w: 12 });
+  if (!a.mod.detonate !== !b.mod.detonate) verb('DASH', a.mod.detonate ? 'detonates marks' : null, b.mod.detonate ? 'detonates marks' : null);
   // power gone negative is always worth saying
   for (const d of out) if (d.label === 'POWER' && Number(d.to) < 0) d.w = 99;
   return out.sort((x, y) => y.w - x.w);

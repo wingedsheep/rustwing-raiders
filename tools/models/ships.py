@@ -996,6 +996,121 @@ def mirror(P, anim):
     m.build(P)
 
 
+# --- the marks parts: boosters that make touching guns leave a mark, and what plays on marks ------
+# Each glows in its mark's colour, as in the flight view and on the cards.
+
+BURNG = "#ff7a2a"
+SHOCKG = "#b48aff"
+CRACKG = "#ffd04a"
+
+
+@part
+def incend(P, anim):
+    m = Model("incend")
+    base(m)
+    m.cyl(0.26, 0.3, (0, -0.06, 0.08), "#4a3a32", segs=8, r_top=0.22)        # the slag hopper
+    m.cyl(0.23, 0.04, (0, -0.06, 0.38), BURNG, segs=8, glow=True)           # embers in it
+    m.cyl(0.1, 0.05, (0.05, -0.02, 0.4), MOLTEN, segs=6, glow=True)
+    ring(m, 0.27, 0.36, 0, A, n=8, w=0.06, h=0.06)
+    for s in (-1, 1):                                                        # feed pipes out to the guns
+        m.box((0.1, 0.08, 0.08), (s * 0.29, 0.06, 0.2), COPPER)
+        m.box((0.08, 0.16, 0.08), (s * 0.3, 0.18, 0.2), COPPER)
+        m.box((0.06, 0.04, 0.06), (s * 0.3, 0.27, 0.2), HOT, glow=True)
+    m.box((0.12, 0.24, 0.08), (0, 0.24, 0.12), COPPER)
+    m.build(P)
+    k = Model("incend_flame")
+    k.cyl(0.08, 0.18, (0, 0, 0), BURNG, segs=5, r_top=0.0, glow=True)
+    k.cyl(0.05, 0.12, (0.06, 0.03, 0.0), MOLTEN, segs=5, r_top=0.0, glow=True)
+    o = k.build(P, loc=(0, -0.06, 0.4))
+    if anim:
+        animate(o, "part_incend_flicker_idle", "scale",
+                [(0, (0, 0, 0)), (0.3, (0.1, 0.1, 0.35)), (0.55, (-0.05, -0.05, -0.15)), (0.9, (0, 0, 0))])
+
+
+@part
+def tesla(P, anim):
+    m = Model("tesla")
+    base(m)
+    m.cyl(0.24, 0.1, (0, 0, 0.08), A, segs=6)
+    m.cyl(0.1, 0.34, (0, 0, 0.18), "#e8e0d0", segs=8)                        # the insulator stack
+    for i in range(3):
+        m.cyl(0.16 - i * 0.02, 0.04, (0, 0, 0.22 + i * 0.1), B, segs=8)
+    for s in (-1, 1):                                                        # side couplers to the guns
+        m.box((0.16, 0.12, 0.14), (s * 0.26, 0, 0.16), STEEL)
+        m.box((0.04, 0.1, 0.1), (s * 0.35, 0, 0.16), SHOCKG, glow=True)
+    m.build(P)
+    k = Model("tesla_ball")
+    k.ball(0.13, (0, 0, 0), CHROME, subdiv=1)                                # the dome
+    ring(k, 0.15, 0, 0, SHOCKG, n=6, w=0.03, h=0.03, glow=True)
+    for i in range(3):                                                       # sparks crawling it
+        a = TAU * i / 3
+        k.box((0.03, 0.16, 0.03), (math.cos(a) * 0.16, math.sin(a) * 0.16, 0.06), "#e0d0ff",
+              rot=(0, 0.5, a), glow=True)
+    o = k.build(P, loc=(0, 0, 0.6))
+    if anim:
+        spin(o, "part_tesla_crawl_idle", 1.2)
+
+
+@part
+def breach(P, anim):
+    m = Model("breach")
+    base(m)
+    m.box((0.6, 0.5, 0.14), (0, -0.04, 0.12), STEEL)                         # the rack
+    for s in (-1, 1):
+        m.box((0.08, 0.5, 0.26), (s * 0.28, -0.04, 0.24), A)
+    for i, x in enumerate((-0.15, 0, 0.15)):                                 # shaped charges, noses forward
+        m.cyl(0.06, 0.3, (x, -0.2, 0.3), "#3a3e34", segs=6, rot=FWD)
+        m.cyl(0.06, 0.1, (x, 0.1, 0.3), CRACKG, segs=6, r_top=0.0, rot=FWD, glow=i == 1)
+        m.box((0.13, 0.04, 0.13), (x, -0.06, 0.3), HAZARD)
+    m.box((0.6, 0.06, 0.06), (0, 0.22, 0.14), HAZARD)
+    lamp(m, 0.2, -0.24, 0.19, CRACKG, r=0.05)
+    m.build(P)
+
+
+@part
+def flaw(P, anim):
+    m = Model("flaw")
+    base(m)
+    m.cyl(0.24, 0.12, (0, 0, 0.08), A, segs=6)
+    m.cyl(0.06, 0.2, (0, 0, 0.2), STEEL, segs=6)
+    m.build(P)
+    k = Model("flaw_scope")
+    k.cyl(0.11, 0.42, (0, -0.16, 0), DARK, segs=8, rot=FWD)                  # the scope
+    k.cyl(0.13, 0.08, (0, 0.24, 0), B, segs=8, rot=FWD)
+    k.cyl(0.09, 0.03, (0, 0.29, 0), "#ffe8a0", segs=8, rot=FWD, glow=True)    # its lens
+    for a in range(4):                                                       # reticle ticks on it
+        ang = TAU * a / 4
+        k.box((0.02, 0.02, 0.05), (math.cos(ang) * 0.05, 0.31, math.sin(ang) * 0.05), CRACKG, glow=True)
+    k.box((0.04, 0.22, 0.12), (0, -0.08, 0.13), METAL)
+    lamp(k, 0, -0.1, 0.19, PASSG, r=0.04)
+    o = k.build(P, loc=(0, 0, 0.44))
+    if anim:
+        animate(o, "part_flaw_scan_idle", "rotation_euler",
+                [(0, (0, 0, -0.4)), (1.4, (0, 0, 0.4)), (2.8, (0, 0, -0.4))])
+
+
+@part
+def catalyst(P, anim):
+    m = Model("catalyst")
+    base(m)
+    m.cyl(0.28, 0.1, (0, 0, 0.08), STEEL, segs=6)
+    for i in range(3):                                                       # three mark vials round it
+        a = TAU * i / 3 + math.pi / 2
+        x, y = math.cos(a) * 0.22, math.sin(a) * 0.22
+        m.cyl(0.07, 0.3, (x, y, 0.16), "#d8e8f0", segs=6)
+        m.cyl(0.055, 0.22, (x, y, 0.18), (BURNG, SHOCKG, CRACKG)[i], segs=6, glow=True)
+        m.cyl(0.08, 0.04, (x, y, 0.46), DARK, segs=6)
+    lamp(m, 0, -0.04, 0.18, DASHG, r=0.06)
+    m.build(P)
+    k = Model("catalyst_core")
+    k.ball(0.1, (0, 0, 0), "#fff4e0", subdiv=0, glow=True)                   # where they meet
+    ring(k, 0.15, 0, 0, DASHG, n=6, w=0.03, h=0.03, glow=True)
+    o = k.build(P, loc=(0, 0, 0.42))
+    if anim:
+        pulse(o, "part_catalyst_mix_idle", 0.9, 0.25)
+        spin(o, "part_catalyst_mix_idle", 0.9, turns=0.33)
+
+
 def conduit_run(m: Model, a, b, z=0.14):
     """A pipe from a to b (in the deck plane), with a glowing line along its top."""
     ax, ay = a
@@ -1623,7 +1738,7 @@ def build():
             parts = START[fid]
             extra = os.environ.get("SHIPS_DEMO_FULL")
             if extra:
-                parts = (BUILDS if extra == "builds" else FULL).get(fid, parts)
+                parts = {"builds": BUILDS, "marks": MARKS}.get(extra, FULL).get(fid, parts)
             for pid, c, r in parts:
                 x, y = sock(FRAMES[fid], c, r)
                 s = group(f"demo_{fid}_{pid}", loc=(x, y, DECK), parent=root)
@@ -1660,4 +1775,11 @@ BUILDS = {
     "lattice": [('rail', 0, 0), ('sentry', 2, 0), ('rail', 4, 0), ('elbow', 0, 1), ('skin', 2, 1),
                 ('throttle', 4, 1), ('reactor', 2, 2), ('shield', 3, 2), ('conduit', 4, 2), ('thruster', 1, 3),
                 ('thruster', 3, 3)],
+}
+
+
+# the marks parts: the boosters that mark, and what plays on marks (SHIPS_DEMO_FULL=marks)
+MARKS = {
+    "kestrel": [('breach', 1, 0), ('torch', 0, 1), ('flaw', 1, 1), ('arc', 2, 1), ('incend', 0, 2),
+                ('catalyst', 1, 2), ('tesla', 2, 2), ('thruster', 0, 3), ('thruster', 2, 3)],
 }

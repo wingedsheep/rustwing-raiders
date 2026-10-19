@@ -3,7 +3,7 @@
  * what's on the screen. Every frame it tries a fan of moves a half-second ahead against where the
  * bullets, lasers, hazards, the land and the enemies will be, and picks the one that stays clear
  * and gets it somewhere useful: under an enemy to shoot it, onto scrap, to a downed partner,
- * after a bounty before it gets away. (A race is flown by race-pilot.ts.) It boosts when the Burn is high and the screen is calm, likes to skim past
+ * after a bounty before it gets away. It boosts when the Burn is high and the screen is calm, likes to skim past
  * obstacles a little, and dashes through bullets at the last moment when it sees a perfect with a
  * safe place to come out. It's not meant to be perfect; it's meant to find unfair bits. A level that
  * the autopilot can't survive with a decent ship probably has a spot nobody could.
@@ -14,7 +14,6 @@
 import type { Level, Player } from './level';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
 import { clamp } from '../util';
-import { newRacePilot, racePilot, type RacePilot } from './race-pilot';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
 
 const DIRS: [number, number][] = [[0, 0]];
@@ -34,16 +33,13 @@ export interface PilotState {
   boost: boolean;
   /** Never boost (to tell a hard layout from a greedy pilot). */
   noBoost: boolean;
-  /** On a race, it flies with race-pilot.ts. */
-  race: RacePilot;
 }
 
 export function newPilot(opts: { noBoost?: boolean } = {}): PilotState {
-  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost, race: newRacePilot() };
+  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost };
 }
 
 export function pilot(lv: Level, p: Player, st: PilotState): Intent {
-  if (lv.race) return racePilot(lv, p, st.race, st.noBoost);
   const intent: Intent = { x: 0, y: 0, fire: true, boost: 0, dash: false, special: false, aux: false, focus: false };
   if (p.down) return intent;
   const goal = goalFor(lv, p);
@@ -114,7 +110,7 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   const bottom = lv.bottom - 9;
   const bounty = bountyGoal(lv, p);
   if (bounty) return bounty;
-  // race rings coming up
+  // rings coming up
   const ring = lv.pickups
     .filter((k) => k.kind === 'ring' && !(k.done! & (1 << p.id)) && k.z < p.z + 1 && k.z > lv.top)
     .sort((a, b) => b.z - a.z)[0];
@@ -160,7 +156,7 @@ function bountyGoal(lv: Level, p: Player) {
 
 /** Closing on something that'll get away. */
 function chasing(lv: Level, p: Player) {
-  return !lv.race && lv.enemies.some((e) => !e.dead && e.bounty && e.t >= 0 && lv.onScreen(e.x, e.z) && Math.hypot(e.x - p.x, e.z - p.z) > 10);
+  return lv.enemies.some((e) => !e.dead && e.bounty && e.t >= 0 && lv.onScreen(e.x, e.z) && Math.hypot(e.x - p.x, e.z - p.z) > 10);
 }
 
 /**
@@ -216,7 +212,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
 
 function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal: { x: number; z: number }) {
   const s = p.stats;
-  const sp = s.speed * (focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + 0.9 * p.boosting) * (p.shortcut >= 0 ? 1.4 : 1);
+  const sp = s.speed * (focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + 0.9 * p.boosting);
   const tvx = dx * sp;
   const tvz = dz * sp;
   const scroll = lv.speedNow;
@@ -271,12 +267,6 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
       }
       c += threatCost(lv, x, z, t, s.core) * weight;
     }
-    for (const rv of lv.rivals) {
-      const rx = rv.x + rv.vx * t;
-      const rz = rv.z - rv.v * t;
-      const dd = (rx - x) ** 2 + (rz - z) ** 2;
-      if (dd < 3.2 * 3.2) c += 120 * weight;
-    }
     if (p.phase <= t) {
       if (lv.terrain.solid(x, z, 1.4)) c += 950 * weight;
       for (const col of lv.terrain.colliders(x, z, 3)) {
@@ -292,11 +282,11 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
   }
   // getting where it wants to be (on the screen as it will be by then)
   const sz = z - (lv.scroll - scroll * STEPS[STEPS.length - 1]);
-  c += Math.hypot(x - goal.x, (sz - (goal.z - lv.scroll)) * (lv.race ? 1.6 : 1)) * 0.9;
+  c += Math.hypot(x - goal.x, sz - (goal.z - lv.scroll)) * 0.9;
   // and not cornered
   if (Math.abs(x) > HALF_W - 4) c += (Math.abs(x) - HALF_W + 4) * 3;
   if (sz > HALF_H - 5) c += (sz - HALF_H + 5) * 3;
-  if (sz < -HALF_H + (lv.race ? 6 : 10)) c += (-HALF_H + (lv.race ? 6 : 10) - sz) * 4;
+  if (sz < -HALF_H + 10) c += (-HALF_H + 10 - sz) * 4;
   // the slow move is for squeezing through: a small cost so it's only used when it helps
   if (focus) c += 1.2;
   void DT;

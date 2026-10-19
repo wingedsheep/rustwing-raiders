@@ -10,8 +10,6 @@ import { ShotArt } from './shots';
 import { Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
 import { TORPEDO } from '../sim/level';
-import { TrackView } from './track';
-import { bendPoint, clearBend, setBend } from '../render/bend';
 import { ShipModel, LIVERY } from './ship-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
@@ -20,6 +18,8 @@ import type { Biome } from '../world/planets';
 import { clamp, damp, lerp } from '../util';
 import type { PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
+import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
+import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
 
 /** The playfield as it shows on screen (world units): the camera always fits all of it. */
 export const FIELD_W = HALF_W * 2;
@@ -28,13 +28,6 @@ export const FIELD_H = HALF_H * 2 * Math.cos(TILT);
 const DEV_ZOOM = Number(new URLSearchParams(location.search).get('zoom') ?? 1) || 1;
 /** Screen units of margin under the field. */
 const MARGIN = 3;
-/** A race's chase view: its field of view (degrees, before speed widens it), how far it sees, and where it sits: behind the ship, over it, and how far ahead it looks. */
-const CHASE_FOV = 64;
-const CHASE_FAR = 230;
-const CHASE_BACK = 12;
-const CHASE_UP = 4.6;
-const CHASE_LOOK = 30;
-
 const SHOT_COLORS: Record<string, number> = {
   slug: 0xffe08a,
   pellet: 0xffc070,
@@ -87,14 +80,11 @@ export class LevelView {
   readonly overlay = new THREE.Scene();
   private hitboxes: THREE.Group[] = [];
   private threats = new Threats();
+  /** Reactions seen this level: the first of each is called out big. */
+  private reacted = new Set<string>();
+  /** Enemies a shatter just staggered (their SHATTER! says it; no STAGGERED over it). */
+  private shattered = new Set<number>();
   readonly camera = new THREE.OrthographicCamera(-HALF_W, HALF_W, FIELD_H / 2, -FIELD_H / 2, 1, 400);
-  /** Races: the chase view, low behind the leading ship looking down the track. */
-  readonly chase = new THREE.PerspectiveCamera(CHASE_FOV, 16 / 9, 0.5, CHASE_FAR);
-  /** Where the chase camera's swinging round to (its yaw, lagging the ship's), and its pull back on a boost. */
-  private chaseYaw = 0;
-  private chaseBack = 0;
-  /** Races: the camera's height over the flight height (after the leader's, off a jump, lagging). */
-  private chaseAlt = 0;
   /** Half the view on screen (world units), from the window's shape. */
   halfW = HALF_W;
   halfH = FIELD_H / 2;
@@ -144,10 +134,6 @@ export class LevelView {
   private recoil = [0, 0];
   /** How fast it feels, 0..1: the screen smears and the view pulls back. */
   speedFx = 0;
-  /** Races: the road, its pylons and the rivals (see track.ts). */
-  readonly track: TrackView | null = null;
-  /** Races: how far ahead of the field the camera looks (world z), so the road reads at speed. */
-  lead = 0;
   private zoom = 1;
   private lines: THREE.InstancedMesh;
   private lineData: { x: number; y: number; z: number; len: number; v: number }[] = [];
@@ -162,8 +148,8 @@ export class LevelView {
   /** For the HUD: the biome that just came in and how long ago. */
   biomeBanner: { name: string; line: string; t: number } | null = null;
   bossBanner: { name: string; t: number } | null = null;
-  /** Floating texts for the HUD (score pops, GRAZE, part names), in world coords. */
-  pops: { text: string; x: number; z: number; t: number; color: string }[] = [];
+  /** Floating texts for the HUD (score pops, GRAZE, part names), in world coords; `big` ones are called out large. */
+  pops: { text: string; x: number; z: number; t: number; color: string; big?: boolean }[] = [];
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private v = new THREE.Vector3();
@@ -233,18 +219,6 @@ export class LevelView {
     this.lines.renderOrder = 40;
     this.scene.add(this.lines);
     for (let k = 0; k < 48; k++) this.lineData.push({ x: 0, y: FLIGHT_Y + 4, z: 1e9, len: 0, v: 0 });
-    if (lv.race) {
-      this.track = new TrackView(lv, this.fx);
-      this.scene.add(this.track.group);
-      this.overlay.add(this.track.overlay);
-      // (the chase view sees a long way: the shadows cover the stretch ahead)
-      sc.left = -80;
-      sc.right = 80;
-      sc.top = 90;
-      sc.bottom = -90;
-      sc.far = 260;
-      sc.updateProjectionMatrix();
-    }
     this.lastScroll = lv.scroll;
     this.placeCamera(0);
   }
@@ -252,9 +226,9 @@ export class LevelView {
   // --- events ------------------------------------------------------------------------------
 
   handle(events: LevelEvent[]) {
+    this.shattered.clear();
     const lv = this.lv;
     for (const e of events) {
-      this.track?.handle(e, this);
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
@@ -283,6 +257,12 @@ export class LevelView {
           break;
         }
         case 'hit': {
+          if (e.dot && !e.kill) {
+            // a burn's tick: an ember off it, nothing more
+            const en = lv.enemies.find((o) => o.id === e.enemy);
+            if (en) this.fx.add({ x: en.x + (Math.random() - 0.5) * en.r, y: en.y + 0.8, z: en.z, vy: 4, vz: -2, size: 0.22, grow: 0.3, life: 0.4, color: EMBER, to: EMBER_END, carried: !en.ground });
+            break;
+          }
           const ev = this.enemies.get(e.enemy);
           const y = ev ? ev.obj.position.y : FLIGHT_Y;
           const en = lv.enemies.find((o) => o.id === e.enemy);
@@ -450,8 +430,6 @@ export class LevelView {
           this.hitstop = Math.max(this.hitstop, 3);
           audio.play('point_blank', { pan: e.x / HALF_W });
           break;
-        case 'par':
-          break;
         case 'windup': {
           const en = lv.enemies.find((o) => o.id === e.enemy);
           if (en && e.kind === 'torpedo') {
@@ -472,7 +450,7 @@ export class LevelView {
         case 'exposed':
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, e.stagger ? 10 : 5, 0xffe08a, 10, 0.3, 0.2);
           if (e.stagger) {
-            this.pop('STAGGERED', e.x, e.z - 2, '#ffe08a');
+            if (!this.shattered.has(e.enemy)) this.pop('STAGGERED', e.x, e.z - 2, '#ffe08a');
             this.hitstop = Math.max(this.hitstop, 3);
             audio.play('hit_armor', { pan: e.x / HALF_W, pitch: 0.7 });
           }
@@ -598,15 +576,6 @@ export class LevelView {
           }
           break;
         }
-        case 'shortcut':
-          if (e.state === 'enter') {
-            this.pop('SHORTCUT', lv.players[e.id].x, lv.players[e.id].z - 3, '#8affe0');
-            audio.play('risk_up', { pitch: 0.9 });
-          } else if (e.state === 'exit' && e.saved > 0) {
-            this.pop(`-${e.saved.toFixed(1)}s`, lv.players[e.id].x, lv.players[e.id].z - 3, '#8affe0');
-            audio.play('perfect', { vol: 0.5, pitch: 1.2 });
-          }
-          break;
         case 'aux':
           if (e.kind === 'parry') this.fx.ring(e.x, FLIGHT_Y, e.z, 3, 0.12, true, 0xffffff);
           else if (e.kind === 'siphon') this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.3, true, 0x9a6aff);
@@ -754,6 +723,45 @@ export class LevelView {
           break;
         case 'failed':
           audio.music(null);
+          break;
+        case 'mark':
+          this.marked(e.enemy, e.kind, e.x, e.z);
+          break;
+        case 'jolt': {
+          const en = lv.enemies.find((o) => o.id === e.enemy);
+          if (en) {
+            this.zap(en.x, en.z, en.r, MARK_HEX.shock);
+            this.fx.sparks(en.x, en.y + 0.6, en.z, 4, 0xe0d0ff, 9, 0.18, 0.15, !en.ground);
+          }
+          break;
+        }
+        case 'reaction':
+          if (e.kind === 'shatter') this.shattered.add(e.enemy);
+          this.reaction(e.kind, e.x, e.z);
+          break;
+        case 'detonate': {
+          // the Catalyst: the dasher's colour through it, then what it carried goes up
+          const col = LIVERY[e.owner]?.[2] ?? 0xffffff;
+          this.fx.ring(e.x, FLIGHT_Y, e.z, 4.5, 0.22, true, col);
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 1.2, z: e.z, size: 4, grow: 1.3, life: 0.08, color: HOT, carried: true });
+          if (e.bits & BURN) this.fx.explode(e.x, FLIGHT_Y, e.z, 1.2, MARK_HEX.burn, true);
+          if (e.bits & CRACK) this.shards(e.x, e.z, 10, 0xffe8a0);
+          if (e.bits & SHOCK) this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, MARK_HEX.shock, 20, 0.3, 0.22);
+          this.pop('DETONATE', e.x, e.z - 3, '#ffffff');
+          this.hitstop = Math.max(this.hitstop, 3);
+          this.trauma = Math.min(1, this.trauma + 0.2);
+          audio.play('detonate', { pan: e.x / HALF_W });
+          break;
+        }
+        case 'spread': {
+          // the marks leap from the kill to its neighbours
+          const col = e.bits & BURN ? MARK_HEX.burn : e.bits & SHOCK ? MARK_HEX.shock : MARK_HEX.crack;
+          this.bolt([e.x, e.z, e.x2, e.z2], col);
+          this.fx.ring(e.x2, FLIGHT_Y, e.z2, 2.5, 0.2, true, col);
+          break;
+        }
+        case 'split':
+          this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z, 4, 0xffffff, 16, 0.12, 0.16);
           break;
         case 'beam':
         case 'spawn':
@@ -927,8 +935,92 @@ export class LevelView {
     }
   }
 
-  pop(text: string, x: number, z: number, color: string) {
-    this.pops.push({ text, x, z, t: 0, color });
+  /** A mark takes: a puff in its colour, and its sound. */
+  private marked(id: number, kind: 'burn' | 'shock' | 'crack', x: number, z: number) {
+    const en = this.lv.enemies.find((o) => o.id === id);
+    const y = en ? en.y + 0.6 : FLIGHT_Y;
+    const carried = !en?.ground;
+    const col = MARK_HEX[kind];
+    if (kind === 'burn') {
+      for (let k = 0; k < 6; k++)
+        this.fx.add({ x: x + (Math.random() - 0.5) * 1.5, y, z, vx: (Math.random() - 0.5) * 6, vz: (Math.random() - 0.5) * 4, vy: 4 + Math.random() * 3, size: 0.6, grow: 1.6, life: 0.35, color: FIRE_PETAL, to: FIRE_DARK, carried });
+    } else if (kind === 'shock') this.zap(x, z, en?.r ?? 1, col);
+    else this.shards(x, z, 5, col);
+    this.fx.ring(x, y, z, 2.2, 0.16, carried, col);
+    audio.play(`mark_${kind}`, { pan: x / HALF_W, vol: 0.5 });
+  }
+
+  /** Little bolts crawling over a shocked thing. */
+  private zap(x: number, z: number, r: number, col: number) {
+    for (let k = 0; k < 2; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const b = a + 1 + Math.random() * 2;
+      this.bolt([x + Math.cos(a) * r, z + Math.sin(a) * r * 0.8, x + Math.cos(b) * r * 0.8, z + Math.sin(b) * r * 0.7], col);
+    }
+  }
+
+  /** Glassy flakes of armour flung off and tumbling down. */
+  private shards(x: number, z: number, n: number, col: number) {
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 6 + Math.random() * 12;
+      this.fx.add({ x, y: FLIGHT_Y + 0.6, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v * 0.7, vy: 4 + Math.random() * 6, size: 0.18 + Math.random() * 0.2, life: 1.2 + Math.random() * 0.6, color: this.c.setHex(Math.random() < 0.5 ? col : 0xffffff), solid: true, gravity: 26, spin: 12 + Math.random() * 10 });
+    }
+  }
+
+  /** Two marks meet: each reaction its own spectacle, and its name called (big, the first time). */
+  private reaction(kind: 'overload' | 'cookoff' | 'shatter', x: number, z: number) {
+    const def = REACTIONS.find((r) => r.kind === kind)!;
+    const col = REACTION_HEX[kind];
+    const first = !this.reacted.has(kind);
+    this.reacted.add(kind);
+    this.pop(`${def.name}!`, x, z - 4, REACTION_COLOR[kind], first);
+    if (kind === 'overload') {
+      // a white-hot core, rings of both its colours, sparks of fire and lightning
+      this.fx.add({ x, y: FLIGHT_Y + 1.2, z, size: 5, grow: 1.4, life: 0.1, color: HOT, carried: true });
+      this.fx.ring(x, FLIGHT_Y, z, 7, 0.3, true, MARK_HEX.shock);
+      this.fx.ring(x, FLIGHT_Y, z, 4.5, 0.22, true, MARK_HEX.burn);
+      this.fx.sparks(x, FLIGHT_Y + 0.5, z, 16, MARK_HEX.shock, 24, 0.35, 0.24);
+      this.fx.sparks(x, FLIGHT_Y + 0.5, z, 10, 0xffc070, 18, 0.3, 0.2);
+      this.zap(x, z, 2.2, col);
+      this.zap(x, z, 3, MARK_HEX.shock);
+      this.hitstop = Math.max(this.hitstop, 3);
+      this.flash = Math.max(this.flash, 0.18);
+      this.flashColor.setHex(col);
+      audio.play('react_overload', { pan: x / HALF_W });
+    } else if (kind === 'cookoff') {
+      // it goes up: a fireball, petals of fire out to where the blast reaches, the land lit
+      this.fx.explode(x, FLIGHT_Y, z, 2.4, 0xff8a2a, true);
+      this.fx.add({ x, y: FLIGHT_Y + 1.5, z, size: 9, grow: 1.3, life: 0.1, color: HOT, carried: true });
+      for (let k = 0; k < 18; k++) {
+        const a = (k / 18) * Math.PI * 2 + Math.random() * 0.3;
+        const v = 16 + Math.random() * 8;
+        this.fx.add({ x, y: FLIGHT_Y + 0.8, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: Math.random() * 3, size: 1.1, grow: 2, life: 0.32, drag: 5, color: FIRE_PETAL, to: FIRE_DARK, carried: true });
+      }
+      this.fx.ring(x, FLIGHT_Y, z, 10, 0.35, true, col);
+      this.blast(x, FLIGHT_Y, z, 3);
+      this.trauma = Math.min(1, this.trauma + 0.35);
+      this.shove(0, -1, 0.5);
+      this.hitstop = Math.max(this.hitstop, 4);
+      audio.play('react_cookoff', { pan: x / HALF_W });
+    } else {
+      // a crack of white: everything stops, glass flies, it reels
+      this.fx.add({ x, y: FLIGHT_Y + 1.2, z, size: 6, grow: 0.6, life: 0.07, color: HOT, carried: true });
+      this.fx.ring(x, FLIGHT_Y, z, 6, 0.18, true, 0xffffff);
+      this.fx.ring(x, FLIGHT_Y, z, 3.5, 0.3, true, col);
+      this.shards(x, z, 22, col);
+      this.fx.sparks(x, FLIGHT_Y + 0.5, z, 12, 0xffffff, 26, 0.25, 0.2);
+      this.hitstop = Math.max(this.hitstop, 6);
+      this.flash = Math.max(this.flash, 0.3);
+      this.flashColor.setHex(col);
+      this.trauma = Math.min(1, this.trauma + 0.3);
+      audio.play('react_shatter', { pan: x / HALF_W });
+    }
+    if (first) audio.duck(0.3);
+  }
+
+  pop(text: string, x: number, z: number, color: string, big = false) {
+    this.pops.push({ text, x, z, t: 0, color, big });
   }
 
   private bolt(points: number[], color: number) {
@@ -973,8 +1065,6 @@ export class LevelView {
     }
     this.halfW *= this.zoom;
     this.halfH *= this.zoom;
-    this.chase.aspect = aspect;
-    this.chase.updateProjectionMatrix();
     const c = this.camera;
     c.left = -this.halfW;
     c.right = this.halfW;
@@ -991,9 +1081,7 @@ export class LevelView {
     this.lastScroll = lv.scroll;
     // what the tilted camera sees of the ground, plus a margin to build ahead
     const reach = this.halfH / Math.cos(TILT);
-    // (a race: the chase view looks far down the track, and hardly behind)
-    if (this.track) this.world.update(lv.scroll - CHASE_FAR + 20, lv.scroll + 40, dt);
-    else this.world.update(lv.scroll - this.lead - reach - 30, lv.scroll - this.lead + reach + 18, dt);
+    this.world.update(lv.scroll - reach - 30, lv.scroll + reach + 18, dt);
     this.world.emit(this.fx, dt, lv.scroll - reach - 6, lv.scroll + reach + 6);
     this.lighting(dt);
     this.updateShips(dt);
@@ -1005,11 +1093,7 @@ export class LevelView {
     this.updateLasers();
     this.updatePickups(dt);
     this.updateDecoys();
-    this.threats.update(dt, lv, this.halfW, this.halfH + this.lead * Math.cos(TILT));
-    if (this.track) {
-      this.track.tick(dt);
-      this.track.update(dt, lv.scroll - CHASE_FAR + 30, lv.scroll + 30);
-    }
+    this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.updateHazards(dt);
     this.ambient(dt);
@@ -1029,7 +1113,7 @@ export class LevelView {
       p.t += dt;
       p.z += scrollDz - dt * 3;
     }
-    this.pops = this.pops.filter((p) => p.t < 0.9);
+    this.pops = this.pops.filter((p) => p.t < (p.big ? 1.6 : 0.9));
     if (this.biomeBanner) this.biomeBanner.t += dt;
     if (this.bossBanner) this.bossBanner.t += dt;
     // juice decays
@@ -1051,8 +1135,6 @@ export class LevelView {
     }
     this.placeCamera(dt);
     audio.intensity(clamp(0.35 + lv.enemies.length * 0.03 + lv.bullets.length * 0.004 + (lv.state === 'boss' ? 0.4 : 0), 0, 1));
-    // a race's music rides the speed, and goes all in for the last stretch
-    if (this.track) audio.intensity(clamp(0.4 + this.speedFx * 0.45 + (lv.progress > 0.86 ? 0.25 : 0), 0, 1));
   }
 
   /** Boosting: the view pulls back, the edges smear, streaks rush past, the air roars. */
@@ -1061,43 +1143,29 @@ export class LevelView {
     const boost = Math.max(0, ...lv.players.map((p) => (p.down ? 0 : p.boosting)));
     const fast = clamp((lv.speedNow / Math.max(1, lv.speed) - 1) / 1.2, 0, 1);
     this.speedFx = damp(this.speedFx, Math.max(boost * 0.7, fast), 6, dt);
-    if (!this.track) this.zoom = damp(this.zoom, (1 + this.speedFx * 0.06) * DEV_ZOOM, 3, dt);
+    this.zoom = damp(this.zoom, (1 + this.speedFx * 0.06) * DEV_ZOOM, 3, dt);
     audio.loop('wind', 'all', this.speedFx > 0.05, this.speedFx);
-    audio.loop('engine', 'p1', true, this.track ? clamp(0.15 + (lv.leader()?.fwd ?? 0) / 65 + boost * 0.2, 0, 1) : 0.3 + boost * 0.7);
-    const lead = this.track ? (lv.leader() ?? lv.players[0]) : null;
+    audio.loop('engine', 'p1', true, 0.3 + boost * 0.7);
     let n = 0;
     for (const l of this.lineData) {
-      // (a race: streaks of air round the ship, rushing back past the camera)
-      l.z += (l.v + (lead ? 0 : scrollDz / Math.max(dt, 1e-4))) * dt;
-      const gone = lead ? l.z > lead.z + 14 : l.z > lv.scroll + this.halfH * 1.6;
-      if (gone) {
+      l.z += (l.v + scrollDz / Math.max(dt, 1e-4)) * dt;
+      if (l.z > lv.scroll + this.halfH * 1.6) {
         if (this.speedFx < 0.1 || Math.random() > this.speedFx) {
           l.z = 1e9;
           continue;
         }
-        if (lead) {
-          const a = Math.random() * Math.PI * 2;
-          const r = 3 + Math.random() * 9;
-          l.x = lead.x + Math.cos(a) * r * 1.4;
-          l.y = FLIGHT_Y + 1.5 + Math.sin(a) * r * 0.6;
-          l.z = lead.z - 30 - Math.random() * 40;
-          l.v = lead.fwd * 0.6 + 40 + Math.random() * 40;
-        } else {
-          l.x = (Math.random() * 2 - 1) * this.halfW;
-          l.y = FLIGHT_Y + 4;
-          l.z = lv.scroll - this.lead - this.halfH * 1.6 - Math.random() * 20;
-          l.v = 60 + Math.random() * 60;
-        }
+        l.x = (Math.random() * 2 - 1) * this.halfW;
+        l.y = FLIGHT_Y + 4;
+        l.z = lv.scroll - this.halfH * 1.6 - Math.random() * 20;
+        l.v = 60 + Math.random() * 60;
         l.len = 4 + Math.random() * 10;
       }
       if (l.z > 1e8) continue;
       // brighter at the edges of the screen, where the smear is
-      const edge = lead ? 0.7 : Math.min(1, Math.abs(l.x) / this.halfW);
-      this.m.compose(this.v.set(l.x, l.y, l.z), this.q.identity(), this.s.set(lead ? 0.06 : 0.12, lead ? 1.2 : 1, l.len * (0.5 + this.speedFx)));
+      const edge = Math.min(1, Math.abs(l.x) / this.halfW);
+      this.m.compose(this.v.set(l.x, l.y, l.z), this.q.identity(), this.s.set(0.12, 1, l.len * (0.5 + this.speedFx)));
       this.lines.setMatrixAt(n, this.m);
-      // (a race: tinted by the speed tier, white, then ice blue, then gold)
-      const tint = this.track && lv.tier >= 2 ? (lv.tier >= 3 ? 0xffd04a : 0x9ae8ff) : 0xffffff;
-      this.lines.setColorAt(n, this.c.setHex(tint).multiplyScalar(this.speedFx * (0.3 + edge * 0.7)));
+      this.lines.setColorAt(n, this.c.setHex(0xffffff).multiplyScalar(this.speedFx * (0.3 + edge * 0.7)));
       n++;
     }
     this.lines.count = n;
@@ -1105,9 +1173,9 @@ export class LevelView {
     if (this.lines.instanceColor) this.lines.instanceColor.needsUpdate = true;
   }
 
-  /** The camera that shows the level: a race's chase view, else the tilted one over the field. */
-  get eye(): THREE.OrthographicCamera | THREE.PerspectiveCamera {
-    return this.track ? this.chase : this.camera;
+  /** The camera that shows the level: the tilted one over the field. */
+  get eye(): THREE.OrthographicCamera {
+    return this.camera;
   }
 
   private placeCamera(dt: number) {
@@ -1117,56 +1185,13 @@ export class LevelView {
     const shake = this.trauma * this.trauma;
     const sx = (Math.sin(t * 61) + Math.sin(t * 37) * 0.5) * shake * 0.9;
     const sz = (Math.cos(t * 53) + Math.sin(t * 29) * 0.5) * shake * 0.9;
-    const course = lv.terrain.course;
-    if (course) {
-      this.placeChase(dt, sx, sz);
-      return;
-    }
-    const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT) - this.lead);
+    const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT));
     this.camera.position.set(target.x, target.y + Math.cos(TILT) * 120, target.z + Math.sin(TILT) * 120);
     this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
     // the sun (and its shadows) follow the view
     this.sun.target.position.set(0, 0, lv.scroll);
     this.sun.position.set(-30, 60, lv.scroll + 25);
-    this.sun.target.updateMatrixWorld();
-  }
-
-  /**
-   * A race: the chase view. The world's bent round the course so the track at the leading ship
-   * runs straight away from the camera; the camera sits low behind the ship, swinging round after
-   * where it's pointed (lagging, so a drift shows), and looks down the track ahead. The faster it
-   * goes, the wider the view and the lower and further back the camera (the land rushes); a boost
-   * or a pad punches it wider still. A rumble when it's flat out; the shake on top.
-   */
-  private placeChase(dt: number, sx: number, sz: number) {
-    const lv = this.lv;
-    const course = lv.terrain.course!;
-    const lead = lv.leader() ?? lv.players[0];
-    setBend(course, lead.z, true);
-    const boost = lead.down ? 0 : Math.max(lead.boosting, lead.surge > 0 ? 0.7 : 0);
-    const fast = clamp((lead.fwd - 25) / 40, 0, 1.3);
-    this.chaseAlt = damp(this.chaseAlt, lead.alt * 0.7, 5, dt);
-    this.chaseYaw = damp(this.chaseYaw, clamp(lead.hd * 0.55, -0.6, 0.6), 4, dt);
-    this.chaseBack = damp(this.chaseBack, boost, 3, dt);
-    const back = CHASE_BACK + fast * 1.5 + this.chaseBack * 2.5;
-    const up = CHASE_UP - fast * 0.6;
-    const rumble = (fast > 0.9 ? (fast - 0.9) * 0.08 : 0) + this.chaseBack * 0.05;
-    const rx = (Math.sin(this.time * 47) + Math.sin(this.time * 29)) * rumble;
-    const ry = (Math.cos(this.time * 53) + Math.sin(this.time * 31)) * rumble;
-    // behind the ship along its (lagged) heading, and the look ahead of it down the track
-    const yaw = this.chaseYaw;
-    const cam = bendPoint(lead.x - Math.sin(yaw) * back + this.kick.x * 0.6, lead.z + Math.cos(yaw) * back);
-    const look = bendPoint(lead.x + Math.sin(yaw) * CHASE_LOOK * 0.5, lead.z - CHASE_LOOK);
-    this.chase.position.set(cam.x + sx * 0.4 + rx, FLIGHT_Y + up + this.chaseAlt + sz * 0.3 + ry, cam.z);
-    this.chase.lookAt(look.x, FLIGHT_Y - 3.5 + this.chaseAlt * 0.5, look.z);
-    this.chase.fov = CHASE_FOV + fast * 12 + this.chaseBack * 9 + (this.track?.zoomKick ?? 0) * 80;
-    this.chase.updateProjectionMatrix();
-    this.chase.updateMatrixWorld();
-    // the sun (and its shadows) over the stretch ahead
-    const sun = bendPoint(lead.x, lead.z - 40);
-    this.sun.target.position.set(sun.x, 0, sun.z);
-    this.sun.position.set(sun.x - 30, 60, sun.z + 25);
     this.sun.target.updateMatrixWorld();
   }
 
@@ -1187,13 +1212,7 @@ export class LevelView {
     const cloudy = (bi: Biome) => (bi.clouds !== null ? 0.6 : 0.3) + (bi.particles === 'rain' ? 0.3 : 0);
     weather.uWind.value = lerp(windy(a), windy(b), k);
     weather.uCloud.value = lerp(cloudy(a), cloudy(b), k);
-    if (this.track) {
-      // a race's chase view sees the sky: the haze of it, and the land fading into it far off
-      const sky = mix(a.sky, b.sky).clone().lerp(mix(a.ground[0], b.ground[0]), 0.35);
-      this.scene.background = sky;
-      if (!this.scene.fog) this.scene.fog = new THREE.Fog(sky, CHASE_FAR * 0.3, CHASE_FAR * 0.95);
-      (this.scene.fog as THREE.Fog).color.copy(sky);
-    } else this.scene.background = mix(a.ground[0], b.ground[0]).clone().multiplyScalar(0.5);
+    this.scene.background = mix(a.ground[0], b.ground[0]).clone().multiplyScalar(0.5);
     const idx = k < 0.5 ? bl.a : bl.b;
     if (idx !== this.biomeIdx) {
       this.biomeIdx = idx;
@@ -1212,8 +1231,7 @@ export class LevelView {
     u.uLight.value.setHex(a.light).lerp(new THREE.Color(b.light), bl.t);
     u.uFlash.value.set(this.flashColor.r, this.flashColor.g, this.flashColor.b, this.flash);
     u.uHurt.value = this.hurt;
-    u.uSpeed.value = this.speedFx * (this.track ? 0.6 : 1);
-    u.uRadial.value = this.track ? 1 : 0;
+    u.uSpeed.value = this.speedFx;
     u.uTime.value = this.time;
     const hot = (bi: Biome) => (bi.waterGlow && bi.waterGlow >= 1 ? 0.6 : 0);
     u.uHeat.value = lerp(hot(a), hot(b), bl.t);
@@ -1228,23 +1246,15 @@ export class LevelView {
       const r = ship.root;
       const blink = p.inv > 0 && !p.down && p.dashT <= 0 && Math.floor(p.inv * 16) % 2 === 0;
       r.visible = !blink || p.phase > 0;
-      r.position.set(p.x, FLIGHT_Y + (p.down ? -1.5 : 0) + (lv.race ? p.alt : 0), p.z);
-      if (lv.race) {
-        // a race: the nose where it's pointed, leaning hard into the turn and the slide
-        r.rotation.y = -p.hd;
-        this.banks[i] = damp(this.banks[i], clamp(-p.yaw * 0.28 - p.slide * 0.6, -0.8, 0.8), 10, dt);
-        ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
-        ship.body.rotation.x = clamp((p.boosting + (p.surge > 0 ? 0.6 : 0)) * -0.12 + (p.handbrake ? 0.12 : 0), -0.25, 0.25) + (p.down ? 0.2 : 0) - clamp(p.vy * 0.025, -0.35, 0.35);
-      } else {
-        // lean into turns, nose down when pushing forward
-        this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
-        ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
-        ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0);
-      }
+      r.position.set(p.x, FLIGHT_Y + (p.down ? -1.5 : 0), p.z);
+      // lean into turns, nose down when pushing forward
+      this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
+      ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
+      ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0);
       ship.body.position.y = Math.sin(this.time * 2.3 + i) * 0.12;
       ship.body.position.z = this.recoil[i] ?? 0;
       // engines burn hotter going forward
-      const push = (lv.race ? clamp(p.fwd / 30, 0.4, 2) + (p.surge > 0 ? 1 : 0) + p.boosting * 1.6 : clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6) * (p.down ? 0 : 1);
+      const push = (clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6) * (p.down ? 0 : 1);
       for (const f of ship.flames) {
         const fl = 0.8 + Math.random() * 0.4;
         f.scale.set(0.45 * fl, (0.6 + push * 0.6) * fl, 0.45 * fl);
@@ -1341,6 +1351,17 @@ export class LevelView {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      // marked: on fire, crawling with lightning, glinting through its cracks
+      const mk = e.mk;
+      const lift = e.y + 0.4;
+      if (mk.burn > 0 && Math.random() < 0.25 + 0.25 * mk.stacks) {
+        const r = e.r * 0.7;
+        this.fx.add({ x: e.x + (Math.random() - 0.5) * r * 2, y: lift + Math.random() * 0.5, z: groundZ + (Math.random() - 0.5) * r, vy: 3 + Math.random() * 2, vz: -1.5, size: 0.45 + 0.15 * mk.stacks, grow: 1.4, life: 0.3 + Math.random() * 0.15, color: FIRE_PETAL, to: FIRE_DARK, carried: !e.ground });
+        if (Math.random() < 0.2) this.fx.add({ x: e.x, y: lift + 0.8, z: groundZ, vy: 2.5, vz: 2, size: 0.5, grow: 2.4, life: 0.7, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: !e.ground });
+      }
+      if (mk.shock > 0 && Math.random() < 0.12) this.zap(e.x, e.z, e.r * 0.9, MARK_HEX.shock);
+      if (mk.crack > 0 && Math.random() < 0.18)
+        this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r * 1.4, y: lift + 0.4, z: groundZ + (Math.random() - 0.5) * e.r, size: 0.35, grow: 0.2, life: 0.12, color: CRACK_GLINT, carried: !e.ground });
       // the hurt crackle with sparks, and the badly hurt smoke
       if (e.hp < e.max * 0.6 && Math.random() < (e.boss ? 0.3 : 0.06)) this.fx.sparks(e.x + (Math.random() - 0.5) * e.r, e.y + 0.6, groundZ, 2, 0xffd890, 8, 0.2, 0.14, !e.ground);
       // smoke from the badly hurt
@@ -1817,8 +1838,6 @@ export class LevelView {
   }
 
   dispose() {
-    clearBend();
-    this.track?.dispose();
     this.world.dispose();
     this.life.dispose();
     this.shields.dispose();
@@ -1928,6 +1947,7 @@ const WRECK_SMOKE = new THREE.Color(0x5a5050);
 const WRECK_SMOKE_END = new THREE.Color(0x8a8288);
 const SPLASH = new THREE.Color(0xeaf4f8);
 const SPARK = new THREE.Color(0xffe0a0);
+const CRACK_GLINT = new THREE.Color(0xfff0b0).multiplyScalar(1.5);
 const GLINT = new THREE.Color(0xd8f8ff);
 const HIT_SMOKE = new THREE.Color(0x4a4040);
 const SMOKE_END = new THREE.Color(0x2a2228);

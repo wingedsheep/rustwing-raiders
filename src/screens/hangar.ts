@@ -16,6 +16,8 @@ import { itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } 
 import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
 import type { DeviceId } from '../input';
+import { markKinds, reactionsOf } from '../sim/marks';
+import { markIcon, REACTION_COLOR } from '../ui/mark-icons';
 
 interface Bay {
   cur: { c: number; r: number };
@@ -39,6 +41,7 @@ interface Bay {
 const AREA_W = 312;
 const RULES = [
   'GUNS FIRE THE WAY THEY SIT: FRONT AND MIDDLE FORWARD, OUTER COLUMNS OUT AT AN ANGLE, THE BACK ROW BEHIND.',
+  'HEAT GUNS BURN, ARC SHOCKS, EXPLOSIVE CRACKS. TWO MARKS ON ONE ENEMY REACT: MOUNT THEM APART, LAND THEM TOGETHER.',
   'BOOSTERS HELP THE GUNS THEY TOUCH. CONDUIT RELAYS: WHAT TOUCHES ONE RUN OF IT TOUCHES.',
   'LINKED PARTS RUN AT 150%. ARC OR EXPLOSIVE TOUCHING HEAT CLASH: BOTH AT 50%.',
   'BACK-ROW ENGINES PUSH HARDER. 3 OF A TAG WAKE ITS SET BONUS, 5 MAKE IT STRONGER.',
@@ -492,6 +495,18 @@ export class Hangar implements Screen {
     const relays = lk.edges.filter((e) => e.via.length && e.kind !== 'clash').length;
     if (relays) lines.push([`CONDUIT RELAYS ${relays} LINK${relays > 1 ? 'S' : ''}`, CYAN]);
     let ty = y;
+    // the marks the guns leave, as icons, and what they set off together
+    const st = stats(build);
+    if (st.marks) {
+      let mx = x;
+      for (const k of markKinds(st.marks)) {
+        markIcon(ctx, k, mx, ty - 1);
+        mx += 12;
+      }
+      const rs = reactionsOf(st.marks);
+      drawText(ctx, rs.length ? `→ ${rs.map((r) => r.name).join(' ')}` : 'NO REACTION YET: A SECOND MARK', mx + 2, ty, rs.length ? REACTION_COLOR[rs[0].kind] : DIM);
+      ty += 12;
+    }
     for (const [l, c] of lines) {
       if (ty > bottom - 9) return;
       drawText(ctx, l.slice(0, 48), x, ty, c);

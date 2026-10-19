@@ -3,7 +3,6 @@ import { Level, type LevelSpec } from '../sim/level';
 import { DT, type Intent } from '../sim/types';
 import { LevelView } from '../view/level-view';
 import { Hud } from '../ui/hud';
-import { ordinal } from '../view/track';
 import { input } from '../input';
 import { audio, type Track } from '../audio';
 import { newPilot, pilot, type PilotState } from '../sim/pilot';
@@ -42,6 +41,8 @@ export class Flight implements Screen {
     private onDone: (r: FlightResult) => void,
   ) {
     this.lv = new Level(spec, builds, hull);
+    // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
+    this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
     this.view = new LevelView(this.lv);
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') ? this.lv.players.map(() => newPilot()) : null;
     audio.music(spec.planet.id as Track);
@@ -118,22 +119,11 @@ export class Flight implements Screen {
   }
 }
 
-/** m:ss */
-const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-
-/** What the results screen says about a level: the race against par, or the fight's tally. */
+/** What the results screen says about a level: the fight's tally. */
 function report(lv: Level): string[] {
   const out: string[] = [];
   const bonus = lv.parBonus ? `  +${lv.parBonus} SCRAP` : '';
-  if (lv.race) {
-    const turbos = lv.players.reduce((n, p) => n + p.drifts, 0);
-    const cuts = lv.players.reduce((n, p) => n + p.shortcuts, 0);
-    const passes = lv.players.reduce((n, p) => n + p.passes, 0);
-    const downs = lv.players.reduce((n, p) => n + p.takedowns, 0);
-    const place = lv.place ? `${ordinal(lv.place)} OF ${lv.rivals.length + 1}  ` : '';
-    out.push(`${place}TIME ${clock(lv.time + lv.penalty)}  PAR ${clock(lv.parTime)}${bonus}`);
-    out.push(`${passes} OVERTAKE${passes === 1 ? '' : 'S'}  ${downs} TAKEDOWN${downs === 1 ? '' : 'S'}  ${turbos} TURBO${turbos === 1 ? '' : 'S'}  ${cuts} SHORTCUT${cuts === 1 ? '' : 'S'}${lv.penalty > 0 ? `  +${lv.penalty.toFixed(1)}s TOWED` : ''}`);
-  } else if (lv.spawned > 0) {
+  if (lv.spawned > 0) {
     const cleared = lv.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
     out.push(`KILLED ${lv.killed}/${lv.spawned}  WAVES WIPED ${cleared}/${lv.waves.length}${lv.fullClear ? '  FULL CLEAR' : ''}${bonus}`);
     if (lv.bounties || lv.bountiesLost) out.push(`BOUNTIES ${lv.bounties}/${lv.bounties + lv.bountiesLost}`);

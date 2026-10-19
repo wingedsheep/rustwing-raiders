@@ -5,7 +5,6 @@ import type { Biome } from '../world/planets';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
 import { enliven, weather, NOISE_GLSL, WASH } from '../render/alive';
-import { BEND_GLSL } from '../render/bend';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
 import type { Fx } from './fx';
@@ -17,9 +16,8 @@ import type { Fx } from './fx';
  * up the screen and dropped once they've gone by.
  */
 
-/** Across: wide enough for a wide screen and the tilted camera (a race's, bent round its course, wider). */
+/** Across: wide enough for a wide screen and the tilted camera. */
 const SPAN = 62;
-const RACE_SPAN = 88;
 const STEP = 0.8;
 const WATER_STEP = 1;
 /** Grass blades per square unit of grassy ground. */
@@ -143,7 +141,7 @@ export class WorldView {
         obj.rotation.z = (hash(p.z * 1.9, p.x) - 0.5) * 0.12;
         const k = Math.round(clamp(noise2(p.x * 0.03, p.z * 0.03, 9) * 4.4 - 0.2 + (hash(p.x, p.z * 2.3) - 0.5) * 1.4, 0, TINTS - 1));
         if (k !== MID) tint(obj, k);
-      } else if (this.terrain.race) hot(obj);
+      }
       group.add(obj);
       if (inst?.mixer) instances.push(inst);
       const e = EMITS[p.kind];
@@ -304,34 +302,6 @@ function tint(obj: THREE.Object3D, k: number) {
   });
 }
 
-/**
- * A race's obstacles run hot: a red glow through their own colours, so what you'd crash into never
- * reads as land to fly over (with the ring of light at flight height, see track.ts).
- */
-const HOT = new Map<THREE.Material, THREE.Material>();
-function hot(obj: THREE.Object3D) {
-  const warm = (m: THREE.Material) => {
-    let h = HOT.get(m);
-    if (!h) {
-      h = m.clone();
-      h.userData = { ...m.userData };
-      if ((m as THREE.MeshToonMaterial).isMeshToonMaterial) enliven(h, { sway: !!m.userData.sway });
-      const e = (h as THREE.MeshToonMaterial).emissive;
-      if (e) {
-        e.setHex(0xa01e0e);
-        (h as THREE.MeshToonMaterial).emissiveIntensity = 0.55;
-      }
-      HOT.set(m, h);
-    }
-    return h;
-  };
-  obj.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(warm) : warm(mesh.material);
-  });
-}
-
 function placeholder(p: Placed) {
   const h = p.obstacle ? 15 : 1.5;
   return part(p.obstacle ? GEO.cyl6 : GEO.cone6, toon(p.obstacle ? 0x8a7a8a : 0x4a6a3a), [0, h / 2, 0], [p.obstacle ? 3 : 1.4, h, p.obstacle ? 3 : 1.4]);
@@ -407,7 +377,7 @@ function grassy(c: THREE.Color) {
  * themselves (so neighbouring chunks agree at the seam), a colour per vertex. And its grass.
  */
 function groundGeometry(t: Terrain, z0: number) {
-  const X1 = t.race ? RACE_SPAN : SPAN;
+  const X1 = SPAN;
   const X0 = -X1;
   const nx = Math.round((X1 - X0) / STEP);
   const nz = Math.ceil(CHUNK / STEP);
@@ -530,7 +500,7 @@ function grassMesh(spots: number[]) {
 /** The water over a chunk (where there is any), with its depth at each corner for the shader. */
 function waterGeometry(t: Terrain, z0: number): THREE.BufferGeometry | null {
   const step = WATER_STEP;
-  const X1 = t.race ? RACE_SPAN : SPAN;
+  const X1 = SPAN;
   const X0 = -X1;
   const nx = Math.round((X1 - X0) / step);
   const nz = Math.ceil(CHUNK / step);
@@ -588,7 +558,6 @@ function waterMaterial() {
       varying vec3 vWorld;
       varying vec3 vNormal2;
       uniform vec4 uWash[${WASH}];
-      ${BEND_GLSL}
       // swell rolling downwind, and a cross chop
       float waveH(vec2 p) {
         float a = dot(p, uWindDir);
@@ -613,7 +582,7 @@ function waterMaterial() {
         }
         w.y += h;
         vWorld = w.xyz;
-        gl_Position = projectionMatrix * viewMatrix * vec4(bendPos(w.xyz), 1.0);
+        gl_Position = projectionMatrix * viewMatrix * vec4(w.xyz, 1.0);
       }
     `,
     fragmentShader: /* glsl */ `

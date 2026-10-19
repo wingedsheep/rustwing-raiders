@@ -6,6 +6,7 @@
 import { CELL, FRAMES, PARTS, TAG_BONUS, frameById, partById, type AuxKind, type DashMod, type FrameDef, type GunSpec, type PartDef, type Tag } from '../game/parts';
 import { links } from './links';
 import { tagsOf, type Item, type ItemDef } from '../game/loot';
+import { BURN, MARK_BIT, SHOCK, tagMarks } from './marks';
 
 /** An item bolted on somewhere. */
 export interface Placement extends Item {
@@ -46,6 +47,14 @@ export interface Gun {
   storm: number;
   /** Recoil Battery: on a perfect dash, a free shot this many times as hard (0: none). */
   volley: number;
+  /** The marks its hits leave (bits, see sim/marks.ts), and how strong. */
+  marks: number;
+  markStr: number;
+  /** Flaw Finder: crits anything marked. */
+  flaw: boolean;
+  /** Legendary traits that work in flight: kills pass their marks on; shots split on a hit. */
+  volatile: boolean;
+  split: boolean;
 }
 
 export interface Stats {
@@ -86,6 +95,8 @@ export interface Stats {
   mirror: number;
   /** Seconds of crit a perfect dash gives (the best Hair Trigger). */
   crit: number;
+  /** Every mark the ship can leave (its guns, and what else it has that marks: bits). */
+  marks: number;
 }
 
 export const rotOf = (p: Placement) => (p.rot ?? (p.turned ? 1 : 0)) & 3;
@@ -178,7 +189,7 @@ export function stats(b: Build): Stats {
   let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
-  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, refill: false };
+  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, refill: false };
   const pas = { skin: 0, gamble: 0, salvage: 0, echo: 0, mirror: 0, crit: 0 };
   for (const { p, def, str, idle } of parts) {
     hp += def.hp ?? 0;
@@ -208,6 +219,7 @@ export function stats(b: Build): Stats {
       mod.blink = Math.max(mod.blink, (def.mod.blink ?? 0) * str);
       mod.mines += Math.round((def.mod.mines ?? 0) * str);
       mod.ghost += (def.mod.ghost ?? 0) * str;
+      mod.detonate = Math.max(mod.detonate, (def.mod.detonate ?? 0) * str);
       mod.refill ||= !!def.mod.refill;
       mod.volley = Math.max(mod.volley, (def.mod.volley ?? 0) * Math.min(str, 1));
     }
@@ -243,6 +255,10 @@ export function stats(b: Build): Stats {
     let exchange = 0;
     let storm = 0;
     let volley = 0;
+    // its own mark, by its tags (a prismatic gun's every-tag is for set bonuses only)
+    let marks = tagMarks(def.tags);
+    let markStr = marks ? Math.max(0.5, gs) : 0;
+    let flaw = false;
     for (const { p: q, def: d, str } of parts) {
       if (!touching(p, q) || str <= 0) continue;
       if (d.boost) {
@@ -251,6 +267,11 @@ export function stats(b: Build): Stats {
         cool += (d.boost.cool ?? 0) * str;
         homing += (d.boost.homing ?? 0) * str;
         burst += (d.boost.burst ?? 0) * (str >= 1 ? 1 : 0);
+        if (d.boost.mark) {
+          marks |= MARK_BIT[d.boost.mark];
+          markStr = Math.max(markStr, str);
+        }
+        flaw ||= !!d.boost.flaw;
       }
       const ps = d.passive;
       if (ps?.crit) crit = Math.max(crit, ps.crit * str);
@@ -267,7 +288,10 @@ export function stats(b: Build): Stats {
     if (bonus.energy === 2 && def.tags.includes('energy')) spec.pierce = (spec.pierce ?? 0) + 1;
     if (bonus.heat) spec.heat *= 0.7;
     spec.rate *= brown;
-    const g: Gun = { part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, homing, burst, cool, drone: false, crit, throttle, exchange, storm, volley };
+    const g: Gun = {
+      part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, homing, burst, cool, drone: false, crit, throttle, exchange, storm, volley,
+      marks, markStr, flaw, volatile: p.trait === 'volatile', split: p.trait === 'splitting',
+    };
     guns.push(g);
     // twinned: a mirror copy from the other side of the hull (both off the middle, if it's there)
     if (p.trait === 'twin') {
@@ -284,6 +308,10 @@ export function stats(b: Build): Stats {
       }
   }
 
+  // what the ship can mark with: its guns, the lightning a Storm Lens throws, Furnace's fire ring
+  let marks = guns.reduce((m, g) => m | g.marks, 0);
+  if (guns.some((g) => g.storm) || bonus.arc === 2) marks |= SHOCK;
+  if (bonus.heat === 2) marks |= BURN;
   const ratio = thrust / mass;
   return {
     frame: f,
@@ -311,6 +339,7 @@ export function stats(b: Build): Stats {
     auxStr,
     mod,
     ...pas,
+    marks,
   };
 }
 

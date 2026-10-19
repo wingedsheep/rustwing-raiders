@@ -7,8 +7,8 @@
  * - Mods are numbers, rolled within a range (+10..30% damage, -25..60% mass, ...). The roll is
  *   kept (0..1), so a card can show how good it came out.
  * - Traits are legendary and change the rules for that part: a gun that fires a mirror twin, a
- *   booster that reaches every gun on the ship, a part that links wherever it sits. They are
- *   meant to be built round.
+ *   booster that reaches every gun on the ship, a part that links wherever it sits, shots that
+ *   split, kills that pass their marks on. They are meant to be built round.
  *
  * The part's own rarity (in parts.ts) still says how often it turns up at all; the tier is on
  * top of that. itemDef() turns an item into the PartDef the build sees, numbers and all.
@@ -28,7 +28,7 @@ export interface Mod {
   roll: number;
 }
 
-export type TraitId = 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic';
+export type TraitId = 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic' | 'volatile' | 'splitting';
 
 /** A part as found: which part, and what was rolled for it. Plain ids are stock commons. */
 export interface Item {
@@ -72,6 +72,9 @@ function scales(d: PartDef) {
   return !!(d.boost || d.passive || (d.mod && !d.mod.refill) || d.aux);
 }
 
+/** A gun that fires things that fly (not a beam, not lightning). */
+const projectile = (d: PartDef) => !!d.gun && d.gun.shot !== 'beam' && d.gun.shot !== 'arc';
+
 export const modValue = (m: Mod) => {
   const s = MODS[m.k];
   const v = s.lo + (s.hi - s.lo) * m.roll;
@@ -94,6 +97,8 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
   },
   keystone: { name: 'KEYSTONE', text: 'Always linked, wherever it sits: it runs at 150% anywhere.', fits: (d) => !!d.link },
   overclock: { name: 'OVERCLOCKED', text: 'Runs at double strength, and draws double power.', fits: (d) => scales(d) || d.power < 0 },
+  volatile: { name: 'VOLATILE', text: 'What it kills passes its marks on: the two nearest enemies catch them.', fits: (d) => projectile(d) },
+  splitting: { name: 'SPLITTING', text: 'Every shot splits in two when it first hits, and the halves fly on.', fits: (d) => projectile(d) && (d.gun?.count ?? 1) <= 2 },
   prismatic: { name: 'PRISMATIC', text: 'Counts as one of every tag towards set bonuses. Clashes with nothing new.', fits: (d) => !d.conduit },
 };
 

@@ -16,7 +16,7 @@ export type TerrainShape =
   | 'flats' // near flat, cracked
   | 'craters' // pocked with bowls
   | 'marsh' // low and wet, pools everywhere
-  | 'canyon'; // a winding gorge with walls taller than you fly: a race
+  | 'canyon'; // a winding gorge with walls taller than you fly
 
 export type Particles = 'ash' | 'embers' | 'spores' | 'snow' | 'rain' | 'sand' | 'pollen' | 'motes' | 'steam' | 'none';
 

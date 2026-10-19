@@ -17,11 +17,18 @@
  * - Some tags clash when they touch (arc with heat, explosive with heat): both run at half strength.
  *   Conduits don't pass a clash on.
  * - One SPECIAL and one AUX per ship. The dash is always there; DASH MOD parts change it.
+ * - Guns leave marks on what they hit, by tag: HEAT burns, ARC shocks, EXPLOSIVE cracks (boosters
+ *   can give any gun a mark). Two different marks on one enemy react (see sim/marks.ts): the tags
+ *   that clash in your hull are the ones that combo in theirs, so mount them apart and land them
+ *   together.
  *
  * Models: tools/models/ships.py builds `frame_<id>` and `part_<id>` templates.
  */
 
 export type Tag = 'kinetic' | 'energy' | 'explosive' | 'arc' | 'heat' | 'drive' | 'armor' | 'tech';
+
+/** What a hit can leave on an enemy (see sim/marks.ts). */
+export type MarkKind = 'burn' | 'shock' | 'crack';
 
 export type PartClass = 'gun' | 'engine' | 'power' | 'defense' | 'booster' | 'special';
 
@@ -69,6 +76,8 @@ export interface DashMod {
   volley?: number;
   /** An afterimage left where the dash began, burning (damage per second) and drawing fire. */
   ghost?: number;
+  /** Marked enemies dashed past have their marks set off, this hard (1 = 100%). */
+  detonate?: number;
 }
 
 /** The AUX verb: a defensive action on its own button. */
@@ -140,8 +149,8 @@ export interface PartDef {
   gun?: GunSpec;
   /** For the special ability parts. */
   special?: 'bomb' | 'phase' | 'emp' | 'overdrive';
-  /** Booster effects on touching guns. */
-  boost?: { damage?: number; rate?: number; cool?: number; homing?: number; burst?: number };
+  /** Booster effects on touching guns: `mark` gives their hits a mark, `flaw` makes them crit marked enemies. */
+  boost?: { damage?: number; rate?: number; cool?: number; homing?: number; burst?: number; mark?: MarkKind; flaw?: boolean };
   magnet?: number;
   graze?: number;
   drone?: boolean;
@@ -272,6 +281,23 @@ export const PARTS: PartDef[] = [
     id: 'grazer', name: 'Graze Coil', cls: 'defense', tags: ['arc'], rarity: 'rare', shape: [[0, 0]], mass: 0.5, power: 0, graze: 1,
     text: 'Bullets that brush past you charge your special twice as fast.',
   },
+  // --- markers (give touching guns a mark) and what cashes marks in --------------------------
+  {
+    id: 'incend', name: 'Incendiary Feed', cls: 'booster', tags: ['heat'], rarity: 'common', shape: [[0, 0]], mass: 0.7, power: 0, boost: { mark: 'burn' },
+    text: 'Feeds touching guns burning slag: what they hit catches fire.',
+  },
+  {
+    id: 'tesla', name: 'Tesla Coupler', cls: 'booster', tags: ['arc'], rarity: 'common', shape: [[0, 0]], mass: 0.6, power: 1, boost: { mark: 'shock' },
+    text: 'Charges touching guns’ rounds: what they hit is shocked, and stalls.',
+  },
+  {
+    id: 'breach', name: 'Breacher Rack', cls: 'booster', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 0.9, power: 0, boost: { mark: 'crack' },
+    text: 'Shaped charges on touching guns’ rounds: what they hit cracks, and takes more.',
+  },
+  {
+    id: 'flaw', name: 'Flaw Finder', cls: 'booster', tags: ['tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.5, power: 1, boost: { flaw: true },
+    text: 'Touching guns crit whatever’s marked: burning, shocked or cracked.',
+  },
   // --- dash mods (change what B does) -----------------------------------------------------
   {
     id: 'ram', name: 'Ram Prow', cls: 'engine', tags: ['armor', 'kinetic'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, power: 0,
@@ -297,6 +323,11 @@ export const PARTS: PartDef[] = [
     id: 'ghost', name: 'Ghost Lamp', cls: 'engine', tags: ['energy', 'tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.6, power: 2,
     mod: { ghost: 40 }, link: { want: { thrust: true }, text: 'AN ENGINE TOUCHING' },
     text: 'Dashing leaves an afterimage that burns what touches it and draws aimed fire. Twice as hot after a perfect.',
+  },
+  {
+    id: 'catalyst', name: 'Catalyst', cls: 'engine', tags: ['tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.7, power: 2,
+    mod: { detonate: 1 }, link: { want: { gun: true }, text: 'A GUN TOUCHING' },
+    text: 'Dash through marked enemies to set their marks off. Twice as hard on a perfect.',
   },
   // --- aux (the defensive button) ---------------------------------------------------------
   {

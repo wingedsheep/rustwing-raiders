@@ -136,9 +136,6 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
   ],
 };
 
-/** Races want things to race: chasers, rivals, gates. */
-export const RACE: Partial<Record<Foe, number>> = { rattler: 2.5, ace: 0, gatekeeper: 2.2, ramjack: 1.2, swooper: 1.2, puffball: 1 };
-
 /** The bounties a faction puts out. */
 export const BOUNTIES: Record<Faction, Foe[]> = {
   scrap: ['runner', 'cache', 'ace'],

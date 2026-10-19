@@ -73,7 +73,6 @@ function arrive(game: Game, node: ChartNode) {
   run.landing = node;
   switch (node.kind) {
     case 'raid':
-    case 'run':
     case 'hunt': {
       const d = run.danger(node);
       fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[d], undefined, node);
@@ -182,8 +181,8 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         run.notes.push(`DANGER PAID: +${extra} SCRAP`);
       }
       if (node?.reward === 'fuel') {
-        run.addFuel(mode === 'run' ? 2 : 3);
-        run.notes.push(`FUEL TAKEN: +${mode === 'run' ? 2 : 3}`);
+        run.addFuel(3);
+        run.notes.push('FUEL TAKEN: +3');
       } else if (node?.reward === 'intel') {
         const named = run.chart.reveal(99);
         run.notes.push(`THE LISTENING POST'S LOGS NAME ${named.length} HIDDEN SITES`);

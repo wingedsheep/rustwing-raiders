@@ -19,21 +19,15 @@ import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier 
 
 export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: number): LevelSpec {
   const r = rng(seed);
-  const canyon = planet.biomes.filter((b) => b.shape === 'canyon');
   const open = planet.biomes.filter((b) => b.shape !== 'canyon');
   let biomes;
-  if (mode === 'run') {
-    // a race: a long one (minutes, not seconds), across four stretches of country with the
-    // planet's gorge, if it has one, in the middle
-    const o = shuffle(r, [...open]);
-    biomes = canyon.length ? [o[0], o[1 % o.length], canyon[0], o[2 % o.length]] : [o[0], o[1 % o.length], o[2 % o.length], o[3 % o.length]];
-  } else if (mode === 'boss') {
+  if (mode === 'boss') {
     biomes = shuffle(r, [...open]).slice(0, 2);
   } else {
     // raids and hunts fly through three of the four, canyon included sometimes
     biomes = shuffle(r, [...planet.biomes]).slice(0, 3);
   }
-  const length = mode === 'run' ? 1700 : mode === 'boss' ? 220 : 300;
+  const length = mode === 'boss' ? 220 : 300;
   return { planet, biomes, mode, seed, difficulty, length };
 }
 
@@ -171,7 +165,7 @@ export class Run {
 
   /** The danger of a site now: its own, and a pip more where the faction hates you. */
   danger(n: ChartNode) {
-    if (n.kind === 'raid' || n.kind === 'run' || n.kind === 'hunt') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
+    if (n.kind === 'raid' || n.kind === 'hunt') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
     return n.danger;
   }
 
@@ -180,7 +174,7 @@ export class Run {
    * the site's danger on top. Null where there's no fight to be had (or none you know of).
    */
   threat(n: ChartNode): number | null {
-    if (n.kind !== 'raid' && n.kind !== 'run' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
+    if (n.kind !== 'raid' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
     const next = this.sector * 0.55 + Math.min(this.stops + 1, 8) * 0.07;
     return next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]);
   }

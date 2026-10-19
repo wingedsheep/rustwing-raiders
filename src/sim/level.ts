@@ -16,123 +16,12 @@ import type { BossState, BossStyle } from './boss';
 import { foeDefaults, foeHurt, winded, foeShot, foeTaken, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
-import type { AuxKind } from '../game/parts';
-import { BARRIER_H, fly, PAD_L, PAD_W, WALL_R, type Wall } from './course';
-import { makeRivals, updateRivals, type Rival } from './rivals';
+import type { AuxKind, MarkKind } from '../game/parts';
+import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
 
-export type Mode = 'raid' | 'run' | 'hunt' | 'boss';
+export type Mode = 'raid' | 'hunt' | 'boss';
 
-// Racing, boosting, and what doing it well pays: the numbers the feel hangs on.
-/**
- * Races: you and three rivals across the planet, through gates, round the course's bends (see
- * course.ts, rivals.ts). The camera follows the leader, so you never have to fly up the screen to go
- * faster: the stick steers the nose (left, right) and works the throttle (up, down), and the ship
- * goes where its momentum takes it. Grip turns its way round after the nose, but only so hard
- * (GRIP_A across, less on a boost): the faster you go the wider you turn, and a bend too tight for
- * your speed carries you wide, nose turned in, scrubbing speed, off the track and into whatever
- * lines it. Then there's the drift (fire, steering into the bend): the nose kicked in, the ship
- * sliding round on a tighter line than grip alone holds (DRIFT_A), the stick setting how tight; held,
- * it charges a turbo (three tiers, quicker held tight), let go and it fires. So the tight bends
- * flat out are drifted, the gentle ones steered, and a boost into a bend takes both.
- */
-const RACE_CRUISE = 38;
-const RACE_TOP = 55;
-const RACE_BRAKE_TO = 18;
-/** Throttle and brakes (units/s²): up to speed, and down from it. */
-const RACE_ACCEL = 28;
-const RACE_DECEL = 44;
-/** What a boost, a surge (pad, launch, drift turbo) and a rival's wake add to the top speed. */
-const BOOST_TOP = 20;
-const SURGE_TOP = 17;
-const DRAFT_TOP = 6;
-/** Off the track (rough going, on the ground): the top speed's this share of what it was. */
-const ROUGH = 0.62;
-/** Steering: the nose's turn rate at full stick (rad/s), and how quickly it gets there. */
-const STEER = 2.7;
-const YAW_EASE = 9;
-/** Grip: the hardest the ship's way turns (units/s² across it), steered and drifting; boosting, this share of it. */
-export const GRIP_A = 40;
-export const DRIFT_A = 68;
-const GRIP_BOOST = 0.85;
-/** How fast the way swings round to the nose, as far as grip allows (per second). */
-const GRIP_RATE = 7;
-/** Steered past what grip holds, the nose leads the way by up to this (rad): understeer, scrubbing speed (units/s² a radian past SCRUB_FREE). */
-const SLIP_MAX = 0.5;
-const SCRUB = 22;
-const SCRUB_FREE = 0.12;
-/** Left alone, the nose swings round to where the ship's going. */
-const ALIGN = 1.8;
-/** The nose never turns further than this from the course's way (rad). */
-const HD_MAX = 1.25;
-/**
- * The drift: the nose kicked in this far past the way (rad, a little more held tight); how tight it
- * turns pushed out (a share of DRIFT_A; held in, all of it); the speed it bleeds (units/s²). The
- * handbrake without a turn is a brake. Held this long it's each turbo tier (quicker held tight); the
- * surge each fires (seconds).
- */
-const DRIFT_ANGLE = 0.42;
-export const DRIFT_WIDE = 0.35;
-const DRIFT_BLEED = 5;
-const HANDBRAKE = 14;
-const DRIFT_START = 24;
-export const DRIFT_TIERS = [0.6, 1.3, 2.2];
-const DRIFT_SURGE = [0.5, 0.9, 1.4];
-/** A dash on a race: a sideways jink (units/s across the nose). */
-const JINK = 30;
-/** In the air: grip and steering this much of what they are on the ground; air longer than AIR_MIN landed square, a surge and Burn (a second's worth). */
-const AIR_GRIP = 0.2;
-const AIR_STEER = 0.5;
-const AIR_MIN = 0.35;
-const AIR_SURGE = 0.6;
-const BURN_AIR = 0.12;
-/** A boost pad's surge (seconds). */
-const PAD_TIME = 1.1;
-/** The camera keeps the leader this far below the middle of the screen, always. */
-const RACE_ANCHOR = 9;
-/** Into a wall faster than this (units/s, square on) is a crash; slower, a scrape that bleeds speed this fast (a share a second). */
-const WALL_WRECK = 30;
-const SCRAPE = 0.9;
-/** Skimming a wall (within this of it, at speed, not touching) charges Burn this fast at the closest. */
-const SKIM_WALL = 2.6;
-const BURN_WALL = 0.16;
-/**
- * Races: the Burn is the boost's tank. Boosting spends it this fast; it refills on its own this fast
- * off the boost, and quicker flying close (a shave, a gap, a wake: Burn earned). Run dry, the boost
- * cuts out till the tank's back over BURN_AGAIN (no flickering on fumes).
- */
-const BURN_REGEN = 0.07;
-const BURN_DRAIN_RACE = 0.3;
-const BURN_THREAD = 0.07;
-const BURN_AGAIN = 0.15;
-/** Past a rock with less than this between you (units) is a close shave: Burn for nerve. */
-const SHAVE = 1.4;
-/** A crash keeps this share of your speed; after it the engine won't pull for a moment. */
-const CRASH_KEEP = 0.35;
-/** Into a rock or a tree faster than this (units/s, square on) is a wreck; slower, a glance. */
-const GLANCE = 16;
-/** Into something slower than this (units/s) is a nudge, not a crash. */
-const WRECK_SLOW = 20;
-/** A wreck puts you out of it this long (seconds), smoking where you hit; then you're back on the track, untouchable a moment. */
-const WRECK_TIME = 2.6;
-const BACK_SAFE = 1.4;
-/** The countdown; a launch pressed this close to GO (before, after) is perfect; held longer before it floods. */
-const COUNTDOWN = 3;
-const LAUNCH_BEFORE = 0.25;
-const LAUNCH_AFTER = 0.15;
-const LAUNCH_EARLY = 0.6;
-const LAUNCH_SURGE = 1.4;
-const FLOODED = 0.7;
-/** Speed tiers: the leader past these speeds (units/s) shows and sounds; it drops back a little below. */
-export const TIERS = [52, 64, 75];
-/** The finishing places' purse (shares of PLACE_SCRAP), first to last. */
-const PLACE_PAY = [1, 0.55, 0.25, 0];
-const PLACE_SCRAP = 90;
-/** Par pace on a race: about this times the cruise. */
-const PAR_PACE = 1.44;
-/** Co-op: a ship left at the bottom edge is pushed along, and the clock charged this much per second of it. */
-const TOW_PENALTY = 0.5;
-/** Inside a shortcut, the slipstream: the ship this much faster, free, and it refuels (Burn a second): the hard line pays twice. */
-const SLIPSTREAM = 1.4;
+// Boosting, and what doing it well pays: the numbers the feel hangs on.
 /** Boost is a surge of your own ship: faster, up the screen unless steered, sliding more. */
 const SURGE_SHIP = 0.9;
 const SURGE_PUSH = 0.7;
@@ -161,8 +50,6 @@ const DASH_RECOVER = 0.25;
 const PERFECT_R = 2.4;
 /** Focus pulls spreads in to this much. */
 const FOCUS_SPREAD = 0.4;
-/** Races are against the clock (par: PAR_PACE); under it pays, by how far. */
-const PAR_SCRAP = 60;
 /** Fights: a wave wiped out pays per head; a level with nothing let through pays big. */
 const WAVE_BONUS = 0.6;
 const FULL_CLEAR = 40;
@@ -238,11 +125,6 @@ export interface Player {
   /** Seconds spent boosting (×how hard) and skimming, for the autopilot's report. */
   boostTime: number;
   skimTime: number;
-  /** Races: seconds spent pushed along at the bottom edge. */
-  towed: number;
-  /** The shortcut it's in (its id), or -1; and how many it got through. */
-  shortcut: number;
-  shortcuts: number;
   /** The aux: seconds until it can go again, and how long that wait was (for the HUD). */
   auxCd: number;
   auxMax: number;
@@ -260,56 +142,12 @@ export interface Player {
   crit: number;
   /** Echo Relay: seconds until the special goes off again. */
   echoT: number;
-  /** Enemies already rammed this dash (Ram Prow). */
+  /** Enemies already rammed this dash (Ram Prow), and set off (Catalyst). */
   rammed: number[];
+  sparked: number[];
   /** For the autopilot's report. */
   parries: number;
   auxUses: number;
-  /** Races: seconds of surge left (a pad, a perfect launch, a drift turbo): a higher top speed. */
-  surge: number;
-  /** Races: which way the nose points (rad from the course's way, + right), and how fast it's turning. */
-  hd: number;
-  yaw: number;
-  /** Races: how sideways the ship is sliding (rad, + its slide to the right of the nose); the handbrake held. */
-  slide: number;
-  handbrake: boolean;
-  /** Races: seconds drifting (the turbo charging, quicker held tight), the turbo tier it's reached. */
-  driftT: number;
-  driftTier: number;
-  /** Races: which way it's drifting (+1 right, 0 not). */
-  driftDir: number;
-  /** Races: out of it after a wreck (for `wreck` seconds). */
-  out: boolean;
-  /** Races: the tank's run dry (no boost till it's back over BURN_AGAIN). */
-  dry: boolean;
-  /** Races: speed along the nose (units/s), and down the course (units of z a second). */
-  fwd: number;
-  pace: number;
-  /** Races: seconds against a wall (0 off it); how close it's skimming one (0..1); the closest it's come to a rock lately (for a close shave). */
-  wallT: number;
-  wallNear: number;
-  shaveGap: number;
-  /** Races: for the report: wall scrapes, close shaves, drift turbos fired. */
-  scrapes: number;
-  shaves: number;
-  drifts: number;
-  /** Races: gauntlet gaps threaded, for the report. */
-  threads: number;
-  /** Races: seconds left riding a rival's wake (refreshed while it lasts). */
-  draft: number;
-  /** Races: seconds the engine won't pull after a crash, or after flooding the launch. */
-  wreck: number;
-  /** Races: when boost was last pressed (on the race clock: negative before GO), and whether the launch is settled. */
-  pressAt: number;
-  launched: boolean;
-  /** Races: rivals passed and taken down, for the report. */
-  passes: number;
-  takedowns: number;
-  /** Races: height over the flight height (off a ramp), how fast it's climbing, seconds in the air; jumps landed, for the report. */
-  alt: number;
-  vy: number;
-  airT: number;
-  jumps: number;
 }
 
 /** A flare or an afterimage: aimed fire goes for it first. Flares burst at the end; afterimages burn. */
@@ -346,6 +184,14 @@ export interface Shot {
   crit?: boolean;
   /** Where it came from, if not a gun: for the view to tint. */
   tag?: 'reflect' | 'mirror' | 'wake' | 'salvage';
+  /** The marks it leaves (bits, see marks.ts) and how strong. */
+  marks: number;
+  markStr: number;
+  /** Flaw Finder: crits anything marked. */
+  flaw?: boolean;
+  /** VOLATILE: what it kills passes its marks on. SPLITTING: it splits in two on its first hit. */
+  volatile?: boolean;
+  split?: boolean;
   dead: boolean;
 }
 
@@ -417,6 +263,8 @@ export interface Enemy extends FoeFields {
   bounty?: Bounty;
   /** The wave it came in (see Level.openWave), for full clears. */
   wave?: number;
+  /** What the guns have left on it: burning, shocked, cracked (see marks.ts). */
+  mk: Marks;
 }
 
 /** A hard drop: `reward` scrap (and a part crate with `part`) if it's killed within `life` seconds. */
@@ -449,9 +297,6 @@ export interface Pickup {
   part?: string;
   /** Rings: flown through by. */
   done?: number;
-  /** Race rings: the run they're part of, and how many rings it has. */
-  run?: number;
-  of?: number;
 }
 
 export type HazardKind = 'geyser' | 'falling_rocks' | 'lightning' | 'spore_cloud' | 'laser_gate' | 'flare';
@@ -474,7 +319,8 @@ export interface Hazard {
 
 export type LevelEvent =
   | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number }
-  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean }
+  /** `dot`: a burn's tick, not a blow. */
+  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean }
   | { type: 'explode'; x: number; z: number; y: number; size: number; color: number; enemy?: number }
   | { type: 'enemyShot'; x: number; z: number; color: number; look?: Faction }
   /** A bullet cancelled (by a bomb, a perfect, a hit): it pops instead of vanishing. */
@@ -511,55 +357,13 @@ export type LevelEvent =
   | { type: 'skim'; id: number; x: number; z: number; close: number }
   /** A kill from up close. */
   | { type: 'pointBlank'; id: number; x: number; z: number }
-  /** Races: the countdown's beats (3, 2, 1), and GO. */
-  | { type: 'count'; n: number }
-  | { type: 'go' }
-  /** Races: off the line: right on GO (`perfect`), or held too early (flooded, a slow start). */
-  | { type: 'launch'; id: number; perfect: boolean; x: number; z: number }
-  /** Races: over a boost pad, or through every ring of a run. */
-  | { type: 'pad'; id: number; x: number; z: number }
-  | { type: 'ringRun'; id: number; x: number; z: number; count: number }
-  /** Races: against a wall (`side`: +1 it's to your left, you're held on its right), `hard` how fast into it; a close shave past a rock. */
-  | { type: 'wall'; id: number; x: number; z: number; side: number; hard: number }
-  | { type: 'shave'; id: number; x: number; z: number }
-  | { type: 'thread'; id: number; x: number; z: number }
-  /** Races: back on the track after a wreck. */
-  | { type: 'back'; id: number; x: number; z: number }
-  /** Races: a drift's turbo charged up a tier (1..3), fired on the way out of it, or lost (a crash). */
-  | { type: 'driftTier'; id: number; tier: number; x: number; z: number }
-  | { type: 'driftBoost'; id: number; tier: number; x: number; z: number }
-  /** Races: crashed into something (a rock, a canyon wall): (nx, nz) the way it threw you. */
-  | { type: 'wreck'; id: number; x: number; z: number; nx: number; nz: number; speed: number }
-  /** Races: the leader's speed went up a tier (1..3), or back down. */
-  | { type: 'tier'; tier: number; up: boolean }
-  /** Races: into a rival's wake, or out of it. */
-  | { type: 'draft'; id: number; rival: number; on: boolean }
-  /** Races: you passed a rival (`place` is yours now), or one passed you. */
-  | { type: 'pass'; id: number; rival: number; place: number; x: number; z: number }
-  | { type: 'passed'; id: number; rival: number; place: number }
-  /** Races: a rival knocked about: a bump, rammed out (a takedown), shot until it spun out. */
-  | { type: 'bump'; id: number; rival: number; x: number; z: number; hard: number }
-  | { type: 'takedown'; id: number; rival: number; x: number; z: number }
-  | { type: 'rivalHit'; rival: number; x: number; z: number; dmg: number }
-  | { type: 'spinout'; id: number; rival: number; x: number; z: number }
-  /** Races: the last stretch; a rival over the line; you over it (`place`). */
-  | { type: 'finalStretch' }
-  | { type: 'rivalFinish'; rival: number; place: number }
-  | { type: 'finish'; id: number; place: number; time: number; x: number; z: number }
-  /** Races: off a ramp's lip into the air; down again after `t` seconds of it (`clean`: square, a surge for it). */
-  | { type: 'air'; id: number; state: 'launch' | 'land'; t: number; clean: boolean; x: number; z: number }
-  /** Races: into a barrier, under it. */
-  | { type: 'barrier'; id: number; x: number; z: number }
-  /** Races: into a shortcut, out of the far end (`saved`: seconds it's worth), or out the side (`fail`). */
-  | { type: 'shortcut'; id: number; shortcut: number; state: 'enter' | 'exit' | 'fail'; saved: number }
   /** Every one of a wave killed: `bonus` scrap, paid at (x, z) (the last kill). */
   | { type: 'waveClear'; wave: number; bonus: number; x: number; z: number }
   /** An enemy got away (off the screen, or a bounty's time ran out). */
   | { type: 'escaped'; enemy: number; x: number; z: number }
   /** A bounty showed up, was claimed (killed: `reward` paid), or escaped. */
   | { type: 'bounty'; state: 'appear' | 'claimed' | 'escaped'; enemy: number; x: number; z: number; reward: number }
-  /** On a clear: a race's time against par, or a fight's tally; the rank and the scrap it earned. */
-  | { type: 'par'; time: number; par: number; rank: Rank; bonus: number; place: number }
+  /** On a clear: the fight's tally; the rank and the scrap it earned. */
   | { type: 'tally'; killed: number; spawned: number; missed: number; waves: number; cleared: number; full: boolean; rank: Rank; bonus: number }
   /** The aux went off. */
   | { type: 'aux'; id: number; kind: AuxKind; x: number; z: number }
@@ -585,6 +389,18 @@ export type LevelEvent =
   | { type: 'crit'; id: number; on: boolean }
   /** A flare or an afterimage appeared (it lives in Level.decoys). */
   | { type: 'decoy'; id: number; kind: Decoy['kind']; x: number; z: number }
+  /** A mark took on an enemy (it wasn't carrying that one). */
+  | { type: 'mark'; enemy: number; kind: MarkKind; x: number; z: number }
+  /** Two marks met on an enemy (see marks.ts). */
+  | { type: 'reaction'; kind: ReactionKind; enemy: number; x: number; z: number; owner: number }
+  /** The Catalyst set off what an enemy carried (`bits`). */
+  | { type: 'detonate'; enemy: number; x: number; z: number; owner: number; bits: number }
+  /** A SPLITTING shot split at (x, z). */
+  | { type: 'split'; x: number; z: number }
+  /** A VOLATILE kill passed its marks from (x, z) to `enemy` at (x2, z2). */
+  | { type: 'spread'; from: number; enemy: number; x: number; z: number; x2: number; z2: number; bits: number }
+  /** A shocked enemy seized up for a beat. */
+  | { type: 'jolt'; enemy: number; x: number; z: number }
   | { type: 'clear' }
   | { type: 'failed' };
 
@@ -609,35 +425,12 @@ export class Level {
   readonly director: Director;
   /** Where the middle of the screen is (z on the flight plane). Decreases as you fly. */
   scroll = 0;
-  /** The level's own speed (units/s: the fights' scroll, a race's cruising), and how fast the screen is moving right now. */
+  /** The level's own speed (units/s), and how fast the screen is moving right now. */
   speed: number;
   speedNow: number;
-  /** A race: the camera follows the leader rather than scrolling at its own pace. */
-  readonly race: boolean;
-  /** Races: the leader's place on the screen the camera keeps (z below the middle). */
-  anchor = RACE_ANCHOR;
-  /** Races: seconds to GO (0 once racing), the rivals, the speed tier, and the finishing place (0 until over the line). */
-  countdown = 0;
-  readonly rivals: Rival[] = [];
-  tier = 0;
-  place = 0;
-  /** Races: par pace in units/s (for the rivals, who race to it). */
-  parSpeed = 1;
-  /** Races: the pads each player has used (a bit each), and the ring runs each has threaded. */
-  readonly padDone = new Map<object, number>();
-  /** Scratch for the walls at a z. */
-  private wallList: Wall[] = [];
-  /** Rings threaded per run and player (key: run × 4 + player). */
-  private readonly ringsRun = new Map<number, number>();
-  private finalShown = false;
-  /** Races: seconds the level should take, and seconds added for being towed (co-op). */
-  parTime: number;
-  penalty = 0;
-  /** On a clear: the rank (races: time against par; fights: how much was killed), the bonus it
-   * paid, and whether a race came in under par (for whatever that opens up on the map). */
+  /** On a clear: the rank (how much was killed), and the bonus it paid. */
   rank: Rank | null = null;
   parBonus = 0;
-  beatPar = false;
   /** Fights: the waves so far, and what was spawned in them, killed and let through. */
   readonly waves: Wave[] = [];
   spawned = 0;
@@ -645,6 +438,10 @@ export class Level {
   missed = 0;
   /** Bounties claimed and let go. */
   bounties = 0;
+  /** Reactions set off (two marks meeting). */
+  reactions = 0;
+  /** Enemy hull multiplier (a testing aid: &tough=8). */
+  tough = 1;
   bountiesLost = 0;
   /** Scrap paid for full waves, and for a full clear (on the results). */
   waveBonus = 0;
@@ -677,23 +474,12 @@ export class Level {
     this.terrain = new Terrain(
       spec.seed,
       spec.biomes.map((biome) => ({ biome, length: spec.length })),
-      spec.mode === 'run',
-      spec.difficulty,
     );
-    this.race = spec.mode === 'run';
-    this.speed = this.race ? RACE_CRUISE : 9;
-    this.speedNow = this.race ? 0 : this.speed;
-    // a race is against the clock: its length at par pace
-    const course = this.terrain.course;
-    const length = course ? HALF_H - 8 - course.finish : -(this.terrain.end + HALF_H + 20);
-    this.parTime = Math.round(length / (this.speed * PAR_PACE));
-    this.parSpeed = length / this.parTime;
-    if (this.race) this.countdown = COUNTDOWN;
-    // what a shortcut's slipstream is worth, at par pace
+    this.speed = 9;
+    this.speedNow = this.speed;
     builds.forEach((b, i) => {
       const s = stats(b);
-      // (a race: at the back of the grid, the rivals lined up ahead)
-      const x = builds.length === 1 ? (this.race ? 5 : 0) : i === 0 ? -5 : 5;
+      const x = builds.length === 1 ? 0 : i === 0 ? -5 : 5;
       this.players.push({
         id: i,
         build: b,
@@ -730,7 +516,7 @@ export class Level {
         ward: 0,
         slow: 0,
         causes: {},
-        burn: this.race ? 1 : BURN_START,
+        burn: BURN_START,
         boosting: 0,
         skim: 0,
         skimT: 0,
@@ -742,9 +528,6 @@ export class Level {
         perfects: 0,
         boostTime: 0,
         skimTime: 0,
-        towed: 0,
-        shortcut: -1,
-        shortcuts: 0,
         auxCd: 0,
         auxMax: 1,
         auxT: 0,
@@ -756,41 +539,12 @@ export class Level {
         crit: 0,
         echoT: 0,
         rammed: [],
+        sparked: [],
         parries: 0,
         auxUses: 0,
-        surge: 0,
-        draft: 0,
-        wreck: 0,
-        pressAt: -99,
-        launched: !this.race,
-        passes: 0,
-        takedowns: 0,
-        hd: 0,
-        yaw: 0,
-        slide: 0,
-        handbrake: false,
-        driftT: 0,
-        driftTier: 0,
-        driftDir: 0,
-        out: false,
-        dry: false,
-        fwd: 0,
-        pace: 0,
-        wallT: 0,
-        wallNear: 0,
-        shaveGap: 99,
-        scrapes: 0,
-        shaves: 0,
-        drifts: 0,
-        threads: 0,
-        alt: 0,
-        vy: 0,
-        airT: 0,
-        jumps: 0,
       });
     });
     this.director = new Director(this);
-    if (this.race) this.rivals.push(...makeRivals(this));
   }
 
   id() {
@@ -799,12 +553,6 @@ export class Level {
 
   /** How far along (0..1). */
   get progress() {
-    const c = this.terrain.course;
-    if (c) {
-      const lead = this.leader();
-      const z = lead ? lead.z : this.scroll;
-      return clamp((HALF_H - 8 - z) / (HALF_H - 8 - c.finish), 0, 1);
-    }
     return clamp(-this.scroll / -this.terrain.end, 0, 1);
   }
 
@@ -842,11 +590,9 @@ export class Level {
   step(intents: Intent[]) {
     this.frame++;
     if (this.state === 'clear' || this.state === 'failed') this.ending += DT;
-    else if (this.countdown <= 0) this.time += DT;
+    else this.time += DT;
 
-    // the screen moves on: at its own pace in a fight (the boss holds it nearly still), after the
-    // leader on a race (once the lights have gone green)
-    if (this.race) this.raceStart(intents);
+    // the screen moves on at its own pace (the boss holds it nearly still)
     this.updateSpeed(intents);
     const dz = this.speedNow * DT;
     this.scroll -= dz;
@@ -867,6 +613,7 @@ export class Level {
       e.flash = Math.max(0, e.flash - DT);
       e.stun = Math.max(0, e.stun - DT);
       updateEnemy(this, e);
+      if (!e.dead) tickMarks(this, e);
       if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden') this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
       if (e.z > this.bottom + 10 || e.z < this.top - 40 || Math.abs(e.x) > HALF_W + 26) {
@@ -874,7 +621,6 @@ export class Level {
       } else if (e.bounty && e.t > e.bounty.life) this.escape(e);
     }
     this.updateShots();
-    if (this.race) updateRivals(this);
     this.updateBullets(dz);
     this.updateLasers();
     updateStrikes(this, dz);
@@ -899,80 +645,26 @@ export class Level {
       if (this.players.every((p) => p.down)) {
         this.state = 'failed';
         this.emit({ type: 'failed' });
-      } else if (this.race ? this.living().some((p) => p.z <= this.terrain.course!.finish) : this.spec.mode !== 'boss' && this.scroll < this.terrain.end + HALF_H + 20) {
+      } else if (this.spec.mode !== 'boss' && this.scroll < this.terrain.end + HALF_H + 20) {
         this.finish();
-      } else if (this.race && !this.finalShown && this.progress > 0.86) {
-        this.finalShown = true;
-        this.emit({ type: 'finalStretch' });
       }
     }
-  }
-
-  /**
-   * Races: the countdown, and the launch. Boost pressed right on GO (a hair before or after) is a
-   * perfect start, a surge off the line; held down long before it floods the engine, a slow one.
-   */
-  private raceStart(intents: Intent[]) {
-    const clock = this.countdown > 0 ? -this.countdown : this.time;
-    for (const p of this.players) {
-      const on = (intents[p.id]?.boost ?? 0) > 0.05;
-      if (on && p.boosting <= 0.05 && p.pressAt < clock - 0.05) p.pressAt = clock;
-      if (!on) p.pressAt = -99;
-    }
-    if (this.countdown > 0) {
-      const was = Math.ceil(this.countdown);
-      this.countdown -= DT;
-      if (this.countdown > 0 && Math.ceil(this.countdown) !== was) this.emit({ type: 'count', n: Math.ceil(this.countdown) });
-      if (this.countdown > 0) return;
-      this.countdown = 0;
-      this.emit({ type: 'go' });
-    }
-    for (const p of this.players) {
-      if (p.launched || p.down) continue;
-      const held = p.pressAt > -98;
-      if (held && p.pressAt >= -LAUNCH_BEFORE && p.pressAt <= LAUNCH_AFTER) this.launch(p, true);
-      else if (held && p.pressAt < -LAUNCH_EARLY) this.launch(p, false);
-      else if (this.time > LAUNCH_AFTER) p.launched = true;
-    }
-  }
-
-  private launch(p: Player, perfect: boolean) {
-    p.launched = true;
-    if (perfect) {
-      p.surge = LAUNCH_SURGE;
-      p.burn = Math.min(1, p.burn + 0.3);
-      p.vz = -RACE_CRUISE;
-    } else p.wreck = FLOODED;
-    this.emit({ type: 'launch', id: p.id, perfect, x: p.x, z: p.z });
   }
 
   finish() {
     if (this.state === 'clear') return;
     this.state = 'clear';
     const hard = 1 + this.spec.difficulty * 0.5;
-    if (this.race) {
-      // a place on the podium (or not): the purse by place, and a bit more for coming in under par
-      const time = this.time + this.penalty;
-      const ratio = time / this.parTime;
-      const first = this.living().reduce((a, b) => (b.z < a.z ? b : a));
-      this.place = 1 + this.rivals.filter((r) => r.done !== null).length;
-      this.rank = (['S', 'A', 'B', 'C'] as const)[Math.min(this.place, 4) - 1];
-      this.parBonus = Math.round((PLACE_PAY[this.place - 1] ?? 0) * PLACE_SCRAP * hard) + (ratio < 1 ? Math.round((1 - ratio) * PAR_SCRAP * hard) : 0);
-      this.beatPar = this.place === 1;
-      this.emit({ type: 'finish', id: first.id, place: this.place, time, x: first.x, z: first.z });
-      this.emit({ type: 'par', time, par: this.parTime, rank: this.rank, bonus: this.parBonus, place: this.place });
-    } else {
-      // a fight: how much got through
-      const seen = this.killed + this.missed;
-      const share = seen ? this.killed / seen : 1;
-      this.fullClear = this.missed === 0 && this.spawned > 0;
-      this.rank = this.fullClear || share >= 0.9 ? 'S' : share >= 0.7 ? 'A' : share >= 0.45 ? 'B' : 'C';
-      this.parBonus = this.fullClear ? Math.round(FULL_CLEAR * hard) : 0;
-      const cleared = this.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
-      this.emit({
-        type: 'tally', killed: this.killed, spawned: this.spawned, missed: this.missed, waves: this.waves.length, cleared, full: this.fullClear, rank: this.rank, bonus: this.parBonus,
-      });
-    }
+    // a fight: how much got through
+    const seen = this.killed + this.missed;
+    const share = seen ? this.killed / seen : 1;
+    this.fullClear = this.missed === 0 && this.spawned > 0;
+    this.rank = this.fullClear || share >= 0.9 ? 'S' : share >= 0.7 ? 'A' : share >= 0.45 ? 'B' : 'C';
+    this.parBonus = this.fullClear ? Math.round(FULL_CLEAR * hard) : 0;
+    const cleared = this.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
+    this.emit({
+      type: 'tally', killed: this.killed, spawned: this.spawned, missed: this.missed, waves: this.waves.length, cleared, full: this.fullClear, rank: this.rank, bonus: this.parBonus,
+    });
     this.scrap += this.parBonus;
     this.score += this.parBonus * 100;
     this.emit({ type: 'clear' });
@@ -983,409 +675,22 @@ export class Level {
 
   // --- speed, waves and bounties -----------------------------------------------------------
 
-  /**
-   * Boost spends Burn. On a race it's your own forward speed, and the camera follows the leader
-   * (with a lag, so a surge shows); in a fight the screen keeps its pace and the boost goes into
-   * the ship (see updatePlayer).
-   */
+  /** Boost spends Burn. The screen keeps its pace and the boost goes into the ship (see updatePlayer). */
   private updateSpeed(intents: Intent[]) {
     const over = this.state === 'clear' || this.state === 'failed';
     for (const p of this.players) {
       const i = intents[p.id] ?? NEUTRAL;
       // (no Burn, no boost)
       const press = clamp(i.boost ?? 0, 0, 1);
-      // (run dry on a race: nothing till the tank's refilled a little)
-      if (p.burn >= BURN_AGAIN) p.dry = false;
-      const want = p.down || over || p.burn <= 0 || p.dry ? 0 : press;
+      const want = p.down || over || p.burn <= 0 ? 0 : press;
       const was = p.boosting > 0.05;
       p.boosting = want;
-      p.burn = Math.max(0, p.burn - (this.race ? BURN_DRAIN_RACE : BURN_DRAIN) * p.boosting * DT);
-      if (this.race && p.burn <= 0) p.dry = true;
-      // (on a race it refills on its own while you're off the boost)
-      if (this.race && this.countdown <= 0 && !over && p.boosting <= 0.05 && !p.down) p.burn = Math.min(1, p.burn + BURN_REGEN * DT);
+      p.burn = Math.max(0, p.burn - BURN_DRAIN * p.boosting * DT);
       p.boostTime += p.boosting * DT;
       if (was !== p.boosting > 0.05) this.emit({ type: 'boost', id: p.id, on: !was });
     }
-    if (this.race) {
-      this.follow();
-      return;
-    }
     const target = this.state === 'boss' && !this.chase ? 2.5 : this.state === 'clear' ? this.speed * 1.4 : this.speed;
     this.speedNow = damp(this.speedNow, target, 1 / 0.3, DT);
-  }
-
-  /**
-   * Races: the camera follows the leader. It runs on at the leader's pace (lagging a little, so a
-   * surge carries the ship up the screen before the camera catches it), pulled back towards where
-   * it keeps the leader: below the middle, lower still at speed, so there's more to see ahead.
-   */
-  private follow() {
-    const lead = this.leader();
-    if (this.countdown > 0 || !lead) {
-      this.speedNow = 0;
-      return;
-    }
-    // locked to the leader: it stays in the same spot on the screen, the world rushing past
-    const was = this.scroll;
-    const next = lead.z - this.anchor;
-    // (the dz everything carried along with the screen moves by)
-    this.speedNow = (was - next) / DT;
-    if (this.state === 'clear' || this.state === 'failed') {
-      this.speedNow = Math.max(0, this.speedNow);
-      return;
-    }
-    // the tiers: up past each mark, down again a little under it
-    let tier = this.tier;
-    while (tier < TIERS.length && lead.fwd >= TIERS[tier]) tier++;
-    while (tier > 0 && lead.fwd < TIERS[tier - 1] - 6) tier--;
-    if (tier !== this.tier) this.emit({ type: 'tier', tier, up: tier > this.tier });
-    this.tier = tier;
-  }
-
-  /**
-   * Races: a ship's flight. The stick turns the nose and works the throttle; the ship's momentum
-   * goes on its own way, grip bringing it round to the nose. The course turning under it turns the
-   * nose and the momentum both (relative to the course) the other way: that's what flings you wide.
-   * A unit of z is shorter on the inside of a bend (`metric`), so the ship gains there.
-   */
-  private racePlayer(p: Player, i: Intent) {
-    const c = this.terrain.course!;
-    const s = p.stats;
-    const z0 = p.z;
-    if (p.out) {
-      this.wrecked(p);
-      if (p.z > this.bottom - 2) p.z = this.bottom - 2;
-      return;
-    }
-    // the build: quicker frames are quicker, grippier ones grip
-    const quick = 0.94 + 0.12 * clamp((s.speed - 11) / 17, 0, 1);
-    const hold = clamp(s.accel / 140, 0.85, 1.2);
-    const steer = clamp(i.x, -1, 1);
-    const thr = clamp(i.y, -1, 1);
-    p.handbrake = i.fire && this.state !== 'clear';
-    const surge = p.surge > 0 ? 1 : 0;
-    const b = Math.max(p.boosting, surge * 0.6);
-    const air = p.alt > 0 && c.ramp(p.x, p.z) < 0;
-    let spd = Math.hypot(p.vx, p.vz);
-    let going = Math.atan2(p.vx, -p.vz);
-    // the throttle: coasting holds the cruise, full on the top speed, back on the brakes
-    const cruise = RACE_CRUISE * quick;
-    const extra = BOOST_TOP * p.boosting + SURGE_TOP * surge + (p.draft > 0 ? DRAFT_TOP : 0);
-    let target = cruise + (RACE_TOP * quick - cruise) * Math.max(0, thr) + extra;
-    if (thr < -0.1) target = lerp(target, RACE_BRAKE_TO, -thr);
-    if (p.wreck > 0) target = Math.min(target, RACE_CRUISE * 0.5);
-    if (p.alt <= 0 && c.off(p.x, p.z)) target *= ROUGH;
-    spd += clamp(target - spd, -RACE_DECEL * DT, RACE_ACCEL * (1 + b * 0.9) * DT);
-    // the drift: fire with the stick over, on the ground, at speed; it lasts while fire's held
-    if (!p.driftDir && p.handbrake && Math.abs(steer) > 0.25 && !air && spd > DRIFT_START && p.wreck <= 0) p.driftDir = Math.sign(steer);
-    if (p.driftDir && (!p.handbrake || spd < DRIFT_START * 0.75 || p.wreck > 0)) this.driftEnd(p);
-    const grip = air ? AIR_GRIP : 1;
-    if (p.driftDir) {
-      // round on a tight line, the stick setting how tight; the nose kicked in past the way
-      const d = p.driftDir;
-      const tight = (clamp(steer * d, -1, 1) + 1) / 2;
-      going += d * ((DRIFT_A * hold * grip) / Math.max(spd, 8)) * lerp(DRIFT_WIDE, 1, tight) * DT;
-      spd -= DRIFT_BLEED * DT;
-      p.yaw = d * 2;
-      p.hd = going + angleTo(going, p.hd) * Math.exp(-8 * DT) + d * (DRIFT_ANGLE + 0.12 * tight) * (1 - Math.exp(-8 * DT));
-    } else {
-      if (p.handbrake) spd -= HANDBRAKE * DT;
-      // the nose turns with the stick; the way swings round after it as hard as grip allows
-      p.yaw = damp(p.yaw, steer * STEER * (air ? AIR_STEER : 1), YAW_EASE, DT);
-      p.hd += p.yaw * DT;
-      if (Math.abs(steer) < 0.1) p.hd += angleTo(p.hd, going) * (1 - Math.exp(-ALIGN * DT));
-      const slip = angleTo(going, p.hd);
-      const most = ((GRIP_A * hold * lerp(1, GRIP_BOOST, b) * grip) / Math.max(spd, 8)) * DT;
-      going += Math.sign(slip) * Math.min(Math.abs(slip) * (1 - Math.exp(-GRIP_RATE * grip * DT)), most);
-      // (past what it can hold, the nose leads the way, scrubbing speed: understeer)
-      const lead = angleTo(going, p.hd);
-      if (Math.abs(lead) > SLIP_MAX) p.hd = going + Math.sign(lead) * SLIP_MAX;
-      if (!air) spd -= SCRUB * Math.max(0, Math.abs(lead) - SCRUB_FREE) * DT;
-    }
-    spd = Math.max(spd, 3);
-    p.vx = spd * Math.sin(going);
-    p.vz = -spd * Math.cos(going);
-    p.fwd = spd;
-    // the dash: a jink sideways (across the nose)
-    p.dashCd = Math.max(0, p.dashCd - DT);
-    if (p.dashCd <= 0 && p.dashes < s.dashes) {
-      p.dashes++;
-      p.dashCd = s.dashCooldown;
-    }
-    if (i.dash && p.dashes > 0 && p.dashLock <= 0) {
-      p.dashes--;
-      if (p.dashCd <= 0) p.dashCd = s.dashCooldown;
-      const side = Math.abs(steer) > 0.2 ? Math.sign(steer) : 0;
-      p.dashLock = DASH_TIME + DASH_RECOVER;
-      p.dashT = DASH_TIME;
-      p.dashX = side;
-      p.dashZ = side ? 0 : -1;
-      p.vx += Math.cos(p.hd) * JINK * side + Math.sin(p.hd) * (side ? 0 : JINK * 0.5);
-      p.vz += Math.sin(p.hd) * JINK * side - Math.cos(p.hd) * (side ? 0 : JINK * 0.5);
-      this.emit({ type: 'dash', id: p.id, x: p.x, z: p.z, dx: p.dashX, dz: p.dashZ });
-    }
-    p.dashT = Math.max(0, p.dashT - DT);
-    // the course turns under it: the nose and the momentum both turn the other way, relative to it
-    const met = c.metric(p.x, p.z);
-    const pace = -p.vz / met;
-    const turn = c.k(p.z) * pace * DT;
-    p.hd -= turn;
-    const a = p.vx;
-    const f = -p.vz;
-    p.vx = a * Math.cos(turn) - f * Math.sin(turn);
-    p.vz = -(a * Math.sin(turn) + f * Math.cos(turn));
-    p.hd = clamp(p.hd, -HD_MAX, HD_MAX);
-    // and it moves: across in world units, down the course by the metric, held inside the walls
-    const x0 = p.x;
-    p.x += p.vx * DT;
-    p.z += (p.vz / c.metric(p.x, p.z)) * DT;
-    p.pace = (z0 - p.z) / DT;
-    this.walls(p, x0, z0);
-    // into the rock face round a tunnel's mouth
-    if (c.portal(p.x, z0, p.z)) {
-      p.z = z0 + 0.5;
-      this.raceWreck(p, 0, 1);
-    }
-    this.air(p, z0, air);
-    // co-op: left at the bottom edge, towed along (the clock charged for it)
-    if (p.z > this.bottom - 2) {
-      p.z = this.bottom - 2;
-      if (this.leader() !== p) {
-        p.towed += DT;
-        this.penalty += TOW_PENALTY * DT;
-      }
-    }
-    p.z = Math.max(p.z, this.top + 4);
-    this.drift(p, steer);
-    this.threads(p, z0);
-    this.shortcut(p);
-    this.pads(p);
-  }
-
-  /**
-   * Races: up a ramp and off its lip into the air, and down again: landed square after a good bit
-   * of air, a surge. Under a barrier (not high enough to clear it), piled into it.
-   */
-  private air(p: Player, z0: number, was: boolean) {
-    const c = this.terrain.course!;
-    const landed = fly(c, p, p.fwd, DT);
-    const up = p.alt > 0 && c.ramp(p.x, p.z) < 0;
-    if (up && !was) {
-      p.airT = 0;
-      this.emit({ type: 'air', id: p.id, state: 'launch', t: 0, clean: false, x: p.x, z: p.z });
-    }
-    if (up) p.airT += DT;
-    if (landed && p.airT > AIR_MIN) {
-      const clean = Math.abs(p.slide) < 0.3 && p.wreck <= 0;
-      if (clean) {
-        p.jumps++;
-        p.surge = Math.max(p.surge, AIR_SURGE);
-        p.burn = Math.min(1, p.burn + BURN_AIR * p.airT);
-        this.score += Math.round(400 * p.airT);
-      } else p.vz *= 0.8;
-      this.emit({ type: 'air', id: p.id, state: 'land', t: p.airT, clean, x: p.x, z: p.z });
-    }
-    if (landed) p.airT = 0;
-    const b = c.barrierCrossed(z0, p.z);
-    // (smashed through it: no ramp left to clear it with, so no piling into it again)
-    if (b && p.alt < BARRIER_H && c.blocks(b, p.x) && p.inv <= 0) {
-      this.emit({ type: 'barrier', id: p.id, x: p.x, z: b.z });
-      this.raceWreck(p, 0, 1);
-      p.z = b.z - 1;
-    }
-  }
-
-  /** Races: a drift on the ground at speed charges a turbo, three tiers, quicker held tight. */
-  private drift(p: Player, steer: number) {
-    p.slide = angleTo(p.hd, Math.atan2(p.vx, -p.vz));
-    if (!p.driftDir || p.alt > 0 || p.fwd < RACE_CRUISE * 0.6) return;
-    p.driftT += DT * (0.7 + 0.6 * Math.max(0, steer * p.driftDir));
-    const tier = DRIFT_TIERS.filter((t) => p.driftT >= t).length;
-    if (tier > p.driftTier) {
-      p.driftTier = tier;
-      this.emit({ type: 'driftTier', id: p.id, tier, x: p.x, z: p.z });
-    }
-  }
-
-  /** Races: out of a drift: the turbo it charged fires. */
-  private driftEnd(p: Player) {
-    if (p.driftTier > 0 && p.wreck <= 0) {
-      p.surge = Math.max(p.surge, DRIFT_SURGE[p.driftTier - 1]);
-      p.drifts++;
-      this.score += 300 * p.driftTier;
-      this.emit({ type: 'driftBoost', id: p.id, tier: p.driftTier, x: p.x, z: p.z });
-    }
-    p.driftDir = 0;
-    p.driftT = 0;
-    p.driftTier = 0;
-  }
-
-  /** Races: through a gauntlet's gap at speed: Burn for nerve. */
-  private threads(p: Player, z0: number) {
-    const c = this.terrain.course!;
-    for (const rw of c.rows) {
-      if (rw.z > z0 || rw.z <= p.z) continue;
-      if (p.wreck > 0 || p.fwd < RACE_CRUISE) continue;
-      const m = c.x(rw.z);
-      if (!rw.gaps.some(([gx, gh]) => Math.abs(p.x - m - gx) < gh)) continue;
-      p.threads++;
-      p.burn = Math.min(1, p.burn + BURN_THREAD);
-      this.score += 300;
-      this.emit({ type: 'thread', id: p.id, x: p.x, z: p.z });
-    }
-  }
-
-  /**
-   * Races: held inside the walls. Square into one at speed is a crash; anything less is a scrape,
-   * thrown back off it a little, the nose swung along it, speed bleeding away while you grind.
-   */
-  private walls(p: Player, x0: number, z0: number) {
-    const c = this.terrain.course!;
-    const held = c.hold(x0, z0, p.x, p.z);
-    if (!held.side) {
-      p.wallT = 0;
-      // skimming one, fast and clean: Burn for nerve
-      let gap = 99;
-      for (const w of c.walls(p.z, this.wallList)) gap = Math.min(gap, Math.abs(p.x - w.x) - WALL_R);
-      p.wallNear = p.fwd > RACE_CRUISE && p.wreck <= 0 ? clamp(1 - gap / SKIM_WALL, 0, 1) : 0;
-      p.burn = Math.min(1, p.burn + BURN_WALL * p.wallNear * DT);
-      return;
-    }
-    p.wallNear = 0;
-    p.x = held.x;
-    const into = -held.side * p.vx;
-    if (into > WALL_WRECK && p.inv <= 0 && p.wreck <= 0) {
-      p.vx = held.side * into * 0.3;
-      this.raceWreck(p, held.side, 0);
-      return;
-    }
-    if (into > 0) p.vx = held.side * into * 0.25;
-    p.vz *= 1 - SCRAPE * DT;
-    p.hd += angleTo(p.hd, 0) * (1 - Math.exp(-4 * DT));
-    if (p.wallT <= 0) {
-      p.scrapes++;
-      p.driftDir = 0;
-      p.driftT = 0;
-      p.driftTier = 0;
-    }
-    if (p.wallT <= 0 || into > 6) this.emit({ type: 'wall', id: p.id, x: p.x - held.side * WALL_R, z: p.z, side: held.side, hard: clamp(into / WALL_WRECK, 0, 1) });
-    p.wallT += DT;
-  }
-
-  /** Races: into a shortcut's lane (past the track's edge, where one runs), and out of its far end. */
-  private shortcut(p: Player) {
-    const c = this.terrain.course!;
-    const sc = c.shortcutAt(p.z);
-    if (p.shortcut < 0) {
-      if (!sc) return;
-      const edge = c.x(p.z) + sc.side * c.half(p.z);
-      if ((p.x - edge) * sc.side < 0.5) return;
-      p.shortcut = sc.id;
-      this.emit({ type: 'shortcut', id: p.id, shortcut: sc.id, state: 'enter', saved: 0 });
-      return;
-    }
-    const was = c.shortcuts[p.shortcut];
-    if (sc === was) return;
-    p.shortcut = -1;
-    if (p.z > was.z1) return;
-    p.shortcuts++;
-    p.burn = Math.min(1, p.burn + 0.15);
-    this.score += 1500;
-    this.emit({ type: 'shortcut', id: p.id, shortcut: was.id, state: 'exit', saved: was.saved / Math.max(20, p.fwd) });
-  }
-
-  /** Races: into a rock or a wall: thrown off it, most of the speed gone, a hit. */
-  private raceWreck(p: Player, nx: number, nz: number) {
-    // out of it, and the momentum into it turned round (the rest kept, a little)
-    p.x += nx * 0.6;
-    p.z += nz * 0.6;
-    const into = p.vx * nx + p.vz * nz;
-    const speed = Math.hypot(p.vx, p.vz);
-    if (into < 0) {
-      p.vx -= 1.4 * into * nx;
-      p.vz -= 1.4 * into * nz;
-    }
-    // (still shaken from the last one, or barely moving: glanced off, no more)
-    if (p.inv > 0 || p.wreck > 0 || speed < WRECK_SLOW) return;
-    p.vx *= CRASH_KEEP;
-    p.vz *= CRASH_KEEP;
-    p.crashes++;
-    p.wreck = WRECK_TIME;
-    p.surge = 0;
-    p.driftDir = 0;
-    p.driftT = 0;
-    p.driftTier = 0;
-    p.burn = Math.max(0, p.burn - BURN_CRASH);
-    // spun a little by it
-    p.hd += (Math.random() < 0.5 ? -1 : 1) * 0.5;
-    this.emit({ type: 'wreck', id: p.id, x: p.x, z: p.z, nx, nz, speed });
-    this.emit({ type: 'crash', id: p.id, x: p.x, z: p.z });
-    // (and the hull: a few of these and the ship's done)
-    this.hurt(p, p.x, p.z, 'land');
-    if (p.down) return;
-    p.out = true;
-    p.inv = WRECK_TIME + BACK_SAFE;
-  }
-
-  /** Races: out of it after a wreck: stopped, spun round; then back on the track, at the middle of the way, clear of what's on it. */
-  private wrecked(p: Player) {
-    const c = this.terrain.course!;
-    if (p.wreck > 0) {
-      const k = Math.exp(-5 * DT);
-      p.vx *= k;
-      p.vz *= k;
-      p.x += p.vx * DT;
-      p.z += (p.vz / c.metric(p.x, p.z)) * DT;
-      p.fwd = Math.hypot(p.vx, p.vz);
-      p.pace = -p.vz;
-      p.hd += p.fwd * 0.12 * DT;
-      return;
-    }
-    p.out = false;
-    const sc = p.shortcut >= 0 ? c.shortcuts[p.shortcut] : undefined;
-    const il = c.islandAt(p.z);
-    let x = sc ? c.laneX(sc, p.z) : il ? c.branchX(il, Math.sign(p.x - c.x(p.z) - il.off) || 1, p.z) : c.x(p.z);
-    if (Number.isNaN(x)) x = c.x(p.z);
-    // (a row of rock just ahead: lined up with its gap)
-    const rw = c.rowAhead(p.z, 30);
-    if (rw && !sc) x = c.gapX(rw, p.x);
-    const free = (xx: number) => !this.terrain.solid(xx, p.z, 2) && Array.from(this.terrain.colliders(xx, p.z - 3, 6)).every((col) => Math.hypot(col.x - xx, col.z - p.z) > col.r + 2.5);
-    for (const d of [0, 3, -3, 6, -6, 9, -9]) {
-      if (!free(x + d)) continue;
-      x += d;
-      break;
-    }
-    p.x = x;
-    p.hd = 0;
-    p.yaw = 0;
-    p.vx = 0;
-    p.vz = -RACE_CRUISE * 0.5;
-    p.alt = 0;
-    p.vy = 0;
-    this.emit({ type: 'back', id: p.id, x: p.x, z: p.z });
-  }
-
-  /** Races: over a boost pad, a surge. */
-  private pads(p: Player) {
-    const c = this.terrain.course!;
-    const bit = 1 << p.id;
-    for (const pd of c.pads) {
-      if (p.alt > 1.5) break;
-      if (Math.abs(pd.z - p.z) > PAD_L || Math.abs(pd.x - p.x) > PAD_W + p.stats.core) continue;
-      const done = this.padDone.get(pd) ?? 0;
-      if (done & bit) continue;
-      this.padDone.set(pd, done | bit);
-      p.surge = Math.max(p.surge, PAD_TIME);
-      p.burn = Math.min(1, p.burn + 0.08);
-      this.emit({ type: 'pad', id: p.id, x: pd.x, z: pd.z });
-    }
-  }
-
-  /** On a race: the living ship furthest up the screen (whose push counts). */
-  leader() {
-    let best: Player | undefined;
-    for (const p of this.players) if (!p.down && (!best || p.z < best.z)) best = p;
-    return best;
   }
 
   /** Everything the director spawns between these is one wave (for full clears). */
@@ -1439,7 +744,7 @@ export class Level {
 
   private updatePlayer(p: Player, i: Intent, dz: number) {
     const s = p.stats;
-    if (!this.race) p.z -= dz; // carried along with the screen (a race's ships fly on their own)
+    p.z -= dz; // carried along with the screen
     if (p.down) {
       p.vx *= 0.95;
       p.vz *= 0.95;
@@ -1455,20 +760,7 @@ export class Level {
     p.ward = Math.max(0, p.ward - DT);
     p.slip = Math.max(0, p.slip - DT);
     p.dashLock = Math.max(0, p.dashLock - DT);
-    p.surge = Math.max(0, p.surge - DT);
-    p.wreck = Math.max(0, p.wreck - DT);
     p.focus = i.focus;
-    // on the grid, engines revving, waiting for the lights
-    if (this.countdown > 0) {
-      p.vx = p.vz = 0;
-      return;
-    }
-    // a race: flown, not shot (no guns, no specials, no aux)
-    if (this.race) {
-      this.racePlayer(p, i);
-      this.regenShield(p);
-      return;
-    }
 
     // movement: quick to answer, quick to stop
     let mx = i.x;
@@ -1479,10 +771,10 @@ export class Level {
       mz /= len;
     }
     // boost is a surge of the ship: much faster, up the screen unless steered, and it slides more
-    // (less grip); in a race's shortcut, the slipstream on top
-    const b = Math.max(p.boosting, p.surge > 0 ? 0.8 : 0);
+    // (less grip)
+    const b = p.boosting;
     if (Math.hypot(mx, mz) < 0.1) mz = -SURGE_PUSH * b;
-    const top = s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b) * (p.shortcut >= 0 ? SLIPSTREAM : 1);
+    const top = s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b);
     if (p.dashT > 0) {
       p.dashT -= DT;
       p.vx = p.dashX * DASH_SPEED;
@@ -1633,7 +925,11 @@ export class Level {
       if (p.cooldown[k] <= 0) {
         p.cooldown[k] = 1 / (sp.rate * rate);
         const hit = this.gunDamage(p, g);
-        for (const e of reach.hit) this.damage(e, hit.dmg, p.id, hit.crit);
+        for (const e of reach.hit) {
+          const flaw = g.flaw && marksOn(e) > 0;
+          this.damage(e, hit.dmg * (flaw ? 2 : 1), p.id, hit.crit || flaw);
+          mark(this, e, g.marks, g.markStr, p.id);
+        }
       }
     } else if (p.cooldown[k] <= 0) {
       const rate = sp.rate * (od ? 2 : 1) * thr;
@@ -1643,7 +939,7 @@ export class Level {
       const extra = g.burst && p.shotCount[k] % 4 === 0 ? 1 : 0;
       this.fire(p, g, gx, gz, dir, extra);
       // Storm Lens: every few shots, lightning too
-      if (g.storm && p.shotCount[k] % g.storm === 0) this.arc(p, gx, gz, this.gunDamage(p, g).dmg * 1.5, 3 + (p.stats.bonus.arc ? 2 : 0));
+      if (g.storm && p.shotCount[k] % g.storm === 0) this.arc(p.id, gx, gz, this.gunDamage(p, g).dmg * 1.5, 3 + (p.stats.bonus.arc ? 2 : 0));
       if (!od) p.heat[k] += sp.heat / thr;
     }
     if (p.heat[k] >= 1) {
@@ -1653,7 +949,7 @@ export class Level {
       for (let n = 0; n < g.exchange; n++) this.gainShield(p, 'exchanger');
       if (p.stats.bonus.heat === 2) {
         // Furnace: overheating throws a ring of fire
-        for (let a = 0; a < 16; a++) this.addShot(p.id, 'flame', p.x, p.z, (a / 16) * Math.PI * 2, 26, 4, 0.4, 3, 0);
+        for (let a = 0; a < 16; a++) this.addShot(p.id, 'flame', p.x, p.z, (a / 16) * Math.PI * 2, 26, 4, 0.4, 3, 0).marks = BURN;
       }
     }
   }
@@ -1694,7 +990,7 @@ export class Level {
     const hit = this.gunDamage(p, g);
     hit.dmg *= mul;
     if (sp.shot === 'arc') {
-      this.arc(p, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra);
+      this.arc(p.id, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw });
       return;
     }
     // and pulls spreads in: a focused stream instead of a fan
@@ -1704,7 +1000,13 @@ export class Level {
       const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * sp.spread * tight;
       const jitter = sp.shot === 'pellet' || sp.shot === 'flame' ? (this.rand() - 0.5) * 0.12 * tight : 0;
       const speed = sp.speed * (sp.shot === 'pellet' ? 0.85 + this.rand() * 0.3 : 1);
-      this.addShot(p.id, sp.shot, x, z, dir + off + jitter, speed, hit.dmg, sp.life, sp.pierce ?? 0, g.homing).crit = hit.crit;
+      const s = this.addShot(p.id, sp.shot, x, z, dir + off + jitter, speed, hit.dmg, sp.life, sp.pierce ?? 0, g.homing);
+      s.crit = hit.crit;
+      s.marks = g.marks;
+      s.markStr = g.markStr;
+      if (g.flaw) s.flaw = true;
+      if (g.volatile) s.volatile = true;
+      if (g.split) s.split = true;
     }
   }
 
@@ -1725,23 +1027,47 @@ export class Level {
       r,
       hit: [],
       bounce: this.players[owner]?.stats.bonus.kinetic === 2 && (kind === 'slug' || kind === 'pellet') ? 1 : 0,
+      marks: 0,
+      markStr: 1,
       dead: false,
     };
     this.shots.push(shot);
     return shot;
   }
 
-  private arc(p: Player, x: number, z: number, dmg: number, jumps: number) {
+  /** SPLITTING: a shot that's just hit goes on as two halves, angled off (they don't split again). */
+  private split(s: Shot, e: Enemy) {
+    const sp = Math.hypot(s.vx, s.vz) || 30;
+    const dir = Math.atan2(s.vx, -s.vz);
+    for (const k of [-1, 1]) {
+      const h = this.addShot(s.owner, s.kind === 'mine' || s.kind === 'flak' ? 'slug' : s.kind, s.x, s.z, dir + k * 0.42, Math.max(sp, 30), s.dmg * 0.5, Math.max(0.25, s.life * 0.5), 0, s.homing ? 0.5 : 0);
+      h.hit.push(e.id);
+      h.marks = s.marks;
+      h.markStr = s.markStr;
+      h.crit = s.crit;
+      h.flaw = s.flaw;
+      h.volatile = s.volatile;
+    }
+    this.emit({ type: 'split', x: s.x, z: s.z });
+  }
+
+  /**
+   * Lightning: from (x, z) to the nearest enemy (ahead, from a gun), then the next, and so on. It
+   * shocks what it hits unless told otherwise. `from`: it starts at this enemy (a reaction), not at
+   * a gun, and can go any way.
+   */
+  arc(owner: number, x: number, z: number, dmg: number, jumps: number, opts: { from?: Enemy; reach?: number; bits?: number; pow?: number; flaw?: boolean } = {}) {
     const points = [x, z];
-    const done: Enemy[] = [];
+    const done: Enemy[] = opts.from ? [opts.from] : [];
+    const bits = opts.bits ?? SHOCK;
     let cx = x;
     let cz = z;
     for (let j = 0; j < jumps; j++) {
       let best: Enemy | undefined;
-      let bd = (j === 0 ? 15 : 9) ** 2;
+      let bd = (opts.reach ?? (j === 0 ? 15 : 9)) ** 2;
       for (const e of this.enemies) {
-        if (e.dead || e.shielded || done.includes(e)) continue;
-        if (j === 0 && e.z > z + 2) continue; // the first jump goes forward
+        if (e.dead || e.shielded || e.t < 0 || done.includes(e)) continue;
+        if (j === 0 && !opts.from && e.z > z + 2) continue; // the first jump from a gun goes forward
         const d = (e.x - cx) ** 2 + (e.z - cz) ** 2;
         if (d < bd) {
           bd = d;
@@ -1751,11 +1077,16 @@ export class Level {
       if (!best) break;
       done.push(best);
       points.push(best.x, best.z);
-      this.damage(best, dmg * (j === 0 ? 1 : 0.8), p.id, false);
+      const flaw = !!opts.flaw && marksOn(best) > 0;
+      this.damage(best, dmg * (j === 0 ? 1 : 0.8) * (flaw ? 2 : 1), owner, flaw);
+      mark(this, best, bits, opts.pow ?? 1, owner);
       cx = best.x;
       cz = best.z;
     }
-    if (points.length === 2) points.push(x + (this.rand() - 0.5) * 4, z - 7);
+    if (points.length === 2) {
+      if (opts.from) return;
+      points.push(x + (this.rand() - 0.5) * 4, z - 7);
+    }
     this.emit({ type: 'arc', points });
   }
 
@@ -1808,7 +1139,7 @@ export class Level {
         this.emit({ type: 'explode', x: p.x, z: p.z, y: FLIGHT_Y, size: 2.5, color: 0xffa040 });
       }
     }
-    if (p.stats.bonus.arc === 2) this.arc(p, p.x, p.z, 12, 6);
+    if (p.stats.bonus.arc === 2) this.arc(p.id, p.x, p.z, 12, 6);
     // a hit clears the bullets right around you: no double hits
     for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 9) this.cancel(b);
     this.combo = 0;
@@ -1820,7 +1151,7 @@ export class Level {
   spawn(arch: Enemy['arch'], skin: EnemySkin, x: number, z: number, d: EnemyData, opts: Partial<Enemy> = {}): Enemy {
     const diff = this.spec.difficulty;
     const foe = isFoe(arch) ? FOES[arch] : undefined;
-    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * (1 + diff * 0.9) * (opts.elite ? 3 : 1);
+    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * (1 + diff * 0.9) * (opts.elite ? 3 : 1) * this.tough;
     const e: Enemy = {
       id: this.id(),
       arch,
@@ -1845,6 +1176,7 @@ export class Level {
       score: foe ? foe.score : SCORE[arch as Archetype | 'boss'],
       scrap: foe ? foe.scrap : SCRAP[arch as Archetype | 'boss'],
       drop: false,
+      mk: newMarks(),
       ...foeDefaults(),
       ...opts,
     };
@@ -1869,9 +1201,10 @@ export class Level {
 
   /**
    * `from`: where the hit came from, for shields (default: the owner's ship; null: nowhere, as for
-   * a shot, which has had its own say in collide); `s`: the shot, if it was one.
+   * a shot, which has had its own say in collide); `s`: the shot, if it was one; `dot`: a burn's
+   * tick (no blow to make a fuss of).
    */
-  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot) {
+  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false) {
     if (e.dead || e.shielded) return;
     const p = this.players[owner];
     // armour, shields, exposed after an attack (see combat.ts)
@@ -1880,21 +1213,28 @@ export class Level {
       this.emit({ type: 'guard', enemy: e.id, x: e.x, z: e.z });
       return;
     }
-    dmg *= k;
+    // cracked open: it takes more
+    dmg *= k * markTaken(e);
     e.hp -= dmg;
-    e.flash = 0.08;
+    if (!dot) e.flash = 0.08;
     foeHurt(this, e, dmg);
     if (p) p.charge = Math.min(1, p.charge + dmg * 0.0018 * p.stats.specialRate);
     const kill = e.hp <= 0;
-    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit });
+    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot });
     if (!kill) return;
+    // a VOLATILE gun's kill: its marks jump to the nearest
+    if (s?.volatile) spread(this, e, owner);
     // up close: worth the danger
-    const close = !!p && !p.down && (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < POINT_BLANK * POINT_BLANK;
+    const close = !dot && !!p && !p.down && (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < POINT_BLANK * POINT_BLANK;
     if (close) {
       p.burn = Math.min(1, p.burn + BURN_CLOSE_KILL);
       this.emit({ type: 'pointBlank', id: p.id, x: e.x, z: e.z });
       // Salvage Charges leave a mine; Hair Trigger crits run on
-      if (p.stats.salvage > 0) this.addShot(p.id, 'mine', e.x, e.z, 0, 0, p.stats.salvage, 2.5, 0, 0).tag = 'salvage';
+      if (p.stats.salvage > 0) {
+        const m = this.addShot(p.id, 'mine', e.x, e.z, 0, 0, p.stats.salvage, 2.5, 0, 0);
+        m.tag = 'salvage';
+        m.marks = CRACK;
+      }
       if (p.crit > 0) p.crit += 0.5;
     }
     this.emit({ type: 'kill', enemy: e.id, arch: e.arch, x: e.x, z: e.z, ...killHow(e, p, close, s) });
@@ -1917,16 +1257,21 @@ export class Level {
     if (e.drop) this.drop('part', e.x, e.z, 0);
     else if (this.rand() < 0.015) this.drop('repair', e.x, e.z, 1);
     // Demolition: kills explode
-    if (p?.stats.bonus.explosive === 2) this.blast(e.x, e.z, 3.5, 10, owner);
+    if (p?.stats.bonus.explosive === 2) this.blast(e.x, e.z, 3.5, 10, owner, { bits: CRACK });
     onKill(this, e, p ? owner : -1);
     if (e.boss) this.director.bossDown(e);
   }
 
-  /** Splash damage (flak, mines, Demolition). */
-  blast(x: number, z: number, r: number, dmg: number, owner: number) {
+  /** Splash damage (flak, mines, Demolition, a cook-off): leaving `bits` marks; `quiet`: the caller makes the fuss. */
+  blast(x: number, z: number, r: number, dmg: number, owner: number, opts: { bits?: number; pow?: number; quiet?: boolean } = {}) {
     const rr = r * (this.players[owner]?.stats.bonus.explosive ? 1.4 : 1);
-    this.emit({ type: 'explode', x, z, y: FLIGHT_Y, size: rr * 0.5, color: 0xffc060 });
-    for (const e of this.enemies) if (!e.dead && (e.x - x) ** 2 + (e.z - z) ** 2 < (rr + e.r) ** 2) this.damage(e, dmg, owner, false);
+    if (!opts.quiet) this.emit({ type: 'explode', x, z, y: FLIGHT_Y, size: rr * 0.5, color: 0xffc060 });
+    // everything in reach first, then the hits (a hit can set off a reaction that moves the list)
+    const caught = this.enemies.filter((e) => !e.dead && (e.x - x) ** 2 + (e.z - z) ** 2 < (rr + e.r) ** 2);
+    for (const e of caught) {
+      this.damage(e, dmg, owner, false, null);
+      if (opts.bits) mark(this, e, opts.bits, opts.pow ?? 1, owner);
+    }
   }
 
   /** Enemy fire. Angle 0 is down the screen (towards the players). */
@@ -1990,10 +1335,10 @@ export class Level {
         s.dead = true;
         if (s.kind === 'flak') {
           this.emit({ type: 'flak', x: s.x, z: s.z });
-          this.blast(s.x, s.z, 3, s.dmg * 0.6, s.owner);
+          this.blast(s.x, s.z, 3, s.dmg * 0.6, s.owner, { bits: s.marks, pow: s.markStr });
           for (let a = 0; a < 8; a++) this.addShot(s.owner, 'pellet', s.x, s.z, (a / 8) * Math.PI * 2, 30, s.dmg * 0.25, 0.25, 0, 0);
         } else if (s.kind === 'mine') {
-          this.blast(s.x, s.z, 3.5, s.dmg, s.owner);
+          this.blast(s.x, s.z, 3.5, s.dmg, s.owner, { bits: s.marks, pow: s.markStr });
           if (s.tag === 'salvage') for (let k = 0; k < 2; k++) this.drop('scrap', s.x, s.z, 1);
         }
         continue;
@@ -2233,9 +1578,7 @@ export class Level {
       }
       // the land and what stands on it: hit it, or skim it
       p.skim = 0;
-      if (this.race) {
-        if (!this.raceLand(p)) this.skimLand(p);
-      } else if (p.phase <= 0 && !this.collideLand(p)) this.skimLand(p);
+      if (p.phase <= 0 && !this.collideLand(p)) this.skimLand(p);
       // hazards
       for (const h of this.hazards) {
         if (h.t < h.warn) continue;
@@ -2261,19 +1604,7 @@ export class Level {
             this.comboT = 3;
             p.charge = Math.min(1, p.charge + 0.06);
             p.burn = Math.min(1, p.burn + BURN_RING);
-            if (this.race) p.surge = Math.max(p.surge, 0.35);
             this.emit({ type: 'pickup', id: p.id, kind: 'ring', x: k.x, z: k.z, value: v });
-            // a run of rings: every one of them threaded, a real surge at the last
-            if (this.race && k.run !== undefined) {
-              const key = k.run * 4 + p.id;
-              const n = (this.ringsRun.get(key) ?? 0) + 1;
-              this.ringsRun.set(key, n);
-              if (n === k.of) {
-                p.surge = Math.max(p.surge, PAD_TIME * 0.8);
-                p.burn = Math.min(1, p.burn + 0.2);
-                this.emit({ type: 'ringRun', id: p.id, x: k.x, z: k.z, count: n });
-              }
-            }
           }
           continue;
         }
@@ -2339,6 +1670,11 @@ export class Level {
         }
         let dmg = s.dmg * m;
         let crit = !!s.crit;
+        // Flaw Finder: the marked are open
+        if (s.flaw && marksOn(e) > 0) {
+          dmg *= 2;
+          crit = true;
+        }
         if (e.boss) {
           for (const w of e.boss.weak)
             if ((e.x + w.x - s.x) ** 2 + (e.z + w.z - s.z) ** 2 < 2.2 * 2.2) {
@@ -2347,8 +1683,10 @@ export class Level {
             }
         }
         this.damage(e, dmg, s.owner, crit, null, s);
+        if (!e.dead) mark(this, e, s.marks, s.markStr, s.owner);
+        if (s.split && !s.hit.length) this.split(s, e);
         s.hit.push(e.id);
-        if (s.kind === 'missile') this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner);
+        if (s.kind === 'missile') this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner, { bits: s.marks, pow: s.markStr });
         if (s.pierce > 0) s.pierce--;
         else {
           s.dead = true;
@@ -2366,8 +1704,9 @@ export class Level {
     const s = p.stats;
     if (p.crit > 0 && (p.crit -= DT) <= 0) this.emit({ type: 'crit', id: p.id, on: false });
     if (p.echoT > 0 && (p.echoT -= DT) <= 0 && s.special) this.special(p, s.special, s.echo);
-    // Ram Prow: everything the dash went through this frame
+    // Ram Prow: everything the dash went through this frame; Catalyst: every mark it went past
     if (p.dashT > 0 && s.mod.ram > 0) this.ramAlong(p, p.x - p.vx * DT, p.z - p.vz * DT, p.x, p.z);
+    if (p.dashT > 0 && s.mod.detonate > 0) this.catalyst(p, p.x - p.vx * DT, p.z - p.vz * DT, p.x, p.z);
     // the Void Siphon is heavy going
     if (p.auxT > 0 && s.aux === 'siphon') {
       p.x -= p.vx * DT * SIPHON_SLOW;
@@ -2587,6 +1926,7 @@ export class Level {
     const s = p.stats;
     const m = s.mod;
     p.rammed = [];
+    p.sparked = [];
     const x0 = p.x;
     const z0 = p.z;
     if (m.blink > 0) this.blink(p);
@@ -2595,7 +1935,9 @@ export class Level {
     const z1 = m.blink > 0 ? p.z : z0 + p.dashZ * DASH_SPEED * DASH_TIME;
     for (let k = 0; k < m.mines; k++) {
       const t = (k + 0.5) / m.mines;
-      this.addShot(p.id, 'mine', lerp(x0, x1, t), lerp(z0, z1, t), 0, 0, WAKE_DMG, WAKE_LIFE, 0, 0).tag = 'wake';
+      const w = this.addShot(p.id, 'mine', lerp(x0, x1, t), lerp(z0, z1, t), 0, 0, WAKE_DMG, WAKE_LIFE, 0, 0);
+      w.tag = 'wake';
+      w.marks = CRACK;
     }
     if (m.ghost > 0) this.decoy(p, 'ghost', x0, z0, GHOST_LIFE, m.ghost);
   }
@@ -2621,6 +1963,21 @@ export class Level {
     p.dashT = DT * 2;
     this.emit({ type: 'blink', id: p.id, x: x0, z: z0, x2: x, z2: z });
     if (p.stats.mod.ram > 0) this.ramAlong(p, x0, z0, x, z);
+    if (p.stats.mod.detonate > 0) this.catalyst(p, x0, z0, x, z);
+  }
+
+  /** Catalyst: the marks on everything the dash passes close to go off (twice as hard on a perfect). */
+  private catalyst(p: Player, x0: number, z0: number, x1: number, z1: number) {
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const l2 = dx * dx + dz * dz || 1;
+    for (const e of this.enemies) {
+      if (e.dead || e.shielded || e.t < 0 || !marksOn(e) || p.sparked.includes(e.id)) continue;
+      const t = clamp(((e.x - x0) * dx + (e.z - z0) * dz) / l2, 0, 1);
+      if ((x0 + dx * t - e.x) ** 2 + (z0 + dz * t - e.z) ** 2 > (e.r + CATALYST_REACH) ** 2) continue;
+      p.sparked.push(e.id);
+      detonate(this, e, p.id, p.stats.mod.detonate * (p.perfect ? 2 : 1));
+    }
   }
 
   /** Ram Prow: a hit on everything along a bit of the dash (once each a dash). */
@@ -2655,7 +2012,7 @@ export class Level {
       }
       if (d.t >= d.life) {
         d.dead = true;
-        if (d.kind === 'flare') this.blast(d.x, d.z, FLARE_R, d.power, d.owner);
+        if (d.kind === 'flare') this.blast(d.x, d.z, FLARE_R, d.power, d.owner, { bits: BURN });
       }
     }
     sweep(this.decoys);
@@ -2769,58 +2126,6 @@ export class Level {
     }
   }
 
-  /** Races: into the land (a canyon's walls) or an obstacle: a wreck. Returns whether it touched. */
-  private raceLand(p: Player): boolean {
-    const t = this.terrain;
-    if (t.solid(p.x, p.z)) {
-      const o = t.outOfRock(p.x, p.z);
-      const l = Math.hypot(o.x, o.z) || 1;
-      this.raceWreck(p, o.x / l, o.z / l);
-      return true;
-    }
-    let gap = 99;
-    for (const c of t.colliders(p.x, p.z, 3 + SHAVE)) {
-      const dx = p.x - c.x;
-      const dz = p.z - c.z;
-      const d = Math.hypot(dx, dz);
-      if (d < c.r + 0.7) {
-        p.shaveGap = 99;
-        const nx = dx / (d || 1);
-        const nz = dz / (d || 1);
-        const into = -(p.vx * nx + p.vz * nz);
-        // square into it: wrecked; a glancing blow: off it along its side, grinding
-        if (into > GLANCE) {
-          this.raceWreck(p, nx, nz);
-          return true;
-        }
-        p.x = c.x + nx * (c.r + 0.72);
-        p.z = c.z + nz * (c.r + 0.72);
-        if (into > 0) {
-          p.vx += into * nx * 1.2;
-          p.vz += into * nz * 1.2;
-        }
-        p.vx *= 1 - SCRAPE * DT;
-        p.vz *= 1 - SCRAPE * DT;
-        if (into > 6 || Math.random() < 0.2) this.emit({ type: 'wall', id: p.id, x: c.x + nx * c.r, z: c.z + nz * c.r, side: Math.sign(nx) || 1, hard: clamp(into / GLANCE, 0, 1) });
-        p.wallT = Math.max(p.wallT, DT);
-        return true;
-      }
-      gap = Math.min(gap, d - c.r - 0.7);
-    }
-    // a close shave: by within SHAVE of a rock at speed, and away clean
-    if (gap < SHAVE) p.shaveGap = Math.min(p.shaveGap, gap);
-    else if (p.shaveGap < SHAVE) {
-      p.shaveGap = 99;
-      if (p.wreck <= 0 && p.fwd > RACE_CRUISE) {
-        p.shaves++;
-        p.burn = Math.min(1, p.burn + 0.06);
-        this.score += 250;
-        this.emit({ type: 'shave', id: p.id, x: p.x, z: p.z });
-      }
-    }
-    return false;
-  }
-
   /** Into the land or an obstacle: pushed off it, and a hit. Returns whether it touched. */
   private collideLand(p: Player): boolean {
     const t = this.terrain;
@@ -2928,11 +2233,8 @@ const WAKE_LIFE = 3.5;
 const ECHO_DELAY = 1;
 const MIRROR_DMG = 8;
 const SENTRY_RANGE = 30;
-
-/** The turn (rad, -π..π) from angle `a` to angle `b`. */
-function angleTo(a: number, b: number) {
-  return Math.atan2(Math.sin(b - a), Math.cos(b - a));
-}
+/** Catalyst: how close the dash must pass a marked enemy (past its edge) to set it off. */
+const CATALYST_REACH = 3;
 
 function sweep<T extends { dead: boolean }>(xs: T[]) {
   let j = 0;

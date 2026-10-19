@@ -97,7 +97,7 @@ export class PixelRenderer {
         uHurt: { value: 0 }, // red at the edges when you're hit
         uHeat: { value: 0 }, // shimmer (lava, flares)
         uSpeed: { value: 0 }, // boosting: the edges smear back
-        uRadial: { value: 0 }, // 1: the smear runs out from the middle (a chase view), not down the screen
+        uRadial: { value: 0 }, // 1: the smear runs out from the middle (for a perspective view), not down the screen
         uPersp: { value: 0 }, // 1: a perspective camera (its depth isn't linear)
         uTime: { value: 0 },
         uFade: { value: 0 },
@@ -367,7 +367,7 @@ export class PixelRenderer {
   }
 
   /**
-   * A perspective camera (a race's chase view): nothing to snap, it moves every frame anyway. The
+   * A perspective camera: nothing to snap, it moves every frame anyway. The
    * view is widened by the margin texels so the picture is exactly what the camera framed.
    */
   private renderPerspective(scene: THREE.Scene, camera: THREE.PerspectiveCamera, x: number, y: number, w: number, h: number, px: number, overlay?: THREE.Scene) {

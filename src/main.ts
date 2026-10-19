@@ -1,5 +1,3 @@
-// (first: it patches three's shaders before any material is made)
-import './render/bend';
 import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
@@ -66,10 +64,10 @@ async function boot() {
     if (screen === 'hangar') {
       run.crew.forEach((c) =>
         c.cargo.push(
-          { id: 'scatter' },
+          { id: 'incend' },
           { id: 'amp', tier: 'legendary', trait: 'wireless', mods: [{ k: 'potent', roll: 0.8 }] },
-          { id: 'burner', tier: 'rare', mods: [{ k: 'thrust', roll: 0.6 }] },
-          { id: 'plate' },
+          { id: 'rivet', tier: 'legendary', trait: 'splitting', mods: [{ k: 'dmg', roll: 0.7 }] },
+          { id: 'catalyst' },
           { id: 'rail', tier: 'epic', mods: [{ k: 'dmg', roll: 0.95 }, { k: 'light', roll: 0.4 }] },
         ),
       );

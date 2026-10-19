@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import type { Level, Player } from '../sim/level';
-import { FLIGHT_Y, HALF_H } from '../sim/types';
+import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { frameById, partById, type PartClass } from '../game/parts';
 import { cellsOf } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
-import { DRIFT_TIERS, TIERS } from '../sim/level';
-import { bendPoint } from '../render/bend';
-import { ordinal } from '../view/track';
+import { markIcon } from './mark-icons';
+import type { MarkKind } from '../game/parts';
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -106,7 +105,6 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
  */
 export class Hud {
   private v = new THREE.Vector3();
-  private bp = { x: 0, z: 0 };
   time = 0;
   /** Device pixels, and device pixels per UI texel (to put world points on the UI). */
   dw = 1;
@@ -140,25 +138,12 @@ export class Hud {
       ctx.fillRect(x0, 16, x1 - x0, 3);
       ctx.globalAlpha = 1;
     });
-    // a race: where the rivals are along it, a tick in each one's colour
-    const c = lv.terrain.course;
-    if (c)
-      for (const r of lv.rivals) {
-        const f = clamp((HALF_H - 8 - r.z) / (HALF_H - 8 - c.finish), 0, 1);
-        ctx.fillStyle = hex(r.livery[2]);
-        ctx.fillRect(rx + Math.round(rw * f) - 1, 13, 2, 3);
-      }
     const fx = rx + Math.round(rw * clamp(lv.progress, 0, 1));
     ctx.fillStyle = INK;
     ctx.fillRect(fx - 1, 14, 3, 7);
-    const mode = { raid: 'RAID', run: 'RACE', hunt: 'HUNT', boss: 'WARDEN' }[lv.spec.mode];
+    const mode = { raid: 'RAID', hunt: 'HUNT', boss: 'WARDEN' }[lv.spec.mode];
     drawText(ctx, `${lv.spec.planet.name} · ${mode}`, rx, 6, DIM, { shadow: false });
-    if (lv.race) {
-      // the clock against par: gold while you're ahead of it
-      const t = lv.time + lv.penalty;
-      const ahead = t <= lv.parTime * clamp(lv.progress, 0.05, 1);
-      drawText(ctx, `${clock(t)} / ${clock(lv.parTime)}`, rx + rw, 6, t > lv.parTime ? RED : ahead ? GOLD : DIM, { align: 'right', shadow: false });
-    } else if (lv.spawned > 0) {
+    if (lv.spawned > 0) {
       // the hunt's tally: what's down, and what got past (a full clear pays)
       const clean = lv.missed === 0;
       drawText(ctx, `${lv.killed}/${lv.spawned}${lv.missed ? `  ${lv.missed} MISSED` : ''}`, rx + rw, 6, clean ? GOLD : DIM, { align: 'right', shadow: false });
@@ -173,7 +158,7 @@ export class Hud {
     ctx.fillRect(sx - 0 + textWidth(`${lv.scrap}`) + 3, 9, 3, 3);
     drawText(ctx, String(lv.score).padStart(7, '0'), ps[1] ? tx + 98 : tx - 4, 7, INK, { align: 'right', shadow: false });
     void align;
-    if (lv.combo > 1 && !lv.race) {
+    if (lv.combo > 1) {
       const big = lv.combo > 20;
       drawText(ctx, `${lv.combo}× CHAIN`, w / 2, 30, big ? GOLD : CYAN, { align: 'center' });
     }
@@ -235,22 +220,40 @@ export class Hud {
 
   /** A world point (on the flight plane) in UI texels. */
   private toScreen(view: LevelView, x: number, y: number, z: number) {
-    // (a race's world is drawn bent round its course: so is this)
-    const b = bendPoint(x, z, this.bp);
-    this.v.set(b.x, y, b.z).project(view.eye);
-    // (behind a chase camera it projects mirrored: flagged, so it's never drawn as if in view)
-    return { x: (((this.v.x + 1) / 2) * this.dw) / this.scale, y: (((1 - this.v.y) / 2) * this.dh) / this.scale, behind: Math.abs(this.v.z) > 1 };
+    this.v.set(x, y, z).project(view.eye);
+    return { x: (((this.v.x + 1) / 2) * this.dw) / this.scale, y: (((1 - this.v.y) / 2) * this.dh) / this.scale };
   }
 
   private field(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
     const w = VIEW.w;
     const h = VIEW.h;
     const mid = w / 2;
+    this.marks(ctx, lv, view);
     // pops
-    for (const p of view.pops) {
+    // the pops: big ones (a reaction's name) first, then the rest nudged down off them (numbers
+    // may pile on numbers), and never up under the top bar
+    const taken: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    const pops = [...view.pops].sort((a, b) => Number(!!b.big) - Number(!!a.big));
+    for (const p of pops) {
       const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
-      const a = p.t < 0.7 || Math.floor(p.t * 20) % 2 === 0;
-      if (a) drawText(ctx, p.text, s.x, s.y - 14 - p.t * 10, p.color, { align: 'center' });
+      const sc = p.big ? (p.t < 0.08 ? 3 : 2) : 1;
+      const tw = textWidth(p.text, sc);
+      const th = 8 * sc;
+      let y = p.big ? s.y - 22 - Math.min(p.t, 0.3) * 20 : s.y - 14 - p.t * 10;
+      y = Math.max(y, 34);
+      const x0 = s.x - tw / 2;
+      const x1 = s.x + tw / 2;
+      for (let moved = true, n = 0; moved && n < 6; n++) {
+        moved = false;
+        for (const r of taken)
+          if (x0 < r.x1 && x1 > r.x0 && y < r.y1 && y + th > r.y0) {
+            y = r.y1 + 1;
+            moved = true;
+          }
+      }
+      if (p.big) taken.push({ x0, x1, y0: y, y1: y + th });
+      const a = p.big ? p.t < 1.3 || Math.floor(p.t * 20) % 2 === 0 : p.t < 0.7 || Math.floor(p.t * 20) % 2 === 0;
+      if (a) drawText(ctx, p.text, s.x, y, p.color, { scale: sc, align: 'center' });
     }
     for (const p of lv.players) {
       const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
@@ -272,8 +275,7 @@ export class Hud {
     }
     // the biome coming in: big, low, and gone again
     const b = view.biomeBanner;
-    // (not over a race's lights)
-    if (b && b.t < 4.5 && !(lv.race && lv.time < 1 && b.t > lv.time)) {
+    if (b && b.t < 4.5) {
       const fade = Math.min(1, b.t * 2.5) * (b.t > 3.6 ? Math.max(0, 1 - (b.t - 3.6) * 1.2) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.2);
@@ -300,193 +302,56 @@ export class Hud {
       ctx.fillStyle = DARK;
       for (const f of [1 / 3, 2 / 3]) ctx.fillRect(bx + 4 + Math.round((bw - 8) * f), 41, 1, 3);
     }
-    if (lv.race && view.track) this.race(ctx, lv, view);
-    if (lv.state === 'clear' && lv.ending > 0.4 && lv.race) {
-      // over the line: the place, big, and what it means
-      const t = lv.ending;
-      const col = lv.place === 1 ? GOLD : lv.place <= 3 ? INK : DIM;
-      const pop = t < 0.9 ? 1 + Math.max(0, 0.25 - (t - 0.4)) * 2 : 1;
-      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, ordinal(lv.place), mid, h * 0.32, col, { scale: Math.round(5 * pop), align: 'center' });
-      if (t > 0.9) drawText(ctx, lv.place === 1 ? 'VICTORY' : lv.place <= 3 ? 'ON THE PODIUM' : 'OFF THE PACE', mid, h * 0.32 + 46, col, { scale: 2, align: 'center' });
-    } else if (lv.state === 'clear' && lv.ending > 0.4) {
+    if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
       if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, lv.spec.mode === 'boss' ? 'WARDEN DOWN' : 'CLEAR', mid, h * 0.4, GOLD, { scale: 4, align: 'center' });
     }
-    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, lv.race ? 'WRECKED' : 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
   }
 
-  /**
-   * A race's HUD: the lights, your place (big, jumping when it changes), a speedometer, the
-   * rivals named over their ships and pointed to when they're off the screen, and the big words.
-   */
-  private race(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
-    const tv = view.track!;
-    const w = VIEW.w;
-    const h = VIEW.h;
-    const mid = w / 2;
-    // the lights: three reds, then all green on GO
-    if (lv.countdown > 0 || lv.time < 0.8) {
-      const n = lv.countdown > 0 ? 3 - Math.ceil(lv.countdown) + 1 : 4;
-      const go = lv.countdown <= 0;
-      const y = Math.round(h * 0.2);
-      plate(ctx, mid - 52, y - 6, 104, 30, 0.75);
-      for (let i = 0; i < 3; i++) {
-        const lit = go || i < n;
-        ctx.fillStyle = lit ? (go ? GREEN : RED) : '#2a2236';
-        ctx.fillRect(mid - 40 + i * 30, y, 20, 18);
-        if (lit) {
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fillRect(mid - 40 + i * 30, y, 20, 3);
-        }
-      }
-      const word = go ? 'GO!' : String(Math.ceil(lv.countdown));
-      const k = go ? lv.time : 1 - (lv.countdown % 1);
-      drawText(ctx, word, mid, y + 36, go ? GREEN : INK, { scale: k < 0.15 ? 5 : 4, align: 'center' });
-      if (!go) {
-        drawText(ctx, 'BOOST ON GO FOR A PERFECT START', mid, y + 76, DIM, { align: 'center' });
-        drawText(ctx, 'STEER LEFT AND RIGHT  -  UP: THROTTLE  -  DOWN: BRAKE', mid, y + 92, DIM, { align: 'center' });
-        drawText(ctx, 'HOLD FIRE AND STEER INTO A BEND TO DRIFT IT TIGHT: LET GO FOR A TURBO', mid, y + 104, DIM, { align: 'center' });
-        drawText(ctx, 'BOOST REFILLS ON ITS OWN, FASTER FLYING CLOSE: ROCKS, GAPS, WAKES', mid, y + 116, DIM, { align: 'center' });
-      }
-    }
-    // your place
-    const best = lv.living().reduce<Player | undefined>((a, p) => (!a || p.z < a.z ? p : a), undefined);
-    if (best && lv.state !== 'clear') {
-      const place = 1 + lv.rivals.filter((r) => r.done !== null || r.z < best.z).length;
-      const jump = tv.placeT < 0.35 ? 1 : 0;
-      const col = tv.placeT < 0.6 ? (tv.placeUp ? GOLD : RED) : place === 1 ? GOLD : INK;
-      const x = lv.players.length > 1 ? mid - 150 : 8;
-      plate(ctx, x - 2, 28, 64, 30);
-      drawText(ctx, ordinal(place), x + 2, 31 - jump * 2, col, { scale: 2 + jump, shadow: false });
-      drawText(ctx, `/${lv.rivals.length + 1}`, x + 50, 44, DIM, { shadow: false });
-      this.paceNote(ctx, lv, best);
-    }
-    // a drift charging: three pips under the ship, filling in the turbo's colour
-    for (const p of lv.players) {
-      if (p.down || p.driftT <= 0) continue;
-      const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
-      const cols = ['#6ab8ff', '#ffa040', '#d070ff'];
-      for (let k = 0; k < 3; k++) {
-        const from = k === 0 ? 0 : DRIFT_TIERS[k - 1];
-        const fill = clamp((p.driftT - from) / (DRIFT_TIERS[k] - from), 0, 1);
-        const x = Math.round(s.x - 17 + k * 12);
-        const y = Math.round(s.y + 14);
-        ctx.fillStyle = 'rgba(14,10,22,0.7)';
-        ctx.fillRect(x - 1, y - 1, 12, 5);
-        ctx.fillStyle = fill >= 1 ? (Math.floor(this.time * 14) % 2 ? '#ffffff' : cols[k]) : cols[k];
-        ctx.fillRect(x, y, Math.round(10 * fill), 3);
-      }
-    }
-    // the speedometer: km/h and a bar that runs through the tiers' colours
-    const fwd = best?.fwd ?? 0;
-    const kmh = Math.round(fwd * 18);
-    const sw = 110;
-    const sx = w - sw - 8;
-    const sy = h - 30;
-    plate(ctx, sx - 4, sy - 4, sw + 8, 28);
-    const tierCol = lv.tier >= 3 ? GOLD : lv.tier >= 2 ? '#9ae8ff' : lv.tier >= 1 ? INK : DIM;
-    drawText(ctx, String(kmh).padStart(4, ' '), sx + 2, sy - 1, tierCol, { scale: 2, shadow: false });
-    drawText(ctx, 'KM/H', sx + 70, sy + 4, DIM, { shadow: false });
-    // the boost tank over it: what boosting spends, refilling on its own and quicker for flying close
-    if (best) {
-      const by = sy - 17;
-      const low = best.burn < 0.15;
-      plate(ctx, sx - 4, by - 3, sw + 8, 12);
-      drawText(ctx, 'BOOST', sx, by - 1, low ? '#a04a3a' : '#ffb04a', { shadow: false });
-      const col = best.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : best.dry || low ? '#a04a3a' : '#ff8a3a';
-      bar(ctx, sx + 40, by + 1, sw - 40, 4, best.burn, col, 'rgba(60,48,80,0.6)');
-    }
-    const segs = 22;
-    const max = TIERS[2] + 14;
-    for (let i = 0; i < segs; i++) {
-      const v = ((i + 1) / segs) * max;
-      const on = fwd >= v - max / segs / 2;
-      ctx.fillStyle = !on ? '#2a2236' : v >= TIERS[2] ? GOLD : v >= TIERS[1] ? '#9ae8ff' : v >= TIERS[0] ? INK : '#8a8098';
-      ctx.fillRect(sx + i * 5, sy + 16, 4, 3);
-    }
-    // the rivals: names over the ones in view, arrows at the edge for the ones ahead or close behind
-    // (labels at the edges kept from piling on top of each other)
-    const used: number[] = [];
-    const ahead: [number, number][] = [];
-    const room = (x: number) => {
-      let ax = clamp(x, 20, w - 20);
-      for (let k = 0; k < 4 && used.some((u) => Math.abs(u - ax) < 34); k++) ax += ax > w / 2 ? -34 : 34;
-      used.push(ax);
-      return ax;
-    };
-    for (const r of lv.rivals) {
-      const s = this.toScreen(view, r.x, FLIGHT_Y, r.z);
-      const col = hex(r.livery[2]);
-      const gap = best ? best.z - r.z : 0;
-      // (the course runs off sideways too: off any edge, it's ahead or behind)
-      if (!s.behind && s.y > 14 && s.y < h - 4 && s.x > 8 && s.x < w - 8) {
-        drawText(ctx, r.spin > 0 ? `${r.name} !` : r.name, s.x, s.y - 22, col, { align: 'center' });
-      } else if (gap > 0 && r.done === null) {
-        // ahead, off the top: a marker in a row under the pace note, kept clear of each other
-        const label = gap < 150 ? `${r.name} ${Math.round(gap)}M` : `${Math.round(gap)}M`;
-        const tw = textWidth(label);
-        let ax = clamp(s.x, 96 + tw / 2, w - 96 - tw / 2);
-        for (let k = 0; k < 6 && ahead.some(([u, uw]) => Math.abs(u - ax) < (uw + tw) / 2 + 6); k++) ax += ax > mid ? -(tw / 2 + 10) : tw / 2 + 10;
-        ahead.push([ax, tw]);
-        const ay = 62;
-        ctx.fillStyle = col;
-        ctx.fillRect(Math.round(ax) - 3, ay, 7, 2);
-        ctx.fillRect(Math.round(ax) - 2, ay - 1, 5, 1);
-        ctx.fillRect(Math.round(ax) - 1, ay - 2, 3, 1);
-        drawText(ctx, label, ax, ay + 4, col, { align: 'center' });
-      } else if (gap <= 0 && gap > -60) {
-        // (behind the camera: which side of you it's on, roughly)
-        const ax = room(s.behind && best ? mid + clamp((r.x - best.x) * 12, -mid + 30, mid - 30) : s.x);
-        ctx.fillStyle = col;
-        ctx.fillRect(Math.round(ax) - 3, h - 6, 7, 2);
-        drawText(ctx, `${Math.round(-gap)}M`, ax, h - 16, col, { align: 'center' });
-      }
-    }
-    // the big words
-    const b = tv.banner;
-    if (b) {
-      const a = b.t < 1.6 || Math.floor(b.t * 12) % 2 === 0;
-      if (a) {
-        const y = Math.round(h * 0.36);
-        drawText(ctx, b.text, mid, y, b.color, { scale: b.t < 0.12 ? 4 : 3, align: 'center' });
-        drawText(ctx, b.sub, mid, y + 30, '#d8cce8', { align: 'center' });
-      }
-    }
-  }
+  /** How long each enemy has carried each mark (for the pop-in). */
+  private markAge = new Map<string, number>();
 
   /**
-   * The co-driver's call: the next turn, which way and how sharp, and how far off, in a box at the
-   * top; flashing as it closes. (A hairpin is the tightest; a fast one barely needs a lift.)
+   * What each marked enemy carries, under it: a flame, a bolt, a cracked diamond. A new one pops in
+   * at double size; one running out blinks; the flame doubles up as the burn stacks.
    */
-  private paceNote(ctx: CanvasRenderingContext2D, lv: Level, p: Player) {
-    const c = lv.terrain.course;
-    if (!c || lv.countdown > 0) return;
-    const t = c.turns.find((u) => u.z1 < p.z - 4 && u.z0 < p.z + 30 && p.z - u.z0 < 170);
-    if (!t) return;
-    const dist = Math.max(0, Math.round(p.z - t.z0));
-    const word = t.kind === 'hairpin' ? 'HAIRPIN' : t.k >= 1 / 105 ? 'SHARP' : t.k >= 1 / 125 ? 'MEDIUM' : 'FAST';
-    const text = t.kind === 'chicane' ? `CHICANE ${t.dir > 0 ? 'RIGHT' : 'LEFT'}` : `${word} ${t.dir > 0 ? 'RIGHT' : 'LEFT'}`;
-    const col = word === 'HAIRPIN' || word === 'SHARP' ? RED : word === 'MEDIUM' ? GOLD : INK;
-    const mid = VIEW.w / 2;
-    const flash = dist < 50 && dist > 0 && Math.floor(this.time * 8) % 2 === 0;
-    plate(ctx, mid - 70, 26, 140, 26, 0.7);
-    // the arrow: a bent stem and a head, the way it goes
-    const ax = mid - 56;
-    const d = t.dir;
-    ctx.fillStyle = flash ? '#ffffff' : col;
-    ctx.fillRect(ax + 6, 36, 3, 12);
-    ctx.fillRect(d > 0 ? ax + 6 : ax, 34, 9, 3);
-    ctx.fillRect(d > 0 ? ax + 14 : ax - 3, 32, 2, 7);
-    ctx.fillRect(d > 0 ? ax + 16 : ax - 5, 34, 2, 3);
-    drawText(ctx, text, mid + 6, 30, flash ? '#ffffff' : col, { align: 'center', shadow: false });
-    drawText(ctx, dist > 0 ? `${dist}M` : 'NOW', mid + 6, 41, DIM, { align: 'center', shadow: false });
-    // a shortcut opening off this turn: say which side, in its colour
-    const sc = c.shortcuts.find((s) => s.z0 < p.z + 2 && p.z - s.z0 < 140);
-    if (sc) {
-      const on = Math.floor(this.time * 6) % 2 === 0 || p.z - sc.z0 > 40;
-      plate(ctx, mid - 70, 54, 140, 13, 0.6);
-      drawText(ctx, `SHORTCUT ${sc.side > 0 ? 'RIGHT' : 'LEFT'} ${sc.side > 0 ? '>>' : '<<'}`, mid, 56, on ? '#8affe0' : '#ffffff', { align: 'center', shadow: false });
+  private marks(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const live = new Set<string>();
+    for (const e of lv.enemies) {
+      if (e.dead || e.t < 0 || e.state === 'hidden') continue;
+      const m = e.mk;
+      const on: [MarkKind, number][] = [];
+      if (m.burn > 0) on.push(['burn', m.burn]);
+      if (m.shock > 0) on.push(['shock', m.shock]);
+      if (m.crack > 0) on.push(['crack', m.crack]);
+      if (!on.length) continue;
+      // under it, by its health bar: clear of the numbers rising off it
+      const s = this.toScreen(view, e.x, FLIGHT_Y, e.z + e.r + 1.3);
+      const step = 12;
+      on.forEach(([kind, left], i) => {
+        const key = `${e.id}:${kind}`;
+        live.add(key);
+        const age = (this.markAge.get(key) ?? 0) + 1 / 60;
+        this.markAge.set(key, age);
+        if (left < 0.6 && Math.floor(this.time * 12) % 2 === 0) return;
+        const big = age < 0.12;
+        const px = big ? 2 : 1;
+        const cx = Math.round(s.x + (i - (on.length - 1) / 2) * step);
+        const x = cx - Math.round((9 * px) / 2);
+        const y = Math.round(s.y + 5 - (big ? 4 : 0));
+        markIcon(ctx, kind, x, y, px);
+        // the burn's stacks: a pip for each past the first
+        if (kind === 'burn' && !big)
+          for (let k = 1; k < m.stacks; k++) {
+            ctx.fillStyle = '#120c18';
+            ctx.fillRect(x + 1 + (k - 1) * 4, y + 10, 4, 3);
+            ctx.fillStyle = '#ffd890';
+            ctx.fillRect(x + 2 + (k - 1) * 4, y + 11, 2, 1);
+          }
+      });
     }
+    for (const k of [...this.markAge.keys()]) if (!live.has(k)) this.markAge.delete(k);
   }
 
   private pause(ctx: CanvasRenderingContext2D) {
@@ -498,10 +363,4 @@ export class Hud {
     drawText(ctx, 'START / ESC: RESUME', mid, y + 40, DIM, { align: 'center' });
     drawText(ctx, 'BACK / Q: ABANDON RUN', mid, y + 54, DIM, { align: 'center' });
   }
-}
-
-/** m:ss */
-function clock(t: number) {
-  const s = Math.max(0, Math.floor(t));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

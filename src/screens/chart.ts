@@ -31,7 +31,6 @@ const MUTED = '#a89cb8';
 export const KIND: Record<NodeKind, { label: string; icon: string; color: string; text: string }> = {
   start: { label: 'JUMP POINT', icon: 'start', color: '#8a8098', text: 'Where you came in.' },
   raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
-  run: { label: 'RACE', icon: 'run', color: CYAN, text: 'A race against three rivals across open country, gate to gate. Drift the corners; finish first for the purse.' },
   hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
   salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
@@ -43,7 +42,6 @@ export const KIND: Record<NodeKind, { label: string; icon: string; color: string
 const ICONS: Record<string, string[]> = {
   start: ['0000000', '0000000', '0011100', '0011100', '0011100', '0000000', '0000000'],
   raid: ['1000001', '0100010', '0010100', '0001000', '0010100', '0110110', '1100011'],
-  run: ['1001000', '0100100', '0010010', '0001001', '0010010', '0100100', '1001000'],
   hunt: ['0111110', '1111111', '1001001', '1111111', '0110110', '0101010', '0000000'],
   salvage: ['1111111', '1000001', '1111111', '1010101', '1001001', '1010101', '1111111'],
   dock: ['0110110', '1111111', '1111111', '0111110', '0011100', '0001000', '0000000'],
@@ -409,7 +407,7 @@ export class ChartScreen implements Screen {
 
   /** Sites with a fight get a 3D picture; the rest are painted. */
   private previewOf(n: ChartNode): EncounterPreview | null {
-    if (n.kind !== 'raid' && n.kind !== 'run' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
+    if (n.kind !== 'raid' && n.kind !== 'hunt' && n.kind !== 'gate') return null;
     let p = this.previews.get(n.id);
     if (!p) {
       p = new EncounterPreview(this.run, n, VIG_W, VIG_H);
@@ -688,7 +686,7 @@ export class ChartScreen implements Screen {
     if (this.anim) return;
     const y = H - 9;
     let x = 12;
-    for (const k of ['raid', 'run', 'hunt', 'salvage', 'dock', 'event'] as NodeKind[]) {
+    for (const k of ['raid', 'hunt', 'salvage', 'dock', 'event'] as NodeKind[]) {
       const look = KIND[k];
       chamfer(ctx, x + 5, y, 6, DARK);
       chamfer(ctx, x + 5, y, 5, look.color);
@@ -935,7 +933,7 @@ export class ChartScreen implements Screen {
     // what it pays
     const d = run.danger(n);
     const rw = REWARD[n.reward];
-    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'run' || n.kind === 'gate') {
+    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'gate') {
       const rich = d >= 3 || n.kind === 'hunt' || n.kind === 'gate';
       row('LOOT', (x0) => {
         let lx = x0;
@@ -976,7 +974,7 @@ export class ChartScreen implements Screen {
     // what it's like, in the room that's left
     const desc = wrap(unknown ? KIND.event.text : k.text, iw);
     if (n.kind === 'gate') desc.push(...wrap(`${planet!.boss.name}: ${planet!.boss.title}.`, iw));
-    else if (planet && (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'run')) {
+    else if (planet && (n.kind === 'raid' || n.kind === 'hunt')) {
       const names = planet.enemies.slice(0, 3).map((e) => e.name);
       desc.push(...wrap(`EXPECT: ${names.join(', ')}.`, iw));
     }

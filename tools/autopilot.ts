@@ -6,12 +6,12 @@
  * ?planet=<id>&mode=<mode>&seed=<n> in the browser (add &autopilot to watch the pilot do it).
  *
  *   just autopilot                                every planet × mode, 3 seeds each
- *   just autopilot --planet orutal --mode run --seeds 20
+ *   just autopilot --planet orutal --mode hunt --seeds 20
  *   just autopilot --planet kessra --mode boss --seed 4 --verbose
  *   just autopilot --coop                         two ships
  *   just autopilot --frame mule --difficulty 1.2  a later sector
  *   just autopilot --loadout strong               a well-built ship instead of the starter
- *   just autopilot --loadout parry                an archetype: parry, speed, assassin, turret (each picks its frame)
+ *   just autopilot --loadout parry                an archetype: parry, speed, assassin, turret, alchemist (each picks its frame)
  *   just autopilot --noboost                      a pilot that never boosts (is it the layout, or the speed?)
  *
  * Runs are shared out over every core (--cores to say how many). Exits non-zero if any run fails.
@@ -48,29 +48,19 @@ interface Result extends Job {
   score: number;
   grazes: number;
   perfects: number;
+  /** Reactions set off (marks meeting). */
+  reactions: number;
   /** Bullets parried, and how often the aux went off. */
   parries: number;
   aux: number;
   /** Share of the time spent boosting, and seconds skimming. */
   boost: number;
   skim: number;
-  /** Races: shortcuts made / there were. Fights: killed share, full clear, waves wiped, bounties claimed / seen. */
-  shortcuts: string;
-  /** Races: where it finished, rivals passed, takedowns, average pace, pads taken / there were, wrecks, wall scrapes, drift turbos, close shaves. */
-  place: number;
-  passes: number;
-  takedowns: number;
-  pace: number;
-  pads: string;
-  wrecks: number;
-  scrapes: number;
-  drifts: number;
-  shaves: number;
+  /** Killed share, full clear, waves wiped, bounties claimed / seen. */
   killShare: number;
   fullClear: boolean;
   waves: string;
   bounties: string;
-  par: number;
   rank: string;
   bonus: number;
   hull: string;
@@ -104,6 +94,13 @@ const LOADOUTS: Record<string, (frame: string) => Build> = {
       ['rivet', 0, 0], ['rivet', 2, 0], ['rivet', 4, 0], ['conduit', 0, 1], ['conduit', 2, 1], ['conduit', 4, 1],
       ['conduit', 0, 2], ['amp', 1, 2], ['conduit', 2, 2], ['drone', 3, 2], ['conduit', 4, 2], ['reactor', 1, 3], ['sentry', 3, 3],
     ]),
+  // marks and reactions: every gun given a second mark so it reacts on its own (an arc coil that
+  // cracks, a seeker pod that burns), a Flaw Finder on the torch, a Catalyst to set the rest off
+  alchemist: () =>
+    ship('lattice', [
+      ['torch', 0, 0], ['arc', 2, 0], ['seeker', 4, 0], ['flaw', 0, 1], ['breach', 2, 1], ['incend', 4, 1],
+      ['reactor', 0, 2], ['conduit', 1, 2], ['catalyst', 2, 2], ['conduit', 3, 2], ['reactor', 4, 2], ['thruster', 1, 3], ['thruster', 3, 3],
+    ]),
   // a sensible mid-run ship: two forward guns with an amp, armour, engines at the back
   strong: () => ({
     frame: 'mule',
@@ -130,20 +127,11 @@ function fly(job: Job): Result {
   const lv = new Level(spec, builds);
   const pilots = lv.players.map(() => newPilot({ noBoost: job.noboost }));
   const log: string[] = [];
-  let wrecks = 0;
-  let travelled = 0;
   const limit = 60 * 60 * 6;
   for (let f = 0; f < limit; f++) {
     const intents = lv.players.map((p, i) => pilot(lv, p, pilots[i]));
     lv.step(intents);
-    travelled += lv.speedNow / 60;
-    if (job.verbose && lv.race && f % 120 === 0) {
-      const p = lv.players[0];
-      const c = lv.terrain.course!;
-      log.push(`    ${(f / 60).toFixed(0)}s  x ${p.x.toFixed(1)} z ${p.z.toFixed(0)} mid ${c.x(p.z).toFixed(1)} half ${c.half(p.z).toFixed(1)} hd ${p.hd.toFixed(2)} fwd ${p.fwd.toFixed(0)} vx ${p.vx.toFixed(1)} wall ${p.wallT.toFixed(1)} k ${(c.k(p.z) * 95).toFixed(2)}`);
-    }
     for (const e of lv.events) {
-      if (e.type === 'wreck') wrecks++;
       if (!job.verbose) continue;
       const at = `${lv.time.toFixed(1)}s ${Math.round(lv.progress * 100)}%`;
       const biome = lv.terrain.biome(lv.scroll).id;
@@ -154,19 +142,12 @@ function fly(job: Job): Result {
       if (e.type === 'bossWarning') log.push(`${at} boss: ${e.name}`);
       if (e.type === 'bossPhase') log.push(`${at} boss phase ${e.phase + 1}`);
       if (e.type === 'biome') log.push(`${at} biome: ${spec.biomes[e.index]?.name}`);
+      if (e.type === 'reaction') log.push(`${at} ${e.kind.toUpperCase()}`);
+      if (e.type === 'detonate') log.push(`${at} DETONATE`);
       if (e.type === 'perfect') log.push(`${at} P${e.id + 1} PERFECT dash (${e.absorbed} absorbed)`);
-      if (e.type === 'shortcut') log.push(`${at} P${e.id + 1} shortcut ${e.shortcut} ${e.state}${e.state === 'exit' ? ` (${e.saved.toFixed(1)}s)` : ''}`);
       if (e.type === 'waveClear') log.push(`${at} wave ${e.wave} wiped out +${e.bonus}`);
       if (e.type === 'bounty' && e.state !== 'appear') log.push(`${at} bounty ${e.state} (${e.reward})`);
       if (e.type === 'tally') log.push(`${at} killed ${e.killed}/${e.spawned}, missed ${e.missed}, waves ${e.cleared}/${e.waves}${e.full ? ' FULL CLEAR' : ''}: rank ${e.rank} +${e.bonus}`);
-      if (e.type === 'wreck') log.push(`${at} [${biome}] P${e.id + 1} WRECKED at ${e.speed.toFixed(0)} (x ${e.x.toFixed(1)}, z ${e.z.toFixed(0)}, line ${lv.terrain.course?.x(e.z).toFixed(1)}, half ${lv.terrain.course?.half(e.z).toFixed(1)}, k 1/${(1 / Math.abs(lv.terrain.course?.k(e.z) || 1e-9)).toFixed(0)}, ${lv.terrain.course?.sections.find((s) => s.z0 >= e.z && s.z1 < e.z)?.kind}, drift ${lv.players[e.id].driftDir}, solid ${lv.terrain.solid(e.x, e.z, 1)})`);
-      if (e.type === 'shortcut' && e.state !== 'enter') log.push(`${at} [${biome}] P${e.id + 1} shortcut ${e.shortcut} ${e.state} (${e.saved.toFixed(1)}s)`);
-      if (e.type === 'driftBoost') log.push(`${at} P${e.id + 1} drift turbo ${e.tier}`);
-      if (e.type === 'takedown') log.push(`${at} P${e.id + 1} TAKEDOWN ${lv.rivals[e.rival].name}`);
-      if (e.type === 'pass') log.push(`${at} P${e.id + 1} passed ${lv.rivals[e.rival].name}: P${e.place}`);
-      if (e.type === 'passed') log.push(`${at} ${lv.rivals[e.rival].name} passed P${e.id + 1}: P${e.place}`);
-      if (e.type === 'launch') log.push(`${at} P${e.id + 1} launch ${e.perfect ? 'PERFECT' : 'flooded'}`);
-      if (e.type === 'par') log.push(`${at} ${e.time.toFixed(1)}s against par ${e.par}s: rank ${e.rank}, +${e.bonus} scrap`);
     }
     lv.events.length = 0;
     if (lv.state === 'clear' || lv.state === 'failed') break;
@@ -186,24 +167,14 @@ function fly(job: Job): Result {
     grazes: lv.players.reduce((s, p) => s + p.grazes, 0),
     perfects: lv.players.reduce((s, p) => s + p.perfects, 0),
     parries: lv.players.reduce((s, p) => s + p.parries, 0),
+    reactions: lv.reactions,
     aux: lv.players.reduce((s, p) => s + p.auxUses, 0),
     boost: lv.players.reduce((s, p) => s + p.boostTime, 0) / lv.players.length / Math.max(1, lv.time),
     skim: lv.players.reduce((s, p) => s + p.skimTime, 0),
-    shortcuts: `${lv.players.reduce((s, p) => s + p.shortcuts, 0)}/${lv.terrain.shortcuts.length}`,
-    place: lv.place,
-    passes: lv.players.reduce((s, p) => s + p.passes, 0),
-    takedowns: lv.players.reduce((s, p) => s + p.takedowns, 0),
-    pace: travelled / Math.max(1, lv.time),
-    pads: `${[...lv.padDone.values()].filter((v) => v).length}/${lv.terrain.course?.pads.length ?? 0}`,
-    wrecks,
-    scrapes: lv.players.reduce((s, p) => s + p.scrapes, 0),
-    drifts: lv.players.reduce((s, p) => s + p.drifts, 0),
-    shaves: lv.players.reduce((s, p) => s + p.shaves, 0),
     killShare: lv.killed / Math.max(1, lv.killed + lv.missed),
     fullClear: lv.fullClear,
     waves: `${lv.waves.filter((w) => w.missed === 0 && w.killed === w.total).length}/${lv.waves.length}`,
     bounties: `${lv.bounties}/${lv.bounties + lv.bountiesLost}`,
-    par: lv.parTime,
     rank: lv.rank ?? '-',
     bonus: lv.parBonus,
     hull: lv.players.map((p) => `${p.hp}/${p.stats.hp}`).join(' '),
@@ -232,7 +203,7 @@ if (!isMainThread) {
 } else if (workerData === null || workerData === undefined) {
   const args = parse(process.argv.slice(2));
   const planets = args.planet ? [args.planet] : PLANETS.map((p) => p.id);
-  const modes = (args.mode ? [args.mode] : ['raid', 'run', 'hunt', 'boss']) as Mode[];
+  const modes = (args.mode ? [args.mode] : ['raid', 'hunt', 'boss']) as Mode[];
   const seeds = args.seed ? [Number(args.seed)] : Array.from({ length: Number(args.seeds ?? 3) }, (_, i) => i + 1);
   const jobs: Job[] = [];
   for (const planet of planets)
@@ -264,8 +235,8 @@ if (!isMainThread) {
         console.log(
           `${mark} ${r.planet.padEnd(9)} ${r.mode.padEnd(5)} seed ${String(r.seed).padEnd(3)} ${r.time.toFixed(0).padStart(4)}s  ` +
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
-            `kills ${r.kills}  grazes ${r.grazes}  perfects ${r.perfects}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
-            (r.mode === 'run' ? `P${r.place || '-'}  pace ${r.pace.toFixed(1)}  passes ${r.passes}  takedowns ${r.takedowns}  pads ${r.pads}  wrecks ${r.wrecks}  scrapes ${r.scrapes}  shaves ${r.shaves}  cuts ${r.shortcuts}  drifts ${r.drifts}  par ${r.par}s` : `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}`) +
+            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
+            `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}`,
         );
         for (const l of r.log) console.log('    ' + l);
@@ -286,12 +257,10 @@ if (!isMainThread) {
       `perfects ${(results.reduce((s, r) => s + r.perfects, 0) / results.length).toFixed(1)}, ` +
       `aux ${(results.reduce((s, r) => s + r.aux, 0) / results.length).toFixed(1)} (parried ${(results.reduce((s, r) => s + r.parries, 0) / results.length).toFixed(1)}), ` +
       `boost ${Math.round((results.reduce((s, r) => s + r.boost, 0) / results.length) * 100)}%, ` +
-      `full clears ${results.filter((r) => r.fullClear).length}/${results.filter((r) => r.mode !== 'run').length}, ` +
+      `full clears ${results.filter((r) => r.fullClear).length}/${results.length}, ` +
       `killed ${Math.round((results.reduce((s, r) => s + r.killShare, 0) / results.length) * 100)}%, ` +
-      `shortcuts ${results.reduce((s, r) => s + Number(r.shortcuts.split('/')[0]), 0)}/${results.reduce((s, r) => s + Number(r.shortcuts.split('/')[1]), 0)}, ` +
       `bounties ${results.reduce((s, r) => s + Number(r.bounties.split('/')[0]), 0)}/${results.reduce((s, r) => s + Number(r.bounties.split('/')[1]), 0)}, ` +
       `scrap ${(results.reduce((s, r) => s + r.scrap, 0) / results.length).toFixed(0)}. ` +
-      (results.some((r) => r.mode === 'run') ? `Places ${[1, 2, 3, 4, 0].map((k) => `P${k || '-'} ${results.filter((r) => r.mode === 'run' && r.place === k).length}`).join(' ')}, pace ${(results.filter((r) => r.mode === 'run').reduce((s, r) => s + r.pace, 0) / Math.max(1, results.filter((r) => r.mode === 'run').length)).toFixed(1)}. ` : '') +
       `Ranks ${['S', 'A', 'B', 'C', '-'].map((k) => `${k} ${results.filter((r) => r.rank === k).length}`).join(' ')}. ` +
       `What hit: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`,
   );

@@ -143,6 +143,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_breach": {
+  "colliders": [],
+  "kind": "part_breach",
+  "max": [
+   0.33,
+   0.37,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_burner": {
   "colliders": [],
   "kind": "part_burner",
@@ -171,6 +187,22 @@
    -0.35,
    0.0,
    -0.35
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_catalyst": {
+  "colliders": [],
+  "kind": "part_catalyst",
+  "max": [
+   0.33,
+   0.52,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
   ],
   "mounts": [],
   "variant": 0
@@ -303,6 +335,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_flaw": {
+  "colliders": [],
+  "kind": "part_flaw",
+  "max": [
+   0.33,
+   0.7,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.345
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_gambler": {
   "colliders": [],
   "kind": "part_gambler",
@@ -347,6 +395,22 @@
    -0.375,
    0.0,
    -0.375
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_incend": {
+  "colliders": [],
+  "kind": "part_incend",
+  "max": [
+   0.34,
+   0.58,
+   0.33
+  ],
+  "min": [
+   -0.34,
+   0.0,
+   -0.36
   ],
   "mounts": [],
   "variant": 0
@@ -761,6 +825,22 @@
   ],
   "min": [
    -0.35,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_tesla": {
+  "colliders": [],
+  "kind": "part_tesla",
+  "max": [
+   0.37,
+   0.73,
+   0.33
+  ],
+  "min": [
+   -0.37,
    0.0,
    -0.33
   ],

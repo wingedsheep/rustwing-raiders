@@ -29,7 +29,7 @@ preview module kind="":
     blender -b --factory-startup -P tools/models/build.py -- --only {{module}} --preview "${TMPDIR:-/tmp}/{{module}}-preview.png" {{ if kind == "" { "" } else { "--kind " + kind } }} > /dev/null
     open "${TMPDIR:-/tmp}/{{module}}-preview.png"
 
-# fly levels headless with the autopilot (e.g. just autopilot --planet orutal --mode run --seeds 20)
+# fly levels headless with the autopilot (e.g. just autopilot --planet orutal --mode hunt --seeds 20)
 autopilot *args:
     @npx esbuild tools/autopilot.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-autopilot.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-autopilot.mjs" {{args}}
