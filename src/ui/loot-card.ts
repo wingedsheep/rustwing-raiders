@@ -12,6 +12,7 @@ import { frameById, partById, verbOf, type PartDef, type Verb } from '../game/pa
 import { itemDef, MODS, modValue, tierOf, TRAITS, type Item, type Tier } from '../game/loot';
 import { cellsOf, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
+import { portraits } from '../view/portraits';
 
 export const VERB_COLOR: Record<Verb, string> = {
   GUN: '#ff8a4a',
@@ -34,6 +35,8 @@ export interface CardOpts {
   terse?: boolean;
   /** Greyed out (taken by someone else, sold, not chosen). */
   dim?: boolean;
+  /** Whose livery the part is shown in (player index). */
+  livery?: number;
 }
 
 /** A shape drawn big: bevelled cells in its class colour. */
@@ -73,6 +76,19 @@ export function bigShape(ctx: CanvasRenderingContext2D, def: PartDef, cx: number
     ctx.fillStyle = INK;
     ctx.fillRect(x0 + c * cell + Math.floor(cell / 2) - 1, y0 + r * cell - 3, 2, 3);
   }
+}
+
+/** A shape in little cells, its bottom-right corner at (x1, y1): the key to a portrait. */
+function smallShape(ctx: CanvasRenderingContext2D, def: PartDef, x1: number, y1: number) {
+  const cell = 3;
+  const cols = Math.max(...def.shape.map(([c]) => c)) + 1;
+  const rows = Math.max(...def.shape.map(([, r]) => r)) + 1;
+  const x0 = x1 - cols * cell;
+  const y0 = y1 - rows * cell;
+  ctx.fillStyle = 'rgba(18,12,24,0.8)';
+  ctx.fillRect(x0 - 2, y0 - 2, cols * cell + 3, rows * cell + 3);
+  ctx.fillStyle = def.conduit ? '#7a7090' : CLASS_COLOR[def.cls];
+  for (const [c, r] of def.shape) ctx.fillRect(x0 + c * cell, y0 + r * cell, cell - 1, cell - 1);
 }
 
 /** A diagonal glint moving across a strip (legendary bands, card backs). */
@@ -175,14 +191,24 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   drawText(ctx, TIER_WORD[tier], x + (tier !== 'common' ? 13 : 5), y + 4, tc);
   drawText(ctx, verb, x + w - 5, y + 4, VERB_COLOR[verb], { align: 'right' });
 
-  // the shape, big, in a well
-  const box = 38;
+  // the part itself, turning on its sockets in a well (its shape small in the corner); the
+  // shape alone, big, if it has no model
+  const box = w >= 180 && h >= 170 ? 56 : 38;
   const bx = x + 6;
   const by = y + 19;
   ctx.fillStyle = DARK;
   ctx.fillRect(bx, by, box, box);
   ctx.fillStyle = '#16101f';
   ctx.fillRect(bx + 1, by + 1, box - 2, box - 2);
+  if (portraits.draw(ctx, base.id, bx + 1, by + 1, box - 2, t, o.livery)) {
+    // a tier-coloured corner bracket on each corner
+    ctx.fillStyle = tier === 'common' ? EDGE : tc;
+    for (const [cx, cy, sx, sy] of [[bx, by, 1, 1], [bx + box - 1, by, -1, 1], [bx, by + box - 1, 1, -1], [bx + box - 1, by + box - 1, -1, -1]]) {
+      ctx.fillRect(cx, cy, 5 * sx, 1);
+      ctx.fillRect(cx, cy, 1, 5 * sy);
+    }
+    smallShape(ctx, base, bx + box - 3, by + box - 3);
+  } else bigShape(ctx, base, bx + box / 2, by + box / 2 + 1, box - 10);
   if (legend) {
     // a slow ring of light round the well
     const per = box * 4;
@@ -196,11 +222,10 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
       ctx.fillRect(Math.round(px), Math.round(py), 2, 2);
     }
   }
-  bigShape(ctx, base, bx + box / 2, by + box / 2 + 1, box - 10);
 
   // name (a legendary's trait on its own line, in gold), tags
-  const nx = x + 50;
-  const nw = w - 56;
+  const nx = x + box + 12;
+  const nw = w - box - 18;
   let ny = y + 19;
   if (it.trait) {
     drawText(ctx, TRAITS[it.trait].name, nx, ny, tc);
@@ -211,8 +236,8 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
     ny += 9;
   }
   const tags = it.trait === 'prismatic' ? 'EVERY TAG' : base.tags.join(' ').toUpperCase() || 'NO TAGS';
-  drawText(ctx, tags.length * 6 > nw ? tags.slice(0, Math.floor(nw / 6)) : tags, nx, Math.max(ny + 2, y + 40), it.trait === 'prismatic' ? GOLD : '#a890d0');
-  let ty = y + 62;
+  drawText(ctx, tags.length * 6 > nw ? tags.slice(0, Math.floor(nw / 6)) : tags, nx, ny + 3, it.trait === 'prismatic' ? GOLD : '#a890d0');
+  let ty = y + box + 24;
 
   // the foot: what it would do on the ship
   const footH = o.fit && b ? footHeight(o.fit) : 0;

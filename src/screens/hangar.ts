@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run } from '../sim/run';
 import { cellsOf, fits, gunDir, partAt, rotOf, stats, type Build, type Placement, type Stats } from '../sim/build';
@@ -6,12 +7,14 @@ import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { clamp } from '../util';
-import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
+import { CLASS_COLOR, CYAN, DARK, DIM, EDGE, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
+import { bayFloor } from '../view/bay-floor';
 import { backdrop, hearts, hints, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
 import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
+import { portraits } from '../view/portraits';
 import type { DeviceId } from '../input';
 
 interface Bay {
@@ -25,6 +28,8 @@ interface Bay {
   msgT: number;
   stage: Stage;
   model: ShipModel | null;
+  /** The turntable it sits over. */
+  pad: THREE.Group | null;
   /** What the last part placed did, played out one step at a time on the grid (t: seconds in). */
   fx: { t: number; steps: Step[] } | null;
   /** Where this player's bit of the screen starts. */
@@ -117,10 +122,12 @@ export class Hangar implements Screen {
       msgT: 0,
       stage: new Stage(164, 104, 15, 50),
       model: null,
+      pad: null,
       fx: null,
       x: coop ? 6 + i * (AREA_W + 4) : 12,
     }));
     if (!coop) this.big = new Stage(292, 188, 26, 50);
+    this.bays.forEach((bay, i) => (bay.pad = bayFloor((this.big ?? bay.stage).scene, LIVERY[i][2])));
     this.bays.forEach((_, i) => this.remodel(i));
     audio.music('hangar');
   }
@@ -159,6 +166,7 @@ export class Hangar implements Screen {
       }
       if (bay.model) {
         bay.model.root.rotation.y += dt * 0.6;
+        bay.pad?.rotation.set(0, bay.model.root.rotation.y, 0);
         bay.model.update(dt);
       }
       this.control(bay, i);
@@ -385,7 +393,7 @@ export class Hangar implements Screen {
     if (!coop) this.tagsBox(ctx, s, after, x + 145, 152, 166, 84);
     // the part in focus: what it is, what it does, what it's linked to
     const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
-    if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2);
+    if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
     // message, ready, hints
     if (bay.msgT > 0) drawText(ctx, bay.msg, x + AREA_W / 2, 310, bay.msg.startsWith('HANDED') ? GREEN : RED, { align: 'center' });
     const dev = this.dev(i);
@@ -405,7 +413,7 @@ export class Hangar implements Screen {
    * A part: name, verb, what it does, and (on the grid, or about to be) what it's linked to, what
    * it clashes with and how strong that leaves it.
    */
-  private focusCard(ctx: CanvasRenderingContext2D, it: Item, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number) {
+  private focusCard(ctx: CanvasRenderingContext2D, it: Item, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number, who: number) {
     const def = itemDef(it);
     const tier = tierOf(it);
     frame(ctx, x, y, w, 64, '#1c1526', tier === 'common' ? undefined : TIER_COLOR[tier]);
@@ -420,11 +428,19 @@ export class Hangar implements Screen {
     const verb = verbOf(def);
     const vw = drawText(ctx, verb, x + w - 6, y + 4, VERB_COLOR[verb], { align: 'right' });
     if (tier !== 'common') drawText(ctx, TIER_WORD[tier], x + w - 12 - vw, y + 4, TIER_COLOR[tier], { align: 'right' });
+    // the part itself, turning, on the right; the words go round it
+    const pw = 48;
+    const shown = portraits.draw(ctx, it.id, x + w - pw - 3, y + 14, pw, this.t, who);
+    if (shown) {
+      ctx.fillStyle = tier === 'common' ? EDGE : TIER_COLOR[tier];
+      ctx.fillRect(x + w - pw - 4, y + 13, 1, pw + 1);
+    }
+    const tw = shown ? w - pw - 14 : w - 12;
     const lines: [string, string][] = [];
     // what was rolled for it, then a legendary's rule, then what it is
     if (it.mods?.length) lines.push([it.mods.map((m) => MODS[m.k].short(modValue(m))).join('   '), '#e8e0f0']);
-    if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, w - 12).slice(0, 2)) lines.push([l, GOLD]);
-    for (const l of wrap(def.text, w - 12).slice(0, it.trait ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
+    if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
+    for (const l of wrap(def.text, tw).slice(0, it.trait ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     if (def.duo) lines.push([`DUO PART: ${def.duo[0]} + ${def.duo[1]}`, CYAN]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     if (pl) {
@@ -449,11 +465,12 @@ export class Hangar implements Screen {
     // and its numbers, if there's room
     const st = partStats(def);
     let ty = y + 15;
+    const fit = (l: string) => (l.length * 6 > tw ? l.slice(0, Math.floor(tw / 6) - 1) + '.' : l);
     for (const [l, c] of lines.slice(0, 5)) {
-      drawText(ctx, l, x + 6, ty, c);
+      drawText(ctx, fit(l), x + 6, ty, c);
       ty += 9;
     }
-    if (lines.length < 5) drawText(ctx, st[0], x + 6, ty, DIM);
+    if (lines.length < 5) drawText(ctx, fit(st[0]), x + 6, ty, DIM);
   }
 
   /** Solo, under the ship: the verbs it has, every link and clash on it, then the rules. */

@@ -4,7 +4,7 @@ import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
 import { levelSpec } from './sim/run';
-import { startBuild } from './sim/build';
+import { cellsOf, startBuild, type Build } from './sim/build';
 import { PLANETS } from './world/planets';
 import type { Mode } from './sim/level';
 import { drawText } from './ui/font';
@@ -46,6 +46,7 @@ async function boot() {
       b.parts = b.parts.filter((p) => p.r > 0);
       list.split(',').forEach((id, c) => b.parts.push({ id, c, r: 0 }));
     });
+    builds.forEach(fitParts);
     const spec = levelSpec(planet, mode, seed, Number(q.get('difficulty') ?? 0.2));
     // &biomes=mesarun,saltpans: fly these of the planet's biomes, in this order
     const only = q.get('biomes')?.split(',').map((id) => planet.biomes.find((b) => b.id === id)).filter((b) => !!b);
@@ -59,6 +60,7 @@ async function boot() {
     const flow = await import('./game/flow');
     flow.newRun(game, frames, Number(q.get('run') ?? 1));
     const run = game.run!;
+    run.crew.forEach((c) => fitParts(c.build));
     const screen = q.get('screen');
     const node = (kind: string) => run.chart.nodes.find((n) => n.kind === kind) ?? run.chart.nodes[1];
     if (screen === 'hangar') {
@@ -88,6 +90,19 @@ async function boot() {
     game.go(new Title(game));
   }
   game.start();
+}
+
+/** &parts=sentry.1.0,ram.0.0: bolts these parts on at (column, row), over whatever sat there. */
+function fitParts(b: Build) {
+  const want = game.params.get('parts');
+  if (!want) return;
+  for (const s of want.split(',')) {
+    const [id, c, r] = s.split('.');
+    const add = { id, c: Number(c), r: Number(r) };
+    const taken = new Set(cellsOf(add).map(([cc, rr]) => `${cc},${rr}`));
+    b.parts = b.parts.filter((p) => !cellsOf(p).some(([cc, rr]) => taken.has(`${cc},${rr}`)));
+    b.parts.push(add);
+  }
 }
 
 boot();

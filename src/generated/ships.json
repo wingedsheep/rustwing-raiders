@@ -111,6 +111,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_blink": {
+  "colliders": [],
+  "kind": "part_blink",
+  "max": [
+   0.33,
+   0.679,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_bombbay": {
   "colliders": [],
   "kind": "part_bombbay",
@@ -159,6 +175,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_conduit": {
+  "colliders": [],
+  "kind": "part_conduit",
+  "max": [
+   0.4,
+   0.32,
+   0.4
+  ],
+  "min": [
+   -0.4,
+   0.0,
+   -0.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_drone": {
   "colliders": [],
   "kind": "part_drone",
@@ -171,6 +203,38 @@
    -0.36,
    0.0,
    -0.36
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_echo": {
+  "colliders": [],
+  "kind": "part_echo",
+  "max": [
+   0.33,
+   0.9,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_elbow": {
+  "colliders": [],
+  "kind": "part_elbow",
+  "max": [
+   1.2,
+   0.32,
+   1.05
+  ],
+  "min": [
+   -0.4,
+   0.0,
+   -0.4
   ],
   "mounts": [],
   "variant": 0
@@ -191,6 +255,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_exchanger": {
+  "colliders": [],
+  "kind": "part_exchanger",
+  "max": [
+   0.35,
+   0.485,
+   0.35
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.35
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_flak": {
   "colliders": [],
   "kind": "part_flak",
@@ -203,6 +283,54 @@
    -0.35,
    0.0,
    -0.76
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_flare": {
+  "colliders": [],
+  "kind": "part_flare",
+  "max": [
+   0.33,
+   0.67,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.389
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_gambler": {
+  "colliders": [],
+  "kind": "part_gambler",
+  "max": [
+   0.36,
+   0.74,
+   0.36
+  ],
+  "min": [
+   -0.36,
+   0.0,
+   -0.36
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_ghost": {
+  "colliders": [],
+  "kind": "part_ghost",
+  "max": [
+   0.33,
+   0.68,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
   ],
   "mounts": [],
   "variant": 0
@@ -239,6 +367,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_lance": {
+  "colliders": [],
+  "kind": "part_lance",
+  "max": [
+   0.457,
+   0.55,
+   2.29
+  ],
+  "min": [
+   -0.457,
+   0.0,
+   -1.1
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_magnet": {
   "colliders": [],
   "kind": "part_magnet",
@@ -271,6 +415,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_mirror": {
+  "colliders": [],
+  "kind": "part_mirror",
+  "max": [
+   0.4,
+   0.48,
+   0.4
+  ],
+  "min": [
+   -0.4,
+   0.0,
+   -0.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_overdrive": {
   "colliders": [],
   "kind": "part_overdrive",
@@ -283,6 +443,22 @@
    -0.36,
    0.0,
    -0.36
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_parry": {
+  "colliders": [],
+  "kind": "part_parry",
+  "max": [
+   0.472,
+   0.7,
+   1.15
+  ],
+  "min": [
+   -0.472,
+   0.0,
+   -0.31
   ],
   "mounts": [],
   "variant": 0
@@ -335,6 +511,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_ram": {
+  "colliders": [],
+  "kind": "part_ram",
+  "max": [
+   0.38,
+   0.53,
+   0.4
+  ],
+  "min": [
+   -0.38,
+   0.0,
+   -0.72
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_reactor": {
   "colliders": [],
   "kind": "part_reactor",
@@ -351,6 +543,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_recoil": {
+  "colliders": [],
+  "kind": "part_recoil",
+  "max": [
+   0.33,
+   0.47,
+   0.42
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.43
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_rivet": {
   "colliders": [],
   "kind": "part_rivet",
@@ -363,6 +571,22 @@
    -0.33,
    0.0,
    -0.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_salvage": {
+  "colliders": [],
+  "kind": "part_salvage",
+  "max": [
+   0.35,
+   0.55,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
   ],
   "mounts": [],
   "variant": 0
@@ -399,6 +623,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_sentry": {
+  "colliders": [],
+  "kind": "part_sentry",
+  "max": [
+   0.36,
+   0.55,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.54
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_shield": {
   "colliders": [],
   "kind": "part_shield",
@@ -431,6 +671,86 @@
   "mounts": [],
   "variant": 0
  },
+ "part_siphon": {
+  "colliders": [],
+  "kind": "part_siphon",
+  "max": [
+   0.415,
+   0.65,
+   1.138
+  ],
+  "min": [
+   -0.415,
+   0.0,
+   -0.415
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_skin": {
+  "colliders": [],
+  "kind": "part_skin",
+  "max": [
+   0.35,
+   0.2,
+   0.35
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.35
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_slag": {
+  "colliders": [],
+  "kind": "part_slag",
+  "max": [
+   1.13,
+   0.88,
+   0.33
+  ],
+  "min": [
+   -0.31,
+   0.0,
+   -0.442
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_spring": {
+  "colliders": [],
+  "kind": "part_spring",
+  "max": [
+   0.33,
+   0.63,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_stormlens": {
+  "colliders": [],
+  "kind": "part_stormlens",
+  "max": [
+   0.498,
+   0.778,
+   0.526
+  ],
+  "min": [
+   -0.49,
+   0.0,
+   -0.346
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_targeter": {
   "colliders": [],
   "kind": "part_targeter",
@@ -441,6 +761,38 @@
   ],
   "min": [
    -0.35,
+   0.0,
+   -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_tether": {
+  "colliders": [],
+  "kind": "part_tether",
+  "max": [
+   1.06,
+   0.55,
+   1.11
+  ],
+  "min": [
+   -0.31,
+   0.0,
+   -0.9
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_throttle": {
+  "colliders": [],
+  "kind": "part_throttle",
+  "max": [
+   0.39,
+   0.727,
+   0.33
+  ],
+  "min": [
+   -0.33,
    0.0,
    -0.33
   ],
@@ -479,6 +831,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_trigger": {
+  "colliders": [],
+  "kind": "part_trigger",
+  "max": [
+   0.35,
+   0.566,
+   0.33
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.39
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_vector": {
   "colliders": [],
   "kind": "part_vector",
@@ -491,6 +859,22 @@
    -0.335,
    0.0,
    -0.3
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_wake": {
+  "colliders": [],
+  "kind": "part_wake",
+  "max": [
+   0.33,
+   0.51,
+   0.42
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.33
   ],
   "mounts": [],
   "variant": 0

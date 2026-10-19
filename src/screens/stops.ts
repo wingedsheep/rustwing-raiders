@@ -267,7 +267,7 @@ export class Shop implements Screen {
     if (focus) {
       const cy = 64 + run.crew.length * 34 + 8;
       const sold = this.stock.some((s) => s.part === focus && s.sold);
-      lootCard(ctx, focus, run.crew[this.who].build, rx, cy, 260, 318 - cy, { t: this.t, fit: sold ? null : this.fitFor(focus), terse: run.crew.length > 1, dim: sold });
+      lootCard(ctx, focus, run.crew[this.who].build, rx, cy, 260, 318 - cy, { t: this.t, fit: sold ? null : this.fitFor(focus), terse: run.crew.length > 1, dim: sold, livery: this.who });
     }
     if (this.msgT > 0) drawText(ctx, this.msg, W / 2, 322, RED, { align: 'center' });
     const dev = g.devices[0] ?? 'keys';

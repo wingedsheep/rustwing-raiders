@@ -553,6 +553,560 @@ def overdrive(P, anim):
         spin(o, "part_overdrive_fan_idle", 0.5)
 
 
+# --- the builds parts: dash mods, aux, passives, duos -------------------------------------------
+# Each one's look says what it does, and a lamp in its verb's colour says which button it's on:
+# blue for a dash mod, amber for an aux, violet for a passive (as on the loot cards).
+
+DASHG = "#6ad0ff"
+AUXG = "#ffd04a"
+PASSG = "#d08aff"
+CYAN = "#7ae8ff"
+VOID = "#1c1430"
+HOT = "#ff6a2a"
+MOLTEN = "#ffb03a"
+COPPER = "#c87a3a"
+CHROME = "#b8c0c6"
+
+
+def lamp(m: Model, x, y, z, color, r=0.07):
+    """A little verb lamp in a dark bezel."""
+    m.cyl(r + 0.03, 0.04, (x, y, z), DARK, segs=6)
+    m.cyl(r, 0.05, (x, y, z + 0.02), color, segs=6, glow=True)
+
+
+def helix(m: Model, r, z0, z1, turns, color, w=0.07, n=10):
+    """A coil spring: boxes round a rising helix."""
+    steps = int(turns * n)
+    seg = 2 * r * math.tan(math.pi / n) * 1.25
+    for i in range(steps + 1):
+        a = TAU * i / n
+        z = z0 + (z1 - z0) * i / steps
+        m.box((seg, w, w), (math.cos(a) * r, math.sin(a) * r, z), color, rot=(0.12, 0, a + math.pi / 2))
+
+
+@part
+def sentry(P, anim):
+    m = Model("sentry")
+    base(m)
+    m.cyl(0.32, 0.14, (0, 0, 0.06), A, segs=8, r_top=0.28)                # armoured ring
+    m.cyl(0.24, 0.06, (0, 0, 0.2), B, segs=8)
+    m.box((0.12, 0.2, 0.1), (0.3, -0.18, 0.1), STEEL)                     # ammo feed
+    m.build(P)
+    h = Model("sentry_head")
+    h.box((0.36, 0.34, 0.2), (0, -0.02, 0.1), STEEL, taper=0.8)           # the head
+    h.box((0.38, 0.1, 0.18), (0, -0.16, 0.1), B)
+    for s in (-1, 1):                                                      # twin short barrels
+        h.cyl(0.06, 0.4, (s * 0.09, 0.12, 0.12), METAL, segs=6, rot=FWD)
+        h.cyl(0.08, 0.06, (s * 0.09, 0.48, 0.12), DARK, segs=6, rot=FWD)
+    h.box((0.14, 0.1, 0.1), (0, 0.13, 0.24), DARK)                         # sensor eye, picking targets
+    h.ball(0.06, (0, 0.18, 0.25), RED, subdiv=0, glow=True)
+    o = h.build(P, loc=(0, 0, 0.24))
+    if anim:
+        animate(o, "part_sentry_scan_idle", "rotation_euler",
+                [(0, (0, 0, 0)), (0.7, (0, 0, 0.55)), (1.2, (0, 0, 0.55)), (2.1, (0, 0, -0.55)), (2.6, (0, 0, -0.55)), (3.2, (0, 0, 0))])
+
+
+@part
+def lance(P, anim):
+    m = Model("lance")
+    m.box((0.6, 2.24, 0.1), (0, -0.8, 0.05), DARK)                        # sled over three cells
+    m.box((0.46, 1.9, 0.22), (0, -0.98, 0.18), A, taper=0.82)             # the body
+    m.box((0.14, 1.7, 0.05), (0, -1.02, 0.31), B)                         # speed stripe
+    for s in (-1, 1):                                                      # swept tail fins
+        m.box((0.2, 0.4, 0.06), (s * 0.28, -1.74, 0.2), B, rot=(0, 0, s * 0.45), taper=0.6)
+        m.box((0.1, 1.2, 0.12), (s * 0.27, -0.7, 0.16), STEEL)            # side rails
+    m.box((0.06, 0.42, 0.34), (0, -1.74, 0.36), A, taper=0.5)              # tail fin
+    m.cyl(0.18, 0.28, (0, -2.0, 0.22), DARK, segs=6, r_top=0.22, rot=BACK)  # drive bell
+    m.cyl(0.16, 0.03, (0, -2.26, 0.22), C, segs=6, rot=BACK, glow=True)
+    m.cyl(0.15, 1.5, (0, -0.4, 0.3), CHROME, segs=6, r_top=0.0, rot=FWD)  # the spike
+    m.cyl(0.07, 0.6, (0, 0.5, 0.3), "#e8f4ff", segs=5, r_top=0.0, rot=FWD)
+    m.build(P)
+    k = Model("lance_rings")
+    for i, y in enumerate((-1.3, -0.9, -0.5)):                             # accelerator rings
+        k.cyl(0.22 - i * 0.02, 0.08, (0, y, 0), CYAN, segs=6, rot=FWD, glow=True)
+        k.cyl(0.25 - i * 0.02, 0.05, (0, y - 0.06, 0), DARK, segs=6, rot=FWD)
+    o = k.build(P, loc=(0, 0, 0.3))
+    if anim:
+        pulse(o, "part_lance_charge_idle", 0.6, 0.12)
+
+
+@part
+def ram(P, anim):
+    m = Model("ram")
+    prow = [(-0.38, -0.36), (0.38, -0.36), (0.38, 0.06), (0.0, 0.5), (-0.38, 0.06)]
+    m.slab(prow, 0.0, 0.32, STEEL, top=[(-0.3, -0.3), (0.3, -0.3), (0.3, 0.04), (0.0, 0.38), (-0.3, 0.04)])
+    m.slab([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.04), (0.0, 0.38), (-0.3, 0.04)], 0.32, 0.36, A)
+    for s in (-1, 1):                                                      # hazard chevrons on the wedge
+        for i in range(2):
+            m.box((0.07, 0.3, 0.03), (s * (0.08 + i * 0.13), 0.06 - i * 0.12, 0.37), HAZARD, rot=(0, 0, s * 0.85))
+    for dx, dy in ((0.0, 0.52), (-0.24, 0.28), (0.24, 0.28)):              # ramming spikes
+        m.cyl(0.07, 0.24, (dx, dy - 0.04, 0.18), CHROME, segs=5, r_top=0.0, rot=FWD)
+    m.box((0.5, 0.12, 0.14), (0, -0.3, 0.42), DARK)
+    lamp(m, 0, -0.3, 0.46, DASHG)
+    m.build(P)
+
+
+@part
+def blink(P, anim):
+    m = Model("blink")
+    base(m)
+    m.cyl(0.3, 0.12, (0, 0, 0.08), A, segs=6)
+    for i in range(3):                                                      # gimbal posts
+        a = TAU * i / 3 + math.pi / 6
+        m.box((0.08, 0.08, 0.34), (math.cos(a) * 0.27, math.sin(a) * 0.27, 0.32), B)
+    m.build(P)
+    k = Model("blink_core")
+    k.ball(0.15, (0, 0, 0), VOID, subdiv=1)                                 # a hole in space
+    k.ball(0.1, (0, 0, 0), "#9a7aff", subdiv=0, scale=(1, 1, 1.4), glow=True)
+    o = k.build(P, loc=(0, 0, 0.46))
+    for i, tilt in enumerate((0.0, 1.2)):
+        g = Model(f"blink_ring_{i}")
+        ring(g, 0.24 - i * 0.04, 0, 0, DASHG, n=8, w=0.05, h=0.05, glow=True, axis="z")
+        r = g.build(P, loc=(0, 0, 0.46))
+        r.rotation_euler = (tilt, 0, 0)
+        if anim:
+            animate(r, "part_blink_gyre_idle", "rotation_euler",
+                    [(0, (0, 0, 0)), (1.5, (0, 0, TAU * (1 if i else -1)))], rest=(tilt, 0, 0))
+    if anim:
+        animate(o, "part_blink_gyre_idle", "scale",
+                [(0, (0, 0, 0)), (0.75, (0.25, 0.25, 0.25)), (1.5, (0, 0, 0))])
+
+
+@part
+def wake(P, anim):
+    m = Model("wake")
+    base(m)
+    for s in (-1, 1):                                                       # cradle rails
+        m.box((0.1, 0.62, 0.2), (s * 0.27, 0, 0.16), A)
+    m.box((0.62, 0.14, 0.24), (0, 0.24, 0.2), B)
+    m.box((0.44, 0.12, 0.2), (0, -0.33, 0.12), DARK)                       # the chute, out the back
+    m.box((0.36, 0.04, 0.12), (0, -0.4, 0.12), "#ff7a3a", glow=True)
+    for i, y in enumerate((0.1, -0.1)):                                     # a string of charges
+        m.cyl(0.12, 0.34, (-0.17, y, 0.34), "#3a3e34", segs=6, rot=(0, math.pi / 2, 0))
+        m.box((0.08, 0.25, 0.25), (0, y, 0.34), HAZARD)
+        m.ball(0.04, (0, y, 0.47), RED, subdiv=0, glow=True)
+    lamp(m, 0, 0.24, 0.32, DASHG, r=0.06)
+    m.build(P)
+
+
+@part
+def spring(P, anim):
+    m = Model("spring")
+    base(m)
+    m.cyl(0.3, 0.08, (0, 0, 0.08), A, segs=8)
+    m.cyl(0.08, 0.36, (0, 0, 0.1), STEEL, segs=6)                           # guide rod
+    m.build(P)
+    k = Model("spring_coil")
+    helix(k, 0.2, 0.0, 0.3, 3, HAZARD, w=0.07)
+    c = k.build(P, loc=(0, 0, 0.16))
+    t = Model("spring_plate")
+    t.cyl(0.13, 0.08, (0, 0, 0), B, segs=6)                                  # kick plate
+    t.box((0.34, 0.07, 0.05), (0, 0, 0.06), STEEL)
+    t.cyl(0.07, 0.05, (0, 0, 0.08), DASHG, segs=6, glow=True)
+    p = t.build(P, loc=(0, 0, 0.5))
+    if anim:
+        # a slow squeeze and a sharp kick
+        animate(c, "part_spring_kick_idle", "scale", [(0, (0, 0, 0)), (1.2, (0, 0, -0.45)), (1.3, (0, 0, 0.12)), (1.45, (0, 0, 0)), (2.0, (0, 0, 0))])
+        animate(p, "part_spring_kick_idle", "location", [(0, (0, 0, 0)), (1.2, (0, 0, -0.14)), (1.3, (0, 0, 0.04)), (1.45, (0, 0, 0)), (2.0, (0, 0, 0))])
+
+
+@part
+def ghost(P, anim):
+    m = Model("ghost")
+    base(m)
+    m.cyl(0.26, 0.1, (0, 0, 0.08), STEEL, segs=6)
+    m.cyl(0.2, 0.06, (0, 0, 0.18), DARK, segs=6)
+    for i in range(4):                                                       # lantern cage
+        a = TAU * i / 4 + math.pi / 4
+        m.box((0.06, 0.06, 0.42), (math.cos(a) * 0.2, math.sin(a) * 0.2, 0.42), B)
+    ring(m, 0.22, 0.62, 0, A, n=6, w=0.07, h=0.06)                            # open crown, the flame shows
+    m.build(P)
+    k = Model("ghost_flame")
+    k.ball(0.15, (0, 0, 0), "#d8fbff", subdiv=0, scale=(1, 1, 1.2), glow=True)
+    k.cyl(0.12, 0.24, (0, 0, 0.06), DASHG, segs=5, r_top=0.0, glow=True)
+    k.ball(0.18, (0, 0, -0.04), "#4ab0e0", subdiv=0, scale=(1, 1, 0.6), glow=True)
+    o = k.build(P, loc=(0, 0, 0.38))
+    if anim:
+        bob(o, "part_ghost_flicker_idle", 1.6, 0.05)
+        animate(o, "part_ghost_flicker_idle", "scale",
+                [(0, (0, 0, 0)), (0.4, (0.12, 0.12, -0.08)), (0.8, (-0.06, -0.06, 0.14)), (1.2, (0.08, 0.08, 0)), (1.6, (0, 0, 0))])
+
+
+@part
+def parry(P, anim):
+    m = Model("parry")
+    m.box((0.62, 1.42, 0.1), (0, -0.4, 0.05), DARK)
+    m.box((0.54, 0.62, 0.3), (0, -0.84, 0.2), A, taper=0.85)               # generator, back cell
+    m.box((0.56, 0.1, 0.32), (0, -0.62, 0.2), B)
+    for s in (-1, 1):
+        m.cyl(0.1, 0.3, (s * 0.15, -0.95, 0.36), STEEL, segs=6)            # coils
+        m.cyl(0.07, 0.04, (s * 0.15, -0.95, 0.66), AUXG, segs=6, glow=True)
+    m.box((0.12, 0.6, 0.12), (0, -0.3, 0.22), STEEL)                        # feed to the emitter
+    m.cyl(0.18, 0.2, (0, -0.02, 0.1), STEEL, segs=6)
+    m.build(P)
+    k = Model("parry_blade")
+    # the crescent guard, curved round the front
+    n = 7
+    for i in range(n):
+        a = math.radians(25 + 130 * i / (n - 1))
+        r = 0.42
+        k.box((0.16, 0.08, 0.3), (math.cos(a) * r, math.sin(a) * r - 0.18, 0.0), B, rot=(0, 0, a + math.pi / 2))
+        k.box((0.13, 0.04, 0.32), (math.cos(a) * (r + 0.05), math.sin(a) * (r + 0.05) - 0.18, 0.0), AUXG, rot=(0, 0, a + math.pi / 2), glow=True)
+    k.ball(0.1, (0, 0.0, 0.02), "#fff0b0", subdiv=0, glow=True)
+    o = k.build(P, loc=(0, 0, 0.28))
+    if anim:
+        pulse(o, "part_parry_hum_idle", 1.0, 0.06)
+
+
+@part
+def tether(P, anim):
+    m = Model("tether")
+    # launcher on the first cell, winch behind it, motor on the corner cell (+x)
+    m.box((0.62, 1.42, 0.1), (0, -0.4, 0.05), DARK)
+    m.box((0.82, 0.62, 0.1), (0.4, -0.8, 0.05), DARK)
+    m.box((0.34, 0.5, 0.24), (0, 0.02, 0.18), A, taper=0.85)               # launcher
+    m.cyl(0.11, 0.4, (0, 0.06, 0.3), METAL, segs=6, rot=FWD)
+    m.cyl(0.15, 0.1, (0, 0.42, 0.3), DARK, segs=6, rot=FWD)
+    m.cyl(0.05, 0.24, (0, 0.5, 0.3), CHROME, segs=5, rot=FWD)              # the harpoon
+    m.cyl(0.1, 0.18, (0, 0.72, 0.3), CHROME, segs=4, r_top=0.0, rot=FWD)
+    for s in (-1, 1):                                                       # its barbs
+        m.box((0.05, 0.18, 0.05), (s * 0.1, 0.66, 0.3), HAZARD, rot=(0, 0, s * 0.7))
+    m.box((0.04, 0.5, 0.04), (0, -0.3, 0.38), RUBBER)                       # cable back to the winch
+    for s in (-1, 1):                                                       # winch cheeks
+        m.box((0.08, 0.5, 0.5), (s * 0.24, -0.8, 0.3), B)
+    m.box((0.5, 0.38, 0.32), (0.8, -0.8, 0.2), A, taper=0.85)              # motor
+    m.box((0.52, 0.08, 0.34), (0.8, -0.66, 0.2), B)
+    m.cyl(0.08, 0.36, (0.48, -0.8, 0.3), STEEL, segs=6, rot=(0, math.pi / 2, 0))  # drive shaft
+    lamp(m, 0.8, -0.86, 0.36, AUXG)
+    m.build(P)
+    k = Model("tether_drum")
+    k.cyl(0.2, 0.36, (-0.18, 0, 0), "#7a5a3a", segs=8, rot=(0, math.pi / 2, 0))   # the drum, cable wound
+    for x in (-0.12, 0.0, 0.12):
+        k.cyl(0.21, 0.04, (x, 0, 0), RUBBER, segs=8, rot=(0, math.pi / 2, 0))
+    k.box((0.38, 0.06, 0.06), (0, 0, 0.2), STEEL)
+    o = k.build(P, loc=(0, -0.8, 0.32))
+    if anim:
+        spin(o, "part_tether_wind_idle", 2.0, axis=0)
+
+
+@part
+def flare(P, anim):
+    m = Model("flare")
+    base(m)
+    m.box((0.6, 0.6, 0.16), (0, 0, 0.14), A, taper=0.85)
+    m.cyl(0.14, 0.44, (0, 0.04, 0.2), STEEL, segs=6, rot=(-0.55, 0, 0))     # mortar tube, raised
+    m.cyl(0.11, 0.04, (0, 0.24, 0.57), HOT, segs=6, rot=(-0.55, 0, 0), glow=True)
+    for i, a in enumerate((-0.9, -0.3, 0.3, 0.9)):                           # bandolier of cartridges
+        x = math.sin(a) * 0.26
+        y = -math.cos(a) * 0.22 - 0.02
+        m.cyl(0.055, 0.22, (x, y, 0.22), RED, segs=5)
+        m.cyl(0.056, 0.05, (x, y, 0.42), "#ffd8a0", segs=5)
+    lamp(m, 0.24, 0.22, 0.22, AUXG, r=0.05)
+    m.build(P)
+    f = Model("flare_spark")
+    f.ball(0.07, (0, 0, 0), "#fff0a0", subdiv=0, glow=True)
+    o = f.build(P, loc=(0, 0.26, 0.6))
+    if anim:
+        animate(o, "part_flare_spark_idle", "scale", [(0, (0, 0, 0)), (0.15, (0.6, 0.6, 0.6)), (0.3, (0, 0, 0)), (0.9, (0, 0, 0))])
+
+
+@part
+def siphon(P, anim):
+    m = Model("siphon")
+    m.box((0.62, 1.42, 0.1), (0, -0.4, 0.05), DARK)
+    m.cyl(0.36, 0.3, (0, 0.0, 0.08), A, segs=8, r_top=0.4)                  # the intake funnel
+    m.cyl(0.33, 0.02, (0, 0.0, 0.38), VOID, segs=8)
+    ring(m, 0.38, 0.39, 0, B, n=8, w=0.07, h=0.06)
+    m.cyl(0.1, 0.06, (0, 0, 0.36), "#d8b0ff", segs=6, glow=True)            # the eye of it
+    m.box((0.14, 0.4, 0.14), (0, -0.46, 0.22), STEEL)                       # throat
+    m.cyl(0.24, 0.44, (0, -0.86, 0.1), B, segs=8)                            # the tank
+    m.cyl(0.18, 0.3, (0, -0.86, 0.18), "#9a6aff", segs=6, glow=True)         # what it drank
+    m.cyl(0.26, 0.06, (0, -0.86, 0.54), A, segs=8)
+    for i in range(3):                                                        # tank bands
+        a = TAU * i / 3 + 0.4
+        m.box((0.06, 0.06, 0.44), (math.cos(a) * 0.25, -0.86 + math.sin(a) * 0.25, 0.32), STEEL)
+    lamp(m, 0, -0.86, 0.58, AUXG, r=0.06)
+    m.build(P)
+    k = Model("siphon_vanes")
+    for i in range(5):                                                        # a spiral of vanes
+        a = TAU * i / 5
+        k.box((0.28, 0.05, 0.04), (math.cos(a) * 0.17, math.sin(a) * 0.17, 0), "#b07aff", rot=(0, 0, a + 1.1), glow=True)
+    o = k.build(P, loc=(0, 0, 0.36))
+    if anim:
+        spin(o, "part_siphon_drink_idle", 0.9, turns=-1)
+
+
+@part
+def trigger(P, anim):
+    m = Model("trigger")
+    base(m)
+    m.box((0.56, 0.56, 0.2), (0, 0, 0.16), A, taper=0.85)
+    m.box((0.58, 0.1, 0.22), (0, -0.2, 0.17), B)
+    m.cyl(0.16, 0.06, (0, 0.04, 0.3), DARK, segs=8)
+    m.cyl(0.12, 0.1, (0, 0.04, 0.32), "#ff3a4a", segs=8, glow=True)          # the button
+    m.box((0.34, 0.06, 0.3), (0, -0.16, 0.42), HAZARD, rot=(-0.5, 0, 0))      # safety cover, flipped up
+    m.box((0.36, 0.04, 0.06), (0, -0.12, 0.3), DARK)
+    ring(m, 0.26, 0.28, 0, PASSG, n=8, w=0.04, h=0.03, glow=True, cy=0.04)   # crit reticle
+    for a in range(4):
+        ang = TAU * a / 4
+        m.box((0.04, 0.1, 0.03), (math.cos(ang) * 0.3, 0.04 + math.sin(ang) * 0.3, 0.3), PASSG, rot=(0, 0, ang + math.pi / 2), glow=True)
+    m.build(P)
+
+
+@part
+def skin(P, anim):
+    m = Model("skin")
+    m.box((0.7, 0.7, 0.06), (0, 0, 0.03), DARK)
+    m.box((0.64, 0.64, 0.04), (0, 0, 0.08), "#2a2a40")
+    for i in range(4):                                                         # a mesh of copper wire
+        u = -0.24 + i * 0.16
+        m.box((0.04, 0.64, 0.05), (u, 0, 0.12), COPPER)
+        m.box((0.64, 0.04, 0.05), (0, u, 0.12), COPPER)
+    m.build(P)
+    k = Model("skin_nodes")
+    for i, j in ((0, 0), (1, 2), (2, 1), (3, 3), (0, 3), (3, 0), (2, 3), (1, 0)):
+        k.box((0.07, 0.07, 0.07), (-0.24 + i * 0.16, -0.24 + j * 0.16, 0), "#e0d0ff", glow=True)
+    k.box((0.04, 0.2, 0.04), (-0.16, -0.08, 0.02), PASSG, rot=(0, 0, 0.8), glow=True)    # sparks jumping
+    k.box((0.04, 0.2, 0.04), (0.16, 0.16, 0.02), PASSG, rot=(0, 0, -0.6), glow=True)
+    o = k.build(P, loc=(0, 0, 0.16))
+    if anim:
+        animate(o, "part_skin_crackle_idle", "scale", [(0, (0, 0, 0)), (0.1, (0.1, 0.1, 0.8)), (0.2, (0, 0, 0)), (0.7, (0, 0, 0)), (0.8, (-0.1, -0.1, 0.6)), (0.9, (0, 0, 0)), (1.4, (0, 0, 0))])
+
+
+@part
+def throttle(P, anim):
+    m = Model("throttle")
+    base(m)
+    m.box((0.56, 0.6, 0.18), (0, 0, 0.13), A, taper=0.85)
+    m.box((0.14, 0.5, 0.06), (0, 0.0, 0.25), DARK)                           # the slot
+    for s in (-1, 1):
+        m.box((0.06, 0.52, 0.12), (s * 0.12, 0, 0.26), B)
+    m.cyl(0.13, 0.12, (0.26, -0.18, 0.12), STEEL, segs=8)                     # linkage gear
+    m.box((0.06, 0.4, 0.06), (0.26, 0.04, 0.2), METAL)                        # push rod
+    for i, y in enumerate((-0.16, 0.0, 0.16)):                                 # notches
+        m.box((0.22, 0.03, 0.03), (0, y, 0.33), PASSG if i == 2 else METAL, glow=i == 2)
+    m.build(P)
+    k = Model("throttle_lever")
+    k.box((0.07, 0.07, 0.36), (0, 0, 0.18), CHROME)
+    k.ball(0.09, (0, 0, 0.4), RED, subdiv=0, scale=(1.2, 1, 1))
+    o = k.build(P, loc=(0, 0, 0.26))
+    o.rotation_euler = (-0.5, 0, 0)
+    if anim:
+        animate(o, "part_throttle_push_idle", "rotation_euler",
+                [(0, (0, 0, 0)), (0.5, (1.0, 0, 0)), (1.4, (1.0, 0, 0)), (1.9, (0, 0, 0)), (2.4, (0, 0, 0))], rest=(-0.5, 0, 0))
+
+
+@part
+def gambler(P, anim):
+    m = Model("gambler")
+    base(m, 0.72)
+    m.cyl(0.34, 0.3, (0, -0.02, 0.06), A, segs=8, r_top=0.3)                 # the furnace
+    m.cyl(0.31, 0.05, (0, -0.02, 0.36), B, segs=8)
+    m.box((0.36, 0.08, 0.16), (0, 0.27, 0.2), "#ff4a1a", glow=True)          # fire door
+    for x in (-0.1, 0.0, 0.1):
+        m.box((0.03, 0.09, 0.18), (x, 0.3, 0.2), DARK)
+    m.cyl(0.18, 0.06, (-0.04, -0.08, 0.4), "#f0e4c8", segs=8)                  # the Burn gauge
+    for k in range(5):                                                          # its ticks, cold to hot
+        a = math.radians(200 - k * 55)
+        col = PASSG if k < 4 else "#ff4a2a"
+        m.box((0.03, 0.06, 0.02), (-0.04 + math.cos(a) * 0.13, -0.08 + math.sin(a) * 0.13, 0.46), col, rot=(0, 0, a + math.pi / 2), glow=True)
+    m.cyl(0.06, 0.34, (0.24, -0.22, 0.36), STEEL, segs=6)                       # stack
+    m.cyl(0.05, 0.04, (0.24, -0.22, 0.7), "#ff7a2a", segs=6, glow=True)
+    m.build(P)
+    k = Model("gambler_needle")
+    k.box((0.03, 0.15, 0.02), (0, 0.07, 0), RED)
+    k.cyl(0.03, 0.03, (0, 0, -0.01), DARK, segs=6)
+    o = k.build(P, loc=(-0.04, -0.08, 0.47))
+    if anim:
+        # creeps up, trembles at the top, falls back
+        animate(o, "part_gambler_needle_idle", "rotation_euler",
+                [(0, (0, 0, 1.3)), (1.8, (0, 0, -1.0)), (1.9, (0, 0, -0.85)), (2.0, (0, 0, -1.05)), (2.1, (0, 0, -0.9)), (2.3, (0, 0, 1.3)), (3.0, (0, 0, 1.3))])
+
+
+@part
+def salvage(P, anim):
+    m = Model("salvage")
+    base(m)
+    m.box((0.6, 0.6, 0.22), (0, 0, 0.16), "#5a5240", taper=0.92)             # the crate
+    m.box((0.62, 0.1, 0.24), (0, 0.12, 0.17), HAZARD)
+    m.box((0.62, 0.1, 0.24), (0, -0.12, 0.17), HAZARD)
+    for x, y in ((-0.15, 0.15), (0.15, -0.14), (-0.13, -0.16)):               # limpet charges on top
+        m.cyl(0.12, 0.08, (x, y, 0.28), "#3a3e34", segs=6, r_top=0.08)
+        m.cyl(0.04, 0.04, (x, y, 0.36), RED, segs=5, glow=True)
+    m.box((0.06, 0.06, 0.3), (0.2, 0.18, 0.4), STEEL)                          # scrap hook
+    m.box((0.18, 0.06, 0.06), (0.25, 0.18, 0.26), STEEL)
+    m.box((0.06, 0.06, 0.12), (0.32, 0.18, 0.3), STEEL)
+    lamp(m, 0.18, 0.04, 0.27, PASSG, r=0.05)
+    m.build(P)
+
+
+@part
+def exchanger(P, anim):
+    m = Model("exchanger")
+    base(m, 0.7)
+    m.box((0.64, 0.64, 0.1), (0, 0, 0.12), STEEL)
+    for s, col in ((-1, HOT), (1, CYAN)):                                       # a hot leg and a cold one
+        m.box((0.12, 0.56, 0.12), (s * 0.2, 0, 0.28), col, glow=True)
+        m.box((0.16, 0.1, 0.32), (s * 0.2, 0.24, 0.24), METAL)
+        m.box((0.16, 0.1, 0.32), (s * 0.2, -0.24, 0.24), METAL)
+    m.box((0.52, 0.12, 0.12), (0, 0.24, 0.42), METAL)                            # the U-bend over the top
+    m.box((0.18, 0.13, 0.13), (-0.08, 0.24, 0.42), "#ff9a5a", glow=True)
+    m.box((0.18, 0.13, 0.13), (0.08, 0.24, 0.42), "#aef0ff", glow=True)
+    for y in (-0.1, 0.04):                                                       # fins between
+        m.box((0.22, 0.04, 0.22), (0, y, 0.28), B)
+    lamp(m, 0, -0.24, 0.17, PASSG, r=0.05)
+    m.build(P)
+
+
+@part
+def echo(P, anim):
+    m = Model("echo")
+    base(m)
+    m.cyl(0.28, 0.12, (0, 0, 0.08), A, segs=6, r_top=0.22)
+    m.cyl(0.05, 0.6, (0, 0, 0.2), CHROME, segs=5)                               # the mast
+    m.ball(0.08, (0, 0, 0.82), "#f0e0ff", subdiv=0, glow=True)
+    for s in (-1, 1):
+        m.box((0.3, 0.05, 0.05), (s * 0.12, 0, 0.3), METAL, rot=(0, s * 0.5, 0))   # stays
+    m.build(P)
+    for i, (z, r) in enumerate(((0.36, 0.26), (0.52, 0.19), (0.66, 0.12))):    # the rings it echoes
+        k = Model(f"echo_ring_{i}")
+        ring(k, r, 0, 0, PASSG, n=6, w=0.04, h=0.03, glow=True)
+        o = k.build(P, loc=(0, 0, z))
+        if anim:
+            d = 0.25 * i
+            animate(o, "part_echo_ping_idle", "scale",
+                    [(0, (0, 0, 0)), (0.25 + d, (0, 0, 0)), (0.4 + d, (0.35, 0.35, 0)), (0.6 + d, (0, 0, 0)), (1.6, (0, 0, 0))])
+
+
+@part
+def mirror(P, anim):
+    m = Model("mirror")
+    m.slab([(-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4)], 0.0, 0.18, A,
+           top=[(-0.36, -0.36), (0.36, -0.36), (0.36, 0.36), (-0.36, 0.36)])
+    m.cyl(0.46, 0.24, (0, 0, 0.18), CHROME, segs=4, r_top=0.0, rot=(0, 0, math.pi / 4))   # mirrored pyramid
+    for i in range(4):                                                            # glass facets
+        a = TAU * i / 4
+        m.box((0.4, 0.2, 0.03), (math.cos(a) * 0.16, math.sin(a) * 0.16, 0.28), "#bfe8ff",
+              rot=(0, 0, a + math.pi / 2), glow=False)
+    for i in range(4):                                                            # bright edges
+        a = TAU * i / 4 + math.pi / 4
+        m.plank_line((math.cos(a) * 0.42, math.sin(a) * 0.42, 0.19), (0, 0, 0.42), 0.03, 0.03, "#e8fbff")
+    m.ball(0.05, (0, 0, 0.43), "#ffffff", subdiv=0, glow=True)
+    lamp(m, 0.3, -0.3, 0.17, PASSG, r=0.05)
+    m.build(P)
+
+
+def conduit_run(m: Model, a, b, z=0.14):
+    """A pipe from a to b (in the deck plane), with a glowing line along its top."""
+    ax, ay = a
+    bx, by = b
+    L = math.hypot(bx - ax, by - ay)
+    rot = (0, 0, math.atan2(by - ay, bx - ax) - math.pi / 2)
+    mid = ((ax + bx) / 2, (ay + by) / 2)
+    m.box((0.2, L, 0.16), (mid[0], mid[1], z), STEEL, rot=rot)
+    m.box((0.08, L, 0.04), (mid[0], mid[1], z + 0.09), "#c8b0ff", rot=rot, glow=True)
+
+
+@part
+def conduit(P, anim):
+    m = Model("conduit")
+    m.box((0.5, 0.5, 0.06), (0, 0, 0.03), DARK)
+    conduit_run(m, (-0.4, 0), (0.4, 0))                                          # out to every side
+    conduit_run(m, (0, -0.4), (0, 0.4))
+    m.box((0.3, 0.3, 0.24), (0, 0, 0.16), "#4a4060", taper=0.8)                  # junction
+    m.cyl(0.08, 0.04, (0, 0, 0.28), "#e0d0ff", segs=6, glow=True)
+    m.build(P)
+
+
+@part
+def elbow(P, anim):
+    m = Model("elbow")
+    for x, y in ((0, 0), (0, -0.8), (0.8, -0.8)):
+        m.box((0.5, 0.5, 0.06), (x, y, 0.03), DARK)
+    conduit_run(m, (0, 0.4), (0, -0.8))
+    conduit_run(m, (0, -0.8), (1.2, -0.8))
+    conduit_run(m, (-0.4, 0), (0.4, 0))
+    m.box((0.3, 0.3, 0.24), (0, 0, 0.16), "#4a4060", taper=0.8)
+    m.box((0.32, 0.32, 0.26), (0, -0.8, 0.16), "#4a4060", taper=0.8)             # the corner
+    m.box((0.3, 0.3, 0.24), (0.8, -0.8, 0.16), "#4a4060", taper=0.8)
+    for x, y in ((0, 0), (0, -0.8), (0.8, -0.8)):
+        m.cyl(0.07, 0.04, (x, y, 0.28), "#e0d0ff", segs=6, glow=True)
+    m.build(P)
+
+
+@part
+def stormlens(P, anim):
+    m = Model("stormlens")
+    base(m)
+    m.cyl(0.26, 0.12, (0, 0, 0.08), A, segs=6)
+    for s in (-1, 1):                                                              # the fork
+        m.box((0.08, 0.1, 0.42), (s * 0.3, 0, 0.36), B)
+    m.build(P)
+    k = Model("stormlens_lens")
+    k.cyl(0.27, 0.05, (0, 0, -0.025), "#9ae8ff", segs=8, glow=True)               # the glass
+    k.cyl(0.14, 0.07, (0, 0, -0.035), "#e8fbff", segs=8, glow=True)
+    ring(k, 0.29, 0, 0, STEEL, n=8, w=0.07, h=0.09)
+    for i in range(3):                                                              # bolts of lightning off it
+        a = TAU * i / 3
+        for j in range(3):
+            r = 0.34 + j * 0.08
+            k.box((0.04, 0.12, 0.04), (math.cos(a + j * 0.25) * r, math.sin(a + j * 0.25) * r, 0.02),
+                  PASSG if j % 2 else "#e0d0ff", rot=(0, 0, a + (0.9 if j % 2 else -0.9)), glow=True)
+    o = k.build(P, loc=(0, 0, 0.58))
+    o.rotation_euler = (0.45, 0, 0)
+    if anim:
+        animate(o, "part_stormlens_turn_idle", "rotation_euler", [(0, (0, 0, 0)), (2.0, (0, 0, TAU))], rest=(0.45, 0, 0))
+
+
+@part
+def slag(P, anim):
+    m = Model("slag")
+    m.box((1.42, 0.66, 0.1), (0.4, 0, 0.05), DARK)
+    m.box((1.3, 0.56, 0.26), (0.4, 0, 0.18), "#4a3a32", taper=0.9)                  # the furnace
+    m.box((1.32, 0.1, 0.28), (0.4, -0.2, 0.18), HAZARD)
+    m.cyl(0.3, 0.2, (0.3, 0.04, 0.3), A, segs=8, r_top=0.34)                         # crucible
+    m.cyl(0.27, 0.04, (0.3, 0.04, 0.47), "#ff5a1a", segs=8, glow=True)               # molten slag
+    m.cyl(0.13, 0.05, (0.26, 0.08, 0.48), "#ffd04a", segs=6, glow=True)
+    m.box((0.2, 0.1, 0.08), (0.3, 0.38, 0.38), A, rot=(-0.4, 0, 0))                 # pouring lip
+    m.cyl(0.12, 0.6, (0.92, -0.08, 0.2), STEEL, segs=6)                              # stack
+    m.cyl(0.14, 0.08, (0.92, -0.08, 0.78), DARK, segs=6)
+    m.cyl(0.09, 0.04, (0.92, -0.08, 0.84), "#ff7a2a", segs=6, glow=True)
+    for x in (0.7, 1.1):
+        m.box((0.06, 0.4, 0.06), (x, 0.12, 0.33), METAL)
+    lamp(m, 0.92, 0.18, 0.31, PASSG, r=0.05)
+    m.build(P)
+    k = Model("slag_blob")
+    k.ball(0.09, (0, 0, 0), MOLTEN, subdiv=0, scale=(1, 1, 0.7), glow=True)
+    o = k.build(P, loc=(0.36, 0.0, 0.5))
+    if anim:
+        animate(o, "part_slag_boil_idle", "location", [(0, (0, 0, -0.05)), (0.5, (0, 0, 0.04)), (0.7, (0, 0, -0.05)), (1.4, (0, 0, -0.05))])
+        animate(o, "part_slag_boil_idle", "scale", [(0, (-0.4, -0.4, -0.4)), (0.5, (0.2, 0.2, 0.2)), (0.7, (-0.4, -0.4, -0.4)), (1.4, (-0.4, -0.4, -0.4))])
+
+
+@part
+def recoil(P, anim):
+    m = Model("recoil")
+    base(m)
+    m.box((0.6, 0.26, 0.26), (0, -0.2, 0.2), A, taper=0.9)                          # breech block
+    m.box((0.62, 0.08, 0.28), (0, -0.1, 0.2), B)
+    for s in (-1, 1):                                                                 # two shock absorbers
+        m.cyl(0.1, 0.42, (s * 0.18, -0.3, 0.3), STEEL, segs=6, rot=FWD)
+        for y in (-0.42, -0.3, -0.18):
+            m.cyl(0.12, 0.04, (s * 0.18, y, 0.3), HAZARD, segs=6, rot=FWD)    # their springs
+    m.box((0.3, 0.14, 0.12), (0, -0.33, 0.38), DARK)
+    lamp(m, 0, -0.33, 0.4, DASHG, r=0.05)
+    m.build(P)
+    k = Model("recoil_rams")
+    for s in (-1, 1):
+        k.cyl(0.06, 0.34, (s * 0.18, 0, 0), CHROME, segs=6, rot=FWD)               # piston rods
+        k.cyl(0.11, 0.06, (s * 0.18, 0.32, 0), DARK, segs=6, rot=FWD)
+    k.box((0.48, 0.08, 0.16), (0, 0.36, 0), "#c89a40")                              # the strike plate
+    k.box((0.36, 0.04, 0.06), (0, 0.41, 0.0), "#ffb04a", glow=True)
+    o = k.build(P, loc=(0, 0.0, 0.3))
+    if anim:
+        animate(o, "part_recoil_kick_idle", "location", [(0, (0, 0, 0)), (1.0, (0, -0.14, 0)), (1.08, (0, 0.06, 0)), (1.3, (0, 0, 0)), (1.8, (0, 0, 0))])
+
+
 # --- frames ---------------------------------------------------------------------------------------
 # Used-future ships, like the ones on the title art: worn plating in slightly different shades,
 # chipped paint, soot, greebles, faded stripes. Each frame keeps a character of its own: the
@@ -1069,7 +1623,7 @@ def build():
             parts = START[fid]
             extra = os.environ.get("SHIPS_DEMO_FULL")
             if extra:
-                parts = FULL.get(fid, parts)
+                parts = (BUILDS if extra == "builds" else FULL).get(fid, parts)
             for pid, c, r in parts:
                 x, y = sock(FRAMES[fid], c, r)
                 s = group(f"demo_{fid}_{pid}", loc=(x, y, DECK), parent=root)
@@ -1090,4 +1644,20 @@ FULL = {
                ('phasedrive', 2, 3), ('emp', 2, 2), ('burner', 1, 2)],
     "lattice": [('rail', 0, 0), ('rivet', 2, 0), ('rail', 4, 0), ('capacitor', 0, 1), ('amp', 2, 1),
                 ('sink', 4, 1), ('reactor', 2, 2), ('thruster', 1, 3), ('thruster', 3, 3)],
+}
+
+
+# the builds parts (dash mods, aux, passives, duos) on every frame (SHIPS_DEMO_FULL=builds)
+BUILDS = {
+    "kestrel": [('sentry', 1, 0), ('parry', 0, 1), ('ghost', 1, 1), ('trigger', 2, 1), ('spring', 1, 2),
+                ('recoil', 2, 2), ('thruster', 0, 3), ('wake', 2, 3)],
+    "mule": [('ram', 0, 0), ('lance', 1, 0), ('sentry', 2, 0), ('stormlens', 3, 0), ('rivet', 4, 0),
+             ('flare', 0, 1), ('tether', 2, 1), ('echo', 3, 1), ('mirror', 4, 1)],
+    "wasp": [('rivet', 0, 0), ('rivet', 2, 0), ('flare', 0, 1), ('blink', 2, 1), ('throttle', 0, 2),
+             ('reactor', 1, 2), ('ghost', 2, 2), ('thruster', 0, 3), ('thruster', 1, 3), ('thruster', 2, 3)],
+    "hammer": [('scatter', 0, 0), ('ram', 1, 0), ('ram', 2, 0), ('scatter', 3, 0), ('slag', 0, 1),
+               ('exchanger', 2, 1), ('salvage', 3, 1), ('siphon', 1, 2), ('gambler', 2, 2), ('blink', 2, 3)],
+    "lattice": [('rail', 0, 0), ('sentry', 2, 0), ('rail', 4, 0), ('elbow', 0, 1), ('skin', 2, 1),
+                ('throttle', 4, 1), ('reactor', 2, 2), ('shield', 3, 2), ('conduit', 4, 2), ('thruster', 1, 3),
+                ('thruster', 3, 3)],
 }

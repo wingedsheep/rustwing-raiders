@@ -261,7 +261,7 @@ export class Results implements Screen {
     if (tier === 'legendary' && !(p.done && p.took !== k)) this.rays(ctx, r.x + r.w / 2, r.y + r.h / 2, Math.max(r.w, r.h) * 0.75);
     const lift = on ? -3 : 0;
     const crew = this.run.crew[i];
-    lootCard(ctx, it, crew.build, r.x, r.y + lift, r.w, r.h, { on, t: this.t, fit: p.fits[k], terse: this.picks.length > 1, dim: p.done && p.took !== k });
+    lootCard(ctx, it, crew.build, r.x, r.y + lift, r.w, r.h, { on, t: this.t, fit: p.fits[k], terse: this.picks.length > 1, dim: p.done && p.took !== k, livery: i });
     if (on && this.picks.length === 1) {
       const bob = Math.round(Math.sin(this.t * 6));
       drawText(ctx, '▲', r.x + r.w / 2, r.y + r.h + 3 + bob, GOLD, { align: 'center' });
