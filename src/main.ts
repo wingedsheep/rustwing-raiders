@@ -2,7 +2,8 @@ import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
 import { levelSpec } from './sim/run';
-import { cellsOf, startBuild, type Build } from './sim/build';
+import { cellsOf, startBuild, type Build, type Placement } from './sim/build';
+import type { TraitId } from './game/loot';
 import { PLANETS } from './world/planets';
 import type { Mode } from './sim/level';
 import { drawText } from './ui/font';
@@ -77,8 +78,9 @@ async function boot() {
         c.cargo.push(
           { id: 'incend' },
           { id: 'amp', tier: 'legendary', trait: 'wireless', mods: [{ k: 'potent', roll: 0.8 }] },
-          { id: 'rivet', tier: 'legendary', trait: 'splitting', mods: [{ k: 'dmg', roll: 0.7 }] },
-          { id: 'catalyst' },
+          { id: 'rail', tier: 'legendary', trait: 'sentinel', mods: [{ k: 'dmg', roll: 0.7 }] },
+          { id: 'hone', tier: 'rare', mods: [{ k: 'potent', roll: 0.5 }] },
+          { id: 'lunge' },
           { id: 'rail', tier: 'epic', mods: [{ k: 'dmg', roll: 0.95 }, { k: 'light', roll: 0.4 }] },
         ),
       );
@@ -95,7 +97,7 @@ async function boot() {
       // &heist=cfj: a heist's results (c caught, f fell, j jumped; a D on the end: taken down)
       const hq = q.get('heist');
       const spec = levelSpec(PLANETS[0], home ? 'escort' : hq ? 'heist' : 'raid', 1, 0.2);
-      const res = { cleared: true, scrap: 42, score: 12345, loot: [['seeker'], []], hull: [3, 3], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
+      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [3, 3], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
       if (home) {
         const n = home.filter(Boolean).length;
         Object.assign(res, { convoy: { delivered: n, home, paid: n * 17 }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });
@@ -115,13 +117,14 @@ async function boot() {
   game.start();
 }
 
-/** &parts=sentry.1.0,ram.0.0: bolts these parts on at (column, row), over whatever sat there. */
+/** &parts=sentry.1.0,ram.0.0.thunderous: bolts these parts on at (column, row), over whatever sat there (a fourth field: a legendary with that trait). */
 function fitParts(b: Build) {
   const want = game.params.get('parts');
   if (!want) return;
   for (const s of want.split(',')) {
-    const [id, c, r] = s.split('.');
-    const add = { id, c: Number(c), r: Number(r) };
+    const [id, c, r, trait] = s.split('.');
+    const add: Placement = { id, c: Number(c), r: Number(r) };
+    if (trait) Object.assign(add, { tier: 'legendary', trait: trait as TraitId });
     const taken = new Set(cellsOf(add).map(([cc, rr]) => `${cc},${rr}`));
     b.parts = b.parts.filter((p) => !cellsOf(p).some(([cc, rr]) => taken.has(`${cc},${rr}`)));
     b.parts.push(add);

@@ -1224,6 +1224,112 @@ def recoil(P, anim):
         animate(o, "part_recoil_kick_idle", "location", [(0, (0, 0, 0)), (1.0, (0, -0.14, 0)), (1.08, (0, 0.06, 0)), (1.3, (0, 0, 0)), (1.8, (0, 0, 0))])
 
 
+# --- the edges parts: a grinding wheel that sharpens guns' crits, jets that make the dash an attack --
+
+EDGEG = "#ffa8d8"
+
+
+@part
+def hone(P, anim):
+    m = Model("hone")
+    base(m)
+    m.cyl(0.3, 0.12, (0, 0, 0.1), A, segs=8)                                       # the drive housing
+    for s in (-1, 1):                                                                # spark guards, open to the guns
+        m.box((0.08, 0.36, 0.18), (s * 0.3, -0.04, 0.24), DARK, taper=0.7)
+    m.box((0.2, 0.12, 0.1), (0, -0.28, 0.2), STEEL)
+    lamp(m, 0, -0.3, 0.26, PASSG, r=0.05)
+    m.build(P)
+    k = Model("hone_wheel")
+    k.cyl(0.27, 0.1, (0, 0, 0), "#a8968a", segs=12)                                 # the stone, lying flat
+    k.cyl(0.2, 0.02, (0, 0, 0.06), "#8a7a70", segs=12)
+    k.cyl(0.07, 0.08, (0, 0, 0.06), CHROME, segs=8)                                 # its hub
+    for i in range(8):                                                               # gritted rim, glinting pink
+        a = TAU * i / 8
+        k.box((0.1, 0.08, 0.08), (math.cos(a) * 0.27, math.sin(a) * 0.27, 0.04), EDGEG, rot=(0, 0, a), glow=True)
+    for i in range(3):                                                               # spokes, to see it turn
+        a = TAU * i / 3
+        k.box((0.3, 0.035, 0.02), (math.cos(a) * 0.1, math.sin(a) * 0.1, 0.075), DARK, rot=(0, 0, a))
+    o = k.build(P, loc=(0, 0.02, 0.2))
+    if anim:
+        spin(o, "part_hone_grind_idle", 0.8)
+
+
+@part
+def lunge(P, anim):
+    m = Model("lunge")
+    base(m)
+    m.box((0.56, 0.4, 0.14), (0, -0.06, 0.12), A, taper=0.8)
+    m.box((0.2, 0.5, 0.1), (0, 0.0, 0.22), B, taper=0.6)                             # a spine along it
+    lamp(m, 0, -0.22, 0.28, DASHG, r=0.05)
+    m.build(P)
+    for s in (-1, 1):                                                                # two jets, swept forward
+        k = Model(f"lunge_jet{'l' if s < 0 else 'r'}")
+        k.cyl(0.1, 0.42, (0, 0, 0), STEEL, segs=8, rot=FWD, r_top=0.07)
+        k.cyl(0.12, 0.08, (0, -0.2, 0), DARK, segs=8, rot=FWD)
+        k.cyl(0.07, 0.06, (0, 0.21, 0), EDGEG, segs=8, rot=FWD, glow=True)         # hot at the mouth
+        k.box((0.05, 0.2, 0.12), (s * -0.08, -0.06, 0.06), A)
+        o = k.build(P, loc=(s * 0.2, 0.04, 0.3))
+        o.rotation_euler = (0, 0, -s * 0.18)
+        if anim:
+            animate(o, "part_lunge_kick_idle", "location",
+                    [(0, (0, 0, 0)), (0.9, (0, -0.1, 0)), (0.98, (0, 0.06, 0)), (1.2, (0, 0, 0)), (1.6, (0, 0, 0))])
+
+
+# --- the loadout parts: a drum that feeds the heavy guns, a keel that carries the load -------------
+
+BRASS = "#c89a48"
+GRAVG = "#8affe0"
+
+
+@part
+def autoloader(P, anim):
+    m = Model("autoloader")
+    base(m)
+    m.box((0.5, 0.2, 0.3), (0, -0.2, 0.2), A, taper=0.85)                          # the feed housing
+    m.box((0.52, 0.06, 0.32), (0, -0.1, 0.2), B)
+    m.box((0.14, 0.34, 0.1), (0.2, 0.1, 0.32), STEEL)                               # feed chute, out to the guns
+    m.box((0.1, 0.06, 0.12), (0.2, 0.28, 0.32), HAZARD)
+    lamp(m, -0.18, -0.24, 0.38, PASSG, r=0.05)
+    m.build(P)
+    k = Model("autoloader_drum")
+    k.cyl(0.24, 0.3, (0, 0, 0), DARK, segs=10, rot=FWD)                            # the drum, lying along the ship
+    k.cyl(0.25, 0.04, (0, 0.13, 0), METAL, segs=10, rot=FWD)
+    k.cyl(0.25, 0.04, (0, -0.13, 0), METAL, segs=10, rot=FWD)
+    for i in range(6):                                                               # shells in their chambers
+        a = TAU * i / 6
+        x, z = math.cos(a) * 0.17, math.sin(a) * 0.17
+        k.cyl(0.055, 0.26, (x, 0.02, z), BRASS, segs=6, rot=FWD)
+        k.cyl(0.045, 0.05, (x, 0.17, z), "#ffd88a", segs=6, rot=FWD, glow=True)     # bright tips
+    o = k.build(P, loc=(-0.08, 0.06, 0.34))
+    if anim:
+        # it turns a chamber at a time: a click round, a rest
+        keys = []
+        for i in range(6):
+            keys += [(i * 0.5, (0, i * TAU / 6, 0)), (i * 0.5 + 0.38, (0, i * TAU / 6, 0))]
+        animate(o, "part_autoloader_feed_idle", "rotation_euler", keys + [(3.0, (0, TAU, 0))])
+
+
+@part
+def keel(P, anim):
+    m = Model("keel")
+    base(m)
+    m.box((0.14, 0.6, 0.42), (0, 0, 0.26), STEEL, taper=0.55)                       # the keel blade, fore and aft
+    m.box((0.16, 0.5, 0.06), (0, 0, 0.48), B)
+    for y in (-0.2, 0.2):                                                            # stays to the mount
+        for s in (-1, 1):
+            m.box((0.04, 0.04, 0.3), (s * 0.16, y, 0.18), DARK, rot=(0, s * 0.5, 0))
+    lamp(m, 0, -0.28, 0.5, PASSG, r=0.05)
+    m.build(P)
+    for i, (y, ph) in enumerate(((-0.14, 0.0), (0.14, 0.6))):                       # two lift rings, bobbing
+        k = Model(f"keel_ring{i}")
+        k.cyl(0.26, 0.04, (0, 0, 0), GRAVG, segs=12, glow=True)
+        k.cyl(0.2, 0.05, (0, 0, 0), DARK, segs=12)
+        o = k.build(P, loc=(0, y, 0.3))
+        if anim:
+            animate(o, "part_keel_lift_idle", "location",
+                    [(0, (0, 0, 0)), (0.6 + ph, (0, 0, 0.08)), (1.2 + ph, (0, 0, 0)), (2.4, (0, 0, 0))])
+
+
 # --- frames ---------------------------------------------------------------------------------------
 # Used-future ships, like the ones on the title art: worn plating in slightly different shades,
 # chipped paint, soot, greebles, faded stripes. Each frame keeps a character of its own: the
@@ -2057,7 +2163,7 @@ def build():
             parts = START[fid]
             extra = os.environ.get("SHIPS_DEMO_FULL")
             if extra:
-                parts = {"builds": BUILDS, "marks": MARKS}.get(extra, FULL).get(fid, parts)
+                parts = {"builds": BUILDS, "marks": MARKS, "edges": EDGE_PARTS}.get(extra, FULL).get(fid, parts)
             for pid, c, r in parts:
                 x, y = sock(FRAMES[fid], c, r)
                 s = group(f"demo_{fid}_{pid}", loc=(x, y, DECK), parent=root)
@@ -2101,4 +2207,12 @@ BUILDS = {
 MARKS = {
     "kestrel": [('breach', 1, 0), ('torch', 0, 1), ('flaw', 1, 1), ('arc', 2, 1), ('incend', 0, 2),
                 ('catalyst', 1, 2), ('tesla', 2, 2), ('thruster', 0, 3), ('thruster', 2, 3)],
+}
+
+
+# the edges parts: the Edge Hone between guns, Lunge Jets at the back (SHIPS_DEMO_FULL=edges)
+EDGE_PARTS = {
+    "kestrel": [('rivet', 1, 0), ('scatter', 0, 1), ('hone', 1, 1), ('seeker', 2, 1), ('reactor', 1, 2),
+                ('lunge', 0, 3), ('thruster', 2, 3)],
+    "mule": [('rivet', 1, 0), ('hone', 2, 0), ('rivet', 3, 0), ('lunge', 2, 1), ('thruster', 2, 2)],
 }

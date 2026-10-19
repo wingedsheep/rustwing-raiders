@@ -3,10 +3,13 @@
  * browser's standard mapping), or the keyboard. One player on the keyboard gets all of it; two
  * share it, left hand and right hand.
  *
- *   keyboard (solo)   move WASD / arrows   fire J Z Space   dash K X        boost L C (held)   special I V        aux U B        focus Shift
- *   keyboard left     move WASD            fire Space        dash LShift     boost F            special E          aux R          focus Q
- *   keyboard right    move arrows          fire / Num0       dash RShift Num.  boost . Num3     special Enter      aux ' Num2     focus RCtrl Num1
- *   pad               move stick / d-pad   fire A X (✕ □)    dash B (○)      boost RT analog, RB (R2, R1)   special Y (△)   aux LB (L1)   focus LT (L2)
+ *   keyboard (solo)   move WASD / arrows   fire J Z Space   heavy O N    dash K X        boost L C (held)   special I V        aux U B        focus Shift
+ *   keyboard left     move WASD            fire Space        heavy G      dash LShift     boost F            special E          aux R          focus Q
+ *   keyboard right    move arrows          fire / Num0       heavy ; Num5 dash RShift Num.  boost . Num3     special Enter      aux ' Num2     focus RCtrl Num1
+ *   pad               move stick / d-pad   fire A (✕)        heavy RB X (R1 □)  dash B (○)      boost RT analog (R2)   special Y (△)   aux LB (L1)   focus LT (L2)
+ *
+ * Fire is held; heavy is pressed, a round at a time (see GunSpec.heavy). On a pad it sits on the
+ * right shoulder, so the thumb can hold A while a finger fires the heavies (X too, for the thumb).
  *
  * Aux is on a shoulder so it can be pressed (a parry is all timing) with fire held on A.
  *
@@ -53,6 +56,7 @@ interface Scheme {
   left: string[];
   right: string[];
   fire: string[];
+  heavy: string[];
   dash: string[];
   boost: string[];
   special: string[];
@@ -73,6 +77,7 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     left: ['KeyA', 'ArrowLeft'],
     right: ['KeyD', 'ArrowRight'],
     fire: ['KeyJ', 'KeyZ', 'Space'],
+    heavy: ['KeyO', 'KeyN'],
     dash: ['KeyK', 'KeyX'],
     boost: ['KeyL', 'KeyC'],
     special: ['KeyI', 'KeyV'],
@@ -91,6 +96,7 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     left: ['KeyA'],
     right: ['KeyD'],
     fire: ['Space'],
+    heavy: ['KeyG'],
     dash: ['ShiftLeft'],
     boost: ['KeyF'],
     special: ['KeyE'],
@@ -109,6 +115,7 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     left: ['ArrowLeft'],
     right: ['ArrowRight'],
     fire: ['Slash', 'Numpad0'],
+    heavy: ['Semicolon', 'Numpad5'],
     dash: ['ShiftRight', 'NumpadDecimal'],
     boost: ['Period', 'Numpad3'],
     special: ['Enter', 'NumpadEnter'],
@@ -130,7 +137,7 @@ const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c))
  * frame before the special fills) still goes off on the first frame it can. The parry is kept
  * strict: a long buffer would catch bullets you didn't time.
  */
-const BUFFER = { dash: 0.1, special: 0.1, aux: 0.05 };
+const BUFFER = { dash: 0.1, heavy: 0.1, special: 0.1, aux: 0.05 };
 type Buffered = keyof typeof BUFFER;
 const buffered = new Map<string, number>();
 /** A press now, or one still buffered. */
@@ -233,19 +240,28 @@ class Input {
     return 'PAD';
   }
 
+  /** The heavy button on a player's device, as a prompt names it. */
+  heavyKey(dev: DeviceId) {
+    if (dev === 'keys') return 'O';
+    if (dev === 'keys-left') return 'G';
+    if (dev === 'keys-right') return ';';
+    return this.padName(dev) === 'PS PAD' ? 'R1' : 'RB';
+  }
+
   /** What a player's device asks of their ship. */
   intent(dev: DeviceId): Intent {
     if (dev.startsWith('pad')) {
       const g = padNow.get(Number(dev.slice(3)));
-      if (!g) return { x: 0, y: 0, fire: false, boost: 0, dash: false, special: false, aux: false, focus: false };
+      if (!g) return { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
       const s = stick(g);
       const prev = padPrev.get(g.index)?.buttons ?? [];
       const edge = (...is: number[]) => is.some((i) => btn(g, i) && !prev[i]);
       return {
         x: s.x,
         y: -s.y,
-        fire: btn(g, 0) || btn(g, 2),
-        boost: Math.max(pull(g, 7), btn(g, 5) ? 1 : 0),
+        fire: btn(g, 0),
+        heavy: buffer(dev, 'heavy', edge(5, 2)),
+        boost: pull(g, 7),
         dash: buffer(dev, 'dash', edge(1)),
         special: buffer(dev, 'special', edge(3)),
         aux: buffer(dev, 'aux', edge(4)),
@@ -257,6 +273,7 @@ class Input {
       x: (any(k.right, held) ? 1 : 0) - (any(k.left, held) ? 1 : 0),
       y: (any(k.up, held) ? 1 : 0) - (any(k.down, held) ? 1 : 0),
       fire: any(k.fire, held),
+      heavy: buffer(dev, 'heavy', any(k.heavy, pressed)),
       boost: any(k.boost, held) ? 1 : 0,
       dash: buffer(dev, 'dash', any(k.dash, pressed)),
       special: buffer(dev, 'special', any(k.special, pressed)),

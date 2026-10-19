@@ -40,7 +40,7 @@ export function newPilot(opts: { noBoost?: boolean } = {}): PilotState {
 }
 
 export function pilot(lv: Level, p: Player, st: PilotState): Intent {
-  const intent: Intent = { x: 0, y: 0, fire: true, boost: 0, dash: false, special: false, aux: false, focus: false };
+  const intent: Intent = { x: 0, y: 0, fire: true, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
   if (p.down) return intent;
   const goal = goalFor(lv, p);
   let best = Infinity;
@@ -100,6 +100,8 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   // let the guns cool if there's nothing to shoot
   const targets = lv.enemies.some((e) => !e.dead && lv.onScreen(e.x, e.z, -2));
   intent.fire = targets && !p.jam.some((j) => j > 0 && p.heat.every((h) => h > 0.85)) && !holdFire(lv, p);
+  // the heavies: a round now and then while there's something to shoot, never the last one in a hurry
+  intent.heavy = intent.fire && p.heavyT > 0.45 && p.rounds.some((r) => r > 0);
   return intent;
 }
 

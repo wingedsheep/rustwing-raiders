@@ -72,10 +72,7 @@ export class Results implements Screen {
     this.picks = run.crew.map((crew, i) => {
       const salvaged: Item[] = [];
       const scrapped: Item[] = [];
-      (res.loot[i] ?? []).forEach((id, k) => {
-        const it = run.salvage(id, spec.seed * 13 + i * 101 + k * 7 + run.levels);
-        (run.stow(i, it) ? salvaged : scrapped).push(it);
-      });
+      for (const it of res.loot[i] ?? []) (run.stow(i, it) ? salvaged : scrapped).push(it);
       const options = run.lootChoice(spec.seed * 31 + i * 7 + run.levels, rich, spec.mode === 'boss');
       // ?legendary: for testing, the first card is one
       if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : 'prismatic' };

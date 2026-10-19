@@ -212,6 +212,9 @@ export class ShotArt {
       if (seed === undefined) this.seeds.set(s, (seed = Math.random()));
       x.col.setHex(ShotArt.color(s, accents[s.owner] ?? 0xffffff));
       if (s.tag === 'reflect' || s.tag === 'mirror') x.col.lerp(WHITE, 0.4);
+      // a VENGEFUL nova's shrapnel burns orange; a dash-strike's rounds run white-hot
+      else if (s.tag === 'nova') x.col.setHex(0xff8a4a);
+      if (s.strike) x.col.lerp(WHITE, 0.5).multiplyScalar(1.3);
       x.age = s.t;
       x.life = Math.min(1, s.t / Math.max(s.life, 0.01));
       x.seed = seed;

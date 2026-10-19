@@ -3,7 +3,8 @@
  * device, hearts, the hatched backdrop.
  */
 
-import { partById, type PartDef, type Rarity } from '../game/parts';
+import { EDGES, LOAD, LOAD_CLASS, partById, type PartDef, type Rarity } from '../game/parts';
+import type { Stats } from '../sim/build';
 import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
 import { input, type DeviceId } from '../input';
@@ -34,12 +35,20 @@ export function partStats(def: PartDef): string[] {
   const g = def.gun;
   if (g) {
     const dps = g.damage * g.count * g.rate;
-    out.push(`DMG ${num(g.damage)}${g.count > 1 ? `×${g.count}` : ''}  RATE ${num(g.rate)}${g.pierce && g.pierce < 99 ? `  PIERCE ${g.pierce}` : ''}`);
-    out.push(`DPS ${Math.round(dps)}  HEAT ${Math.round(g.heat * 100)}`);
+    if (g.heavy) {
+      out.push(`DMG ${num(g.damage)}${g.count > 1 ? `×${g.count}` : ''}  ${g.heavy} ROUNDS  RELOAD ${num(1 / g.rate)}S${g.pierce && g.pierce < 99 ? `  PIERCE ${g.pierce}` : ''}`);
+      out.push(`EDGE: ${EDGES[g.edge].text}`);
+      out.push('HEAVY BUTTON: A ROUND A PRESS');
+    } else {
+      out.push(`DMG ${num(g.damage)}${g.count > 1 ? `×${g.count}` : ''}  RATE ${num(g.rate)}${g.pierce && g.pierce < 99 ? `  PIERCE ${g.pierce}` : ''}`);
+      out.push(`EDGE: ${EDGES[g.edge].text}`);
+      out.push(`DPS ${Math.round(dps)}  HEAT ${Math.round(g.heat * 100)}`);
+    }
     const m = markNames(tagMarks(def.tags));
     if (m) out.push(`MARKS: ${m}`);
   }
-  if (def.thrust) out.push(`THRUST +${num(def.thrust)}`);
+  if (def.carry) out.push(`CARRIES +${num(def.carry)} LOAD`);
+  if (def.thrust) out.push(`THRUST +${num(def.thrust)}  CARRIES +${num(def.thrust * LOAD.engine)}`);
   if (def.grip) out.push(`GRIP ${def.grip > 0 ? '+' : ''}${def.grip}`);
   if (def.dash) out.push(`DASH +${def.dash}`);
   if (def.hp) out.push(`HULL +${def.hp}`);
@@ -50,23 +59,77 @@ export function partStats(def: PartDef): string[] {
     const b = def.boost;
     const bits = [
       b.damage && `DMG +${Math.round(b.damage * 100)}%`,
-      b.rate && `RATE +${Math.round(b.rate * 100)}%`,
+      b.rate && !b.rounds && `RATE +${Math.round(b.rate * 100)}%`,
       b.cool && 'COOLER',
       b.homing && 'HOMING',
       b.burst && 'BURST',
       b.mark && `MARK ${b.mark.toUpperCase()}`,
       b.flaw && 'CRIT MARKED',
+      b.hone && 'EDGES ×3',
+      b.rounds && `HEAVIES +${b.rounds} ROUND, RELOAD +${Math.round((b.rate ?? 0) * 100)}%`,
     ].filter(Boolean);
     out.push(`TOUCHING GUNS: ${bits.join(' ')}`);
   }
   if (def.drone) out.push('A DRONE COPIES A GUN');
   if (def.special) out.push(`SPECIAL: ${def.special.toUpperCase()}`);
   if (def.aux) out.push(`AUX: ${def.aux.toUpperCase()}`);
-  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}`);
+  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
   if (def.conduit) out.push('CONDUIT: RELAYS LINKS');
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
-  out.push(`MASS ${num(def.mass)}  ${def.power < 0 ? `POWER +${num(-def.power)}` : def.power > 0 ? `DRAW ${num(def.power)}` : 'NO POWER'}`);
+  out.push(`LOAD ${num(def.mass)}  ${def.power < 0 ? `POWER +${num(-def.power)}` : def.power > 0 ? `DRAW ${num(def.power)}` : 'NO POWER'}`);
   return out;
+}
+
+/**
+ * The ship's load as a gauge: the NIMBLE stretch tinted, a notch where it ends and one where the
+ * ship is full, the OVERLOADED stretch past it in red. `after` (a move being weighed) shows as a
+ * ghost: what it would add, or what it would free. Its class is named above, on the right.
+ */
+export function loadGauge(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, x: number, y: number, w: number, t = 0) {
+  const span = s.capacity * 1.35;
+  const px = (v: number) => Math.round((Math.min(v, span) / span) * w);
+  const nim = px(s.capacity * LOAD.nimble);
+  const cap = px(s.capacity);
+  const now = LOAD_CLASS[s.loadClass];
+  const then = after && after.loadClass !== s.loadClass ? LOAD_CLASS[after.loadClass] : null;
+  drawText(ctx, 'LOAD', x, y, DIM);
+  drawText(ctx, `${num(s.load)}${after && Math.abs(after.load - s.load) > 1e-3 ? `→${num(after.load)}` : ''}/${num(s.capacity)}`, x + 28, y, after && after.load > s.load + 1e-3 ? '#ffc0a0' : after && after.load < s.load - 1e-3 ? '#a0ffd0' : INK);
+  if (then) {
+    const blink = Math.floor(t * 4) % 2 === 0;
+    const tw = drawText(ctx, then.name, x + w, y, blink ? then.color : '#ffffff', { align: 'right' });
+    drawText(ctx, '→', x + w - tw - 2, y, DIM, { align: 'right' });
+    drawText(ctx, now.name, x + w - tw - 12, y, now.color, { align: 'right' });
+  } else drawText(ctx, now.name, x + w, y, now.color, { align: 'right' });
+  const by = y + 10;
+  // the track: nimble, steady, overloaded
+  ctx.fillStyle = '#0c0a14';
+  ctx.fillRect(x - 1, by - 1, w + 2, 7);
+  ctx.fillStyle = '#163a36';
+  ctx.fillRect(x, by, nim, 5);
+  ctx.fillStyle = '#2a2236';
+  ctx.fillRect(x + nim, by, cap - nim, 5);
+  ctx.fillStyle = '#3a1820';
+  ctx.fillRect(x + cap, by, w - cap, 5);
+  // the load, and a move's ghost on top
+  const fill = (v: number) => (v <= s.capacity * LOAD.nimble ? LOAD_CLASS.nimble.color : v <= s.capacity ? '#e8dcc0' : LOAD_CLASS.overloaded.color);
+  const a = px(s.load);
+  ctx.fillStyle = fill(s.load);
+  ctx.fillRect(x, by + 1, a, 3);
+  if (after && Math.abs(after.load - s.load) > 1e-3) {
+    const b = px(after.load);
+    ctx.fillStyle = after.load > s.load ? '#ff8a6a' : '#0c0a14';
+    ctx.globalAlpha = after.load > s.load ? (Math.floor(t * 6) % 2 ? 0.95 : 0.6) : 0.7;
+    ctx.fillRect(x + Math.min(a, b), by + 1, Math.abs(b - a), 3);
+    ctx.globalAlpha = 1;
+  }
+  // the notches
+  ctx.fillStyle = '#8affe0';
+  ctx.fillRect(x + nim, by - 2, 1, 9);
+  ctx.fillStyle = RED;
+  ctx.fillRect(x + cap, by - 2, 1, 9);
+  // what the class does, under it
+  const c = then ?? now;
+  drawText(ctx, c.text, x, by + 8, then ? c.color : '#7a6e88');
 }
 
 /** A part's shape, drawn as little cells. */

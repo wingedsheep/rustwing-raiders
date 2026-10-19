@@ -8,7 +8,8 @@
  *   kept (0..1), so a card can show how good it came out.
  * - Traits are legendary and change the rules for that part: a gun that fires a mirror twin, a
  *   booster that reaches every gun on the ship, a part that links wherever it sits, shots that
- *   split, kills that pass their marks on. They are meant to be built round.
+ *   split or come back, kills that pass their marks on, a dash that leaves a turret behind or ends
+ *   in a thunderclap, a hull that hits back, a special fed by kills. They are meant to be built round.
  *
  * The part's own rarity (in parts.ts) still says how often it turns up at all; the tier is on
  * top of that. itemDef() turns an item into the PartDef the build sees, numbers and all.
@@ -28,7 +29,9 @@ export interface Mod {
   roll: number;
 }
 
-export type TraitId = 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic' | 'volatile' | 'splitting';
+export type TraitId =
+  | 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic' | 'volatile' | 'splitting'
+  | 'sentinel' | 'boomerang' | 'frenzied' | 'thunderous' | 'vengeful' | 'ravenous';
 
 /** A part as found: which part, and what was rolled for it. Plain ids are stock commons. */
 export interface Item {
@@ -74,6 +77,8 @@ function scales(d: PartDef) {
 
 /** A gun that fires things that fly (not a beam, not lightning). */
 const projectile = (d: PartDef) => !!d.gun && d.gun.shot !== 'beam' && d.gun.shot !== 'arc';
+/** Things that fly far enough to come back (not plasma, not mines, not shells that burst). */
+const thrown = (d: PartDef) => projectile(d) && !['flame', 'mine', 'flak'].includes(d.gun!.shot);
 
 export const modValue = (m: Mod) => {
   const s = MODS[m.k];
@@ -99,6 +104,12 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
   overclock: { name: 'OVERCLOCKED', text: 'Runs at double strength, and draws double power.', fits: (d) => scales(d) || d.power < 0 },
   volatile: { name: 'VOLATILE', text: 'What it kills passes its marks on: the two nearest enemies catch them.', fits: (d) => projectile(d) },
   splitting: { name: 'SPLITTING', text: 'Every shot splits in two when it first hits, and the halves fly on.', fits: (d) => projectile(d) && (d.gun?.count ?? 1) <= 2 },
+  sentinel: { name: 'SENTINEL', text: 'Every dash leaves a copy of it behind: a turret that fires at the nearest enemy for 3 s.', fits: (d) => !!d.gun && d.gun.shot !== 'beam' && !d.gun.auto },
+  boomerang: { name: 'BOOMERANG', text: 'Its shots turn at the end of their flight and come back past you, hitting everything again.', fits: (d) => thrown(d) },
+  frenzied: { name: 'FRENZIED', text: 'Every kill whips it up: 15% faster each, up to +90%, until 2.5 s pass without one.', fits: (d) => !!d.gun && d.gun.shot !== 'beam' },
+  thunderous: { name: 'THUNDEROUS', text: 'Every dash ends in a thunderclap: what’s near is shocked and thrown back. Twice as hard on a perfect.', fits: (d) => d.cls === 'engine' },
+  vengeful: { name: 'VENGEFUL', text: 'A hit on you sets off a nova: bullets round you are wiped and shrapnel flies out, harder the lower your hull.', fits: (d) => d.cls === 'defense' && !!(d.hp || d.shield) },
+  ravenous: { name: 'RAVENOUS', text: 'Kills feed it: each one charges it a tenth. Keep killing and it never runs dry.', fits: (d) => !!d.special },
   prismatic: { name: 'PRISMATIC', text: 'Counts as one of every tag towards set bonuses. Clashes with nothing new.', fits: (d) => !d.conduit },
 };
 

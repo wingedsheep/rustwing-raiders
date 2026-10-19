@@ -48,6 +48,8 @@ interface Result extends Job {
   score: number;
   grazes: number;
   perfects: number;
+  /** Crits from the guns' edges. */
+  edges: number;
   /** Reactions set off (marks meeting). */
   reactions: number;
   /** Bullets parried, and how often the aux went off. */
@@ -172,6 +174,7 @@ function fly(job: Job): Result {
     score: lv.score,
     grazes: lv.players.reduce((s, p) => s + p.grazes, 0),
     perfects: lv.players.reduce((s, p) => s + p.perfects, 0),
+    edges: lv.players.reduce((s, p) => s + Object.values(p.edges).reduce((a, n) => a + (n ?? 0), 0), 0),
     parries: lv.players.reduce((s, p) => s + p.parries, 0),
     reactions: lv.reactions,
     aux: lv.players.reduce((s, p) => s + p.auxUses, 0),
@@ -242,7 +245,7 @@ if (!isMainThread) {
         console.log(
           `${mark} ${r.planet.padEnd(9)} ${r.mode.padEnd(5)} seed ${String(r.seed).padEnd(3)} ${r.time.toFixed(0).padStart(4)}s  ` +
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
-            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
+            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}${r.convoy ? `  convoy ${r.convoy}` : ''}`,
         );

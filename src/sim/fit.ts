@@ -4,7 +4,7 @@
  * the dealer's stall show this, so a choice is between ships, not between names.
  */
 
-import { frameById, partById, TAG_BONUS, type Tag } from '../game/parts';
+import { EDGES, frameById, LOAD_CLASS, partById, TAG_BONUS, type Tag } from '../game/parts';
 import { itemName, type Item } from '../game/loot';
 import { fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
 import { links } from './links';
@@ -44,6 +44,8 @@ function worth(b: Build, s: Stats) {
   v += Object.values(s.bonus).reduce((t, n) => t + (n ?? 0) * 1.5, 0);
   for (const pl of lk.parts) v += pl.def.conduit ? 0 : pl.str >= 1 ? (pl.str - 1) * 2 : -(1 - pl.str) * 3;
   if (s.brown < 1) v -= (1 - s.brown) * 12;
+  // how it flies: a nimble ship is worth a part or two, an overloaded one costs as much
+  v += s.loadClass === 'nimble' ? 4 : s.loadClass === 'overloaded' ? -6 : 0;
   // guns that fire behind are worth less (mines are meant to)
   for (const p of b.parts) if (partById(p.id).gun && p.id !== 'mine' && Math.abs(gunDir(frameById(b.frame), p)) > 1) v -= 2;
   if (s.aux) v += 2;
@@ -114,6 +116,11 @@ function deltas(a: Stats, b: Stats): Delta[] {
   row('HULL', a.hp, b.hp, (n) => `${n}`, 5);
   row('SHIELD', a.shield, b.shield, (n) => `${n}`, 8);
   row('DASHES', a.dashes, b.dashes, (n) => `${n}`, 4);
+  // the load class, when it moves, is the most important line on the card
+  if (a.loadClass !== b.loadClass) {
+    const order = ['nimble', 'steady', 'overloaded'];
+    out.push({ label: 'LOAD', from: LOAD_CLASS[a.loadClass].name, to: LOAD_CLASS[b.loadClass].name, good: order.indexOf(b.loadClass) < order.indexOf(a.loadClass), w: 14 });
+  } else row('LOAD', a.load, b.load, (n) => n.toFixed(1), 0.8, true);
   row('SPEED', a.speed, b.speed, (n) => n.toFixed(1), 3);
   row('POWER', a.powerOut - a.powerDraw, b.powerOut - b.powerDraw, (n) => `${n >= 0 ? '+' : ''}${Math.round(n)}`, 1.5);
   row('DASH CD', a.dashCooldown, b.dashCooldown, (n) => `${n.toFixed(2)}S`, 2, true);
@@ -124,6 +131,8 @@ function deltas(a: Stats, b: Stats): Delta[] {
     out.push({ label, from: x && y ? x.toUpperCase() : '', to: (y ?? `NO ${label}`).toUpperCase(), good: !!y, w: 9 });
   };
   verb('AUX', a.aux, b.aux);
+  const heavy = (s: Stats) => s.guns.some((g) => g.heavy && !g.drone) || null;
+  if (!heavy(a) && heavy(b)) out.push({ label: 'HEAVY', from: '', to: 'ON ITS OWN BUTTON', good: true, w: 9 });
   verb('SPECIAL', a.special, b.special);
   // the marks the guns leave, and the reactions they can set off between them
   verb('MARKS', markNames(a.marks) || null, markNames(b.marks) || null);
@@ -131,6 +140,10 @@ function deltas(a: Stats, b: Stats): Delta[] {
   const rb = reactionsOf(b.marks).map((r) => r.name);
   const fresh = rb.filter((r) => !ra.includes(r));
   if (fresh.length) out.push({ label: 'REACTS', from: '', to: fresh.join(' '), good: true, w: 12 });
+  // a new edge on the ship: a new way to land crits (and to fly)
+  const ea = new Set(a.guns.map((g) => g.spec.edge));
+  const eb = [...new Set(b.guns.map((g) => g.spec.edge))].filter((e) => !ea.has(e));
+  if (eb.length) out.push({ label: 'EDGE', from: '', to: eb.map((e) => EDGES[e].name).join(' '), good: true, w: 10 });
   if (!a.mod.detonate !== !b.mod.detonate) verb('DASH', a.mod.detonate ? 'detonates marks' : null, b.mod.detonate ? 'detonates marks' : null);
   // power gone negative is always worth saying
   for (const d of out) if (d.label === 'POWER' && Number(d.to) < 0) d.w = 99;

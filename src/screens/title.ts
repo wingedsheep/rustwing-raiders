@@ -57,7 +57,7 @@ const ROWS: { name: string; get: (f: FrameDef) => number; show?: (v: number) => 
   { name: 'SPEED', get: (f) => stats(startBuild(f.id)).speed, show: (v) => v.toFixed(0) },
   { name: 'HANDLING', get: (f) => stats(startBuild(f.id)).accel / 14, show: (v) => v.toFixed(0) },
   { name: 'FIREPOWER', get: (f) => firepower(startBuild(f.id)), show: (v) => v.toFixed(0) },
-  { name: 'POWER', get: (f) => stats(startBuild(f.id)).powerOut },
+  { name: 'CARRIES', get: (f) => stats(startBuild(f.id)).capacity, show: (v) => v.toFixed(0) },
   { name: 'SOCKETS', get: sockets },
 ];
 let spread: { lo: number; hi: number }[] | null = null;

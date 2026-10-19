@@ -16,10 +16,11 @@ import type { BossState, BossStyle } from './boss';
 import { foeDefaults, foeHurt, winded, foeShot, foeTaken, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
-import type { AuxKind, MarkKind } from '../game/parts';
+import type { AuxKind, Edge, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
 import { Convoy } from './convoy';
 import { Heist } from './heist';
+import { rollItem, rollTier, type Item } from '../game/loot';
 
 export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
 
@@ -46,7 +47,6 @@ const POINT_BLANK = 7;
  */
 const DASH_SPEED = 62;
 const DASH_TIME = 0.13;
-const SLIP = 0.12;
 const DASH_RECOVER = 0.25;
 /** A perfect soaks up the bullets this close. */
 const PERFECT_R = 2.4;
@@ -89,6 +89,11 @@ export interface Player {
   jam: number[];
   cooldown: number[];
   shotCount: number[];
+  /** HEAVY guns: rounds ready, and seconds until the next comes back (main guns: unused). */
+  rounds: number[];
+  reload: number[];
+  /** Seconds since the heavy button last fired (for the view's flash and the pilot). */
+  heavyT: number;
   charge: number;
   phase: number;
   overdrive: number;
@@ -150,6 +155,33 @@ export interface Player {
   /** For the autopilot's report. */
   parries: number;
   auxUses: number;
+  /** FRENZIED: kills in a row (each one speeds those guns up), and seconds until they cool off. */
+  frenzy: number;
+  frenzyT: number;
+  /** The dash-strike: seconds left in which what the guns fire hits harder (see STRIKE). */
+  strike: number;
+  /** Beams: who each gun has been held on, and for how long (the LOCK-ON edge). */
+  lockOn: number[];
+  lockT: number[];
+  /** Crits each edge has landed (for the autopilot's report). */
+  edges: Partial<Record<Edge, number>>;
+}
+
+/** SENTINEL: a copy of a gun left behind by a dash, firing on its own until it winks out. */
+export interface Sentinel {
+  owner: number;
+  /** Which of the owner's guns it copies (an index into stats.guns). */
+  gun: number;
+  x: number;
+  z: number;
+  /** Which way it's aimed (0 up the screen), turning towards its target. */
+  dir: number;
+  t: number;
+  life: number;
+  cd: number;
+  /** Shots it's fired (for the view's recoil). */
+  shots: number;
+  dead: boolean;
 }
 
 /** A flare or an afterimage: aimed fire goes for it first. Flares burst at the end; afterimages burn. */
@@ -185,7 +217,7 @@ export interface Shot {
   /** Doubled and shown as a crit (Hair Trigger). */
   crit?: boolean;
   /** Where it came from, if not a gun: for the view to tint. */
-  tag?: 'reflect' | 'mirror' | 'wake' | 'salvage';
+  tag?: 'reflect' | 'mirror' | 'wake' | 'salvage' | 'nova';
   /** The marks it leaves (bits, see marks.ts) and how strong. */
   marks: number;
   markStr: number;
@@ -194,6 +226,16 @@ export interface Shot {
   /** VOLATILE: what it kills passes its marks on. SPLITTING: it splits in two on its first hit. */
   volatile?: boolean;
   split?: boolean;
+  /** Its gun's edge (when it crits) and what that crit multiplies by, and where it was fired from (for the edges that care how far). */
+  edge?: Edge;
+  edgeMul?: number;
+  ox: number;
+  oz: number;
+  /** Fired in a dash-strike: it hits harder. */
+  strike?: boolean;
+  /** BOOMERANG: it turns at the end of its flight; `back`: it has, and is on its way home. */
+  boomerang?: boolean;
+  back?: boolean;
   dead: boolean;
 }
 
@@ -267,6 +309,9 @@ export interface Enemy extends FoeFields {
   wave?: number;
   /** What the guns have left on it: burning, shocked, cracked (see marks.ts). */
   mk: Marks;
+  /** Thrown (a THUNDEROUS clap): a push that dies away. */
+  kx?: number;
+  kz?: number;
 }
 
 /** A hard drop: `reward` scrap (and a part crate with `part`) if it's killed within `life` seconds. */
@@ -295,8 +340,8 @@ export interface Pickup {
   value: number;
   t: number;
   dead: boolean;
-  /** Part crates: what's inside. */
-  part?: string;
+  /** Part crates: what's inside (rolled as it drops, so the crate can show its tier). */
+  part?: Item;
   /** Rings: flown through by. */
   done?: number;
 }
@@ -320,9 +365,14 @@ export interface Hazard {
 }
 
 export type LevelEvent =
-  | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number }
+  /** `turret`: fired by a SENTINEL left behind, not the ship. */
+  | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number; turret?: boolean; heavy?: boolean }
+  /** HEAVY guns: the button pressed (`fired` rounds went, 0: all dry), a round back (`perfect`: a perfect dash gave it). */
+  | { type: 'heavy'; id: number; x: number; z: number; fired: number }
+  | { type: 'reload'; id: number; gun: number; perfect: boolean; rounds: number }
   /** `dot`: a burn's tick, not a blow. */
-  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean }
+  /** `edge`: the crit was the gun's edge; `strike`: a dash-strike's. */
+  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean }
   | { type: 'explode'; x: number; z: number; y: number; size: number; color: number; enemy?: number }
   | { type: 'enemyShot'; x: number; z: number; color: number; look?: Faction }
   /** A bullet cancelled (by a bomb, a perfect, a hit): it pops instead of vanishing. */
@@ -338,7 +388,7 @@ export type LevelEvent =
   /** `echo`: the Echo Relay's second go, weaker. */
   | { type: 'special'; id: number; kind: NonNullable<Stats['special']>; x: number; z: number; echo?: boolean }
   | { type: 'specialReady'; id: number }
-  | { type: 'pickup'; id: number; kind: PickupKind; x: number; z: number; value: number; part?: string }
+  | { type: 'pickup'; id: number; kind: PickupKind; x: number; z: number; value: number; part?: Item }
   | { type: 'overheat'; id: number; gun: number }
   | { type: 'arc'; points: number[] }
   | { type: 'flak'; x: number; z: number }
@@ -401,6 +451,18 @@ export type LevelEvent =
   | { type: 'split'; x: number; z: number }
   /** A VOLATILE kill passed its marks from (x, z) to `enemy` at (x2, z2). */
   | { type: 'spread'; from: number; enemy: number; x: number; z: number; x2: number; z2: number; bits: number }
+  /** SENTINEL: a turret left at (x, z), copying gun `gun`. */
+  | { type: 'sentinel'; id: number; gun: number; x: number; z: number }
+  /** BOOMERANG: a shot turned for home at (x, z). */
+  | { type: 'turn'; x: number; z: number }
+  /** FRENZIED: the kills in a row now (0: it cooled off). */
+  | { type: 'frenzy'; id: number; stacks: number }
+  /** THUNDEROUS: a dash ended in a clap of reach `r` (`perfect`: twice as hard). */
+  | { type: 'thunder'; id: number; x: number; z: number; r: number; perfect: boolean; hit: number }
+  /** VENGEFUL: a hit on you set off a nova (`power` 1..3: the lower the hull, the harder). */
+  | { type: 'nova'; id: number; x: number; z: number; power: number }
+  /** RAVENOUS: a kill at (x, z) fed the special (`full`: and filled it). */
+  | { type: 'feed'; id: number; x: number; z: number; full: boolean }
   /** A shocked enemy seized up for a beat. */
   | { type: 'jolt'; enemy: number; x: number; z: number }
   /** Escorts (see convoy.ts): a hauler hit, lost, boarded, delivered; raiders coming to board one. */
@@ -478,9 +540,13 @@ export class Level {
   combo = 0;
   comboT = 0;
   /** Parts picked up this level, per player. */
-  loot: string[][] = [[], []];
+  loot: Item[][] = [[], []];
   /** Flares and afterimages: aimed fire goes for these first. */
   readonly decoys: Decoy[] = [];
+  /** SENTINEL turrets left behind by dashes. */
+  readonly sentinels: Sentinel[] = [];
+  /** A special going off right now: what it kills doesn't feed a RAVENOUS special. */
+  private inSpecial = false;
   private nextId = 1;
   private biomeShown = -1;
 
@@ -521,6 +587,9 @@ export class Level {
         jam: s.guns.map(() => 0),
         cooldown: s.guns.map((_, k) => k * 0.013),
         shotCount: s.guns.map(() => 0),
+        rounds: s.guns.map((g) => g.heavy),
+        reload: s.guns.map(() => 0),
+        heavyT: 9,
         charge: 0.25,
         phase: 0,
         overdrive: 0,
@@ -562,6 +631,12 @@ export class Level {
         sparked: [],
         parries: 0,
         auxUses: 0,
+        frenzy: 0,
+        frenzyT: 0,
+        strike: 0,
+        lockOn: s.guns.map(() => 0),
+        lockT: s.guns.map(() => 0),
+        edges: {},
       });
     });
     this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
@@ -642,6 +717,13 @@ export class Level {
       e.flash = Math.max(0, e.flash - DT);
       e.stun = Math.max(0, e.stun - DT);
       updateEnemy(this, e);
+      if (e.kx || e.kz) {
+        e.x += e.kx! * DT;
+        e.z += e.kz! * DT;
+        e.kx! *= 0.86;
+        e.kz! *= 0.86;
+        if (Math.abs(e.kx!) + Math.abs(e.kz!) < 0.5) e.kx = e.kz = 0;
+      }
       if (!e.dead) tickMarks(this, e);
       if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3) && e.d.qp === undefined) this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
@@ -656,6 +738,7 @@ export class Level {
     tickCombat(this);
     this.updatePickups(dz);
     this.updateDecoys(dz);
+    this.updateSentinels(dz);
     this.updateHazards(dz);
     this.collide();
 
@@ -794,7 +877,12 @@ export class Level {
     p.ward = Math.max(0, p.ward - DT);
     p.slip = Math.max(0, p.slip - DT);
     p.dashLock = Math.max(0, p.dashLock - DT);
+    p.strike = Math.max(0, p.strike - DT);
     p.focus = i.focus;
+    if (p.frenzyT > 0 && (p.frenzyT -= DT) <= 0) {
+      p.frenzy = 0;
+      this.emit({ type: 'frenzy', id: p.id, stacks: 0 });
+    }
 
     // movement: quick to answer, quick to stop
     let mx = i.x;
@@ -816,6 +904,7 @@ export class Level {
       if (p.dashT <= 0) {
         p.vx *= 0.35;
         p.vz *= 0.35;
+        if (s.thunder > 0) this.thunderclap(p);
       }
     } else {
       const tx = mx * top;
@@ -848,11 +937,12 @@ export class Level {
       // committed: a fixed burst, safe only at the very start (see perfectDash)
       p.dashT = DASH_TIME;
       p.dashLock = DASH_TIME + DASH_RECOVER;
-      p.slip = SLIP;
+      p.slip = s.slip;
       p.slipX = p.x;
       p.slipZ = p.z - this.scroll;
       p.perfect = false;
-      p.inv = Math.max(p.inv, SLIP);
+      p.inv = Math.max(p.inv, s.slip);
+      p.strike = STRIKE_TIME * (1 + 0.5 * s.mod.strike);
       this.emit({ type: 'dash', id: p.id, x: p.x, z: p.z, dx: p.dashX, dz: p.dashZ });
       this.dashMods(p);
     }
@@ -870,7 +960,17 @@ export class Level {
 
     // guns
     p.firing = i.fire && this.state !== 'clear';
-    for (let k = 0; k < s.guns.length; k++) this.updateGun(p, k, p.firing);
+    p.heavyT += DT;
+    let fired = 0;
+    const press = i.heavy && this.state !== 'clear';
+    for (let k = 0; k < s.guns.length; k++) {
+      if (s.guns[k].heavy) fired += this.updateHeavy(p, k, press);
+      else this.updateGun(p, k, p.firing);
+    }
+    if (press && s.guns.some((g) => g.heavy)) {
+      if (fired) p.heavyT = 0;
+      this.emit({ type: 'heavy', id: p.id, x: p.x, z: p.z, fired });
+    }
     this.updateKit(p, i);
   }
 
@@ -889,6 +989,12 @@ export class Level {
 
   /** `k`: how strong (below 1: the Echo Relay's second go). */
   private special(p: Player, kind: NonNullable<Stats['special']>, k = 1) {
+    this.inSpecial = true;
+    this.specialGoes(p, kind, k);
+    this.inSpecial = false;
+  }
+
+  private specialGoes(p: Player, kind: NonNullable<Stats['special']>, k: number) {
     this.emit({ type: 'special', id: p.id, kind, x: p.x, z: p.z, echo: k < 1 });
     if (k === 1 && p.stats.echo > 0) p.echoT = ECHO_DELAY;
     if (kind === 'bomb') {
@@ -909,6 +1015,7 @@ export class Level {
       p.overdrive = Math.max(p.overdrive, 5 * k);
       p.heat.fill(0);
       p.jam.fill(0);
+      p.stats.guns.forEach((g, n) => (p.rounds[n] = Math.max(p.rounds[n], g.heavy)));
     }
   }
 
@@ -948,24 +1055,37 @@ export class Level {
     const gz = p.z + g.z;
     // focus turns the angled guns to fire straight ahead (the ones facing back stay put)
     const dir = target ? Math.atan2(target.x - gx, -(target.z - gz)) : p.focus && Math.abs(g.dir) < Math.PI / 2 ? 0 : g.dir;
-    // Throttle Link: faster and cooler while boosting
-    const thr = 1 + g.throttle * p.boosting;
+    // Throttle Link: faster and cooler while boosting; FRENZIED: faster (no hotter) for every kill in a row
+    const thr = (1 + g.throttle * p.boosting) * (g.frenzied ? 1 + FRENZY_EACH * p.frenzy : 1);
     if (sp.shot === 'beam') {
       // a held beam: worked out every frame, as a ray up the screen
       const rate = (od ? 2 : 1) * thr;
       p.heat[k] += (sp.heat * DT * 60 * (od ? 0 : 1) * 0.5) / thr;
       const reach = this.beamReach(gx, gz, dir, 0.9);
       p.beam[k] = reach.len;
+      // LOCK-ON: held on the same first target, the beam comes to its edge
+      const first = reach.hit.reduce<Enemy | undefined>((b, e) => (!b || (e.x - gx) ** 2 + (e.z - gz) ** 2 < (b.x - gx) ** 2 + (b.z - gz) ** 2 ? e : b), undefined);
+      if (first && first.id === p.lockOn[k]) p.lockT[k] += DT;
+      else {
+        p.lockOn[k] = first?.id ?? 0;
+        p.lockT[k] = 0;
+      }
       if (p.cooldown[k] <= 0) {
         p.cooldown[k] = 1 / (sp.rate * rate);
         const hit = this.gunDamage(p, g);
         for (const e of reach.hit) {
           const flaw = g.flaw && marksOn(e) > 0;
-          this.damage(e, hit.dmg * (flaw ? 2 : 1), p.id, hit.crit || flaw);
+          const edge = !flaw && this.edged(sp.edge, e, p, gx, gz, e.id === p.lockOn[k] ? p.lockT[k] : 0);
+          if (edge) p.edges[sp.edge] = (p.edges[sp.edge] ?? 0) + 1;
+          this.damage(e, hit.dmg * (edge ? g.edgeMul : flaw ? 2 : 1) * (p.strike > 0 ? this.strikeMul(p) : 1), p.id, hit.crit || flaw || edge, undefined, undefined, false, edge ? sp.edge : undefined);
           mark(this, e, g.marks, g.markStr, p.id);
         }
       }
-    } else if (p.cooldown[k] <= 0) {
+    } else {
+      p.lockOn[k] = 0;
+      p.lockT[k] = 0;
+    }
+    if (sp.shot !== 'beam' && p.cooldown[k] <= 0) {
       const rate = sp.rate * (od ? 2 : 1) * thr;
       p.cooldown[k] += 1 / rate;
       if (p.cooldown[k] < 0) p.cooldown[k] = 0;
@@ -986,6 +1106,44 @@ export class Level {
         for (let a = 0; a < 16; a++) this.addShot(p.id, 'flame', p.x, p.z, (a / 16) * Math.PI * 2, 26, 4, 0.4, 3, 0).marks = BURN;
       }
     }
+  }
+
+  /**
+   * A HEAVY gun: a round each press of the heavy button, from its magazine, and the rounds come
+   * back one at a time (as fast as its rate: rate boosts reload it quicker). Returns 1 if it fired.
+   */
+  private updateHeavy(p: Player, k: number, press: boolean) {
+    const g = p.stats.guns[k];
+    const sp = g.spec;
+    const od = p.overdrive > 0;
+    if (p.rounds[k] < g.heavy) {
+      const thr = (1 + g.throttle * p.boosting) * (g.frenzied ? 1 + FRENZY_EACH * p.frenzy : 1);
+      p.reload[k] += DT * sp.rate * thr * (od ? 2 : 1);
+      if (p.reload[k] >= 1) {
+        p.reload[k] = 0;
+        p.rounds[k]++;
+        this.emit({ type: 'reload', id: p.id, gun: k, perfect: false, rounds: p.rounds[k] });
+      }
+    } else p.reload[k] = 0;
+    if (!press || p.rounds[k] <= 0 || p.slow > 0) return 0;
+    p.rounds[k]--;
+    const gx = p.x + g.x;
+    const gz = p.z + g.z;
+    const dir = p.focus && Math.abs(g.dir) < Math.PI / 2 ? 0 : g.dir;
+    p.shotCount[k]++;
+    const extra = g.burst && p.shotCount[k] % 4 === 0 ? 1 : 0;
+    this.fire(p, g, gx, gz, dir, extra);
+    if (g.storm && p.shotCount[k] % g.storm === 0) this.arc(p.id, gx, gz, this.gunDamage(p, g).dmg * 1.5, 3 + (p.stats.bonus.arc ? 2 : 0));
+    return 1;
+  }
+
+  /** A perfect dash puts a round back in every heavy gun. */
+  private reloadHeavies(p: Player) {
+    p.stats.guns.forEach((g, k) => {
+      if (!g.heavy || p.rounds[k] >= g.heavy) return;
+      p.rounds[k]++;
+      this.emit({ type: 'reload', id: p.id, gun: k, perfect: true, rounds: p.rounds[k] });
+    });
   }
 
   private beamReach(x: number, z: number, dir: number, width: number) {
@@ -1012,19 +1170,21 @@ export class Level {
     return { len, hit };
   }
 
-  /** `mul`: harder than usual (a Recoil Battery's volley). */
-  private fire(p: Player, g: Gun, x: number, z: number, dir: number, extra: number, mul = 1) {
+  /** `mul`: harder than usual (a Recoil Battery's volley); `turret`: a SENTINEL fires it. */
+  private fire(p: Player, g: Gun, x: number, z: number, dir: number, extra: number, mul = 1, turret = false) {
     const sp = g.spec;
-    if (g.drone) {
+    if (g.drone && !turret) {
       // drones ride alongside, a little behind
       x = p.x + g.x;
       z = p.z + g.z;
     }
-    this.emit({ type: 'shot', owner: p.id, kind: sp.shot, x, z, dir });
+    this.emit({ type: 'shot', owner: p.id, kind: sp.shot, x, z, dir, turret, heavy: !!g.heavy && !turret });
     const hit = this.gunDamage(p, g);
-    hit.dmg *= mul;
+    // out of a dash, the guns strike harder (not a turret's: it didn't dash)
+    const strike = p.strike > 0 && !turret;
+    hit.dmg *= mul * (strike ? this.strikeMul(p) : 1);
     if (sp.shot === 'arc') {
-      this.arc(p.id, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw });
+      this.arc(p.id, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw, edge: sp.edge, edgeMul: g.edgeMul });
       return;
     }
     // and pulls spreads in: a focused stream instead of a fan
@@ -1041,6 +1201,10 @@ export class Level {
       if (g.flaw) s.flaw = true;
       if (g.volatile) s.volatile = true;
       if (g.split) s.split = true;
+      if (g.boomerang) s.boomerang = true;
+      s.edge = sp.edge;
+      s.edgeMul = g.edgeMul;
+      if (strike) s.strike = true;
     }
   }
 
@@ -1061,6 +1225,8 @@ export class Level {
       r,
       hit: [],
       bounce: this.players[owner]?.stats.bonus.kinetic === 2 && (kind === 'slug' || kind === 'pellet') ? 1 : 0,
+      ox: x,
+      oz: z,
       marks: 0,
       markStr: 1,
       dead: false,
@@ -1081,6 +1247,10 @@ export class Level {
       h.crit = s.crit;
       h.flaw = s.flaw;
       h.volatile = s.volatile;
+      h.edge = s.edge;
+      h.edgeMul = s.edgeMul;
+      h.ox = s.ox;
+      h.oz = s.oz;
     }
     this.emit({ type: 'split', x: s.x, z: s.z });
   }
@@ -1090,7 +1260,7 @@ export class Level {
    * shocks what it hits unless told otherwise. `from`: it starts at this enemy (a reaction), not at
    * a gun, and can go any way.
    */
-  arc(owner: number, x: number, z: number, dmg: number, jumps: number, opts: { from?: Enemy; reach?: number; bits?: number; pow?: number; flaw?: boolean } = {}) {
+  arc(owner: number, x: number, z: number, dmg: number, jumps: number, opts: { from?: Enemy; reach?: number; bits?: number; pow?: number; flaw?: boolean; edge?: Edge; edgeMul?: number } = {}) {
     const points = [x, z];
     const done: Enemy[] = opts.from ? [opts.from] : [];
     const bits = opts.bits ?? SHOCK;
@@ -1112,7 +1282,10 @@ export class Level {
       done.push(best);
       points.push(best.x, best.z);
       const flaw = !!opts.flaw && marksOn(best) > 0;
-      this.damage(best, dmg * (j === 0 ? 1 : 0.8) * (flaw ? 2 : 1), owner, flaw);
+      const p = this.players[owner];
+      const edge = !flaw && !!opts.edge && !!p && this.edged(opts.edge, best, p, x, z);
+      if (edge) p.edges[opts.edge!] = (p.edges[opts.edge!] ?? 0) + 1;
+      this.damage(best, dmg * (j === 0 ? 1 : 0.8) * (edge ? (opts.edgeMul ?? 2) : flaw ? 2 : 1), owner, flaw || edge, undefined, undefined, false, edge ? opts.edge : undefined);
       mark(this, best, bits, opts.pow ?? 1, owner);
       cx = best.x;
       cz = best.z;
@@ -1174,6 +1347,7 @@ export class Level {
       }
     }
     if (p.stats.bonus.arc === 2) this.arc(p.id, p.x, p.z, 12, 6);
+    if (p.stats.vengeful) this.nova(p);
     // a hit clears the bullets right around you: no double hits
     for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 9) this.cancel(b);
     this.combo = 0;
@@ -1238,7 +1412,7 @@ export class Level {
    * a shot, which has had its own say in collide); `s`: the shot, if it was one; `dot`: a burn's
    * tick (no blow to make a fuss of).
    */
-  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false) {
+  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false, edge?: Edge) {
     if (e.dead || e.shielded) return;
     const p = this.players[owner];
     // armour, shields, exposed after an attack (see combat.ts)
@@ -1254,7 +1428,7 @@ export class Level {
     foeHurt(this, e, dmg);
     if (p) p.charge = Math.min(1, p.charge + dmg * 0.0018 * p.stats.specialRate);
     const kill = e.hp <= 0;
-    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot });
+    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike });
     if (!kill) return;
     // a VOLATILE gun's kill: its marks jump to the nearest
     if (s?.volatile) spread(this, e, owner);
@@ -1288,7 +1462,10 @@ export class Level {
     if (e.d.qp !== undefined) this.heist?.lost(e, owner);
     if (e.d.board !== undefined && (e.d.ph ?? 0) >= 1 && (e.d.ph ?? 0) <= 3) this.emit({ type: 'shotOff', id: e.d.board, x: e.x, z: e.z, clinging: e.d.ph === 3 });
     const p = this.players[owner];
-    if (p) p.kills++;
+    if (p) {
+      p.kills++;
+      this.fed(p, e);
+    }
     for (let i = 0; i < e.scrap * (close ? 2 : 1); i++) this.drop('scrap', e.x + (this.rand() - 0.5) * e.r, e.z + (this.rand() - 0.5) * e.r, 1 + (this.rand() < 0.2 ? 4 : 0));
     if (e.drop) this.drop('part', e.x, e.z, 0);
     else if (this.rand() < 0.015) this.drop('repair', e.x, e.z, 1);
@@ -1361,10 +1538,13 @@ export class Level {
     return p ? Math.atan2(p.x - x, p.z - z) : 0;
   }
 
+  /** A part crate's part is rolled as it drops (`part`: this one, else the director's pick), so it shows its tier in flight. */
   drop(kind: PickupKind, x: number, z: number, value: number, part?: string) {
     const a = this.rand() * Math.PI * 2;
     const v = kind === 'scrap' ? 3 + this.rand() * 6 : 2;
-    this.pickups.push({ x, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v - 2, kind, value, t: 0, dead: false, part: part ?? (kind === 'part' ? this.director.loot() : undefined) });
+    const id = part ?? (kind === 'part' ? this.director.loot() : undefined);
+    const item = id === undefined ? undefined : rollItem(this.rand, id, rollTier(this.rand, this.spec.difficulty));
+    this.pickups.push({ x, z, vx: Math.cos(a) * v, vz: Math.sin(a) * v - 2, kind, value, t: 0, dead: false, part: item });
   }
 
   // --- the rest ----------------------------------------------------------------------------
@@ -1372,7 +1552,11 @@ export class Level {
   private updateShots() {
     for (const s of this.shots) {
       s.t += DT;
-      if (s.t > s.life) {
+      // a BOOMERANG shot at the end of its flight (or the edge of the screen) turns for home
+      if (s.boomerang && !s.back && (s.t > s.life || !this.onScreen(s.x, s.z, 1))) this.turnHome(s);
+      if (s.back) {
+        if (this.homeward(s)) continue;
+      } else if (s.t > s.life) {
         s.dead = true;
         if (s.kind === 'flak') {
           this.emit({ type: 'flak', x: s.x, z: s.z });
@@ -1384,7 +1568,7 @@ export class Level {
         }
         continue;
       }
-      if (s.homing > 0) {
+      if (s.homing > 0 && !s.back) {
         // curve towards the nearest enemy ahead
         let best: Enemy | undefined;
         let bd = 22 * 22;
@@ -1420,7 +1604,7 @@ export class Level {
       }
       s.x += s.vx * DT;
       s.z += s.vz * DT;
-      if (!this.onScreen(s.x, s.z, 4)) s.dead = true;
+      if (!this.onScreen(s.x, s.z, s.back ? 12 : 4)) s.dead = true;
       else if (s.kind !== 'rail' && this.terrain.solid(s.x, s.z, 0)) {
         // the land stops shots
         if (s.bounce > 0) {
@@ -1716,10 +1900,17 @@ export class Level {
         }
         let dmg = s.dmg * m;
         let crit = !!s.crit;
-        // Flaw Finder: the marked are open
+        // Flaw Finder: the marked are open; or else the gun's own edge
+        let edge: Edge | undefined;
         if (s.flaw && marksOn(e) > 0) {
           dmg *= 2;
           crit = true;
+        } else if (s.edge && !s.tag && this.edged(s.edge, e, this.players[s.owner], s.ox, s.oz)) {
+          dmg *= s.edgeMul ?? 2;
+          crit = true;
+          edge = s.edge;
+          const op = this.players[s.owner];
+          if (op) op.edges[edge] = (op.edges[edge] ?? 0) + 1;
         }
         if (e.boss) {
           for (const w of e.boss.weak)
@@ -1728,7 +1919,7 @@ export class Level {
               crit = true;
             }
         }
-        this.damage(e, dmg, s.owner, crit, null, s);
+        this.damage(e, dmg, s.owner, crit, null, s, false, edge);
         if (!e.dead) mark(this, e, s.marks, s.markStr, s.owner);
         if (s.split && !s.hit.length) this.split(s, e);
         s.hit.push(e.id);
@@ -1962,7 +2153,7 @@ export class Level {
   /** A gun's damage now: Burn Engine, the lance's speed, Hair Trigger's crits. */
   private gunDamage(p: Player, g: Gun) {
     let dmg = g.spec.damage * (1 + p.stats.gamble * p.burn);
-    if (g.spec.speedy) dmg *= (1 + p.boosting) * (p.skim > 0 ? 1.5 : 1);
+    if (g.spec.speedy) dmg *= 1 + p.boosting;
     const crit = g.crit > 0 && p.crit > 0;
     return { dmg: crit ? dmg * 2 : dmg, crit };
   }
@@ -1986,6 +2177,7 @@ export class Level {
       w.marks = CRACK;
     }
     if (m.ghost > 0) this.decoy(p, 'ghost', x0, z0, GHOST_LIFE, m.ghost);
+    this.leaveSentinels(p, x0, z0);
   }
 
   /** Blink Coil: the dash is a jump, stopping short of the land. */
@@ -2064,6 +2256,172 @@ export class Level {
     sweep(this.decoys);
   }
 
+  /** How much harder the guns hit in a dash-strike (Lunge Jets: more). */
+  private strikeMul(p: Player) {
+    return 1 + STRIKE_DMG * (1 + p.stats.mod.strike);
+  }
+
+  /**
+   * Does a gun's edge hold on `e`, for a shot fired from (ox, oz) by `p`? `held`: seconds a beam
+   * has been on it.
+   */
+  edged(edge: Edge, e: Enemy, p: Player | undefined, ox: number, oz: number, held = 0): boolean {
+    if (!p) return false;
+    switch (edge) {
+      case 'reeling':
+        return e.stun > 0 || e.state === 'recover' || e.state === 'stagger';
+      case 'close':
+        return (e.x - ox) ** 2 + (e.z - oz) ** 2 < EDGE_CLOSE * EDGE_CLOSE;
+      case 'far':
+        return (e.x - ox) ** 2 + (e.z - oz) ** 2 > EDGE_FAR * EDGE_FAR;
+      case 'locked':
+        return held >= EDGE_LOCK;
+      case 'shocked':
+        return e.mk.shock > 0;
+      case 'burning':
+        return e.mk.burn > 0;
+      case 'tell':
+        return e.state === 'windup' || this.lasers.some((l) => l.owner === e.id && l.warn > 0);
+      case 'crowd': {
+        let n = 0;
+        for (const o of this.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < EDGE_CROWD * EDGE_CROWD && ++n >= 2) return true;
+        return false;
+      }
+      case 'behind':
+        return e.z > p.z + 1.5;
+      case 'hurt':
+        return e.hp < e.max * 0.5;
+      case 'skim':
+        return p.skim > 0;
+    }
+  }
+
+  // --- legendary traits that play in flight -----------------------------------------------
+
+  /** BOOMERANG: the shot turns for home, free to hit everything again on the way. */
+  private turnHome(s: Shot) {
+    s.back = true;
+    s.t = 0;
+    s.life = BOOMERANG_LIFE;
+    s.hit = [];
+    s.pierce = Math.max(s.pierce, 1);
+    s.x = clamp(s.x, -HALF_W - 1, HALF_W + 1);
+    s.z = clamp(s.z, this.top - 1, this.bottom + 1);
+    this.emit({ type: 'turn', x: s.x, z: s.z });
+  }
+
+  /** A BOOMERANG shot on its way home: it curves round to its ship and is caught there. Returns true if it's done. */
+  private homeward(s: Shot) {
+    const p = this.players[s.owner];
+    if (s.t > s.life || !p || p.down) {
+      s.dead = true;
+      return true;
+    }
+    const sp = Math.max(Math.hypot(s.vx, s.vz), BOOMERANG_SPEED);
+    const have = Math.atan2(s.vx, -s.vz);
+    const want = Math.atan2(p.x - s.x, -(p.z - s.z));
+    const da = Math.atan2(Math.sin(want - have), Math.cos(want - have));
+    // it swings round wide at first, then comes in hard
+    const turn = clamp(da, -BOOMERANG_TURN * DT * (0.4 + s.t * 3), BOOMERANG_TURN * DT * (0.4 + s.t * 3));
+    s.vx = Math.sin(have + turn) * sp;
+    s.vz = -Math.cos(have + turn) * sp;
+    if ((p.x - s.x) ** 2 + (p.z - s.z) ** 2 < 2.2 * 2.2 && s.t > 0.15) {
+      s.dead = true;
+      return true;
+    }
+    return false;
+  }
+
+  /** A kill by `p`: FRENZIED guns whip up, a RAVENOUS special eats. */
+  private fed(p: Player, e: Enemy) {
+    const s = p.stats;
+    if (s.guns.some((g) => g.frenzied)) {
+      p.frenzy = Math.min(FRENZY_MAX, p.frenzy + 1);
+      p.frenzyT = FRENZY_TIME;
+      this.emit({ type: 'frenzy', id: p.id, stacks: p.frenzy });
+    }
+    if (s.ravenous && s.special && !this.inSpecial && p.charge < 1) {
+      p.charge = Math.min(1, p.charge + RAVENOUS_FEED);
+      const full = p.charge >= 1;
+      this.emit({ type: 'feed', id: p.id, x: e.x, z: e.z, full });
+      if (full) this.emit({ type: 'specialReady', id: p.id });
+    }
+  }
+
+  /** THUNDEROUS: the dash ends in a clap that shocks what's near, throws it back and blows the bullets away. */
+  private thunderclap(p: Player) {
+    const k = p.stats.thunder * (p.perfect ? 2 : 1);
+    const r = THUNDER_R * (p.perfect ? 1.3 : 1);
+    let hit = 0;
+    for (const e of this.enemies) {
+      if (e.dead || e.shielded || e.t < 0) continue;
+      const dx = e.x - p.x;
+      const dz = e.z - p.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d > r + e.r) continue;
+      hit++;
+      this.damage(e, THUNDER_DMG * k, p.id, p.perfect);
+      if (e.dead) continue;
+      mark(this, e, SHOCK, k, p.id);
+      // (not the runner's own parts, nor a boarder on a hull: they're fixed to something)
+      if (!e.boss && !e.ground && e.d.qp === undefined && e.d.board === undefined) {
+        e.kx = (dx / d) * THUNDER_PUSH * k;
+        e.kz = (dz / d) * THUNDER_PUSH * k;
+        e.stun = Math.max(e.stun, 0.3);
+      }
+    }
+    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < (r * 0.6) ** 2) this.cancel(b, 0.3);
+    this.emit({ type: 'thunder', id: p.id, x: p.x, z: p.z, r, perfect: p.perfect, hit });
+  }
+
+  /** VENGEFUL: a hit on you lets out a nova: the bullets round you are gone, and shrapnel flies out, harder on a low hull. */
+  private nova(p: Player) {
+    const power = 1 + 2 * (1 - p.hp / Math.max(1, p.stats.hp));
+    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < NOVA_R * NOVA_R) this.cancel(b, 0.4);
+    for (let k = 0; k < NOVA_SHOTS; k++) {
+      const s = this.addShot(p.id, 'slug', p.x, p.z, (k / NOVA_SHOTS) * Math.PI * 2 + this.rand() * 0.1, 46, NOVA_DMG * power, 0.55, 1, 0);
+      s.tag = 'nova';
+      s.marks = CRACK;
+    }
+    this.emit({ type: 'nova', id: p.id, x: p.x, z: p.z, power });
+  }
+
+  /** SENTINEL: each such gun leaves a copy of itself where the dash began (a few at most, the oldest go first). */
+  private leaveSentinels(p: Player, x: number, z: number) {
+    p.stats.guns.forEach((g, k) => {
+      if (!g.sentinel || g.drone) return;
+      const mine = this.sentinels.filter((t) => t.owner === p.id && !t.dead);
+      if (mine.length >= SENTINEL_MAX) mine[0].dead = true;
+      this.sentinels.push({ owner: p.id, gun: k, x: clamp(x + g.x * 1.5, -HALF_W + 1.5, HALF_W - 1.5), z: z + g.z, dir: g.dir, t: 0, life: SENTINEL_LIFE, cd: 0.25, shots: 0, dead: false });
+      this.emit({ type: 'sentinel', id: p.id, gun: k, x: x + g.x, z: z + g.z });
+    });
+  }
+
+  /** Sentinels hold still on the screen, turn to the nearest enemy and fire their gun at it. */
+  private updateSentinels(dz: number) {
+    for (const t of this.sentinels) {
+      t.t += DT;
+      t.z -= dz;
+      const p = this.players[t.owner];
+      const g = p?.stats.guns[t.gun];
+      if (!p || !g || t.t >= t.life || this.state === 'clear' || t.z > this.bottom + 2) {
+        t.dead = true;
+        continue;
+      }
+      const target = this.autoTarget(t.x, t.z, SENTRY_RANGE + 6);
+      const want = target ? Math.atan2(target.x - t.x, -(target.z - t.z)) : g.dir;
+      const da = Math.atan2(Math.sin(want - t.dir), Math.cos(want - t.dir));
+      t.dir += clamp(da, -8 * DT, 8 * DT);
+      t.cd -= DT;
+      if (t.cd > 0 || !target || Math.abs(da) > 0.5 || t.t < 0.2) continue;
+      t.cd += 1 / (g.spec.rate * SENTINEL_RATE);
+      t.cd = Math.max(t.cd, 0);
+      t.shots++;
+      this.fire(p, g, t.x + Math.sin(t.dir) * 0.6, t.z - Math.cos(t.dir) * 0.6, t.dir, 0, SENTINEL_DMG, true);
+    }
+    sweep(this.sentinels);
+  }
+
   /** A dash through fire, timed right: what would have hit you is soaked up, and the dash given back. */
   perfectDash(p: Player) {
     let absorbed = 0;
@@ -2087,7 +2445,8 @@ export class Level {
     p.stats.guns.forEach((g) => {
       if (g.volley > 0 && g.spec.shot !== 'beam') this.fire(p, g, p.x + g.x, p.z + g.z, g.dir, 0, g.volley);
     });
-    for (const d of this.decoys) if (d.kind === 'ghost' && d.owner === p.id && d.t < SLIP + DT) d.power *= 2;
+    this.reloadHeavies(p);
+    for (const d of this.decoys) if (d.kind === 'ghost' && d.owner === p.id && d.t < p.stats.slip + DT) d.power *= 2;
     if (p.stats.crit > 0) {
       if (p.crit <= 0) this.emit({ type: 'crit', id: p.id, on: true });
       p.crit = p.stats.crit;
@@ -2281,6 +2640,40 @@ const MIRROR_DMG = 8;
 const SENTRY_RANGE = 30;
 /** Catalyst: how close the dash must pass a marked enemy (past its edge) to set it off. */
 const CATALYST_REACH = 3;
+/**
+ * The dash-strike: for this long from the start of a dash, what the guns fire hits this much
+ * harder. Dash in, and the guns answer: the dash is an attack, not just a way out.
+ */
+const STRIKE_TIME = 0.4;
+const STRIKE_DMG = 0.5;
+/** The edges: point-blank and long-shot reach, a beam's lock-on, a crowd's reach. */
+const EDGE_CLOSE = 8;
+const EDGE_FAR = 24;
+const EDGE_LOCK = 0.8;
+const EDGE_CROWD = 6;
+/** Legendary traits. SENTINEL: how long a turret lasts, how many a ship can leave, its rate and punch against the gun's. */
+const SENTINEL_LIFE = 3;
+const SENTINEL_MAX = 3;
+const SENTINEL_RATE = 0.8;
+const SENTINEL_DMG = 0.7;
+/** BOOMERANG: how long it has to get home, how fast it comes, how hard it turns. */
+const BOOMERANG_LIFE = 2.2;
+const BOOMERANG_SPEED = 34;
+const BOOMERANG_TURN = 7;
+/** FRENZIED: fire rate per kill in a row, how many count, and how long they last without another. */
+const FRENZY_EACH = 0.15;
+const FRENZY_MAX = 6;
+const FRENZY_TIME = 2.5;
+/** THUNDEROUS: the clap's reach, its blow, how hard it throws. */
+const THUNDER_R = 6;
+const THUNDER_DMG = 10;
+const THUNDER_PUSH = 26;
+/** VENGEFUL: how far the nova wipes bullets, its shrapnel, and each piece's punch (×1..3 by hull lost). */
+const NOVA_R = 9;
+const NOVA_SHOTS = 18;
+const NOVA_DMG = 9;
+/** RAVENOUS: special charge per kill. */
+const RAVENOUS_FEED = 0.1;
 /** Escorts: a hauler draws aimed fire only when it's this much nearer (squared) than you. */
 const HAULER_BIAS = 1.6;
 

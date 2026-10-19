@@ -16,6 +16,7 @@ import { portraits } from '../view/portraits';
 
 export const VERB_COLOR: Record<Verb, string> = {
   GUN: '#ff8a4a',
+  HEAVY: '#ff5a78',
   'DASH MOD': '#6ad0ff',
   AUX: '#ffd04a',
   SPECIAL: '#8affb0',
@@ -254,6 +255,15 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   const mass = partStats(def).find((s) => s.startsWith('MASS'));
   for (const s of st.slice(0, 3)) {
     const want = s.startsWith('NEEDS') || s.startsWith('LINK');
+    if (s.startsWith('EDGE')) {
+      // the gun's edge: how it wants to be flown, in crit pink (wrapped: it's the line that matters)
+      const ls = wrap(s, w - 20);
+      if (ty + 9 * Math.min(ls.length, 2) > limit) break;
+      ctx.fillStyle = '#ffa8d8';
+      ctx.fillRect(x + 7, ty + 2, 3, 3);
+      for (const l of ls.slice(0, 2)) line(l, '#ffa8d8', 6);
+      continue;
+    }
     if (!line(s, want ? '#e0c070' : '#c8bcd8')) break;
   }
   if (mass) line(mass, DIM);
@@ -345,7 +355,9 @@ function foot(ctx: CanvasRenderingContext2D, f: Fit, b: Build, x: number, y: num
       drawText(ctx, s, dx, dy, col);
     } else {
       drawText(ctx, label, dx, dy, DIM);
-      drawText(ctx, val, x + w - 6, dy, col, { align: 'right' });
+      // too long beside its label (NIMBLE→STEADY): just where it ends up
+      const v = textWidth(label) + textWidth(val) + 6 > avail && val.includes('→') ? `→${val.split('→').pop()}` : val;
+      drawText(ctx, v, x + w - 6, dy, col, { align: 'right' });
     }
     dy += 9;
   }

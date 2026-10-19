@@ -159,6 +159,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_autoloader": {
+  "colliders": [],
+  "kind": "part_autoloader",
+  "max": [
+   0.33,
+   0.59,
+   0.33
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.36
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_blink": {
   "colliders": [],
   "kind": "part_blink",
@@ -447,6 +463,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_hone": {
+  "colliders": [],
+  "kind": "part_hone",
+  "max": [
+   0.34,
+   0.34,
+   0.38
+  ],
+  "min": [
+   -0.34,
+   0.0,
+   -0.34
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_incend": {
   "colliders": [],
   "kind": "part_incend",
@@ -479,6 +511,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_keel": {
+  "colliders": [],
+  "kind": "part_keel",
+  "max": [
+   0.33,
+   0.57,
+   0.4
+  ],
+  "min": [
+   -0.33,
+   0.0,
+   -0.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_lance": {
   "colliders": [],
   "kind": "part_lance",
@@ -491,6 +539,22 @@
    -0.457,
    0.0,
    -1.1
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_lunge": {
+  "colliders": [],
+  "kind": "part_lunge",
+  "max": [
+   0.393,
+   0.42,
+   0.33
+  ],
+  "min": [
+   -0.393,
+   0.0,
+   -0.475
   ],
   "mounts": [],
   "variant": 0

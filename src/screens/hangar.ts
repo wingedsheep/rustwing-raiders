@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run } from '../sim/run';
 import { cellsOf, fits, gunDir, partAt, rotOf, stats, type Build, type Placement, type Stats } from '../sim/build';
-import { frameById, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
+import { EDGES, frameById, LOAD_CLASS, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -11,7 +11,7 @@ import { CLASS_COLOR, CYAN, DARK, DIM, EDGE, GOLD, GREEN, H, INK, RED, W, frame,
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
-import { backdrop, hearts, hints, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
+import { backdrop, hearts, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
 import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
@@ -45,6 +45,9 @@ const RULES = [
   'BOOSTERS HELP THE GUNS THEY TOUCH. CONDUIT RELAYS: WHAT TOUCHES ONE RUN OF IT TOUCHES.',
   'LINKED PARTS RUN AT 150%. ARC OR EXPLOSIVE TOUCHING HEAT CLASH: BOTH AT 50%.',
   'BACK-ROW ENGINES PUSH HARDER. 3 OF A TAG WAKE ITS SET BONUS, 5 MAKE IT STRONGER.',
+  'EVERY GUN HAS AN EDGE: WHEN IT CRITS. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
+  'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT DASH RELOADS A ROUND.',
+  'EVERY PART IS LOAD. LIGHT IS NIMBLE (+1 DASH, EASIER PERFECTS); PAST FULL IS OVERLOADED. ENGINES CARRY MORE.',
 ];
 
 const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', drone: CYAN, link: GREEN, clash: RED, fuse: GOLD };
@@ -62,7 +65,7 @@ const STEP_T = 0.45;
 function boostText(d: PartDef, str: number) {
   const b = d.boost!;
   const pc = (n: number) => `+${Math.round(n * str * 100)}%`;
-  return [b.damage && `${pc(b.damage)} DMG`, b.rate && `${pc(b.rate)} RATE`, b.cool && 'COOLER', b.homing && 'HOMING', b.burst && 'BURST'].filter(Boolean).join(' ');
+  return [b.damage && `${pc(b.damage)} DMG`, b.rounds && `+${b.rounds} ROUND`, b.rate && !b.rounds && `${pc(b.rate)} RATE`, b.cool && 'COOLER', b.homing && 'HOMING', b.burst && 'BURST'].filter(Boolean).join(' ');
 }
 
 /**
@@ -89,6 +92,11 @@ function explain(b: Build, p: Placement, before: Stats): Step[] {
   else if (pl.link && !pl.link.ok && def.link) out.push({ c: pl.link.c, r: pl.link.r, text: `${def.link.need ? 'NEEDS' : 'WANTS'} ${def.link.text}`, color: def.link.need ? RED : GOLD });
   for (const t of Object.keys(TAG_BONUS) as Tag[])
     if ((after.bonus[t] ?? 0) > (before.bonus[t] ?? 0)) out.push({ c: pc, r: pr, text: `${TAG_BONUS[t].name} ONLINE`, color: GOLD });
+  if (after.loadClass !== before.loadClass) {
+    const lc = LOAD_CLASS[after.loadClass];
+    const lost = before.loadClass === 'nimble' ? 'NIMBLE LOST: -1 DASH' : `${lc.name}: ${lc.text}`;
+    out.push({ c: pc, r: pr, text: after.loadClass === 'overloaded' ? `OVERLOADED! ${lc.text}` : lost, color: after.loadClass === 'steady' ? GOLD : lc.color });
+  }
   const d0 = Math.round(dps(before));
   const d1 = Math.round(dps(after));
   if (d1 !== d0) out.push({ c: pc, r: pr, text: `DPS ${d0} → ${d1}`, color: d1 > d0 ? GREEN : RED });
@@ -215,7 +223,15 @@ export class Hangar implements Screen {
       else {
         const at = partAt(b, bay.cur.c, bay.cur.r);
         if (at) {
+          const was = stats(b).loadClass;
           b.parts.splice(b.parts.indexOf(at), 1);
+          const now = stats(b).loadClass;
+          if (now !== was) {
+            // lighter: a class back
+            audio.play('load_class', { pitch: 1.25 });
+            bay.msg = `${LOAD_CLASS[now].name} AGAIN`;
+            bay.msgT = 2;
+          }
           bay.hand = { ...at };
           bay.from = at;
           audio.play('ui_select');
@@ -278,6 +294,7 @@ export class Hangar implements Screen {
     bay.hand = null;
     bay.from = null;
     audio.play('ui_place');
+    if (stats(b).loadClass !== before.loadClass) audio.play('load_class', { pitch: 0.8 });
     this.remodel(i);
   }
 
@@ -398,7 +415,7 @@ export class Hangar implements Screen {
     const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
     if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
     // message, ready, hints
-    if (bay.msgT > 0) drawText(ctx, bay.msg, x + AREA_W / 2, 310, bay.msg.startsWith('HANDED') ? GREEN : RED, { align: 'center' });
+    if (bay.msgT > 0) drawText(ctx, bay.msg, x + AREA_W / 2, 310, bay.msg.startsWith('HANDED') || bay.msg.endsWith('AGAIN') ? GREEN : RED, { align: 'center' });
     const dev = this.dev(i);
     if (bay.ready) {
       frame(ctx, x, 318, AREA_W - 2, 36, '#1a3020', '#3a6a40');
@@ -486,6 +503,8 @@ export class Hangar implements Screen {
     const mods = defs.filter((d) => d.mod);
     lines.push([`DASH ${mods.length ? mods.map((d) => d.name).join(' + ') : 'PLAIN'}`.slice(0, 48), VERB_COLOR['DASH MOD']]);
     lines.push([`AUX ${name(defs.find((d) => d.aux))}   SPECIAL ${name(defs.find((d) => d.special))}`.slice(0, 48), VERB_COLOR.AUX]);
+    const heavies = defs.filter((d) => d.gun?.heavy);
+    lines.push([heavies.length ? `HEAVY ${heavies.map((d) => d.name).join(' + ')}` : 'HEAVY NONE: THE HEAVY BUTTON DOES NOTHING', heavies.length ? VERB_COLOR.HEAVY : DIM]);
     for (const pl of lk.parts) {
       if (pl.idle) lines.push([`${pl.def.name}: IDLE, ${pl.idle}`, RED]);
       else if (pl.def.link && !pl.link?.ok && pl.def.link.need) lines.push([`${pl.def.name}: NEEDS ${pl.def.link.text}`, RED]);
@@ -506,6 +525,16 @@ export class Hangar implements Screen {
       const rs = reactionsOf(st.marks);
       drawText(ctx, rs.length ? `→ ${rs.map((r) => r.name).join(' ')}` : 'NO REACTION YET: A SECOND MARK', mx + 2, ty, rs.length ? REACTION_COLOR[rs[0].kind] : DIM);
       ty += 12;
+    }
+    // the guns' edges: how this ship wants to be flown (and whether they pull it two ways)
+    const edges = [...new Set(st.guns.filter((g) => !g.drone).map((g) => g.spec.edge))];
+    if (edges.length) {
+      drawText(ctx, `EDGES ${edges.map((e) => EDGES[e].name).join(' + ')}`.slice(0, 48), x, ty, '#ffa8d8');
+      ty += 9;
+      if (edges.includes('close') && edges.includes('far')) {
+        drawText(ctx, 'PULLS TWO WAYS: POINT-BLANK AND LONG SHOT', x, ty, GOLD);
+        ty += 9;
+      }
     }
     for (const [l, c] of lines) {
       if (ty > bottom - 9) return;
@@ -589,7 +618,28 @@ export class Hangar implements Screen {
         const py = y0 + my * cell + cell / 2 - 1;
         ctx.fillStyle = '#ffffff';
         if (def.gun.auto) ctx.strokeRect(px - 4.5, py - 4.5, 8, 8);
-        else for (let k = 6; k < 15; k++) ctx.fillRect(Math.round(px + Math.sin(d) * k), Math.round(py - Math.cos(d) * k), 2, 2);
+        else if (def.gun.heavy) {
+          // a heavy: a fat barrel in its verb's colour, and its rounds as shells along the bottom
+          ctx.fillStyle = VERB_COLOR.HEAVY;
+          // out of the cell it fires from (the front one, or the back one for a gun facing back)
+          const back = Math.abs(d) > Math.PI / 2;
+          const end = cells.reduce((e, cc) => ((back ? cc[1] > e[1] : cc[1] < e[1]) ? cc : e), cells[0]);
+          const bx = x0 + end[0] * cell + cell / 2 - 1;
+          const by = y0 + end[1] * cell + cell / 2 - 1;
+          for (let k = 8; k < 17; k++) ctx.fillRect(Math.round(bx + Math.sin(d) * k) - 1, Math.round(by - Math.cos(d) * k) - 1, 3, 3);
+          const [lc, lr] = cells[cells.length - 1];
+          const rounds = stats(view.build).guns.find((g) => g.at === p)?.heavy ?? def.gun.heavy;
+          for (let n = 0; n < rounds; n++) {
+            const sx = x0 + lc * cell + cell - 6 - n * 4;
+            const sy = y0 + lr * cell + cell - 8;
+            ctx.fillStyle = DARK;
+            ctx.fillRect(sx - 1, sy - 1, 4, 7);
+            ctx.fillStyle = '#c89a48';
+            ctx.fillRect(sx, sy + 2, 2, 3);
+            ctx.fillStyle = '#ffd88a';
+            ctx.fillRect(sx, sy, 2, 2);
+          }
+        } else for (let k = 6; k < 15; k++) ctx.fillRect(Math.round(px + Math.sin(d) * k), Math.round(py - Math.cos(d) * k), 2, 2);
       }
       // the verb, as a pip in the corner (aux, special and dash mods: the ones with a button)
       const v = verbOf(def);
@@ -689,26 +739,29 @@ export class Hangar implements Screen {
 
   private statsBox(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, x: number, y: number, w: number) {
     frame(ctx, x, y, w, 84);
-    const rows: [string, number, number | undefined, (n: number) => string, boolean?][] = [
+    // the load first: it says how the ship will fly, and what every part costs
+    loadGauge(ctx, s, after, x + 6, y + 5, w - 12, this.t);
+    // then the numbers, two to a row
+    const cells: [string, number, number | undefined, (n: number) => string, boolean?][] = [
       ['HULL', s.hp, after?.hp, (n) => `${n}`],
       ['SHIELD', s.shield, after?.shield, (n) => `${n}`],
-      ['SPEED', s.speed, after?.speed, (n) => n.toFixed(1)],
-      ['MASS', s.mass, after?.mass, (n) => n.toFixed(1), true],
-      ['POWER', s.powerOut - s.powerDraw, after ? after.powerOut - after.powerDraw : undefined, (n) => `${n >= 0 ? '+' : ''}${n}`],
       ['DASHES', s.dashes, after?.dashes, (n) => `${n}`],
+      ['POWER', s.powerOut - s.powerDraw, after ? after.powerOut - after.powerDraw : undefined, (n) => `${n >= 0 ? '+' : ''}${Math.round(n)}`],
       ['DPS', dps(s), after ? dps(after) : undefined, (n) => `${Math.round(n)}`],
+      ['SPEED', s.speed, after?.speed, (n) => `${Math.round(n)}`],
     ];
-    rows.forEach(([label, now, then, fmt, lowerBetter], k) => {
-      const ry = y + 5 + k * 11;
-      drawText(ctx, label, x + 6, ry, DIM);
+    cells.forEach(([label, now, then, fmt, lowerBetter], k) => {
+      const cx = x + 6 + (k % 2) * 84;
+      const ry = y + 38 + Math.floor(k / 2) * 11;
+      drawText(ctx, label, cx, ry, DIM);
       const warn = label === 'POWER' && now < 0;
-      drawText(ctx, fmt(now), x + 92, ry, warn ? RED : INK, { align: 'right' });
-      if (then !== undefined && Math.abs(then - now) > 1e-6) {
+      drawText(ctx, fmt(now), cx + 58, ry, warn ? RED : INK, { align: 'right' });
+      if (then !== undefined && fmt(then) !== fmt(now)) {
         const better = lowerBetter ? then < now : then > now;
-        drawText(ctx, `→ ${fmt(then)}`, x + 100, ry, better ? GREEN : RED);
+        drawText(ctx, `→${fmt(then)}`, cx + 60, ry, better ? GREEN : RED);
       }
     });
-    if (s.brown < 1) drawText(ctx, 'BROWNOUT', x + w - 6, y + 5 + 4 * 11, RED, { align: 'right' });
+    if (s.brown < 1) drawText(ctx, 'BROWNOUT: GUNS SLOWED', x + w - 6, y + 72, RED, { align: 'right' });
   }
 
   private tagsBox(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, x: number, y: number, w: number, h: number) {

@@ -217,12 +217,6 @@ export class Run {
     return items;
   }
 
-  /** A part picked up in flight, rolled when it's brought home. */
-  salvage(id: string, seed: number): Item {
-    const r = rng(seed);
-    return rollItem(r, id, rollTier(r, this.difficulty()));
-  }
-
   /** Duo parts any ship of the crew has opened up. */
   duos(): string[] {
     return [...new Set(this.crew.flatMap((c) => duosOpen(c.build, c.cargo).map((d) => d.id)))];

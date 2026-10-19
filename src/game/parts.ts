@@ -6,8 +6,14 @@
  *   angle, the back row fires behind you. A gun in the middle fires forward.
  * - Boosters (amplifier, heat sink, targeting array, capacitor) only help the guns they touch.
  * - Engines in the back row push half as hard again.
- * - Everything has mass and most things draw power. Too heavy and you wallow; not enough power and
- *   the guns brown out.
+ * - Everything has mass and most things draw power. Not enough power and the guns brown out.
+ * - Mass is load, against what the frame can carry (engines carry more). A light ship is NIMBLE:
+ *   an extra dash, a wider window for a perfect, a quicker recovery. Past what it can carry it is
+ *   OVERLOADED: a dash fewer, slow to recover, sluggish. So an empty socket is worth something,
+ *   and every part has to earn its weight.
+ * - MAIN guns fire while fire is held. HEAVY guns (rail, flak, seekers, mines, the lance) fire on
+ *   their own button, a round a press, from a few rounds that reload one by one; a perfect dash
+ *   reloads a round. Two triggers: a stream to hold, and blows to time.
  * - Tags (KINETIC, ENERGY, EXPLOSIVE, ARC, HEAT) count across the whole ship: three of a tag wakes
  *   its set bonus, five makes it stronger.
  * - Conduits relay: two parts touching the same run of conduit count as touching each other.
@@ -78,6 +84,8 @@ export interface DashMod {
   ghost?: number;
   /** Marked enemies dashed past have their marks set off, this hard (1 = 100%). */
   detonate?: number;
+  /** The dash-strike hits harder and lasts longer: +50% more punch and half as long again, per 1. */
+  strike?: number;
 }
 
 /** The AUX verb: a defensive action on its own button. */
@@ -125,9 +133,37 @@ export interface GunSpec {
   heat: number;
   /** Aims itself at the nearest enemy and fires on its own, trigger or not. */
   auto?: boolean;
-  /** Hits harder the faster you go (×1 + boost, ×1.5 more while skimming). */
+  /** Hits harder the faster you go (×1 + boost). */
   speedy?: boolean;
+  /** Its edge: the moment it crits in (double damage). Every gun has one, and each wants you somewhere else. */
+  edge: Edge;
+  /**
+   * A HEAVY gun: fired on the heavy button, one round a press, from this many rounds. It doesn't
+   * heat up; `rate` is how fast a round comes back instead (rounds a second).
+   */
+  heavy?: number;
 }
+
+/**
+ * A gun's edge: when it crits. Guns don't all want the same fight: a Rail Driver wants you far off,
+ * a Scattergun in their face, Seekers on the enemy's tell, Mines on what chases you. What you mount
+ * says how you should fly, and two guns whose edges pull apart are a choice to make.
+ */
+export type Edge = 'reeling' | 'close' | 'locked' | 'far' | 'shocked' | 'tell' | 'crowd' | 'burning' | 'behind' | 'hurt' | 'skim';
+
+export const EDGES: Record<Edge, { name: string; text: string; pop: string }> = {
+  reeling: { name: 'PUNISHER', text: 'CRITS THE REELING: STUNNED, OR OPEN AFTER ITS ATTACK', pop: 'PUNISHED' },
+  close: { name: 'POINT-BLANK', text: 'CRITS POINT-BLANK', pop: 'POINT-BLANK' },
+  locked: { name: 'LOCK-ON', text: 'CRITS AFTER 0.8 S HELD ON ONE TARGET', pop: 'LOCKED ON' },
+  far: { name: 'LONG SHOT', text: 'CRITS FAR OFF: HALF A SCREEN AWAY', pop: 'LONG SHOT' },
+  shocked: { name: 'GROUNDED', text: 'CRITS THE SHOCKED', pop: 'GROUNDED' },
+  tell: { name: 'ON THE TELL', text: 'CRITS AN ENEMY WINDING UP AN ATTACK', pop: 'ON THE TELL' },
+  crowd: { name: 'CROWD', text: 'CRITS AN ENEMY WITH TWO MORE CLOSE BY', pop: 'CROWD' },
+  burning: { name: 'SEARING', text: 'CRITS THE BURNING', pop: 'SEARED' },
+  behind: { name: 'TAILGATE', text: 'CRITS WHAT’S BEHIND YOU', pop: 'TAILGATER' },
+  hurt: { name: 'FINISHER', text: 'CRITS ANYTHING BELOW HALF HULL', pop: 'FINISHER' },
+  skim: { name: 'SKIMMER', text: 'CRITS WHILE YOU SKIM THE LAND', pop: 'SKIMMING' },
+};
 
 export interface PartDef {
   id: string;
@@ -150,7 +186,9 @@ export interface PartDef {
   /** For the special ability parts. */
   special?: 'bomb' | 'phase' | 'emp' | 'overdrive';
   /** Booster effects on touching guns: `mark` gives their hits a mark, `flaw` makes them crit marked enemies. */
-  boost?: { damage?: number; rate?: number; cool?: number; homing?: number; burst?: number; mark?: MarkKind; flaw?: boolean };
+  boost?: { damage?: number; rate?: number; cool?: number; homing?: number; burst?: number; mark?: MarkKind; flaw?: boolean; hone?: boolean; rounds?: number };
+  /** Load it lets the ship carry, besides its own mass (Grav Keel). */
+  carry?: number;
   magnet?: number;
   graze?: number;
   drone?: boolean;
@@ -171,58 +209,58 @@ export const PARTS: PartDef[] = [
   // --- guns --------------------------------------------------------------------------------
   {
     id: 'rivet', name: 'Rivet Gun', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1, power: 1,
-    gun: { rate: 9, damage: 4, speed: 70, count: 1, spread: 0, life: 0.7, shot: 'slug', heat: 0.02 },
+    gun: { rate: 9, damage: 4, speed: 70, count: 1, spread: 0, life: 0.7, shot: 'slug', heat: 0.02, edge: 'reeling' },
     text: 'Cheap, fast, reliable. Every scrapper starts with one.',
   },
   {
     id: 'scatter', name: 'Scattergun', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.2, power: 1,
-    gun: { rate: 3, damage: 3.2, speed: 55, count: 6, spread: 0.55, life: 0.33, shot: 'pellet', heat: 0.08 },
+    gun: { rate: 3, damage: 3.2, speed: 55, count: 6, spread: 0.55, life: 0.33, shot: 'pellet', heat: 0.08, edge: 'close' },
     text: 'A fistful of pellets. Brutal up close, useless far off.',
   },
   {
     id: 'ion', name: 'Ion Lance', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 2, power: 3,
-    gun: { rate: 20, damage: 1.6, speed: 0, count: 1, spread: 0, life: 0, shot: 'beam', heat: 0.012 },
+    gun: { rate: 20, damage: 1.6, speed: 0, count: 1, spread: 0, life: 0, shot: 'beam', heat: 0.012, edge: 'locked' },
     text: 'A held beam that melts through anything in a line. Thirsty.',
   },
   {
     id: 'rail', name: 'Rail Driver', cls: 'gun', tags: ['energy', 'kinetic'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 2.2, power: 2,
-    gun: { rate: 1.1, damage: 40, speed: 160, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 99, heat: 0.25 },
+    gun: { rate: 0.9, damage: 52, speed: 160, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 99, heat: 0, edge: 'far', heavy: 3 },
     text: 'One slug, very fast, through everything in its way.',
   },
   {
     id: 'arc', name: 'Arc Coil', cls: 'gun', tags: ['arc'], rarity: 'rare', shape: [[0, 0]], mass: 1.2, power: 2,
-    gun: { rate: 4, damage: 6, speed: 0, count: 1, spread: 0, life: 0, shot: 'arc', heat: 0.05 },
+    gun: { rate: 4, damage: 6, speed: 0, count: 1, spread: 0, life: 0, shot: 'arc', heat: 0.05, edge: 'shocked' },
     text: 'Lightning that jumps to the nearest enemy, then the next, then the next.',
   },
   {
     id: 'seeker', name: 'Seeker Pod', cls: 'gun', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 1.4, power: 1,
-    gun: { rate: 2, damage: 9, speed: 28, count: 2, spread: 0.6, life: 2.2, shot: 'missile', heat: 0.06 },
-    text: 'Little missiles that find their own way. Slow to arrive.',
+    gun: { rate: 0.8, damage: 9, speed: 28, count: 4, spread: 0.9, life: 2.2, shot: 'missile', heat: 0, edge: 'tell', heavy: 2 },
+    text: 'A salvo of little missiles that find their own way. Slow to arrive.',
   },
   {
     id: 'flak', name: 'Flak Cannon', cls: 'gun', tags: ['explosive', 'kinetic'], rarity: 'rare', shape: [[0, 0], [1, 0]], mass: 2.5, power: 1,
-    gun: { rate: 1.6, damage: 14, speed: 40, count: 1, spread: 0, life: 0.45, shot: 'flak', heat: 0.12 },
+    gun: { rate: 1.25, damage: 20, speed: 40, count: 1, spread: 0, life: 0.45, shot: 'flak', heat: 0, edge: 'crowd', heavy: 3 },
     text: 'Shells that burst into shrapnel. Clears a crowd.',
   },
   {
     id: 'torch', name: 'Plasma Torch', cls: 'gun', tags: ['heat', 'energy'], rarity: 'common', shape: [[0, 0]], mass: 1, power: 2,
-    gun: { rate: 24, damage: 1.4, speed: 30, count: 1, spread: 0.25, life: 0.28, shot: 'flame', pierce: 2, heat: 0.018 },
+    gun: { rate: 24, damage: 1.4, speed: 30, count: 1, spread: 0.25, life: 0.28, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
     text: 'A short tongue of plasma. Melts bullets it touches.',
   },
   {
     id: 'mine', name: 'Mine Chute', cls: 'gun', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 1.2, power: 0,
-    gun: { rate: 1.2, damage: 22, speed: 6, count: 1, spread: 0, life: 4, shot: 'mine', heat: 0.1 },
-    text: 'Drops proximity mines. Best in the back row, for whatever is chasing you.',
+    gun: { rate: 1, damage: 26, speed: 6, count: 1, spread: 0, life: 4, shot: 'mine', heat: 0, edge: 'behind', heavy: 3 },
+    text: 'Drops proximity mines, for whatever is chasing you.',
   },
   {
     id: 'sentry', name: 'Sentry Pod', cls: 'gun', tags: ['kinetic', 'tech'], rarity: 'rare', shape: [[0, 0]], mass: 1.2, power: 2,
-    gun: { rate: 3, damage: 5, speed: 60, count: 1, spread: 0, life: 0.6, shot: 'slug', heat: 0, auto: true },
+    gun: { rate: 3, damage: 5, speed: 60, count: 1, spread: 0, life: 0.6, shot: 'slug', heat: 0, auto: true, edge: 'hurt' },
     text: 'A little turret that picks its own targets and fires whether you do or not.',
   },
   {
     id: 'lance', name: 'Velocity Lance', cls: 'gun', tags: ['kinetic', 'drive'], rarity: 'epic', shape: [[0, 0], [0, 1], [0, 2]], mass: 2.4, power: 2,
-    gun: { rate: 2.2, damage: 14, speed: 120, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 3, heat: 0.08, speedy: true },
-    text: 'A spike that hits harder the faster you go: double at full boost, and half again while skimming.',
+    gun: { rate: 1.2, damage: 20, speed: 120, count: 1, spread: 0, life: 0.5, shot: 'rail', pierce: 3, heat: 0, speedy: true, edge: 'skim', heavy: 2 },
+    text: 'A spike that hits harder the faster you go: double at full boost. Skim the land and it crits.',
   },
   // --- engines -----------------------------------------------------------------------------
   {
@@ -298,6 +336,19 @@ export const PARTS: PartDef[] = [
     id: 'flaw', name: 'Flaw Finder', cls: 'booster', tags: ['tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.5, power: 1, boost: { flaw: true },
     text: 'Touching guns crit whatever’s marked: burning, shocked or cracked.',
   },
+  {
+    id: 'hone', name: 'Edge Hone', cls: 'booster', tags: ['tech', 'kinetic'], rarity: 'rare', shape: [[0, 0]], mass: 0.6, power: 1, boost: { hone: true },
+    text: 'A grinding wheel for touching guns: when their edge comes off, they hit three times as hard, not twice.',
+  },
+  // --- loadout: feeding the heavies, carrying the load ---------------------------------------
+  {
+    id: 'autoloader', name: 'Autoloader', cls: 'booster', tags: ['kinetic', 'tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.9, power: 1, boost: { rounds: 1, rate: 0.3 },
+    text: 'A drum that feeds the heavy guns it touches: a round more each, and they reload a third faster.',
+  },
+  {
+    id: 'keel', name: 'Grav Keel', cls: 'engine', tags: ['drive', 'tech'], rarity: 'common', shape: [[0, 0]], mass: 0.4, power: 1, carry: 3,
+    text: 'Lift rings under a keel blade. It pushes nothing, but the ship carries 3 more load: a socket for a lighter ship.',
+  },
   // --- dash mods (change what B does) -----------------------------------------------------
   {
     id: 'ram', name: 'Ram Prow', cls: 'engine', tags: ['armor', 'kinetic'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, power: 0,
@@ -328,6 +379,11 @@ export const PARTS: PartDef[] = [
     id: 'catalyst', name: 'Catalyst', cls: 'engine', tags: ['tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.7, power: 2,
     mod: { detonate: 1 }, link: { want: { gun: true }, text: 'A GUN TOUCHING' },
     text: 'Dash through marked enemies to set their marks off. Twice as hard on a perfect.',
+  },
+  {
+    id: 'lunge', name: 'Lunge Jets', cls: 'engine', tags: ['drive', 'kinetic'], rarity: 'rare', shape: [[0, 0]], mass: 0.7, power: 1,
+    mod: { strike: 1 }, link: { want: { gun: true }, text: 'A GUN TOUCHING' },
+    text: 'Out of a dash the guns strike +100%, not +50%, and for longer. Dash in, open up.',
   },
   // --- aux (the defensive button) ---------------------------------------------------------
   {
@@ -447,6 +503,8 @@ export interface FrameDef {
   thrust: number;
   grip: number;
   dash: number;
+  /** The load it carries before it counts as full (engines add to it: see LOAD). */
+  load: number;
   /** Parts it comes with, as [part, col, row]. */
   start: [string, number, number][];
 }
@@ -457,7 +515,7 @@ export const FRAMES: FrameDef[] = [
     name: 'Kestrel',
     text: 'A stripped-down racer. Quick and twitchy, made of tinfoil.',
     grid: ['.#.', '###', '###', '#.#'],
-    hp: 4, mass: 4, power: 4, thrust: 14, grip: 1.15, dash: 1,
+    hp: 4, mass: 4, power: 4, thrust: 14, grip: 1.15, dash: 1, load: 8,
     start: [['rivet', 1, 0], ['thruster', 0, 3], ['thruster', 2, 3], ['reactor', 1, 2]],
   },
   {
@@ -465,7 +523,7 @@ export const FRAMES: FrameDef[] = [
     name: 'Mule',
     text: 'A hauler with guns bolted on. Room for everything, moves like a fridge.',
     grid: ['#####', '#####', '.###.'],
-    hp: 7, mass: 7, power: 6, thrust: 14, grip: 0.8, dash: 1,
+    hp: 7, mass: 7, power: 6, thrust: 14, grip: 0.8, dash: 1, load: 12,
     start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 2], ['plate', 2, 1]],
   },
   {
@@ -473,7 +531,7 @@ export const FRAMES: FrameDef[] = [
     name: 'Wasp',
     text: 'Twin booms like a pod racer. Guns on the prongs, engines everywhere.',
     grid: ['#.#', '#.#', '###', '###'],
-    hp: 5, mass: 4.5, power: 5, thrust: 16, grip: 1.05, dash: 1,
+    hp: 5, mass: 4.5, power: 5, thrust: 16, grip: 1.05, dash: 1, load: 8.5,
     start: [['rivet', 0, 0], ['rivet', 2, 0], ['thruster', 1, 3], ['reactor', 1, 2]],
   },
   {
@@ -481,7 +539,7 @@ export const FRAMES: FrameDef[] = [
     name: 'Hammerhead',
     text: 'A wide armoured head for a front battery, and a slim tail.',
     grid: ['####', '####', '.##.', '.##.'],
-    hp: 6, mass: 6, power: 5, thrust: 14, grip: 0.9, dash: 1,
+    hp: 6, mass: 6, power: 5, thrust: 14, grip: 0.9, dash: 1, load: 10.5,
     start: [['scatter', 1, 0], ['scatter', 2, 0], ['thruster', 1, 3], ['thruster', 2, 3]],
   },
   {
@@ -489,12 +547,25 @@ export const FRAMES: FrameDef[] = [
     name: 'Lattice',
     text: 'An open truss: sockets everywhere, but few of them touch. Bridge them with conduit.',
     grid: ['#.#.#', '#.#.#', '#####', '.#.#.'],
-    hp: 5, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1,
+    hp: 5, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1, load: 10,
     start: [['rivet', 0, 0], ['rivet', 4, 0], ['reactor', 2, 2], ['thruster', 1, 3], ['thruster', 3, 3]],
   },
 ];
 
 export const partById = (id: string) => PARTS.find((p) => p.id === id)!;
+
+/**
+ * Load: a part's mass against what the ship can carry, the frame's own load plus `engine` for
+ * every point of thrust its engines push. Up to `nimble` of it the ship is NIMBLE, past all of it
+ * OVERLOADED.
+ */
+export const LOAD = { nimble: 0.6, engine: 0.15 };
+export type LoadClass = 'nimble' | 'steady' | 'overloaded';
+export const LOAD_CLASS: Record<LoadClass, { name: string; color: string; text: string }> = {
+  nimble: { name: 'NIMBLE', color: '#8affe0', text: '+1 DASH, EASIER PERFECTS' },
+  steady: { name: 'STEADY', color: '#d8cce8', text: 'NO BONUS, NO PENALTY' },
+  overloaded: { name: 'OVERLOADED', color: '#ff5a4a', text: '-1 DASH, SLOW TO RECOVER' },
+};
 
 /** Tags that clash when parts carrying them touch: both parts run at half strength. */
 export const CLASHES: { a: Tag; b: Tag; name: string }[] = [
@@ -506,10 +577,10 @@ export const CLASHES: { a: Tag; b: Tag; name: string }[] = [
 export const STRENGTH = { idle: 0, clash: 0.5, fused: 1.25, linked: 1.5 };
 
 /** The verb a part gives you: what you do with it, or that it does it on its own. */
-export type Verb = 'GUN' | 'DASH MOD' | 'AUX' | 'SPECIAL' | 'PASSIVE';
+export type Verb = 'GUN' | 'HEAVY' | 'DASH MOD' | 'AUX' | 'SPECIAL' | 'PASSIVE';
 
 export function verbOf(d: PartDef): Verb {
-  if (d.gun) return 'GUN';
+  if (d.gun) return d.gun.heavy ? 'HEAVY' : 'GUN';
   if (d.special) return 'SPECIAL';
   if (d.aux) return 'AUX';
   if (d.mod) return 'DASH MOD';

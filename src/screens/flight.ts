@@ -8,12 +8,15 @@ import { audio, type Track } from '../audio';
 import { newPilot, pilot, type PilotState } from '../sim/pilot';
 import type { Build } from '../sim/build';
 import type { PodFate } from '../sim/heist';
+import { rollItem, type Item } from '../game/loot';
+import { EDGES, type Edge } from '../game/parts';
 
 export interface FlightResult {
   cleared: boolean;
   scrap: number;
   score: number;
-  loot: string[][];
+  /** Parts picked up, per player, as rolled when they dropped. */
+  loot: Item[][];
   hull: number[];
   stats: { hits: number; grazes: number; kills: number; crashes: number }[];
   /** How it went, for the results: the rank and a line or two on what earned it. */
@@ -51,6 +54,14 @@ export class Flight implements Screen {
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
     const rk = Number(game.params.get('runner'));
     if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
+    // &crates: a part crate of each tier ahead of you (to see their beacons and catch them)
+    if (game.params.has('crates'))
+      (['common', 'rare', 'epic', 'legendary'] as const).forEach((tier, k) => {
+        this.lv.drop('part', -12 + k * 8, this.lv.scroll - 4, 0, 'rivet');
+        const c = this.lv.pickups[this.lv.pickups.length - 1];
+        c.part = rollItem(this.lv.rand, k === 3 ? 'scatter' : 'rivet', tier);
+        c.vx = c.vz = 0;
+      });
     this.view = new LevelView(this.lv);
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') ? this.lv.players.map(() => newPilot()) : null;
     audio.music(spec.planet.id as Track);
@@ -121,6 +132,7 @@ export class Flight implements Screen {
     this.hud.dw = g.dw;
     this.hud.dh = g.dh;
     this.hud.scale = g.uiScale;
+    this.hud.heavyKeys = g.devices.map((d) => input.heavyKey(d));
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }
 
@@ -153,5 +165,10 @@ function report(lv: Level): string[] {
     out.push(`KILLED ${lv.killed}/${lv.spawned}  WAVES WIPED ${cleared}/${lv.waves.length}${lv.fullClear ? '  FULL CLEAR' : ''}${bonus}`);
     if (lv.bounties || lv.bountiesLost) out.push(`BOUNTIES ${lv.bounties}/${lv.bounties + lv.bountiesLost}`);
   }
+  // the edges that came off most: what the guns were flown for
+  const edges = new Map<Edge, number>();
+  for (const p of lv.players) for (const [e, n] of Object.entries(p.edges) as [Edge, number][]) edges.set(e, (edges.get(e) ?? 0) + n);
+  const top = [...edges].sort((a, b) => b[1] - a[1]).slice(0, 2);
+  if (top.length) out.push(`EDGE CRITS  ${top.map(([e, n]) => `${EDGES[e].name} ${n}`).join('  ')}`);
   return out;
 }

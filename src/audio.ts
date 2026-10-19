@@ -25,7 +25,9 @@ export type Sfx =
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn'
-  | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell';
+  | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
+  | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
+  | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
 export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
@@ -588,6 +590,47 @@ const SFX: Record<Sfx, SfxDef> = {
     return 2.6;
   }, 1, 1, { rev: 0.4 }),
 
+  // the heavy button: a sub thump under whatever the heavies fire, so a press always lands
+  heavy: S((t, p, o) => {
+    tone(o, t, 'sine', 120 * p, 38 * p, 0.28, 0.42, 0.002, 0.16);
+    noise(o, t, 0.09, 'lowpass', 900 * p, 200 * p, 0.9, 0.28, 0.002);
+    tone(o, t + 0.01, 'square', 70 * p, 45 * p, 0.08, 0.08, 0.001);
+    return 0.3;
+  }, 0.06, 2, { rev: 0.12 }),
+
+  // pressed with every heavy dry: the firing pin on an empty chamber
+  heavy_dry: S((t, p, o) => {
+    tone(o, t, 'square', 1900 * p, 1700 * p, 0.018, 0.05, 0.001);
+    noise(o, t, 0.02, 'highpass', 4500, 4500, 0.9, 0.07);
+    tone(o, t + 0.05, 'square', 1500 * p, 1400 * p, 0.015, 0.03, 0.001);
+    return 0.08;
+  }, 0.08, 1, { low: true }),
+
+  // a round back in a heavy: a slide and a clack, pitched up with every round it holds
+  reload: S((t, p, o) => {
+    noise(o, t, 0.05, 'bandpass', 1800 * p, 3200 * p, 1.6, 0.06, 0.01);
+    tone(o, t + 0.05, 'square', 520 * p, 300 * p, 0.03, 0.09, 0.001);
+    noise(o, t + 0.05, 0.02, 'highpass', 4000, 4000, 0.7, 0.08);
+    return 0.1;
+  }, 0.05, 2, { low: true, tuned: true }),
+
+  // a perfect dash chambers a round: the clack, and a bright ring on top
+  reload_perfect: S((t, p, o) => {
+    tone(o, t, 'square', 600 * p, 340 * p, 0.03, 0.1, 0.001);
+    noise(o, t, 0.02, 'highpass', 4000, 4000, 0.7, 0.1);
+    tone(o, t + 0.03, 'triangle', 1320 * p, 1320 * p, 0.25, 0.08, 0.003);
+    tone(o, t + 0.07, 'triangle', 1980 * p, 1980 * p, 0.3, 0.06, 0.003);
+    return 0.35;
+  }, 0.08, 1, { tuned: true, rev: 0.3 }),
+
+  // the hangar: the ship's load class changing (up a fourth: lighter; down: heavier)
+  load_class: S((t, p, o) => {
+    tone(o, t, 'triangle', 440 * p, 440 * p, 0.12, 0.09, 0.003);
+    tone(o, t + 0.09, 'triangle', 587 * p, 587 * p, 0.22, 0.09, 0.003);
+    noise(o, t, 0.12, 'bandpass', 900 * p, 1800 * p, 1.2, 0.04, 0.01);
+    return 0.35;
+  }, 0.1, 1, { tuned: true }),
+
   // the runner's bay doors: a clank and a hiss (a mine dropped, fighters launched)
   bay: S((t, p, o) => {
     tone(o, t, 'square', 140 * p, 90 * p, 0.08, 0.1, 0.001);
@@ -1001,6 +1044,81 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.3, 1.4, 'highpass', 6000, 12000, 0.6, 0.035, 0.2);
     return 1.8;
   }, 1, 1, { tuned: true, rev: 0.5 }),
+
+  // --- legendary traits in flight -----------------------------------------------------------
+
+  /** A SENTINEL dropped: a heavy clamp, servos, and a rising ready-beep. */
+  sentinel: S((t, p, o) => {
+    tone(o, t, 'square', 180 * p, 70 * p, 0.06, 0.14, 0.001);
+    noise(o, t, 0.05, 'bandpass', 2200 * p, 900 * p, 2, 0.12);
+    tone(filt(o, 'bandpass', 1400 * p, 3), t + 0.04, 'sawtooth', 300 * p, 900 * p, 0.14, 0.05, 0.01);
+    tone(o, t + 0.16, pulse25, 1320 * p, 1320 * p, 0.05, 0.04, 0.001);
+    tone(o, t + 0.22, pulse25, 1760 * p, 1760 * p, 0.08, 0.04, 0.001);
+    return 0.32;
+  }, 0.06, 3, { tuned: true }),
+
+  /** A sentinel winks out: a falling servo and a puff. */
+  sentinel_out: S((t, p, o) => {
+    tone(filt(o, 'bandpass', 1200 * p, 2), t, 'sawtooth', 700 * p, 160 * p, 0.16, 0.04, 0.005);
+    noise(o, t + 0.04, 0.12, 'lowpass', 1800 * p, 400 * p, 0.8, 0.06);
+    return 0.2;
+  }, 0.08, 2, { low: true }),
+
+  /** A BOOMERANG shot turning: a short swish. */
+  boomerang: S((t, p, o) => {
+    noise(o, t, 0.12, 'bandpass', 1400 * p, 3800 * p, 3, 0.05, 0.03);
+    return 0.13;
+  }, 0.07, 2, { low: true }),
+
+  /** FRENZIED, one more: a click up the scale (pitched by the stack). */
+  frenzy: S((t, p, o) => {
+    tone(o, t, 'square', 660 * p, 990 * p, 0.05, 0.05, 0.001);
+    tone(o, t, 'triangle', 1320 * p, 1320 * p, 0.08, 0.04, 0.001);
+    return 0.1;
+  }, 0.04, 2, { tuned: true }),
+
+  /** FRENZIED, all six: a snarling rise. */
+  frenzy_max: S((t, p, o) => {
+    tone(filt(o, 'lowpass', 2400 * p, 4), t, 'sawtooth', 110 * p, 440 * p, 0.3, 0.12, 0.01);
+    tone(o, t + 0.05, 'square', 880 * p, 1760 * p, 0.2, 0.05, 0.002);
+    noise(o, t, 0.3, 'bandpass', 600 * p, 3000 * p, 1.5, 0.08, 0.04);
+    return 0.4;
+  }, 0.3, 1),
+
+  /** The frenzy cools off: a hiss down. */
+  frenzy_off: S((t, p, o) => {
+    noise(o, t, 0.35, 'highpass', 5000 * p, 1200 * p, 0.7, 0.05, 0.01);
+    tone(o, t, 'triangle', 700 * p, 300 * p, 0.2, 0.03, 0.002);
+    return 0.36;
+  }, 0.3, 1, { low: true }),
+
+  /** THUNDEROUS: a crack of thunder, a thump and a crackling tail. */
+  thunder: S((t, p, o) => {
+    noise(o, t, 0.05, 'highpass', 2600, 1800, 0.7, 0.4, 0.001);
+    boom(o, t, p * 0.8, 0.6, 0.32);
+    crackle(o, t + 0.02, 0.3, 14, 0.18);
+    noise(o, t + 0.06, 0.9, 'lowpass', 500 * p, 90, 0.8, 0.22, 0.05);
+    return 1;
+  }, 0.08, 2, { rev: 0.35 }),
+
+  /** VENGEFUL: the hull lets go: a deep whump, a ring of shrapnel whistling out. */
+  nova: S((t, p, o) => {
+    boom(o, t, p * 0.7, 0.8, 0.36);
+    tone(o, t, 'sine', 70 * p, 30 * p, 0.6, 0.3, 0.002);
+    for (let i = 0; i < 6; i++) {
+      const f = (1600 + Math.random() * 1800) * p;
+      tone(o, t + 0.03 + i * 0.02, 'sine', f, f * 0.6, 0.2, 0.025, 0.002);
+    }
+    return 0.8;
+  }, 0.2, 1, { rev: 0.3 }),
+
+  /** RAVENOUS: a kill's spark drunk by the special: a soft rising chime. */
+  feed: S((t, p, o) => {
+    const f = mtof(88) * p;
+    tone(o, t, 'sine', f * 0.75, f, 0.14, 0.04, 0.004);
+    tone(o, t + 0.03, 'triangle', f * 1.5, f * 1.5, 0.1, 0.015, 0.002);
+    return 0.17;
+  }, 0.05, 3, { tuned: true, low: true }),
 
   ui_buy: S((t, p, o) => {
     tone(o, t, 'square', 988 * p, 988 * p, 0.07, 0.06, 0.001);

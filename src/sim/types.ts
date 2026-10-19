@@ -25,6 +25,8 @@ export interface Intent {
   x: number;
   y: number;
   fire: boolean;
+  /** Pressed this frame: one round from every heavy gun (see GunSpec.heavy). */
+  heavy: boolean;
   /** Held, 0..1 (analog on a trigger): burn the Burn meter to push the whole level faster. */
   boost: number;
   /** Pressed this frame. */
@@ -36,7 +38,7 @@ export interface Intent {
   focus: boolean;
 }
 
-export const NEUTRAL: Intent = { x: 0, y: 0, fire: false, boost: 0, dash: false, special: false, aux: false, focus: false };
+export const NEUTRAL: Intent = { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
 
 export interface V2 {
   x: number;

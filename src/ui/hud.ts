@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Level, Player } from '../sim/level';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
-import { frameById, partById, type PartClass } from '../game/parts';
+import { frameById, LOAD_CLASS, partById, type PartClass } from '../game/parts';
 import { cellsOf } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
@@ -118,6 +118,8 @@ export class Hud {
   dw = 1;
   dh = 1;
   scale = 1;
+  /** Each player's heavy button, as a prompt names it ('RB', 'O'). */
+  heavyKeys: string[] = [];
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
@@ -259,6 +261,51 @@ export class Hud {
     if (p.down) drawText(ctx, lv.players.length > 1 ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', side === 'left' ? x0 : x0 + pw, 28, RED, { align: side });
   }
 
+  /**
+   * The heavies' rounds, under the ship where the eyes are: a brass shell for each round ready,
+   * an empty slot filling up for the one coming back, a gap between guns. Quiet while they're all
+   * ready and unused; until the heavy button's first press, its name blinks beside them.
+   */
+  private rounds(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, y: number) {
+    const guns = p.stats.guns.map((g, k) => ({ g, k })).filter(({ g }) => g.heavy && !g.drone);
+    if (!guns.length) return;
+    const total = guns.reduce((t, { g }) => t + g.heavy, 0);
+    const width = total * 4 + (guns.length - 1) * 3 - 1;
+    let cx = Math.round(x - width / 2);
+    const full = guns.every(({ g, k }) => p.rounds[k] >= g.heavy);
+    ctx.globalAlpha = full && p.heavyT > 1.5 ? 0.55 : 1;
+    ctx.fillStyle = 'rgba(14,10,22,0.6)';
+    ctx.fillRect(cx - 2, y - 1, width + 4, 7);
+    for (const { g, k } of guns) {
+      for (let n = 0; n < g.heavy; n++) {
+        const ready = n < p.rounds[k];
+        if (ready) {
+          // a shell: brass case, a bright tip (white for a moment after it came back)
+          ctx.fillStyle = '#c89a48';
+          ctx.fillRect(cx, y + 2, 3, 3);
+          ctx.fillStyle = p.heavyT < 0.08 && n === p.rounds[k] - 1 ? '#ffffff' : '#ffd88a';
+          ctx.fillRect(cx, y, 3, 2);
+        } else {
+          ctx.fillStyle = '#3a2e48';
+          ctx.fillRect(cx, y, 3, 5);
+          if (n === p.rounds[k]) {
+            const f = clamp(p.reload[k], 0, 1);
+            ctx.fillStyle = '#806838';
+            ctx.fillRect(cx, y + 5 - Math.round(5 * f), 3, Math.round(5 * f));
+          }
+        }
+        cx += 4;
+      }
+      cx += 3;
+    }
+    ctx.globalAlpha = 1;
+    const fired = guns.some(({ k }) => p.shotCount[k] > 0);
+    if (!fired && lv.time < 20 && Math.floor(this.time * 3) % 3) {
+      const key = this.heavyKeys[p.id] ?? 'RB';
+      drawText(ctx, `HEAVY ${key}`, x, y + 8, '#ffd88a', { align: 'center' });
+    }
+  }
+
   /** A world point (on the flight plane) in UI texels. */
   private toScreen(view: LevelView, x: number, y: number, z: number) {
     this.v.set(x, y, z).project(view.eye);
@@ -316,6 +363,13 @@ export class Hud {
         ctx.fillRect(Math.round(s.x - gw / 2) - 1, Math.round(s.y + 13), gw + 2, 4);
         ctx.fillStyle = jam ? (Math.floor(this.time * 10) % 2 ? RED : '#ffffff') : heat > 0.75 ? '#ff9a3a' : '#c8a060';
         ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 14), Math.round(gw * (jam ? 1 : heat)), 2);
+      }
+      this.rounds(ctx, lv, p, s.x, s.y + 22);
+      // how it's loaded, said once as the level starts (steady goes without saying)
+      if (lv.time > 1.2 && lv.time < 4.5 && p.stats.loadClass !== 'steady' && (lv.time < 3.6 || Math.floor(this.time * 8) % 2)) {
+        const lc = LOAD_CLASS[p.stats.loadClass];
+        drawText(ctx, lc.name, s.x, s.y - 30, lc.color, { align: 'center' });
+        drawText(ctx, lc.text, s.x, s.y - 21, '#d8cce8', { align: 'center' });
       }
     }
     // an escort's or a heist's orders, as it starts (in place of the biome's name)

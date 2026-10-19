@@ -22,6 +22,10 @@ import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
 import { ConvoyView } from './convoy-view';
 import { HeistView } from './heist-view';
+import { TraitsView } from './traits';
+import { TRAITS, itemName, tierOf, type Tier } from '../game/loot';
+import { TIER_COLOR } from '../ui/widgets';
+import { EDGES, type Edge } from '../game/parts';
 
 /** A heist's colour (see hud.ts HEIST). */
 const HEIST_HEX = '#5ae0c0';
@@ -102,10 +106,14 @@ export class LevelView {
   private hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
   private ships: (ShipModel | null)[] = [];
   private enemies = new Map<number, EnemyView>();
-  private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null }>();
+  private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null; beacon?: THREE.Group }>();
   private hazards = new Map<object, THREE.Group>();
   private bullets = new BulletArt();
   private shotArt = new ShotArt();
+  /** When each gun edge's name last popped. */
+  private edgeSaid = new Map<Edge, number>();
+  /** The legendary traits that play in flight: sentinels, frenzies, claps, novas (see traits.ts). */
+  private traits: TraitsView;
   private shields: Shields;
   /** An escort's haulers. */
   private convoy: ConvoyView | null = null;
@@ -208,6 +216,20 @@ export class LevelView {
       this.ships.push(ship);
     });
     this.overlay.add(this.threats.group);
+    this.traits = new TraitsView(lv, this.scene, this.fx, {
+      pop: (text, x, z, color, big) => this.pop(text, x, z, color, big),
+      unpop: (prefix) => (this.pops = this.pops.filter((p) => !p.text.startsWith(prefix))),
+      bolt: (pts, col) => this.bolt(pts, col),
+      juice: (o) => {
+        if (o.trauma) this.trauma = Math.min(1, this.trauma + o.trauma);
+        if (o.hitstop) this.hitstop = Math.max(this.hitstop, o.hitstop);
+        if (o.flash && o.flash > this.flash) {
+          this.flash = o.flash;
+          this.flashColor.setHex(o.flashColor ?? 0xffffff);
+        }
+        if (o.shove) this.shove(o.dx ?? 0, o.dz ?? 1, o.shove);
+      },
+    });
     const disc = new THREE.CircleGeometry(0.5, 10);
     // the hitbox while focusing: a white dot ringed dark, the size the sim really uses
     lv.players.forEach((p) => {
@@ -258,11 +280,12 @@ export class LevelView {
     this.shattered.clear();
     const lv = this.lv;
     for (const e of events) {
+      if (this.traits.handle(e)) continue;
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
           const col = SHOT_COLORS[e.kind];
-          const heavy = e.kind === 'rail' || e.kind === 'flak' || e.kind === 'pellet';
+          const heavy = e.heavy || e.kind === 'rail' || e.kind === 'flak' || e.kind === 'pellet';
           // the muzzle: a white-hot blink in a bloom of the gun's colour, a spit of sparks forward,
           // and from the heavy guns a puff of smoke
           const flash = e.kind === 'rail' ? 1.8 : heavy ? 1.2 : 0.8;
@@ -272,7 +295,12 @@ export class LevelView {
             for (let k = 0; k < (heavy ? 3 : 1); k++)
               this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z - 0.5, vx: (Math.random() - 0.5) * 8, vz: -18 - Math.random() * 14, size: 0.14, grow: 0.3, life: 0.08 + Math.random() * 0.06, drag: 8, color: SPARK, carried: true });
           if (heavy) this.fx.add({ x: e.x, y: FLIGHT_Y + 0.5, z: e.z - 0.6, vz: 2, vy: 1, size: 0.6, grow: 2.4, life: 0.35, color: TORP_SMOKE, to: TORP_SMOKE_END, glow: false, carried: true });
-          this.recoil[e.owner] = Math.min(0.5, (this.recoil[e.owner] ?? 0) + (e.kind === 'rail' ? 0.45 : heavy ? 0.22 : 0.07));
+          if (!e.turret) this.recoil[e.owner] = Math.min(0.5, (this.recoil[e.owner] ?? 0) + (e.kind === 'rail' ? 0.45 : heavy ? 0.22 : 0.07));
+          if (e.heavy) {
+            // a heavy round: a ring of pushed air off the muzzle and a ship-sized flash
+            this.fx.ring(e.x, FLIGHT_Y + 0.6, e.z - 1.4, 1.4, 0.12, true, 0xffe8b0);
+            this.fx.add({ x: e.x, y: FLIGHT_Y + 0.8, z: e.z - 0.2, size: 2.4, grow: 0.6, life: 0.06, color: HOT, carried: true });
+          }
           const pan = e.x / HALF_W;
           if (e.kind === 'slug') audio.play('shot_rivet', { pan, vol: 0.5 });
           else if (e.kind === 'pellet') audio.play('shot_scatter', { pan, vol: 0.6 });
@@ -295,6 +323,7 @@ export class LevelView {
           const ev = this.enemies.get(e.enemy);
           const y = ev ? ev.obj.position.y : FLIGHT_Y;
           const en = lv.enemies.find((o) => o.id === e.enemy);
+          if (e.edge) this.edgeHit(e.edge, e.x, e.z, y);
           const big = en ? en.r : 1;
           // a heavy hit (a rail, a shell, a crit) lands like one; a stream of rivets patters
           const heavy = e.dmg >= 10 || e.crit;
@@ -698,14 +727,34 @@ export class LevelView {
           } else if (e.kind === 'repair') {
             audio.play('heal');
             this.pop('+1 HULL', e.x, e.z, '#8affb0');
-          } else {
-            audio.play('pickup_part');
-            this.flash = 0.25;
-            this.flashColor.set(0xa0ffe0);
-            this.pop(e.part ? PART_NAMES(e.part) : 'PART', e.x, e.z, '#8affe0');
-          }
+          } else this.gotPart(e.part, e.x, e.z);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, e.kind === 'scrap' ? 3 : 14, 0xffe08a, 8, 0.25, 0.18);
           break;
+        case 'heavy': {
+          if (e.fired) {
+            audio.play('heavy', { pan: e.x / HALF_W, vol: 0.7 });
+            this.shove(0, 1, 0.3);
+            this.hitstop = Math.max(this.hitstop, 1);
+          } else {
+            audio.play('heavy_dry', { pan: e.x / HALF_W });
+            this.pop('DRY', e.x, e.z + 2.5, '#8a8098');
+          }
+          break;
+        }
+        case 'reload': {
+          const pl = lv.players[e.id];
+          const g = pl.stats.guns[e.gun];
+          audio.play(e.perfect ? 'reload_perfect' : 'reload', { pitch: 0.85 + 0.12 * e.rounds, vol: e.perfect ? 0.8 : 0.45 });
+          const x = pl.x + g.x;
+          const z = pl.z + g.z + 0.4;
+          this.fx.sparks(x, FLIGHT_Y + 0.6, z, e.perfect ? 10 : 3, e.perfect ? 0xffe08a : 0xffd0a0, e.perfect ? 9 : 4, 0.2, 0.12);
+          if (e.perfect) {
+            this.fx.ring(x, FLIGHT_Y + 0.6, z, 1.6, 0.22, true, 0xffe08a);
+            // one word for every gun that took a round
+            if (pl.stats.guns.findIndex((q) => q.heavy) === e.gun) this.pop('RELOAD', pl.x, pl.z + 3.2, '#ffd04a');
+          }
+          break;
+        }
         case 'overheat':
           audio.play('overheat');
           this.pop('OVERHEAT', lv.players[e.id].x, lv.players[e.id].z + 2, '#ff8a4a');
@@ -1188,6 +1237,23 @@ export class LevelView {
     if (first) audio.duck(0.3);
   }
 
+  /**
+   * A gun's edge came off: a pink-white star where it struck, and now and then the edge's name,
+   * so you learn what each gun wants (each name at most every so often, or they'd drown).
+   */
+  private edgeHit(edge: Edge, x: number, z: number, y: number) {
+    this.fx.add({ x, y: y + 0.9, z, size: 2.4, grow: 0.25, life: 0.07, color: EDGE_HOT, carried: true });
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      this.fx.add({ x, y: y + 0.9, z, vx: Math.cos(a) * 16, vz: Math.sin(a) * 16, size: 0.3, grow: 0.2, life: 0.12, drag: 10, color: EDGE_GLOW, carried: true });
+    }
+    const last = this.edgeSaid.get(edge) ?? -9;
+    if (this.time - last > 1.6) {
+      this.edgeSaid.set(edge, this.time);
+      this.pop(EDGES[edge].pop, x, z + 2.2, EDGE_COLOR);
+    }
+  }
+
   pop(text: string, x: number, z: number, color: string, big = false) {
     this.pops.push({ text, x, z, t: 0, color, big });
   }
@@ -1267,6 +1333,7 @@ export class LevelView {
     this.updateLasers();
     this.updatePickups(dt);
     this.updateDecoys();
+    this.traits.update(dt, scrollDz);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.updateHazards(dt);
@@ -1453,6 +1520,9 @@ export class LevelView {
         const a = Math.random() * Math.PI * 2;
         this.fx.add({ x: p.x + Math.cos(a) * 7, y: FLIGHT_Y + 0.5, z: p.z + Math.sin(a) * 7, vx: -Math.cos(a) * 24 - Math.sin(a) * 10, vz: -Math.sin(a) * 24 + Math.cos(a) * 10, size: 0.3, grow: 0.2, life: 0.28, color: SIPHON, carried: true });
       }
+      // a dash-strike: the guns flare white as they fire out of the dash
+      if (p.strike > 0 && p.firing && !p.down)
+        for (const g of p.stats.guns) if (!g.drone && Math.random() < 0.5) this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.8, z: p.z + g.z - 0.6, size: 1.1, grow: 0.3, life: 0.05, color: STRIKE_GLOW, carried: true });
       // a crit window: the guns run hot pink
       if (p.crit > 0 && Math.random() < 0.4) this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 1, 0xff6a8a, 6, 0.2, 0.2);
       // the dash's slip: a ghost left where it started, which is where fire has to land for a perfect
@@ -1810,8 +1880,10 @@ export class LevelView {
           obj = part(new THREE.TorusGeometry(2.4, 0.22, 4, 18), toon(0xffd04a, { glow: 0.6 }), [0, 0, 0], 1);
         }
         this.scene.add(obj);
-        v = { obj, inst };
+        v = { obj, inst, beacon: k.kind === 'part' && k.part ? this.beacon(tierOf(k.part)) : undefined };
+        if (v.beacon) this.scene.add(v.beacon);
         this.pickups.set(k, v);
+        if (k.part?.tier === 'legendary') audio.play('loot_epic', { pan: k.x / HALF_W, pitch: 0.8, vol: 0.6 });
       }
       v.inst?.update(dt);
       const done = k.kind === 'ring' && (k.done ?? 0) > 0;
@@ -1824,17 +1896,66 @@ export class LevelView {
       } else {
         v.obj.rotation.y += dt * (k.kind === 'part' ? 1.5 : 5);
         if (k.kind === 'part') {
+          const tier = k.part ? tierOf(k.part) : 'common';
+          const col = tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
           v.obj.scale.setScalar(1 + Math.sin(this.time * 6) * 0.08);
-          if (Math.random() < 0.15) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, 0x8affe0, 4, 0.4, 0.2);
+          if (Math.random() < (tier === 'legendary' ? 0.6 : tier === 'epic' ? 0.35 : 0.15)) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, col, tier === 'legendary' ? 7 : 4, 0.4, 0.2);
+          if (v.beacon) {
+            // the beacon: a shaft of its tier's light standing on it, a ring turning at its foot
+            v.beacon.position.set(k.x, FLIGHT_Y + 0.2, k.z);
+            const beat = 1 + 0.12 * Math.sin(this.time * 5 + k.x);
+            v.beacon.children[0].scale.set(beat, 1, beat);
+            v.beacon.children[1].rotation.z += dt * 2.4;
+            v.beacon.children[2].rotation.y = this.time * 0.8;
+            v.beacon.children[2].visible = tier === 'legendary';
+          }
         }
       }
     }
     for (const [k, v] of this.pickups)
       if (!seen.has(k)) {
         this.scene.remove(v.obj);
+        if (v.beacon) this.scene.remove(v.beacon);
         v.inst?.dispose();
         this.pickups.delete(k);
       }
+  }
+
+  /** A part crate's beacon in its tier's colour: a shaft of light, a ring at its foot, and for a legendary, rays. */
+  private beacon(tier: Tier): THREE.Group | undefined {
+    if (tier === 'common') return undefined;
+    const col = TIER_HEX[tier];
+    const tall = tier === 'legendary' ? 9 : tier === 'epic' ? 6.5 : 4.5;
+    const g = new THREE.Group();
+    const shaft = part(new THREE.CylinderGeometry(0.28, 0.75, tall, 10, 1, true), flat(col, { additive: true, opacity: tier === 'rare' ? 0.35 : 0.5 }), [0, tall / 2, 0], 1);
+    g.add(shaft);
+    g.add(part(new THREE.RingGeometry(1.25, 1.5, 6), flat(col, { additive: true, opacity: 0.8 }), [0, -0.3, 0], 1, [-Math.PI / 2, 0, 0]));
+    const rays = new THREE.Group();
+    for (let i = 0; i < 6; i++) rays.add(part(GEO.box, flat(0xffe6a0, { additive: true, opacity: 0.45 }), [0, 0.2, 0], [0.12, 0.05, 6], [0, (i / 6) * Math.PI, 0]));
+    g.add(rays);
+    return g;
+  }
+
+  /** A part caught in flight: its name in its tier's colour, and a legendary makes the moment. */
+  private gotPart(it: import('../game/loot').Item | undefined, x: number, z: number) {
+    const tier = it ? tierOf(it) : 'common';
+    const name = it ? itemName(it) : 'PART';
+    this.flash = 0.25;
+    this.flashColor.set(tier === 'common' ? 0xa0ffe0 : TIER_HEX[tier]);
+    if (tier === 'legendary') {
+      this.pop(name, x, z - 4, TIER_COLOR.legendary, true);
+      this.pop(`★ ${TRAITS[it!.trait!]?.name ?? 'LEGENDARY'}`, x, z, '#ffe6a0');
+      this.fx.ring(x, FLIGHT_Y, z, 9, 0.45, true, 0xffb03a);
+      this.fx.sparks(x, FLIGHT_Y + 0.6, z, 30, 0xffd04a, 22, 0.5, 0.25);
+      this.flash = 0.6;
+      this.slowmo = 0.3;
+      this.slowmoT = 0.4;
+      audio.play('loot_legendary');
+    } else {
+      this.pop(tier === 'common' ? name : `${tier.toUpperCase()} ${name}`, x, z, tier === 'common' ? '#8affe0' : TIER_COLOR[tier], tier === 'epic');
+      if (tier !== 'common') this.fx.ring(x, FLIGHT_Y, z, tier === 'epic' ? 6 : 4, 0.3, true, TIER_HEX[tier]);
+      audio.play(tier === 'epic' ? 'loot_epic' : 'pickup_part');
+    }
   }
 
   private updateHazards(dt: number) {
@@ -2023,6 +2144,8 @@ export class LevelView {
     for (const w of this.wrecks) w.inst?.dispose();
     this.convoy?.dispose();
     this.heist?.dispose();
+    this.traits.dispose();
+    for (const v of this.pickups.values()) v.inst?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);
     audio.loop('flame', 'p0', false);
@@ -2111,11 +2234,6 @@ function cloudMaterial(col: THREE.Color, opacity: number) {
 }
 
 
-import { partById } from '../game/parts';
-function PART_NAMES(id: string) {
-  return partById(id)?.name.toUpperCase() ?? 'PART';
-}
-
 export type { Player };
 const SCORCH = new THREE.Color(0x2e2620);
 const BITE = new THREE.Color(0xffb060);
@@ -2138,3 +2256,9 @@ const TORP_SMOKE = new THREE.Color(0xeee6dc);
 const TORP_SMOKE_END = new THREE.Color(0x9a9298);
 const MISSILE_SMOKE = new THREE.Color(0xc8bcb0);
 const MISSILE_SMOKE_END = new THREE.Color(0x6a6266);
+
+const TIER_HEX: Record<Tier, number> = { common: 0xb8b0c8, rare: 0x5ab8ff, epic: 0xc27aff, legendary: 0xffb03a };
+const EDGE_COLOR = '#ffa8d8';
+const EDGE_HOT = new THREE.Color(0xfff0f8).multiplyScalar(1.6);
+const EDGE_GLOW = new THREE.Color(0xff8ac8).multiplyScalar(1.3);
+const STRIKE_GLOW = new THREE.Color(0xffffff).multiplyScalar(1.4);

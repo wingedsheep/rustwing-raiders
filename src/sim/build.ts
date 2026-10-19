@@ -3,7 +3,7 @@
  * game/parts.ts for the rules of the grid.
  */
 
-import { CELL, FRAMES, PARTS, TAG_BONUS, frameById, partById, type AuxKind, type DashMod, type FrameDef, type GunSpec, type PartDef, type Tag } from '../game/parts';
+import { CELL, FRAMES, LOAD, PARTS, TAG_BONUS, frameById, partById, type AuxKind, type LoadClass, type DashMod, type FrameDef, type GunSpec, type PartDef, type Tag } from '../game/parts';
 import { links } from './links';
 import { tagsOf, type Item, type ItemDef } from '../game/loot';
 import { BURN, MARK_BIT, SHOCK, tagMarks } from './marks';
@@ -52,9 +52,19 @@ export interface Gun {
   markStr: number;
   /** Flaw Finder: crits anything marked. */
   flaw: boolean;
+  /** What its edge's crits multiply by: 2, or 3 with an Edge Hone touching. */
+  edgeMul: number;
   /** Legendary traits that work in flight: kills pass their marks on; shots split on a hit. */
   volatile: boolean;
   split: boolean;
+  /** SENTINEL: a dash leaves a turret copy of it behind. BOOMERANG: its shots come back. FRENZIED: kills speed it up. */
+  sentinel: boolean;
+  boomerang: boolean;
+  frenzied: boolean;
+  /** A HEAVY gun's rounds (0: a main gun, on the held trigger). */
+  heavy: number;
+  /** Where it's bolted on. */
+  at: Placement;
 }
 
 export interface Stats {
@@ -71,6 +81,12 @@ export interface Stats {
   accel: number;
   dashes: number;
   dashCooldown: number;
+  /** Seconds a dash's opening slip lasts: fire that would have hit you then makes it a perfect. */
+  slip: number;
+  /** The parts' mass, what the ship can carry, and so how it flies (see LOAD in game/parts.ts). */
+  load: number;
+  capacity: number;
+  loadClass: LoadClass;
   guns: Gun[];
   special: PartDef['special'] | null;
   specialRate: number;
@@ -97,6 +113,10 @@ export interface Stats {
   crit: number;
   /** Every mark the ship can leave (its guns, and what else it has that marks: bits). */
   marks: number;
+  /** Legendary traits off the guns: THUNDEROUS dashes (strength), a VENGEFUL hull, a RAVENOUS special. */
+  thunder: number;
+  vengeful: boolean;
+  ravenous: boolean;
 }
 
 export const rotOf = (p: Placement) => (p.rot ?? (p.turned ? 1 : 0)) & 3;
@@ -189,9 +209,14 @@ export function stats(b: Build): Stats {
   let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
-  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, refill: false };
+  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, strike: 0, refill: false };
   const pas = { skin: 0, gamble: 0, salvage: 0, echo: 0, mirror: 0, crit: 0 };
+  let thunder = 0;
+  let vengeful = false;
+  let ravenous = false;
   for (const { p, def, str, idle } of parts) {
+    if (p.trait === 'thunderous') thunder = Math.max(thunder, Math.max(0.5, Math.min(str, 1.5)));
+    if (p.trait === 'vengeful') vengeful = true;
     hp += def.hp ?? 0;
     shield += def.shield ?? 0;
     mass += def.mass;
@@ -208,6 +233,7 @@ export function stats(b: Build): Stats {
     if (def.special && !special && !idle) {
       special = def.special;
       chargeRate = (def as ItemDef).chargeRate ?? 1;
+      ravenous = p.trait === 'ravenous';
     }
     dashRecover *= (def as ItemDef).dashRecover ?? 1;
     if (def.aux && !aux && !idle) {
@@ -221,6 +247,7 @@ export function stats(b: Build): Stats {
       mod.ghost += (def.mod.ghost ?? 0) * str;
       mod.detonate = Math.max(mod.detonate, (def.mod.detonate ?? 0) * str);
       mod.refill ||= !!def.mod.refill;
+      mod.strike = Math.max(mod.strike, (def.mod.strike ?? 0) * str);
       mod.volley = Math.max(mod.volley, (def.mod.volley ?? 0) * Math.min(str, 1));
     }
     const ps = def.passive;
@@ -233,6 +260,14 @@ export function stats(b: Build): Stats {
       pas.crit = Math.max(pas.crit, (ps.crit ?? 0) * str);
     }
   }
+  // load: what the parts weigh against what the frame and its engines can carry
+  let load = 0;
+  let carry = f.load;
+  for (const { def, str } of parts) {
+    load += def.mass;
+    carry += ((def.thrust ?? 0) * LOAD.engine + (def.carry ?? 0)) * Math.min(Math.max(str, 0.5), 1);
+  }
+  const loadClass = loadClassOf(load, carry);
   if (bonus.armor) hp += 2;
   if (bonus.tech) powerOut += 3;
   const brown = powerDraw > powerOut ? powerOut / powerDraw : 1;
@@ -259,6 +294,7 @@ export function stats(b: Build): Stats {
     let marks = tagMarks(def.tags);
     let markStr = marks ? Math.max(0.5, gs) : 0;
     let flaw = false;
+    let edgeMul = 2;
     for (const { p: q, def: d, str } of parts) {
       if (!touching(p, q) || str <= 0) continue;
       if (d.boost) {
@@ -272,6 +308,10 @@ export function stats(b: Build): Stats {
           markStr = Math.max(markStr, str);
         }
         flaw ||= !!d.boost.flaw;
+        if (d.boost.hone) edgeMul = Math.max(edgeMul, 2 + str);
+        // Autoloader: only heavies have rounds to feed (its rate is their reload)
+        if (d.boost.rounds && spec.heavy) spec.heavy += Math.round(d.boost.rounds * Math.max(str, 1));
+        else if (d.boost.rounds) spec.rate /= 1 + (d.boost.rate ?? 0) * str;
       }
       const ps = d.passive;
       if (ps?.crit) crit = Math.max(crit, ps.crit * str);
@@ -288,9 +328,11 @@ export function stats(b: Build): Stats {
     if (bonus.energy === 2 && def.tags.includes('energy')) spec.pierce = (spec.pierce ?? 0) + 1;
     if (bonus.heat) spec.heat *= 0.7;
     spec.rate *= brown;
+    const heavy = spec.heavy ?? 0;
     const g: Gun = {
       part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, homing, burst, cool, drone: false, crit, throttle, exchange, storm, volley,
-      marks, markStr, flaw, volatile: p.trait === 'volatile', split: p.trait === 'splitting',
+      marks, markStr, flaw, edgeMul, volatile: p.trait === 'volatile', split: p.trait === 'splitting',
+      sentinel: p.trait === 'sentinel', boomerang: p.trait === 'boomerang', frenzied: p.trait === 'frenzied', heavy, at: p,
     };
     guns.push(g);
     // twinned: a mirror copy from the other side of the hull (both off the middle, if it's there)
@@ -304,7 +346,7 @@ export function stats(b: Build): Stats {
       if (d.drone && str > 0 && touching(p, q) && (copied.get(q) ?? 0) < 2) {
         copied.set(q, (copied.get(q) ?? 0) + 1);
         drones++;
-        guns.push({ ...g, spec: { ...spec, damage: spec.damage * 0.6 }, drone: true, x: (drones % 2 ? -1 : 1) * 2.4, z: 1.2 });
+        guns.push({ ...g, spec: { ...spec, damage: spec.damage * 0.6 }, drone: true, sentinel: false, x: (drones % 2 ? -1 : 1) * 2.4, z: 1.2 });
       }
   }
 
@@ -322,10 +364,14 @@ export function stats(b: Build): Stats {
     powerDraw,
     brown,
     thrust,
-    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))),
-    accel: 140 * grip,
-    dashes: f.dash + Math.floor(dash) + (bonus.drive ? 1 : 0),
-    dashCooldown: (1.1 / (1 + dash * 0.6)) * dashRecover,
+    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * (loadClass === 'overloaded' ? 0.88 : 1),
+    accel: 140 * grip * (loadClass === 'overloaded' ? 0.8 : 1),
+    dashes: Math.max(1, f.dash + Math.floor(dash) + (bonus.drive ? 1 : 0) + (loadClass === 'nimble' ? 1 : loadClass === 'overloaded' ? -1 : 0)),
+    dashCooldown: (1.1 / (1 + dash * 0.6)) * dashRecover * (loadClass === 'nimble' ? 0.8 : loadClass === 'overloaded' ? 1.5 : 1),
+    slip: loadClass === 'nimble' ? 0.17 : loadClass === 'overloaded' ? 0.09 : 0.12,
+    load,
+    capacity: carry,
+    loadClass,
     guns,
     special,
     specialRate: (bonus.tech === 2 ? 1.4 : 1) * chargeRate,
@@ -340,7 +386,14 @@ export function stats(b: Build): Stats {
     mod,
     ...pas,
     marks,
+    thunder,
+    vengeful,
+    ravenous,
   };
+}
+
+export function loadClassOf(load: number, capacity: number): LoadClass {
+  return load <= capacity * LOAD.nimble + 1e-6 ? 'nimble' : load <= capacity + 1e-6 ? 'steady' : 'overloaded';
 }
 
 /** Parts that can turn up as loot, by rarity (not the duo parts: see duosOpen). */
