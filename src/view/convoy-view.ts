@@ -19,6 +19,7 @@ const SMOKE = new THREE.Color(0x4a4040);
 const SMOKE_END = new THREE.Color(0x2a2228);
 const WELD = new THREE.Color(0xfff0c0);
 const WELD_END = new THREE.Color(0xff7a2a);
+const GLANCE = new THREE.Color(1.4, 1.6, 1.8);
 
 interface Ship {
   h: Hauler;
@@ -84,10 +85,16 @@ export class ConvoyView {
     }
   }
 
-  /** Fire on a hull: sparks off it, a chip of its paint, and a jolt. */
+  /** Fire on a hull: sparks off it, a chip of its paint, and a jolt. Stray fire only glances off. */
   hit(id: number, x: number, z: number, dmg: number, cause: string) {
     const s = this.ships[id];
     if (!s) return;
+    if (dmg < 1) {
+      // a ricochet off the plating: a pale spark, no chips, no jolt
+      this.fx.add({ x, y: FLIGHT_Y + 0.6, z, size: 0.7, grow: 0.6, life: 0.05, color: GLANCE, carried: true });
+      this.fx.sparks(x, FLIGHT_Y + 0.4, z, 3, 0xd8ecff, 14, 0.14, 0.15);
+      return;
+    }
     s.knock = Math.min(1, s.knock + 0.25 * dmg);
     const y = FLIGHT_Y;
     this.fx.add({ x, y: y + 0.6, z, size: 1 + dmg * 0.4, grow: 0.5, life: 0.05, color: HOT, carried: true });

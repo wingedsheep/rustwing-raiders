@@ -1,14 +1,16 @@
 /**
  * An escort: three haulers flying the length of the level in a loose formation, and you flying
  * cover. Fire aimed at whoever's nearest goes for them as readily as for you, so standing between
- * a hauler and a gun is how you keep it whole. Now and then raiders come to board one: they line up
- * (a tell runs from each to its prey), dive in, latch on and strip its hull until they're shot off.
+ * a hauler and a gun is how you keep it whole. Fire that wasn't meant for a hauler (a spinner's
+ * rings, a spray at you) mostly glances off its plating: what hurts is what you could have
+ * blocked. Now and then raiders come to board one: they line up (a tell runs from each to its
+ * prey), dive in, latch on and strip its hull until they're shot off.
  *
  * Every hauler that arrives pays, and each carries one crate for you: the parts you choose from at
  * the end are the ones that made it.
  */
 
-import type { Enemy, Level } from './level';
+import type { Bullet, Enemy, Level } from './level';
 import { DT, HALF_H, HALF_W } from './types';
 import { clamp, damp, lerp, pick, rng, shuffle } from '../util';
 import { go } from './combat';
@@ -27,12 +29,18 @@ const SLOTS = [
   { x: -9, s: 2 },
   { x: 9, s: 2 },
 ];
+/** What a stray bullet (not aimed at a hauler) does to a hull, against an aimed one's full hit. */
+const GLANCE = 0.25;
 /** A beam laser chews through a hull this often. */
 const LASER_TICK = 0.4;
-/** Boarders: how long they line up, how fast they dive, how often they bite once on. */
-const BOARD_AIM = 1.1;
-const BOARD_SPEED = 34;
-const BOARD_BITE = 0.65;
+/**
+ * Boarders: how long they take to come in, how long they line up, how fast they dive, how often
+ * they bite once on. Slow enough that a ship that turns to meet them gets there first.
+ */
+const BOARD_IN = 1.6;
+const BOARD_AIM = 1.7;
+const BOARD_SPEED = 24;
+const BOARD_BITE = 1;
 
 /**
  * What a hauler is, so that no two convoys ask the same of you. Each convoy is three of the four,
@@ -96,6 +104,8 @@ export class Convoy {
   private phase: number;
   /** A plain freighter's hull, at this difficulty (the others' are measured against it). */
   readonly baseHull: number;
+  /** Which hauler each bullet was aimed at when it was fired (-1: none, stray fire). */
+  private aimedAt = new WeakMap<Bullet, number>();
   /** Paid out at the end (for the results). */
   paid = 0;
   allLost = false;
@@ -213,12 +223,28 @@ export class Convoy {
     if (lv.state !== 'flying' && lv.state !== 'boss') return;
     for (const b of lv.bullets) {
       if (b.dead) continue;
+      if (!this.aimedAt.has(b)) this.aimedAt.set(b, this.target(b));
       const h = this.touching(b.x, b.z, b.r);
       if (!h) continue;
       b.dead = true;
       if (b.kind === 'torpedo') lv.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
-      this.hit(h, b.kind === 'torpedo' ? 4 : b.kind === 'big' ? 2 : 1, b.x, b.z, 'fire');
+      const dmg = b.kind === 'torpedo' ? 4 : b.kind === 'big' ? 2 : 1;
+      this.hit(h, b.kind === 'torpedo' || this.aimedAt.get(b) === h.id ? dmg : dmg * GLANCE, b.x, b.z, 'fire');
     }
+  }
+
+  /**
+   * The hauler a bullet was fired at, seen on its first frame: aim from where it is picks that
+   * hauler, and it's flying at it. A ring or a spray has a bullet or two that are; the rest stray.
+   */
+  private target(b: Bullet): number {
+    const { h } = this.nearest(b.x, b.z);
+    if (!h) return -1;
+    const at = Math.atan2(h.x - b.x, h.z - b.z);
+    if (Math.abs(this.lv.aim(b.x, b.z) - at) > 1e-4) return -1;
+    let off = Math.atan2(b.vx, b.vz) - at;
+    off = Math.atan2(Math.sin(off), Math.cos(off));
+    return Math.abs(off) < 0.3 ? h.id : -1;
   }
 
   /** A beam across the field: whatever hull it crosses burns. */
@@ -238,7 +264,7 @@ export class Convoy {
     const lv = this.lv;
     if (h.dead || lv.state === 'clear' || lv.state === 'failed') return;
     h.hp = Math.max(0, h.hp - dmg);
-    h.hitT = 0;
+    if (dmg >= 1) h.hitT = 0;
     lv.emit({ type: 'haulerHit', id: h.id, x, z, dmg, cause, hp: h.hp, max: h.max });
     if (h.hp > 0) return;
     h.dead = true;
@@ -313,7 +339,7 @@ export class Convoy {
         const cs = sz(lv, e);
         const k = stunned ? 0.4 : 1;
         moveTo(lv, e, e.x + clamp((tx - e.x) * 4, -30, 30) * DT * k, cs + clamp((ts - cs) * 4, -30, 30) * DT * k);
-        if (e.t > 0.9) {
+        if (e.t > BOARD_IN) {
           d.ph = 1;
           e.aim = Math.atan2(h.x - e.x, h.z - e.z);
           go(lv, e, 'windup', BOARD_AIM, 'dive', { shape: 'line', x: e.x, z: e.z, x2: h.x, z2: h.z, w: e.r, lock: BOARD_AIM * 0.8, body: true });

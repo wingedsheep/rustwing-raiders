@@ -85,7 +85,11 @@ export function threatCost(lv: Level, x: number, z: number, t: number, core: num
   return c;
 }
 
-/** When only a dash will do: hooked (dash to break free), or a ring about to break over it (dash in, through it). */
+/**
+ * When only a dash will do: hooked (dash to break free), or a ring or a beam about to break over
+ * it. A dash isn't safe (what it runs into still hits), but fire landing where it left, in the
+ * slip, is a perfect: so dash *out*, the way the danger's going, and let it take the empty spot.
+ */
 export function threatDash(lv: Level, p: Player): { x: number; z: number } | null {
   const hook = lv.enemies.find((e) => !e.dead && e.grab === p.id);
   if (hook) {
@@ -94,7 +98,7 @@ export function threatDash(lv: Level, p: Player): { x: number; z: number } | nul
     const d = Math.hypot(dx, dz) || 1;
     return { x: dx / d, z: dz / d };
   }
-  // a sweeping beam about to cross it: dash through, back the way the beam came
+  // a sweeping beam about to cross it: dash on ahead of it, the way it's sweeping
   for (const e of lv.enemies) {
     const tl = e.tele;
     if (e.dead || e.boss || e.state !== 'attack' || !tl || tl.shape !== 'sweep') continue;
@@ -103,7 +107,7 @@ export function threatDash(lv: Level, p: Player): { x: number; z: number } | nul
     const dist = Math.hypot(p.x - e.x, p.z - e.z);
     const ahead = (pa - e.aim) * sg;
     const rate = Math.abs(tl.a1 - tl.a0) / Math.max(0.3, e.stateDur);
-    if (dist < tl.len && ahead > 0 && ahead * dist < rate * dist * 0.08 + 1.4 + p.stats.core) return { x: -sg * Math.cos(pa), z: sg * Math.sin(pa) };
+    if (dist < tl.len && ahead > 0 && ahead * dist < rate * dist * 0.08 + 1.4 + p.stats.core) return { x: sg * Math.cos(pa), z: -sg * Math.sin(pa) };
   }
   for (const s of lv.strikes) {
     if (s.kind !== 'wave' || s.effect !== 'hurt' || s.dead || s.hit & (1 << p.id) || s.t < s.warn) continue;
@@ -111,7 +115,8 @@ export function threatDash(lv: Level, p: Player): { x: number; z: number } | nul
     const dz = s.z - p.z;
     const d = Math.hypot(dx, dz) || 1;
     const gap = d - s.r;
-    if (gap > 0 && gap < s.v * 0.1 + s.w / 2 + p.stats.core && d < s.rMax) return { x: dx / d, z: dz / d };
+    // (outwards, away from where it spreads from)
+    if (gap > 0 && gap < s.v * 0.1 + s.w / 2 + p.stats.core && d < s.rMax) return { x: -dx / d, z: -dz / d };
   }
   return null;
 }

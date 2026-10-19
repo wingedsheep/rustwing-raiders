@@ -885,7 +885,8 @@ export class LevelView {
           break;
         case 'haulerHit':
           this.convoy?.hit(e.id, e.x, e.z, e.dmg, e.cause);
-          audio.play('hull_hit', { pan: e.x / HALF_W, vol: e.cause === 'boarder' ? 0.3 : 0.45, pitch: 0.9 + Math.random() * 0.2 });
+          // (a glancing round off the plating is only a tick)
+          audio.play('hull_hit', { pan: e.x / HALF_W, vol: e.dmg < 1 ? 0.12 : e.cause === 'boarder' ? 0.3 : 0.45, pitch: (e.dmg < 1 ? 1.4 : 0.9) + Math.random() * 0.2 });
           // nearly gone: say so where it's happening (the hull bar says the rest)
           if (e.hp > 0 && (e.hp + e.dmg > e.max * 0.2) !== (e.hp > e.max * 0.2)) this.pop('HAULER CRITICAL!', e.x, e.z - 4, '#ff6a4a', true);
           break;
@@ -1368,7 +1369,7 @@ export class LevelView {
     this.heist?.update(dt, scrollDz);
     if (this.spoolWarn) this.spoolWarn.t += dt;
     if (this.missionBanner) this.missionBanner.t += dt;
-    if (this.boardWarn && (this.boardWarn.t += dt) > 2.2) this.boardWarn = null;
+    if (this.boardWarn && (this.boardWarn.t += dt) > 3.2) this.boardWarn = null;
     this.updateBullets();
     this.updateShots();
     this.updateBeams();

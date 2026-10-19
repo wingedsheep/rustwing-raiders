@@ -24,7 +24,7 @@ for (let k = 0; k < 16; k++) DIRS.push([Math.cos((k / 16) * Math.PI * 2), Math.s
 const STEPS = [0.06, 0.12, 0.2, 0.3, 0.42, 0.56];
 /** The dash as the level does it (see level.ts): speed, how long, and the slip at the start. */
 const DASH_SPEED = 62;
-const DASH_TIME = 0.13;
+const DASH_TIME = 0.17;
 const SLIP = 0.12;
 const DASH_RECOVER = 0.25;
 
@@ -42,9 +42,22 @@ export function newPilot(opts: { noBoost?: boolean } = {}): PilotState {
   return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost };
 }
 
+/** Each beam's angle when last seen, and how fast it's turning (rad/s): a turning beam is dodged where it'll be. */
+const spins = new WeakMap<object, { a: number; w: number; at: number }>();
+function watchBeams(lv: Level) {
+  for (const l of lv.lasers) {
+    const a = Math.atan2(l.x2 - l.x, l.z2 - l.z);
+    const was = spins.get(l);
+    if (was && was.at === lv.time) continue;
+    const w = was && lv.time > was.at ? Math.atan2(Math.sin(a - was.a), Math.cos(a - was.a)) / (lv.time - was.at) : 0;
+    spins.set(l, { a, w, at: lv.time });
+  }
+}
+
 export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   const intent: Intent = { x: 0, y: 0, fire: true, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
   if (p.down) return intent;
+  watchBeams(lv);
   const goal = goalFor(lv, p);
   let best = Infinity;
   let bestK = 0;
@@ -71,12 +84,13 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   // it comes out somewhere safe
   if (p.dashes > 0 && p.dashLock <= 0) {
     const plan = dashPlan(lv, p, goal);
-    if (plan && (best > 400 || (plan.perfect && plan.safe))) {
+    // (never blind: a dash runs into whatever's in its way)
+    if (plan && plan.clear && (best > 400 || (plan.perfect && plan.safe))) {
       intent.dash = true;
       intent.x = DIRS[plan.k][0];
       intent.y = -DIRS[plan.k][1];
       intent.focus = false;
-    } else if (best > 400) intent.dash = true;
+    }
     // the foes' own reasons to dash: hooked, or a ring to go through (see dodge.ts)
     const forced = threatDash(lv, p);
     if (forced) {
@@ -236,8 +250,9 @@ function chasing(lv: Level, p: Player) {
 }
 
 /**
- * The best dash from here: which way, whether it goes through a bullet in the slip (a perfect), and
- * whether where it comes out stays clear for a moment after.
+ * The best dash from here: which way, whether fire was about to land where it is (dashing out of
+ * it in the slip is a perfect), whether the way out is clear (a dash isn't safe: what it runs into
+ * still hits, unless a Slip Field shrouds it), and whether where it comes out stays clear after.
  */
 function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
   const core = p.stats.core;
@@ -255,7 +270,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       }
     }
   }
-  let best: { k: number; perfect: boolean; safe: boolean; score: number } | null = null;
+  let best: { k: number; perfect: boolean; safe: boolean; clear: boolean; score: number } | null = null;
   for (let k = 1; k < DIRS.length; k++) {
     const [dx, dz] = DIRS[k];
     // where it comes out, held there with the screen a moment
@@ -263,6 +278,23 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
     const ez = p.z + dz * DASH_SPEED * DASH_TIME - scroll * DASH_TIME;
     if (Math.abs(ex) > HALF_W - 1.5 || ez - lv.scroll < -HALF_H + 4 || ez - lv.scroll > HALF_H - 3) continue;
     let danger = 0;
+    // the way out: anything it'd run into on the way (a shrouded dash flies through fire and foes,
+    // not the land)
+    let way = 0;
+    for (const f of [0.2, 0.4, 0.6, 0.8]) {
+      const t = DASH_TIME * f;
+      const x = p.x + dx * DASH_SPEED * t;
+      const z = p.z + dz * DASH_SPEED * t - scroll * t;
+      if (lv.terrain.solid(x, z, 1.4) || [...lv.terrain.colliders(x, z, 3)].some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 1.3) ** 2)) way += 5;
+      if (p.stats.mod.shroud) continue;
+      for (const b of lv.bullets) {
+        const hr = core + b.r + 0.4;
+        if ((b.x + b.vx * t - x) ** 2 + (b.z + b.vz * t - z) ** 2 < hr * hr) way += 2;
+      }
+      for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && (e.x + e.vx * t - x) ** 2 + (e.z + (e.vz - scroll) * t - z) ** 2 < (e.r * 0.75 + core + 0.6) ** 2) way += 3;
+      if (threatCost(lv, x, z, t, core) >= 500) way += 3;
+    }
+    danger += way;
     for (const t of [DASH_TIME, 0.22, 0.32, DASH_TIME + DASH_RECOVER, 0.5]) {
       const z = ez - scroll * (t - DASH_TIME);
       for (const b of lv.bullets) {
@@ -281,7 +313,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       if (along > 0 && along < len && Math.abs((ex - l.x) * lz - (ez - l.z) * lx) / len < 2 + core && l.warn < 0.5) danger += 3;
     }
     const score = danger * 100 - (perfect ? 50 : 0) + Math.hypot(ex - goal.x, ez - goal.z) * 0.5;
-    if (!best || score < best.score) best = { k, perfect, safe: danger === 0, score };
+    if (!best || score < best.score) best = { k, perfect, safe: danger === 0, clear: way === 0, score };
   }
   return best;
 }
@@ -315,9 +347,12 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
       }
       for (const l of lv.lasers) {
         if (l.warn > t + 0.15 || (l.warn <= 0 && l.on < t)) continue;
-        const lx = l.x2 - l.x;
-        const lz = l.z2 - l.z;
-        const len = Math.hypot(lx, lz);
+        // where it'll be pointing by then (turning beams sweep on)
+        const len = Math.hypot(l.x2 - l.x, l.z2 - l.z);
+        const sp = spins.get(l);
+        const la = sp ? sp.a + sp.w * t : Math.atan2(l.x2 - l.x, l.z2 - l.z);
+        const lx = Math.sin(la) * len;
+        const lz = Math.cos(la) * len;
         const along = ((x - l.x) * lx + (z - l.z) * lz) / len;
         if (along < 0 || along > len) continue;
         const across = Math.abs((x - l.x) * lz - (z - l.z) * lx) / len;
