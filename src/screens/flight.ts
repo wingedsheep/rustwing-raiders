@@ -29,7 +29,7 @@ export interface FlightResult {
 
 /**
  * Flying a level: the sim at a steady 60 Hz (held still for hitstop, slowed for the big moments),
- * the view drawn every frame, the HUD over it. ?autopilot hands the stick to the pilot.
+ * the view drawn every frame, the HUD over it. ?autopilot (and ?tour) hands the stick to the pilot.
  */
 export class Flight implements Screen {
   readonly fullUI = true;
@@ -63,7 +63,7 @@ export class Flight implements Screen {
         c.vx = c.vz = 0;
       });
     this.view = new LevelView(this.lv);
-    this.pilots = game.params.has('autopilot') || game.params.has('autorun') ? this.lv.players.map(() => newPilot()) : null;
+    this.pilots = game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
     audio.music(spec.planet.id as Track);
     Object.assign(window, { level: this.lv, view: this.view });
   }

@@ -34,6 +34,12 @@ autopilot *args:
     @npx esbuild tools/autopilot.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-autopilot.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-autopilot.mjs" {{args}}
 
+# watch the autopilot fly level after level in the browser (e.g. just tour, just tour "planet=orutal&mode=hunt&coop")
+tour query="":
+    #!/usr/bin/env bash
+    url="http://localhost:5190/?tour&{{query}}"
+    if curl -s -o /dev/null http://localhost:5190; then open "$url"; else npx vite --open "/?tour&{{query}}"; fi
+
 # typecheck
 check:
     npx tsc --noEmit

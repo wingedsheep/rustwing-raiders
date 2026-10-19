@@ -28,11 +28,14 @@ async function boot() {
   loading(0);
   await library.load(loading);
   const q = game.params;
-  if (q.has('planet') || q.has('mode')) {
+  if (q.has('planet') || q.has('mode') || q.has('tour')) {
     // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule&biomes=prism,jade
-    const planet = PLANETS.find((p) => p.id === q.get('planet')) ?? PLANETS[0];
-    const mode = (q.get('mode') ?? 'raid') as Mode;
-    const seed = Number(q.get('seed') ?? 1);
+    // ?tour: the autopilot flies level after level, every planet × mode and then the next seed (narrowed by &planet= and &mode=)
+    const tour = q.has('tour');
+    const planets = q.has('planet') ? PLANETS.filter((p) => p.id === q.get('planet')) : tour ? PLANETS : [PLANETS[0]];
+    const modes = (q.has('mode') ? [q.get('mode')] : tour ? ['raid', 'hunt', 'escort', 'heist', 'boss'] : ['raid']) as Mode[];
+    if (!planets.length) planets.push(PLANETS[0]);
+    let seed = Number(q.get('seed') ?? 1);
     const frames = (q.get('frame') ?? 'kestrel').split(',');
     const coop = q.has('coop');
     game.devices = coop ? ['keys-left', 'keys-right'] : ['keys'];
@@ -47,13 +50,30 @@ async function boot() {
       list.split(',').forEach((id, c) => b.parts.push({ id, c, r: 0 }));
     });
     builds.forEach(fitParts);
-    const spec = levelSpec(planet, mode, seed, Number(q.get('difficulty') ?? 0.2));
-    // &biomes=mesarun,saltpans: fly these of the planet's biomes, in this order
-    const only = q.get('biomes')?.split(',').map((id) => planet.biomes.find((b) => b.id === id)).filter((b) => !!b);
-    if (only?.length) spec.biomes = only;
-    // &length=60: shorter biomes (to get to a level's end quickly)
-    if (q.has('length')) spec.length = Number(q.get('length')) || spec.length;
-    const fly = () => game.go(new Flight(game, spec, builds, undefined, () => fly()));
+    let at = 0;
+    const fly = () => {
+      const planet = planets[at % planets.length];
+      const mode = modes[Math.floor(at / planets.length) % modes.length];
+      const spec = levelSpec(planet, mode, seed, Number(q.get('difficulty') ?? 0.2));
+      // &biomes=mesarun,saltpans: fly these of the planet's biomes, in this order
+      const only = q.get('biomes')?.split(',').map((id) => planet.biomes.find((b) => b.id === id)).filter((b) => !!b);
+      if (only?.length) spec.biomes = only;
+      // &length=60: shorter biomes (to get to a level's end quickly)
+      if (q.has('length')) spec.length = Number(q.get('length')) || spec.length;
+      if (tour) {
+        document.title = `${planet.id} ${mode} seed ${seed}`;
+        console.log(`[tour] ${planet.id} ${mode} seed ${seed}  (?planet=${planet.id}&mode=${mode}&seed=${seed})`);
+      }
+      game.go(
+        new Flight(game, spec, builds, undefined, (r) => {
+          if (tour) {
+            console.log(`[tour] ${r.cleared ? 'cleared' : 'FAILED'} rank ${r.report.rank}  ${r.report.lines.join('  ')}`);
+            if (++at % (planets.length * modes.length) === 0) seed++;
+          }
+          fly();
+        }),
+      );
+    };
     fly();
   } else if (q.has('crew')) {
     // straight into a run, for testing: ?crew=kestrel,mule&run=5&screen=hangar|shop|event|dock|results
