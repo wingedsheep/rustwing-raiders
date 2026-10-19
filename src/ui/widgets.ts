@@ -200,3 +200,24 @@ export function haulerIcon(ctx: CanvasRenderingContext2D, x: number, y: number, 
     ctx.fillRect(x + 4 - d, y + k, 1, 1);
   }
 }
+
+/** A heist's strongbox from above, on its drogue: seven texels tall (crossed out in red, if it was lost). */
+export function strongboxIcon(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, lost = false) {
+  const rows = ['01110', '10001', '01010', '00100', '11111', '1G1G1', '11111'];
+  ctx.fillStyle = '#120c18';
+  ctx.fillRect(x - 1, y - 1, 7, 9);
+  rows.forEach((row, r) => {
+    for (let c = 0; c < 5; c++) {
+      if (row[c] === '0') continue;
+      ctx.fillStyle = lost ? '#4a3a52' : row[c] === 'G' ? '#ffd060' : r < 4 ? color : '#d8a43a';
+      ctx.fillRect(x + c, y + r, 1, 1);
+    }
+  });
+  if (!lost) return;
+  ctx.fillStyle = '#ff5a4a';
+  for (let k = 0; k < 7; k++) {
+    const d = Math.round((k * 4) / 6);
+    ctx.fillRect(x + d, y + k, 1, 1);
+    ctx.fillRect(x + 4 - d, y + k, 1, 1);
+  }
+}

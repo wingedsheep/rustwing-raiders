@@ -19,6 +19,8 @@ import math
 import os
 import sys
 
+import bpy
+
 from kit import Model, Skin, animate, group
 
 TAU = math.pi * 2
@@ -1838,6 +1840,196 @@ def hauler(variant: int):
     animate(body, clip, "location", [(0, (0, 0, 0)), (T / 2, (0, 0, 0.06)), (T, (0, 0, 0))])
 
 
+# --- the heist's runner ----------------------------------------------------------------------------
+# A heist chases a loaded freighter that's making a run for a jump point: `runner` is its hull,
+# ~16 long, armoured, in its owner's colours (Skin a = plating, b = spine and trim, c = window and
+# drive glow). What can be shot off it are separate templates, placed by the runtime where the hull
+# has a cradle or a mount for them (RUNNER in src/sim/heist.ts must match these):
+#   `runner_pod`     a strongbox (gold, so it reads as loot): three ride it, two on outriggers at
+#                    (±5.1, 0.4) and one in a deck cradle at (0, -2.4). A child `runner_pod_chute`
+#                    (hidden in game until it's loose) is its drogue.
+#   `runner_engine`  a nacelle at (±2.35, -6.5), flame towards -y (`runner_engine_burn_idle`).
+#   `runner_turret`  a twin gun on a ring at (±1.9, 2.3), barrels +y (the runtime turns it).
+
+GOLD = "#d8a43a"
+GOLD_DARK = "#9a6a22"
+POD_TEAL = "#2f8a8a"
+
+
+def runner():
+    root = group("runner", kind="runner")
+    clip = "runner_cruise_idle"
+    T = 3.0
+    m = Model("runner_hull", seed=410)
+    # the hull: a long armoured wedge, its prow a ram, sloped flanks, a square stern
+    out = [(0, 8.6), (-1.3, 7.2), (-2.4, 4.6), (-2.85, 1.6), (-2.85, -4.4), (-2.6, -6.2), (-1.6, -7.0),
+           (1.6, -7.0), (2.6, -6.2), (2.85, -4.4), (2.85, 1.6), (2.4, 4.6), (1.3, 7.2)]
+    m.slab(out, -0.9, 0.4, A.shade(0.75), top=[(x * 0.86, y * 0.96) for x, y in out])
+    # armour bands across the back, darker between, and a lighter spine down the middle
+    for k, y in enumerate((5.4, 3.0, 0.6, -1.8, -4.2)):
+        w = 4.6 if y < 4 else 3.4
+        m.box((w, 1.9, 0.16), (0, y, 0.46), A if k % 2 else A.shade(1.12), taper=0.92)
+        m.box((w * 0.98, 0.12, 0.1), (0, y - 1.0, 0.5), DARK)
+    # (the spine runs either side of the deck cradle)
+    m.box((0.9, 6.6, 0.3), (0, 3.0, 0.62), B, taper=0.8)
+    m.box((0.9, 2.2, 0.3), (0, -5.2, 0.62), B, taper=0.8)
+    for k in range(5):
+        m.box((0.5, 0.18, 0.06), (0, 5.6 - k * 1.3, 0.79), STEEL)                       # spine treads
+    # a ram on the prow with hazard teeth
+    m.box((1.4, 1.4, 0.5), (0, 7.6, 0.15), STEEL, taper=0.7)
+    for k in range(4):
+        m.box((0.24, 0.12, 0.34), (-0.45 + k * 0.3, 8.25, 0.12), HAZARD if k % 2 else RUBBER)
+    # the bridge (its core): a raised cab with a band of lit windows, a sensor dish, an aerial
+    m.box((2.6, 2.0, 0.9), (0, 4.4, 0.95), B, taper=0.86)
+    m.box((2.2, 0.16, 0.24), (0, 5.35, 1.1), C, glow=True)
+    for s in (1, -1):
+        m.box((0.16, 1.2, 0.2), (s * 1.18, 4.5, 1.1), C, glow=True)
+    m.box((1.8, 1.4, 0.2), (0, 4.2, 1.5), A.shade(0.9))
+    m.cyl(0.42, 0.12, (0.5, 3.9, 1.6), STEEL, segs=8)
+    m.cyl(0.3, 0.1, (0.5, 3.9, 1.72), DARK, segs=8)
+    m.cyl(0.05, 1.1, (-0.6, 3.8, 1.6), STEEL, segs=5)
+    m.box((0.5, 0.06, 0.06), (-0.6, 3.8, 2.4), STEEL)
+    m.box((0.14, 0.14, 0.14), (-0.6, 3.8, 2.72), RED, glow=True)
+    # outriggers for the side pods: a strut from each flank to a cradle of claws
+    for s in (1, -1):
+        m.box((2.6, 0.7, 0.3), (s * 3.9, 0.4, 0.05), STEEL)
+        m.box((2.6, 0.2, 0.12), (s * 3.9, 0.85, 0.24), HAZARD)
+        m.box((0.5, 3.6, 0.3), (s * 5.1, 0.4, -0.35), DARK)
+        for y in (-0.8, 1.6):
+            m.box((1.9, 0.36, 0.2), (s * 5.1, y + 0.4, -0.28), DARK)
+            for cs in (1, -1):
+                m.box((0.22, 0.36, 0.7), (s * 5.1 + cs * 0.92, y + 0.4, 0.1), STEEL, rot=(0, -cs * 0.35, 0))
+        m.box((0.18, 0.18, 0.14), (s * 5.1 + s * 1.1, 2.4, -0.1), RED if s < 0 else NAV_GREEN, glow=True)
+    # the deck cradle for the spine pod: a sunken bed with claws
+    m.box((2.1, 3.5, 0.12), (0, -2.4, 0.66), DECKC)
+    for y in (-3.6, -1.2):
+        for cs in (1, -1):
+            m.box((0.24, 0.4, 0.8), (cs * 1.0, y, 0.9), STEEL, rot=(0, -cs * 0.3, 0))
+    # turret rings on the shoulders
+    for s in (1, -1):
+        m.cyl(0.85, 0.2, (s * 1.9, 2.3, 0.5), DARK, segs=8)
+        m.cyl(0.95, 0.08, (s * 1.9, 2.3, 0.5), STEEL, segs=8)
+    # engine pylons at the stern, and between them the bay: hazard-striped doors it drops mines
+    # and launches fighters from
+    for s in (1, -1):
+        m.box((1.2, 1.4, 0.5), (s * 2.3, -6.1, -0.2), A.shade(0.8))
+    m.box((2.0, 1.6, 0.1), (0, -5.9, 0.5), DARK)
+    for k in range(5):
+        m.box((0.28, 1.5, 0.04), (-0.8 + k * 0.4, -5.9, 0.56), HAZARD if k % 2 else RUBBER)
+    m.box((0.3, 0.2, 0.16), (-1.2, -6.85, 0.3), "#ffb03a", glow=True)
+    m.box((0.3, 0.2, 0.16), (1.2, -6.85, 0.3), "#ffb03a", glow=True)
+    # jump vanes along the flanks: dark fins with drive-glow seams (they light up as it spools)
+    for s in (1, -1):
+        m.box((0.3, 4.4, 0.7), (s * 2.95, -2.4, 0.0), DARK, taper=0.7)
+        m.box((0.12, 3.8, 0.12), (s * 3.08, -2.4, 0.3), C, glow=True)
+        for k in range(3):
+            m.box((0.5, 0.24, 0.5), (s * 3.05, -3.9 + k * 1.5, -0.1), A.shade(0.7))
+    # vents and soot behind the bridge
+    for s in (1, -1):
+        for k in range(3):
+            m.box((0.5, 0.12, 0.06), (s * 1.6, 3.4 - k * 0.24, 0.56), RUBBER)
+    body = m.build(root)
+    b = Model("runner_beacon")
+    b.box((0.4, 0.14, 0.14), (0.16, 0, 0), "#ffb03a", glow=True)
+    b.cyl(0.12, 0.18, (0, 0, -0.1), DARK, segs=6)
+    beacon = b.build(body, loc=(0, 1.6, 0.92))
+    spin(beacon, clip, T, turns=3)
+    animate(body, clip, "rotation_euler", [(0, (0, 0, 0)), (T / 4, (0, 0.018, 0)), (T * 3 / 4, (0, -0.018, 0)), (T, (0, 0, 0))])
+
+
+def runner_parts(demo):
+    """For previews: the hull with its pods, engines and turrets where the runtime puts them."""
+    hull = group("demo_runner_hull", parent=demo)
+    _graft(runner, hull)
+    for x, y, z in ((-5.1, 0.4, 0.45), (5.1, 0.4, 0.45), (0, -2.4, 1.3)):
+        _graft(runner_pod, group("demo_runner_pod", loc=(x, y, z), parent=demo))
+    for s in (1, -1):
+        _graft(runner_engine, group("demo_runner_engine", loc=(s * 2.35, -6.5, -0.1), parent=demo))
+        _graft(runner_turret, group("demo_runner_turret", loc=(s * 1.9, 2.3, 0.6), parent=demo))
+
+
+def _graft(fn, at):
+    """Build a template and hang it (stripped of its kind) under `at`."""
+    before = set(bpy.data.objects)
+    fn()
+    for o in set(bpy.data.objects) - before:
+        if o.parent is None:
+            o.parent = at
+            for k in ("kind", "variant"):
+                if k in o:
+                    del o[k]
+
+
+def runner_pod():
+    root = group("runner_pod", kind="runner_pod")
+    m = Model("runner_pod_body", seed=420)
+    # a hexagonal strongbox lying along y: gold, with dark banded ends and a lock plate
+    m.cyl(0.78, 2.8, (0, 1.4, 0), GOLD, segs=6, rot=BACK)
+    for y in (1.25, -1.25):
+        m.cyl(0.84, 0.36, (0, y + 0.18, 0), DARK, segs=6, rot=BACK)
+    for y in (0.5, -0.5):
+        m.cyl(0.81, 0.12, (0, y + 0.06, 0), GOLD_DARK, segs=6, rot=BACK)
+    m.box((0.7, 0.9, 0.2), (0, 0, 0.72), STEEL)
+    m.box((0.26, 0.26, 0.1), (0, 0, 0.84), RED, glow=True)
+    m.box((0.08, 2.0, 0.08), (0.5, 0, 0.6), HAZARD)
+    m.box((0.08, 2.0, 0.08), (-0.5, 0, 0.6), HAZARD)
+    # caps: a hatch and a lamp on each end
+    for s in (1, -1):
+        m.cyl(0.4, 0.12, (0, s * 1.46, 0), STEEL, segs=6, rot=FWD if s > 0 else BACK)
+        m.box((0.18, 0.1, 0.18), (0, s * 1.6, 0.4), "#ffd060", glow=True)
+    body = m.build(root)
+    # the drogue: a ring canopy on four lines, trailing behind (+y: it falls tail-first)
+    c = Model("runner_pod_chute")
+    c.cyl(1.5, 0.7, (0, 0, 0), "#e8dcc0", segs=8, r_top=0.6, rot=FWD)
+    c.cyl(1.2, 0.72, (0, -0.01, 0), "#d03a2a", segs=8, r_top=0.48, rot=FWD)
+    for k in range(4):
+        a = TAU * (k + 0.5) / 4
+        m2 = (math.cos(a) * 0.5, -1.6, math.sin(a) * 0.5)
+        c.plank_line((math.cos(a) * 1.3, 0, math.sin(a) * 1.3), m2, 0.05, 0.05, STEEL)
+    chute = c.build(body, loc=(0, 3.4, 0.2))
+    animate(chute, "runner_pod_flutter_idle", "rotation_euler", [(0, (0, 0, 0)), (0.3, (0.06, 0.4, 0.04)), (0.6, (-0.05, 0.8, -0.03)), (0.9, (0, 1.2, 0)), (1.2, (0, 1.6, 0))])
+
+
+def runner_engine():
+    root = group("runner_engine", kind="runner_engine")
+    clip = "runner_engine_burn_idle"
+    m = Model("runner_engine_body", seed=430)
+    # a fat nacelle along y: armoured cowl, a dark intake up front, the nozzle glowing at the back
+    m.cyl(1.1, 3.2, (0, 1.6, 0), STEEL, segs=8, rot=BACK)
+    m.cyl(1.2, 1.6, (0, 1.2, 0.02), A, segs=8, rot=BACK)
+    m.cyl(1.24, 0.16, (0, 0.0, 0.02), B, segs=8, rot=BACK)
+    m.cyl(0.8, 0.08, (0, 1.62, 0), DARK, segs=8, rot=FWD)
+    m.cyl(0.4, 0.3, (0, 1.4, 0), RUBBER, segs=6, rot=FWD)
+    m.cyl(0.95, 0.4, (0, -1.6, 0), DARK, segs=8, rot=BACK, r_top=1.05)
+    m.cyl(0.82, 0.1, (0, -2.0, 0), C, segs=8, rot=BACK, glow=True)
+    for s in (1, -1):
+        m.box((0.16, 2.2, 0.16), (s * 0.9, 0.0, 0.85), B)
+        m.box((0.3, 0.6, 0.12), (s * 0.7, -0.9, 1.05), RUBBER)
+    m.box((0.5, 0.5, 0.12), (0, 0.4, 1.22), HAZARD)
+    body = m.build(root)
+    f = Model("runner_engine_flame")
+    f.cyl(0.7, 2.4, (0, 0, 0), C, segs=7, r_top=0.0, rot=BACK, glow=True)
+    f.cyl(0.38, 1.6, (0, -0.05, 0), "#fff4d8", segs=6, r_top=0.0, rot=BACK, glow=True)
+    obj = f.build(body, loc=(0, -2.05, 0))
+    keys = [(t * 0.6 / 12, (0, (0.3 if t % 2 else -0.1), 0)) for t in range(13)]
+    keys[-1] = (0.6, keys[0][1])
+    animate(obj, clip, "scale", keys)
+
+
+def runner_turret():
+    root = group("runner_turret", kind="runner_turret")
+    m = Model("runner_turret_body", seed=440)
+    # a squat armoured head with twin barrels forward (+y) and a sight
+    m.cyl(0.8, 0.3, (0, 0, 0), DARK, segs=8)
+    m.box((1.3, 1.3, 0.6), (0, -0.1, 0.55), A, taper=0.8)
+    m.box((1.1, 0.5, 0.2), (0, -0.55, 0.9), B)
+    for s in (1, -1):
+        m.cyl(0.14, 1.5, (s * 0.3, 0.5, 0.6), STEEL, segs=6, rot=FWD)
+        m.cyl(0.18, 0.2, (s * 0.3, 1.9, 0.6), DARK, segs=6, rot=FWD)
+    m.box((0.3, 0.3, 0.2), (0, 0.45, 0.92), C, glow=True)
+    m.build(root)
+
+
 # --- build ----------------------------------------------------------------------------------------
 
 def build():
@@ -1851,7 +2043,14 @@ def build():
     pickup_scrap()
     for v in range(3):
         hauler(v)
+    runner()
+    runner_pod()
+    runner_engine()
+    runner_turret()
     if "--preview" in sys.argv or os.environ.get("SHIPS_DEMO"):
+        # the runner with everything on it
+        demo = group("demo_runner", kind="demo_runner")
+        runner_parts(demo)
         for fid, fn in FRAME_BUILDERS.items():
             root = group(f"demo_{fid}", kind=f"demo_{fid}")
             fn(root)

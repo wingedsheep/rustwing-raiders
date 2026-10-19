@@ -74,7 +74,8 @@ function arrive(game: Game, node: ChartNode) {
   switch (node.kind) {
     case 'raid':
     case 'hunt':
-    case 'escort': {
+    case 'escort':
+    case 'heist': {
       const d = run.danger(node);
       fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[d], undefined, node);
       return;
@@ -195,7 +196,12 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       // an escort that brought every hauler home is remembered
       if (node?.kind === 'escort' && node.planet && res.convoy?.delivered === 3) {
         run.mood(node.planet.faction, 1);
-        run.notes.push(`ALL THREE HAULERS HOME: THE ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
+        run.notes.push(`ALL THREE HAULERS HOME: ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
+      }
+      // a runner taken down is remembered too, the other way
+      if (node?.kind === 'heist' && node.planet && res.heist?.downed) {
+        run.mood(node.planet.faction, -1);
+        run.notes.push(`YOU TOOK THEIR RUNNER DOWN: ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
       }
       run.scrap += res.scrap;
       // the insurance pays for what got shot off

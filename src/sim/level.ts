@@ -19,8 +19,9 @@ import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
 import { Convoy } from './convoy';
+import { Heist } from './heist';
 
-export type Mode = 'raid' | 'hunt' | 'escort' | 'boss';
+export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
 
 // Boosting, and what doing it well pays: the numbers the feel hangs on.
 /** Boost is a surge of your own ship: faster, up the screen unless steered, sliding more. */
@@ -411,6 +412,11 @@ export type LevelEvent =
   | { type: 'shotOff'; id: number; x: number; z: number; clinging: boolean }
   | { type: 'delivered'; id: number; x: number; z: number; pay: number }
   | { type: 'convoyLost' }
+  /** A heist (see heist.ts): the runner's doings, and its strongboxes'. */
+  | { type: 'runner'; what: 'spool' | 'jump' | 'down' | 'engine' | 'turret' | 'exposed' | 'mine' | 'launch'; x: number; z: number; left?: number; k?: number }
+  | { type: 'cargo'; what: 'loose' | 'caught' | 'fell'; id: number; x: number; z: number; by?: number }
+  /** A shot stopped by armour (the runner's hull). */
+  | { type: 'armour'; x: number; z: number }
   | { type: 'clear' }
   | { type: 'failed' };
 
@@ -435,6 +441,8 @@ export class Level {
   readonly director: Director;
   /** An escort's haulers (null in any other fight). */
   readonly convoy: Convoy | null;
+  /** A heist's runner (null in any other fight). */
+  readonly heist: Heist | null;
   /** Where the middle of the screen is (z on the flight plane). Decreases as you fly. */
   scroll = 0;
   /** The level's own speed (units/s), and how fast the screen is moving right now. */
@@ -557,6 +565,7 @@ export class Level {
       });
     });
     this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
+    this.heist = spec.mode === 'heist' ? new Heist(this) : null;
     this.director = new Director(this);
   }
 
@@ -567,6 +576,11 @@ export class Level {
   /** How far along (0..1). */
   get progress() {
     return clamp(-this.scroll / -this.terrain.end, 0, 1);
+  }
+
+  /** How far along (progress) a fight that isn't a boss is over. */
+  get endAt() {
+    return 1 - (HALF_H + 20) / -this.terrain.end;
   }
 
   /** The playfield's top and bottom edges (z). */
@@ -619,6 +633,7 @@ export class Level {
     for (let i = 0; i < this.players.length; i++) this.updatePlayer(this.players[i], intents[i] ?? NEUTRAL, dz);
     this.updateRevives();
     this.convoy?.update(dz);
+    this.heist?.update(dz);
     this.director.update();
     for (const e of this.enemies) {
       if (e.dead) continue;
@@ -628,7 +643,7 @@ export class Level {
       e.stun = Math.max(0, e.stun - DT);
       updateEnemy(this, e);
       if (!e.dead) tickMarks(this, e);
-      if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3)) this.keepOffRock(e);
+      if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3) && e.d.qp === undefined) this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
       if (e.z > this.bottom + 10 || e.z < this.top - 40 || Math.abs(e.x) > HALF_W + 26) {
         if (e.t > 1 && !e.boss) this.escape(e);
@@ -659,7 +674,7 @@ export class Level {
       if (this.players.every((p) => p.down)) {
         this.state = 'failed';
         this.emit({ type: 'failed' });
-      } else if (this.spec.mode !== 'boss' && this.scroll < this.terrain.end + HALF_H + 20) {
+      } else if (this.spec.mode !== 'boss' && this.progress >= this.endAt) {
         this.finish();
       }
     }
@@ -676,6 +691,9 @@ export class Level {
     this.rank = this.fullClear || share >= 0.9 ? 'S' : share >= 0.7 ? 'A' : share >= 0.45 ? 'B' : 'C';
     // an escort is ranked on what it brought home
     if (this.convoy) this.rank = this.convoy.deliver();
+    // a heist, on what it took off the runner
+    this.heist?.jump();
+    if (this.heist) this.rank = this.heist.rank();
     this.parBonus = this.fullClear ? Math.round(FULL_CLEAR * hard) : 0;
     const cleared = this.waves.filter((w) => w.missed === 0 && w.killed === w.total).length;
     this.emit({
@@ -1267,6 +1285,7 @@ export class Level {
     this.comboT = 2;
     this.score += Math.round(e.score * (1 + Math.min(this.combo, 50) * 0.1));
     this.tallyKill(e);
+    if (e.d.qp !== undefined) this.heist?.lost(e, owner);
     if (e.d.board !== undefined && (e.d.ph ?? 0) >= 1 && (e.d.ph ?? 0) <= 3) this.emit({ type: 'shotOff', id: e.d.board, x: e.x, z: e.z, clinging: e.d.ph === 3 });
     const p = this.players[owner];
     if (p) p.kills++;
@@ -1661,6 +1680,8 @@ export class Level {
         }
         if (s.dead) continue;
       }
+      // a heist: the shield over the runner's bridge
+      if (this.heist?.stops(s)) continue;
       if (s.kind === 'flame') {
         // plasma burns away enemy bullets it touches
         for (const b of this.bullets) if (!b.dead && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1) this.cancel(b);

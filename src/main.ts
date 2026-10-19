@@ -7,6 +7,7 @@ import { PLANETS } from './world/planets';
 import type { Mode } from './sim/level';
 import { drawText } from './ui/font';
 import { W, H, INK, DIM } from './ui/hud';
+import type { PodFate } from './sim/heist';
 import { input } from './input';
 
 const game = new Game();
@@ -91,11 +92,19 @@ async function boot() {
       const { Results } = await import('./screens/results');
       // &convoy=101: an escort's results, the middle hauler lost
       const home = q.get('convoy')?.split('').map((c) => c === '1');
-      const spec = levelSpec(PLANETS[0], home ? 'escort' : 'raid', 1, 0.2);
+      // &heist=cfj: a heist's results (c caught, f fell, j jumped; a D on the end: taken down)
+      const hq = q.get('heist');
+      const spec = levelSpec(PLANETS[0], home ? 'escort' : hq ? 'heist' : 'raid', 1, 0.2);
       const res = { cleared: true, scrap: 42, score: 12345, loot: [['seeker'], []], hull: [3, 3], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
       if (home) {
         const n = home.filter(Boolean).length;
         Object.assign(res, { convoy: { delivered: n, home, paid: n * 17 }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });
+      }
+      if (hq) {
+        const fate = [...hq.slice(0, 3)].map((c) => (c === 'c' ? 'caught' : c === 'j' ? 'jumped' : 'fell') as PodFate);
+        const downed = hq.endsWith('D');
+        const n = fate.filter((f) => f === 'caught').length;
+        Object.assign(res, { heist: { fate, downed, paid: downed ? 46 : 0 }, report: { rank: downed && n === 3 ? 'S' : downed || n === 3 ? 'A' : n ? 'B' : 'C', lines: [`STRONGBOXES CAUGHT ${n}/3${downed ? '  RUNNER DOWN +46 SCRAP' : ''}`] } });
       }
       game.go(new Results(game, run, res, spec, () => flow.toChart(game)));
     }

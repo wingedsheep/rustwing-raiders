@@ -24,7 +24,8 @@ export type Sfx =
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
-  | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn';
+  | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn'
+  | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
 export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
@@ -544,6 +545,81 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t + 0.55, 'triangle', mtof(84) * p, mtof(84) * p, 0.3, 0.06, 0.002);
     return 0.9;
   }, 0.2, 2, { tuned: true, rev: 0.2 }),
+
+  // heists: an engine on the runner blows, and its turbine winds down
+  engine_out: S((t, p, o) => {
+    boom(o, t, p * 0.8, 1.3, 0.32);
+    const lp = filt(o, 'lowpass', 1800);
+    tone(lp, t + 0.05, 'sawtooth', 420 * p, 60 * p, 1.3, 0.07, 0.01, 1.2);
+    tone(lp, t + 0.05, 'square', 210 * p, 40 * p, 1.3, 0.04, 0.01, 1.2);
+    noise(o, t + 0.1, 1.1, 'bandpass', 900 * p, 200 * p, 2, 0.08, 0.05);
+    return 1.4;
+  }, 0.3, 2, { rev: 0.25 }),
+
+  // its jump drive spooling: a cold whine climbing for the last stretch of the level
+  spool: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 5200);
+    for (let i = 0; i < 3; i++) {
+      const tt = t + i * 2.8;
+      tone(lp, tt, 'sine', 220 * p * (1 + i * 0.5), 880 * p * (1 + i * 0.5), 2.8, 0.05 + i * 0.015, 0.4, 2.8);
+      tone(lp, tt, 'triangle', 330 * p * (1 + i * 0.5), 1320 * p * (1 + i * 0.5), 2.8, 0.025, 0.4, 2.8);
+    }
+    noise(o, t, 8.4, 'bandpass', 600, 4200, 3, 0.03, 3);
+    return 8.5;
+  }, 1, 1, { rev: 0.3 }),
+
+  // and the jump: a rip of air, a thump, a ring falling away
+  jump: S((t, p, o) => {
+    noise(o, t, 0.5, 'bandpass', 900 * p, 7000 * p, 1.5, 0.22, 0.01);
+    tone(o, t, 'sine', 90 * p, 30 * p, 0.6, 0.35, 0.002);
+    tone(o, t + 0.02, 'triangle', 1760 * p, 220 * p, 0.9, 0.08, 0.002, 0.9);
+    tone(o, t + 0.02, 'sine', 2640 * p, 330 * p, 0.9, 0.05, 0.002, 0.9);
+    return 1.0;
+  }, 0.5, 1, { rev: 0.5 }),
+
+  // the runner taken down: blast on blast, and a long groan of metal
+  runner_down: S((t, p, o) => {
+    boom(o, t, p * 0.7, 2, 0.4);
+    boom(o, t + 0.35, p * 0.85, 1.5, 0.3);
+    boom(o, t + 0.8, p * 0.6, 2, 0.32);
+    const lp = filt(o, 'lowpass', 900);
+    tone(lp, t + 0.2, 'sawtooth', 110 * p, 48 * p, 2.2, 0.08, 0.1, 2.2);
+    tone(lp, t + 0.2, 'sawtooth', 116 * p, 50 * p, 2.2, 0.06, 0.1, 2.2);
+    return 2.6;
+  }, 1, 1, { rev: 0.4 }),
+
+  // the runner's bay doors: a clank and a hiss (a mine dropped, fighters launched)
+  bay: S((t, p, o) => {
+    tone(o, t, 'square', 140 * p, 90 * p, 0.08, 0.1, 0.001);
+    noise(o, t + 0.04, 0.25, 'highpass', 2200 * p, 3800 * p, 0.8, 0.06, 0.02);
+    return 0.3;
+  }, 0.2, 2, { low: true }),
+
+  // a strongbox's clamps blown: two bangs, and its drogue cracking open
+  pod_loose: S((t, p, o) => {
+    tone(o, t, 'square', 260 * p, 120 * p, 0.06, 0.12, 0.001);
+    tone(o, t + 0.07, 'square', 300 * p, 140 * p, 0.06, 0.1, 0.001);
+    noise(o, t + 0.16, 0.18, 'bandpass', 1400 * p, 600 * p, 1.4, 0.16, 0.005);
+    tone(o, t + 0.16, 'triangle', 660 * p, 990 * p, 0.2, 0.05, 0.005);
+    return 0.4;
+  }, 0.15, 2, { tuned: true }),
+
+  // caught: a heavy clunk into the hold, and a bright run up the scale
+  pod_catch: S((t, p, o) => {
+    tone(o, t, 'triangle', 150 * p, 80 * p, 0.12, 0.22, 0.001);
+    noise(o, t, 0.05, 'lowpass', 2000, 400, 0.7, 0.14);
+    [72, 76, 79, 84].forEach((n, i) => tone(o, t + 0.06 + i * 0.06, 'square', mtof(n) * p, mtof(n) * p, 0.14, 0.05, 0.002));
+    tone(o, t + 0.3, 'triangle', mtof(91) * p, mtof(91) * p, 0.4, 0.05, 0.002);
+    return 0.7;
+  }, 0.1, 2, { tuned: true, rev: 0.25 }),
+
+  // dropped past you: a whistle falling away
+  pod_fell: S((t, p, o) => {
+    tone(o, t, 'sine', 1200 * p, 260 * p, 0.8, 0.08, 0.01, 0.8);
+    tone(o, t, 'triangle', 600 * p, 130 * p, 0.8, 0.04, 0.01, 0.8);
+    tone(o, t + 0.85, 'square', 110 * p, 80 * p, 0.12, 0.06, 0.002);
+    return 1.0;
+  }, 0.3, 1, { tuned: true }),
 
   eat: S((t, p, o) => {
     tone(o, t, 'sine', 900 * p, 200 * p, 0.07, 0.08, 0.002);

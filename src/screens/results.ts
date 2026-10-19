@@ -9,8 +9,8 @@ import { audio } from '../audio';
 import { drawText, textWidth } from '../ui/font';
 import { CYAN, DIM, EDGE, GOLD, GREEN, INK, W, frame, hex } from '../ui/hud';
 import { LIVERY } from '../view/ship-model';
-import { backdrop, haulerIcon, heading, hints, shapeIcon, TIER_COLOR, TIER_DARK } from '../ui/widgets';
-import { HAULER, RED } from '../ui/hud';
+import { backdrop, haulerIcon, heading, hints, shapeIcon, strongboxIcon, TIER_COLOR, TIER_DARK } from '../ui/widgets';
+import { HAULER, HEIST, RED } from '../ui/hud';
 import { cardBack, lootCard } from '../ui/loot-card';
 
 interface Pick {
@@ -28,7 +28,7 @@ interface Pick {
   salvaged: Item[];
   /** Parts that didn't fit in the hold and went for scrap. */
   scrapped: Item[];
-  /** An escort: the cards whose hauler went down (they can't be taken). */
+  /** An escort: the cards whose hauler went down; a heist: whose strongbox wasn't caught (they can't be taken). */
   lost: boolean[];
 }
 
@@ -67,7 +67,8 @@ export class Results implements Screen {
     private spec: LevelSpec,
     private onDone: () => void,
   ) {
-    const rich = spec.mode === 'hunt' || spec.mode === 'boss';
+    // (a heist that took the runner down had its pick of the hold)
+    const rich = spec.mode === 'hunt' || spec.mode === 'boss' || !!res.heist?.downed;
     this.picks = run.crew.map((crew, i) => {
       const salvaged: Item[] = [];
       const scrapped: Item[] = [];
@@ -78,7 +79,7 @@ export class Results implements Screen {
       const options = run.lootChoice(spec.seed * 31 + i * 7 + run.levels, rich, spec.mode === 'boss');
       // ?legendary: for testing, the first card is one
       if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : 'prismatic' };
-      const lost = options.map((_, k) => !!res.convoy && !res.convoy.home[k]);
+      const lost = options.map((_, k) => (!!res.convoy && !res.convoy.home[k]) || (!!res.heist && res.heist.fate[k] !== 'caught'));
       const at = lost.indexOf(false);
       return { options, fits: options.map((it) => bestFit(crew.build, it)), at: at < 0 ? 3 : at, done: false, doneT: 0, took: -1, salvaged, scrapped, lost };
     });
@@ -310,11 +311,14 @@ export class Results implements Screen {
     ctx.save();
     ctx.translate(Math.round(cx - 12.5), cy - 56);
     ctx.scale(5, 5);
-    haulerIcon(ctx, 0, 0, HAULER, true);
+    const fate = this.res.heist?.fate[k];
+    if (fate) strongboxIcon(ctx, 0, 0, HEIST, true);
+    else haulerIcon(ctx, 0, 0, HAULER, true);
     ctx.restore();
     drawText(ctx, 'LOST', cx, cy - 12, RED, { scale: 3, align: 'center' });
-    drawText(ctx, 'IT WENT DOWN', cx, cy + 16, DIM, { align: 'center' });
-    drawText(ctx, 'WITH ITS HAULER', cx, cy + 26, DIM, { align: 'center' });
+    const why = fate === 'jumped' ? ['IT JUMPED', 'WITH THE RUNNER'] : fate ? ['IT FELL', 'PAST YOU'] : ['IT WENT DOWN', 'WITH ITS HAULER'];
+    drawText(ctx, why[0], cx, cy + 16, DIM, { align: 'center' });
+    drawText(ctx, why[1], cx, cy + 26, DIM, { align: 'center' });
     ctx.globalAlpha = 1;
   }
 
@@ -422,7 +426,8 @@ export class Results implements Screen {
       if (p.lost[k]) {
         if (since > -0.3) {
           frame(ctx, tx, ty, tw, 16, '#140e18', '#3a2028');
-          haulerIcon(ctx, tx + 5, ty + 4, HAULER, true);
+          if (this.res.heist) strongboxIcon(ctx, tx + 5, ty + 4, HEIST, true);
+          else haulerIcon(ctx, tx + 5, ty + 4, HAULER, true);
           drawText(ctx, 'LOST', tx + 15, ty + 5, RED);
         }
         return;

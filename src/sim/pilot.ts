@@ -122,6 +122,20 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
     }
     if (board) return board;
   }
+  // a heist: a strongbox falling comes first; then under the runner's parts (not in their wash)
+  if (lv.heist) {
+    const hs = lv.heist;
+    const box = hs.loose.filter((c) => !c.dead).sort((a, b) => b.z - a.z)[0];
+    if (box) return { x: box.x, z: clamp(box.z + 2, lv.top + 6, bottom) };
+    if (!hs.gone) {
+      const want = hs.pods.find((e) => !e.dead) ?? hs.engines.find((e) => !e.dead) ?? (hs.core.shielded ? undefined : hs.core);
+      if (want) {
+        // off to the side of an engine's wash, below the hull
+        const off = want.d.qp === 'engine' ? (want.x < hs.x ? -2.6 : 2.6) : 0;
+        return { x: want.x + off, z: clamp(hs.z + 18, lv.top + 6, bottom) };
+      }
+    }
+  }
   const bounty = bountyGoal(lv, p);
   if (bounty) return bounty;
   // rings coming up

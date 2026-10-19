@@ -210,7 +210,7 @@ if (!isMainThread) {
 } else if (workerData === null || workerData === undefined) {
   const args = parse(process.argv.slice(2));
   const planets = args.planet ? [args.planet] : PLANETS.map((p) => p.id);
-  const modes = (args.mode ? [args.mode] : ['raid', 'hunt', 'escort', 'boss']) as Mode[];
+  const modes = (args.mode ? [args.mode] : ['raid', 'hunt', 'escort', 'heist', 'boss']) as Mode[];
   const seeds = args.seed ? [Number(args.seed)] : Array.from({ length: Number(args.seeds ?? 3) }, (_, i) => i + 1);
   const jobs: Job[] = [];
   for (const planet of planets)

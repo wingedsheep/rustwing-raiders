@@ -8,6 +8,7 @@ import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
 import { HAULER_SKINS, LIVERY, ShipModel } from './ship-model';
 import { Stage } from './stage';
+import { RUNNER } from '../sim/heist';
 import { clamp, noise2, pick, rng, type Rng } from '../util';
 
 /**
@@ -29,8 +30,9 @@ export class EncounterPreview {
     const c = run.chart;
     const gate = node.kind === 'gate';
     const planet = gate ? c.bossPlanet : node.planet!;
-    const mode = gate ? 'boss' : node.kind === 'hunt' ? 'hunt' : node.kind === 'escort' ? 'escort' : 'raid';
+    const mode = gate ? 'boss' : node.kind === 'hunt' || node.kind === 'escort' || node.kind === 'heist' ? node.kind : 'raid';
     const escort = node.kind === 'escort';
+    const heist = node.kind === 'heist';
     // the ground you'll fly over first
     const biome = levelSpec(planet, mode, node.seed, 0).biomes[0];
     this.stage = new Stage(w, h, gate ? 6.5 : 11, 50, new THREE.Vector3(0, 3, gate ? -2 : -0.6));
@@ -44,12 +46,13 @@ export class EncounterPreview {
     this.props(biome, r);
 
     this.ship = new ShipModel(run.crew[0].build, LIVERY[0]);
-    this.ship.root.position.set(0, 3, gate ? 3.4 : escort ? 3.6 : 2.4);
-    this.ship.root.scale.setScalar(gate ? 1 : escort ? 0.7 : 0.85);
+    this.ship.root.position.set(0, 3, gate ? 3.4 : escort || heist ? 3.6 : 2.4);
+    this.ship.root.scale.setScalar(gate ? 1 : escort || heist ? 0.7 : 0.85);
     s.scene.add(this.ship.root);
 
     if (gate) this.warden(planet);
     else if (escort) this.convoy(planet, node, r);
+    else if (heist) this.runner(planet, r);
     else this.wing(planet, node, r);
   }
 
@@ -148,7 +151,6 @@ export class EncounterPreview {
       if (!inst) return;
       this.insts.push(inst);
       inst.obj.position.set(x, 1.6, z);
-      inst.obj.rotation.y = Math.PI;
       inst.obj.scale.setScalar(0.62);
       this.stage.scene.add(inst.obj);
       this.bob.push({ obj: inst.obj, y: 1.6, k: i * 2.1 });
@@ -158,6 +160,52 @@ export class EncounterPreview {
       this.enemy({ ...skin, archetype: 'dart' }, side * (5.4 + k * 1.2), 3.2, -2.8 + k * 1.8, 0.9, false);
       // diving in on the haulers
       this.bob[this.bob.length - 1].obj.rotation.y = -side * Math.PI * 0.6;
+    }
+  }
+
+  /**
+   * A heist: the runner making off up the frame in its owner's colours, engines blazing, two
+   * strongboxes still clamped on and the third already tumbling loose on its drogue.
+   */
+  private runner(planet: Planet, r: Rng) {
+    const skin = (planet.enemies.find((e) => e.archetype === 'carrier') ?? planet.enemies[0]).colors;
+    const rig = new THREE.Group();
+    const add = (kind: string, x: number, y: number, z: number, own = skin as [number, number, number] | undefined) => {
+      const inst = library.clone(kind, 0, own, true);
+      if (!inst) return null;
+      this.insts.push(inst);
+      inst.obj.position.set(x, y, z);
+      rig.add(inst.obj);
+      return inst.obj;
+    };
+    add('runner', 0, 0, 0);
+    const loose = r() < 0.5 ? 0 : 1;
+    RUNNER.pods.forEach((p, k) => {
+      if (k === loose) return;
+      const o = add('runner_pod', p.x, p.y, p.z);
+      const chute = o?.getObjectByName('runner_pod_chute');
+      if (chute) chute.visible = false;
+    });
+    RUNNER.engines.forEach((p) => add('runner_engine', p.x, -0.1, p.z));
+    RUNNER.turrets.forEach((p) => {
+      const o = add('runner_turret', p.x, 0.6, p.z);
+      if (o) o.rotation.y = Math.PI + Math.sign(p.x) * 0.5;
+    });
+    rig.position.set(0, 1.6, -3.4);
+    rig.scale.setScalar(0.5);
+    rig.rotation.z = 0.08;
+    this.stage.scene.add(rig);
+    this.bob.push({ obj: rig, y: 1.6, k: 0 });
+    // the loose one, dropping back on its drogue
+    const box = library.clone('runner_pod', 0, undefined, true);
+    if (box) {
+      this.insts.push(box);
+      const sx = RUNNER.pods[loose].x < 0 ? -1 : 1;
+      box.obj.position.set(sx * 4.6, 2.6, 0.6);
+      box.obj.rotation.set(0.2, sx * 0.5, sx * 0.3);
+      box.obj.scale.setScalar(0.6);
+      this.stage.scene.add(box.obj);
+      this.bob.push({ obj: box.obj, y: 2.6, k: 2.3 });
     }
   }
 

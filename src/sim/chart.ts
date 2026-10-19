@@ -22,7 +22,7 @@ import type { PartClass } from '../game/parts';
 import { EVENT_META } from './events';
 import { hashStr, pick, rng, shuffle, weighted, type Rng } from '../util';
 
-export type NodeKind = 'start' | 'raid' | 'hunt' | 'escort' | 'salvage' | 'dock' | 'event' | 'gate';
+export type NodeKind = 'start' | 'raid' | 'hunt' | 'escort' | 'heist' | 'salvage' | 'dock' | 'event' | 'gate';
 
 /** What a site pays in: a class of part (it leans that way), or something else. */
 export type Reward = PartClass | 'scrap' | 'fuel' | 'hull' | 'intel' | 'trade' | 'none';
@@ -144,9 +144,10 @@ export class Chart {
     gate.reward = 'trade';
     // sites on each planet
     const kinds: [NodeKind, number][] = [
-      ['raid', 42],
+      ['raid', 34],
       ['hunt', this.sector > 0 ? 17 : 7],
-      ['escort', 13],
+      ['escort', 12],
+      ['heist', 10],
       ['salvage', 11],
       ['dock', 5],
       ['event', 15],
@@ -163,6 +164,10 @@ export class Chart {
           // haulers don't fly where it's hottest: never elite, a pip more only on alert
           node.danger = 1 + hot;
           node.reward = r() < 0.7 ? market.sells : pick(r, ['gun', 'engine', 'defense', 'booster', 'special'] as const);
+        } else if (kind === 'heist') {
+          // the runner's armed: a pip more than a raid, never elite (it's the prize)
+          node.danger = Math.min(3, 2 + hot);
+          node.reward = r() < 0.6 ? market.sells : pick(r, ['gun', 'engine', 'defense', 'booster', 'special'] as const);
         } else if (kind === 'raid' || kind === 'hunt') {
           node.elite = r() < ELITE[Math.min(this.sector, ELITE.length - 1)];
           node.danger = Math.min(3, (kind === 'hunt' ? 2 : 1) + hot + (node.elite ? 1 : 0));
@@ -366,6 +371,8 @@ function siteName(r: Rng, p: Planet, n: ChartNode) {
       return `${n.elite ? 'ARMED ' : ''}${p.faction.toUpperCase()} CONVOY`;
     case 'escort':
       return `${word} ${pick(r, ['WATER RUN', 'ORE RUN', 'GRAIN RUN', 'MEDICINE RUN', 'FUEL RUN', 'SEED RUN'])}`;
+    case 'heist':
+      return `${word} ${pick(r, ['PAYROLL RUNNER', 'TITHE BARGE', 'BLOCKADE RUNNER', 'STRONGBOX RUN', 'GOLD FREIGHTER', 'BANK SHIP'])}`;
     case 'salvage':
       return `${word} ${pick(r, ['SALVAGE YARD', 'SCRAP MARKET', 'CHOP SHOP'])}`;
     case 'dock':

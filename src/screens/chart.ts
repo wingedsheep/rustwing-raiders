@@ -7,8 +7,8 @@ import { eventById } from '../sim/events';
 import { stats } from '../sim/build';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
-import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, haulerIcon, hearts, hints } from '../ui/widgets';
+import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, HEIST, INK, RED, W, frame, hex } from '../ui/hud';
+import { backdrop, haulerIcon, hearts, hints, strongboxIcon } from '../ui/widgets';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { EncounterPreview } from '../view/encounter-preview';
@@ -34,6 +34,7 @@ export const KIND: Record<NodeKind, { label: string; icon: string; color: string
   raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
   hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
   escort: { label: 'ESCORT', icon: 'escort', color: ESCORT, text: 'Fly cover for three haulers. Raiders will try to board them: shoot them off. Every hauler that gets home pays, and brings you a crate.' },
+  heist: { label: 'HEIST', icon: 'heist', color: HEIST, text: 'A loaded freighter running for a jump point. Shoot its strongboxes loose and catch them as they fall. Kill its engines to take it down.' },
   salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
   event: { label: 'UNKNOWN', icon: 'unknown', color: VIOLET, text: 'Something out in the dark. Could be anything. A rumour would tell you.' },
@@ -46,6 +47,7 @@ const ICONS: Record<string, string[]> = {
   raid: ['1000001', '0100010', '0010100', '0001000', '0010100', '0110110', '1100011'],
   hunt: ['0111110', '1111111', '1001001', '1111111', '0110110', '0101010', '0000000'],
   escort: ['0111110', '1111111', '1100011', '1101011', '0110110', '0011100', '0001000'],
+  heist: ['0011100', '0111110', '1000001', '0100010', '0011100', '0111110', '0111110'],
   salvage: ['1111111', '1000001', '1111111', '1010101', '1001001', '1010101', '1111111'],
   dock: ['0110110', '1111111', '1111111', '0111110', '0011100', '0001000', '0000000'],
   unknown: ['0111110', '1100011', '0000011', '0001110', '0001100', '0000000', '0001100'],
@@ -691,7 +693,7 @@ export class ChartScreen implements Screen {
     if (this.anim) return;
     const y = H - 9;
     let x = 12;
-    for (const k of ['raid', 'hunt', 'escort', 'salvage', 'dock', 'event'] as NodeKind[]) {
+    for (const k of ['raid', 'hunt', 'escort', 'heist', 'salvage', 'dock', 'event'] as NodeKind[]) {
       const look = KIND[k];
       chamfer(ctx, x + 5, y, 6, DARK);
       chamfer(ctx, x + 5, y, 5, look.color);
@@ -972,6 +974,27 @@ export class ChartScreen implements Screen {
         for (let h = 0; h < 3; h++) haulerIcon(ctx, x0 + h * 9, ty, ESCORT);
         drawText(ctx, 'A CRATE EACH', x0 + 30, ty, GOLD);
       });
+    }
+    if (n.kind === 'heist') {
+      row('LOOT', (x0) => {
+        let lx = x0;
+        if (rw[0]) {
+          ctx.fillStyle = DARK;
+          ctx.fillRect(lx, ty, 6, 6);
+          ctx.fillStyle = rw[1];
+          ctx.fillRect(lx, ty, 5, 5);
+          lx += 8;
+          lx += drawText(ctx, rw[0], lx, ty, rw[1]) + 6;
+        } else drawText(ctx, 'PARTS', lx, ty, INK);
+      });
+      // the three strongboxes: a crate for each one caught
+      row('CARGO', (x0) => {
+        for (let h = 0; h < 3; h++) strongboxIcon(ctx, x0 + h * 9, ty, HEIST);
+        drawText(ctx, 'CATCH THEM', x0 + 30, ty, GOLD);
+      });
+      // taking it down: a richer pick, and its owners' grudge
+      row('DOWNED', (x0) => drawText(ctx, 'RARE+ PICK, +SCRAP', x0, ty, '#6ad0ff'));
+      if (planet) row('', (x0) => drawText(ctx, `ANGERS ${planet.faction.toUpperCase().replace(/^THE /, '')}`, x0, ty, '#ff8a7a'));
     }
     if (n.kind === 'salvage') {
       const mk = run.market(n);

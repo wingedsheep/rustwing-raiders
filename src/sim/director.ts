@@ -63,7 +63,8 @@ export class Director {
     const roster = lv.spec.planet.enemies;
     // gaps between waves shrink as the run goes on (the field is wide: it takes a lot to fill)
     // (an escort leaves room for the boarders)
-    const gap = lerp(54, 35, Math.min(d, 1.2)) * (mode === 'escort' ? 1.15 : 1);
+    // (a heist leaves room for the runner: its own fire and fighters are the fight)
+    const gap = lerp(54, 35, Math.min(d, 1.2)) * (mode === 'escort' ? 1.15 : mode === 'heist' ? 1.45 : 1);
     const end = mode === 'boss' ? L - 40 : L - 70;
     let at = 70;
     let n = 0;
@@ -93,7 +94,7 @@ export class Director {
       n++;
     }
     // a supply drop in every level: an elite carrying a part
-    const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : [0.45 + r() * 0.2];
+    const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : mode === 'heist' ? [] : [0.45 + r() * 0.2];
     for (const f of elites) {
       const options = roster.filter((s) => ['gunship', 'brute', 'carrier', 'bomber'].includes(s.archetype));
       const s = pick(r, options.length ? options : roster);

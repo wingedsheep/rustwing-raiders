@@ -75,8 +75,6 @@ export class ConvoyView {
         obj.add(part(GEO.box, toon(HAULER_SKINS[h.id][0]), [0, 0, 0], [3, 1, 7]));
       }
       obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
-      // models face +z in the file (Blender +y): turn them up the screen
-      obj.rotation.y = Math.PI;
       const halo = new THREE.Mesh(this.ringGeo, flat(0x8ad0ff, { opacity: 0.22, own: true }));
       halo.rotation.x = -Math.PI / 2;
       halo.scale.set(0.8, 1.35, 1);

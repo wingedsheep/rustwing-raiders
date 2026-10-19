@@ -6,6 +6,7 @@
 
 import type { Enemy, Level, Player } from './level';
 import { clamp, lerp } from '../util';
+import { WASH } from './heist';
 
 /** How bad it is to be at (x, z) (the flight plane, `t` seconds from now). */
 export function threatCost(lv: Level, x: number, z: number, t: number, core: number) {
@@ -37,6 +38,14 @@ export function threatCost(lv: Level, x: number, z: number, t: number, core: num
         break;
       default:
         if (st > s.warn - 0.35 && st < s.warn + s.active + 0.05 && d2 < (s.r + m) ** 2) c += bad;
+    }
+  }
+  // a heist's runner: the wash behind its engines
+  const hs = lv.heist;
+  if (hs && !hs.gone) {
+    for (const e of hs.engines) {
+      const dz = z - (e.z + WASH.from);
+      if (!e.dead && dz > -1 && dz < WASH.len + 1 && Math.abs(x - e.x) < WASH.half + m + 0.6) c += 700;
     }
   }
   for (const e of lv.enemies) {

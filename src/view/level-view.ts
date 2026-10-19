@@ -21,6 +21,10 @@ import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
 import { ConvoyView } from './convoy-view';
+import { HeistView } from './heist-view';
+
+/** A heist's colour (see hud.ts HEIST). */
+const HEIST_HEX = '#5ae0c0';
 
 /** The playfield as it shows on screen (world units): the camera always fits all of it. */
 export const FIELD_W = HALF_W * 2;
@@ -69,6 +73,8 @@ interface EnemyView {
   /** Hit reaction: a squash that springs back, and a shove away from the guns. */
   punch: number;
   knock: number;
+  /** A heist runner's part (drawn by the heist view; this is only a stand-in). */
+  part?: boolean;
 }
 
 /**
@@ -103,12 +109,18 @@ export class LevelView {
   private shields: Shields;
   /** An escort's haulers. */
   private convoy: ConvoyView | null = null;
+  /** A heist's runner. */
+  private heist: HeistView | null = null;
+  /** For the HUD: the runner spooling its jump drive (seconds since it started). */
+  spoolWarn: { t: number } | null = null;
   /** For the HUD: the escort's orders, shown as it starts. */
   missionBanner: { t: number } | null = null;
   /** For the HUD: which side boarders are coming from, and how long ago they were called. */
   boardWarn: { side: number; t: number } | null = null;
   /** Bullet pops this frame: past a handful, a mass cancel just flashes. */
   private popped = 0;
+  /** When a shot last pinged off armour (they'd drown everything out otherwise). */
+  private pinged = 0;
   /** Where each smoking thing was last frame, so its smoke is laid evenly along the way it came. */
   private wakes = new WeakMap<object, { x: number; z: number }>();
   private shots: THREE.InstancedMesh;
@@ -231,6 +243,11 @@ export class LevelView {
       this.scene.add(this.convoy.group);
       this.missionBanner = { t: 0 };
     }
+    if (lv.heist) {
+      this.heist = new HeistView(lv, lv.heist, this.fx);
+      this.scene.add(this.heist.group);
+      this.missionBanner = { t: 0 };
+    }
     this.lastScroll = lv.scroll;
     this.placeCamera(0);
   }
@@ -329,7 +346,7 @@ export class LevelView {
           this.fx.add({ x: e.x, y: y + 1.5, z: groundZ, size: 3 + e.size * 2.5, grow: 1.3, life: 0.09, color: HOT, carried: air });
           this.blast(e.x, y, groundZ, e.size);
           if (!air) this.fx.add({ x: e.x, y: y + 0.15, z: groundZ, size: 1.2 + e.size * 0.9, grow: 1.1, life: 4, color: SCORCH, to: SCORCH_END, glow: false });
-          if (ev && e.enemy !== undefined && !ev.boss) {
+          if (ev && e.enemy !== undefined && !ev.boss && !ev.part) {
             // shot down: what's left of it, and more of it going up as it goes
             this.wreck(e.enemy, ev, e.size);
             this.shotDown(e.x, y, groundZ, e.size, ev.skin, air);
@@ -819,10 +836,106 @@ export class LevelView {
           break;
         case 'convoyLost':
           break;
+        case 'runner':
+          this.runner(e);
+          break;
+        case 'cargo':
+          this.cargo(e);
+          break;
+        case 'armour':
+          this.heist?.armour(e.x, e.z);
+          if (this.time - this.pinged > 0.07) {
+            this.pinged = this.time;
+            audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.18, pitch: 1.6 + Math.random() * 0.4 });
+          }
+          break;
         case 'beam':
         case 'spawn':
           break;
       }
+    }
+  }
+
+  /** A heist's runner: its parts going, its shield failing, its jump, its end. */
+  private runner(e: Extract<LevelEvent, { type: 'runner' }>) {
+    const hv = this.heist;
+    switch (e.what) {
+      case 'engine':
+        hv?.engineOut(e.k ?? 0);
+        this.pop(e.left ? 'ENGINE OUT! IT SLOWS' : 'BOTH ENGINES OUT!', e.x, e.z - 3, '#ffb04a', true);
+        this.trauma = Math.min(1, this.trauma + 0.5);
+        this.hitstop = Math.max(this.hitstop, 6);
+        this.flash = Math.max(this.flash, 0.25);
+        this.flashColor.set(0xffa040);
+        audio.play('engine_out', { pan: e.x / HALF_W });
+        break;
+      case 'turret':
+        hv?.turretOut(e.k ?? 0);
+        this.pop('TURRET DOWN', e.x, e.z - 2, '#ffe0b0');
+        break;
+      case 'exposed':
+        hv?.exposed();
+        this.pop('SHIELD DOWN: HIT THE BRIDGE!', e.x, e.z - 6, HEIST_HEX, true);
+        audio.play('shield_break', { pan: e.x / HALF_W, vol: 0.9, pitch: 0.8 });
+        break;
+      case 'spool':
+        this.spoolWarn = { t: 0 };
+        audio.play('spool', { pan: e.x / HALF_W });
+        break;
+      case 'jump':
+        hv?.jump();
+        this.pop(e.left ? `IT JUMPED WITH ${e.left} ABOARD` : 'IT JUMPED: EMPTY!', e.x, Math.max(e.z, this.lv.top + 10), e.left ? '#ff8a7a' : HEIST_HEX, true);
+        this.flash = Math.max(this.flash, 0.5);
+        this.flashColor.set(0x8af0ff);
+        this.trauma = Math.min(1, this.trauma + 0.3);
+        this.spoolWarn = null;
+        audio.play('jump', { pan: e.x / HALF_W });
+        break;
+      case 'down':
+        hv?.down();
+        this.pop('RUNNER DOWN!', e.x, e.z - 4, '#ffd060', true);
+        this.trauma = 1;
+        this.hitstop = Math.max(this.hitstop, 12);
+        this.flash = Math.max(this.flash, 0.35);
+        this.flashColor.set(0xffc060);
+        this.slowmo = 0.25;
+        this.slowmoT = 0.6;
+        this.blast(e.x, FLIGHT_Y, e.z, 8);
+        this.spoolWarn = null;
+        audio.play('runner_down', { pan: e.x / HALF_W });
+        audio.duck(0.8);
+        break;
+      case 'mine':
+        audio.play('bay', { pan: e.x / HALF_W, vol: 0.4 });
+        break;
+      case 'launch':
+        audio.play('bay', { pan: e.x / HALF_W, vol: 0.7, pitch: 0.8 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0xff8a4a);
+        break;
+    }
+  }
+
+  /** A heist's strongboxes: shot loose, caught, or let go. */
+  private cargo(e: Extract<LevelEvent, { type: 'cargo' }>) {
+    switch (e.what) {
+      case 'loose':
+        this.heist?.loose(e.id);
+        this.pop('STRONGBOX LOOSE!', e.x, e.z - 2.5, HEIST_HEX, true);
+        this.hitstop = Math.max(this.hitstop, 3);
+        audio.play('pod_loose', { pan: e.x / HALF_W });
+        break;
+      case 'caught':
+        this.heist?.caught(e.id, e.x, e.z);
+        this.pop('CAUGHT!', e.x, e.z - 3, '#ffd060', true);
+        this.hitstop = Math.max(this.hitstop, 4);
+        this.trauma = Math.min(1, this.trauma + 0.15);
+        audio.play('pod_catch', { pan: e.x / HALF_W });
+        break;
+      case 'fell':
+        this.heist?.fell(e.id);
+        this.pop('DROPPED!', e.x, e.z - 6, '#ff6a4a', true);
+        audio.play('pod_fell', { pan: e.x / HALF_W });
+        break;
     }
   }
 
@@ -1144,6 +1257,8 @@ export class LevelView {
     this.updateEnemies(dt);
     this.updateWrecks(dt, scrollDz);
     this.convoy?.update(dt, scrollDz);
+    this.heist?.update(dt, scrollDz);
+    if (this.spoolWarn) this.spoolWarn.t += dt;
     if (this.missionBanner) this.missionBanner.t += dt;
     if (this.boardWarn && (this.boardWarn.t += dt) > 2.2) this.boardWarn = null;
     this.updateBullets();
@@ -1437,6 +1552,8 @@ export class LevelView {
   }
 
   private makeEnemy(e: Enemy): EnemyView {
+    // a runner's part: the heist view draws it, on the runner
+    if (e.d.qp !== undefined) return { inst: null, obj: new THREE.Group(), head: null, ring: null, seen: true, boss: false, ground: false, skin: e.skin.colors, punch: 0, knock: 0, part: true };
     const fam = e.skin.kind;
     const foe = (FOES as Record<string, { model: string; scale: number } | undefined>)[e.arch];
     let kind = foe ? `enemy_${foe.model}_${fam}` : `enemy_${e.arch}_${fam}`;
@@ -1905,6 +2022,7 @@ export class LevelView {
     for (const v of this.enemies.values()) v.inst?.dispose();
     for (const w of this.wrecks) w.inst?.dispose();
     this.convoy?.dispose();
+    this.heist?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);
     audio.loop('flame', 'p0', false);

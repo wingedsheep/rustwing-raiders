@@ -14,6 +14,7 @@ import { go, lookOf, over, tickFoe } from './combat';
 import { foeDef } from './combat';
 import { lerpAngle, moveTo, sz, updateFoe } from './foes';
 import { strike } from './strikes';
+import type { PartKind } from './heist';
 
 export interface EnemyData {
   path?: 'swoop' | 'dive' | 'cross' | 'loop';
@@ -60,6 +61,9 @@ export interface EnemyData {
   link?: number;
   /** A boarder: the hauler it's after (convoy.ts), `ph` its phase. */
   board?: number;
+  /** A part of a heist's runner (heist.ts): which kind, and which of them. */
+  qp?: PartKind;
+  qk?: number;
   /** Heartpods: the enemy it's bound to (the hive boss). */
   host?: number;
   prey?: number;
@@ -132,8 +136,14 @@ export function updateEnemy(lv: Level, e: Enemy) {
     e.x = d.x0 ?? 0;
     return;
   }
-  if (e.arch !== 'boss') e.shielded = false;
+  // (a runner's bridge keeps its shield till its engines are out)
+  if (e.arch !== 'boss' && d.qp === undefined) e.shielded = false;
   tickFoe(lv, e);
+  // a heist's runner works its own parts (see heist.ts)
+  if (d.qp !== undefined) {
+    lv.heist?.fly(e);
+    return;
+  }
   // an escort's boarders fly their own way (see convoy.ts)
   if (d.board !== undefined && lv.convoy) {
     lv.convoy.fly(e);

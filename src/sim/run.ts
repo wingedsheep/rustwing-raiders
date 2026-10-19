@@ -18,7 +18,7 @@ import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
 import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
 
 /** Sites where there's a fight to fly. */
-export const fights = (n: ChartNode) => n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'gate';
+export const fights = (n: ChartNode) => n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'heist' || n.kind === 'gate';
 
 export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: number): LevelSpec {
   const r = rng(seed);
@@ -27,7 +27,7 @@ export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: 
   if (mode === 'boss') {
     biomes = shuffle(r, [...open]).slice(0, 2);
   } else {
-    // raids, hunts and escorts fly through three of the four, canyon included sometimes
+    // raids, hunts, escorts and heists fly through three of the four, canyon included sometimes
     biomes = shuffle(r, [...planet.biomes]).slice(0, 3);
   }
   const length = mode === 'boss' ? 220 : 300;
@@ -168,7 +168,7 @@ export class Run {
 
   /** The danger of a site now: its own, and a pip more where the faction hates you. */
   danger(n: ChartNode) {
-    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
+    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'heist') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
     return n.danger;
   }
 

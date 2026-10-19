@@ -8,7 +8,8 @@ import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
 import { markIcon } from './mark-icons';
-import { haulerIcon } from './widgets';
+import { haulerIcon, strongboxIcon } from './widgets';
+import { RUNNER } from '../sim/heist';
 import type { MarkKind } from '../game/parts';
 
 /**
@@ -32,6 +33,8 @@ export const CYAN = '#8affe0';
 
 /** The convoy's colour (an escort's haulers), and what their hull bars go through as they're worn down. */
 export const HAULER = '#8ad0ff';
+/** A heist's colour (its site, its orders, the strongboxes' drogues). */
+export const HEIST = '#5ae0c0';
 export const hullColor = (f: number, t: number) => (f > 0.5 ? HAULER : f > 0.2 ? '#ffb04a' : Math.floor(t * 8) % 2 ? RED : '#ffffff');
 
 export const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
@@ -143,10 +146,23 @@ export class Hud {
       ctx.fillRect(x0, 16, x1 - x0, 3);
       ctx.globalAlpha = 1;
     });
+    if (lv.heist && !lv.heist.gone) {
+      // a heist: where along the route it spools, and where it jumps
+      const sx0 = rx + Math.round(rw * lv.heist.spoolAt);
+      const jx = rx + Math.round(rw * lv.heist.jumpAt);
+      const spooling = lv.heist.state === 'spool';
+      ctx.fillStyle = spooling && Math.floor(this.time * 6) % 2 ? '#ffffff' : '#8af0ff';
+      ctx.globalAlpha = spooling ? 0.9 : 0.5;
+      ctx.fillRect(sx0, 15, jx - sx0, 1);
+      ctx.fillRect(sx0, 19, jx - sx0, 1);
+      ctx.globalAlpha = 1;
+      ctx.fillRect(jx, 12, 1, 9);
+      ctx.fillRect(jx - 1, 12, 3, 1);
+    }
     const fx = rx + Math.round(rw * clamp(lv.progress, 0, 1));
     ctx.fillStyle = INK;
     ctx.fillRect(fx - 1, 14, 3, 7);
-    const mode = { raid: 'RAID', hunt: 'HUNT', escort: 'ESCORT', boss: 'WARDEN' }[lv.spec.mode];
+    const mode = { raid: 'RAID', hunt: 'HUNT', escort: 'ESCORT', heist: 'HEIST', boss: 'WARDEN' }[lv.spec.mode];
     drawText(ctx, `${lv.spec.planet.name} · ${mode}`, rx, 6, DIM, { shadow: false });
     if (lv.convoy) {
       // an escort: the three haulers, each with what's left of its hull
@@ -155,6 +171,18 @@ export class Hud {
         const hit = h.hitT < 0.12 && !h.dead;
         haulerIcon(ctx, hx, 6, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : HAULER, h.dead);
         if (!h.dead) bar(ctx, hx + 7, 9, 8, 2, h.hp / h.max, hullColor(h.hp / h.max, this.time), 'rgba(60,48,80,0.8)');
+      });
+    } else if (lv.heist) {
+      // a heist: the three strongboxes, aboard, falling, caught or lost
+      lv.heist.fate.forEach((f, i) => {
+        const hx = rx + rw - 3 * 12 + i * 12 + 4;
+        const blink = Math.floor(this.time * 8) % 2;
+        const col = f === 'caught' ? GOLD : f === 'loose' ? (blink ? '#ffffff' : GOLD) : HEIST;
+        strongboxIcon(ctx, hx, 5, col, f === 'fell' || f === 'jumped');
+        if (f === 'caught') {
+          ctx.fillStyle = GOLD;
+          ctx.fillRect(hx, 13, 5, 1);
+        }
       });
     } else if (lv.spawned > 0) {
       // the hunt's tally: what's down, and what got past (a full clear pays)
@@ -243,6 +271,7 @@ export class Hud {
     const mid = w / 2;
     this.marks(ctx, lv, view);
     if (lv.convoy) this.convoy(ctx, lv, view);
+    if (lv.heist) this.heist(ctx, lv, view);
     // pops
     // the pops: big ones (a reaction's name) first, then the rest nudged down off them (numbers
     // may pile on numbers), and never up under the top bar
@@ -255,8 +284,10 @@ export class Hud {
       const th = 8 * sc;
       let y = p.big ? s.y - 22 - Math.min(p.t, 0.3) * 20 : s.y - 14 - p.t * 10;
       y = Math.max(y, 34);
-      const x0 = s.x - tw / 2;
-      const x1 = s.x + tw / 2;
+      // (kept on the screen, however near the edge it happened)
+      const cx = clamp(s.x, tw / 2 + 4, w - tw / 2 - 4);
+      const x0 = cx - tw / 2;
+      const x1 = cx + tw / 2;
       for (let moved = true, n = 0; moved && n < 6; n++) {
         moved = false;
         for (const r of taken)
@@ -267,7 +298,7 @@ export class Hud {
       }
       if (p.big) taken.push({ x0, x1, y0: y, y1: y + th });
       const a = p.big ? p.t < 1.3 || Math.floor(p.t * 20) % 2 === 0 : p.t < 0.7 || Math.floor(p.t * 20) % 2 === 0;
-      if (a) drawText(ctx, p.text, s.x, y, p.color, { scale: sc, align: 'center' });
+      if (a) drawText(ctx, p.text, cx, y, p.color, { scale: sc, align: 'center' });
     }
     for (const p of lv.players) {
       const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
@@ -287,9 +318,18 @@ export class Hud {
         ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 14), Math.round(gw * (jam ? 1 : heat)), 2);
       }
     }
-    // an escort's orders, as it starts (in place of the biome's name)
+    // an escort's or a heist's orders, as it starts (in place of the biome's name)
     const mb = view.missionBanner;
-    if (mb && mb.t < 5) {
+    if (mb && mb.t < 5 && lv.heist) {
+      const fade = Math.min(1, mb.t * 2.5) * (mb.t > 4 ? Math.max(0, 1 - (mb.t - 4)) : 1);
+      ctx.globalAlpha = fade;
+      const by = Math.round(h * 0.34);
+      drawText(ctx, 'HEIST', mid, by, HEIST, { scale: 3, align: 'center' });
+      drawText(ctx, 'RUN DOWN THE RUNNER BEFORE IT JUMPS', mid, by + 28, INK, { align: 'center' });
+      drawText(ctx, 'SHOOT ITS STRONGBOXES LOOSE, AND CATCH THEM AS THEY FALL', mid, by + 40, '#d8cce8', { align: 'center' });
+      for (let i = 0; i < 3; i++) strongboxIcon(ctx, mid - 22 + i * 18, by + 54, HEIST);
+      ctx.globalAlpha = 1;
+    } else if (mb && mb.t < 5) {
       const fade = Math.min(1, mb.t * 2.5) * (mb.t > 4 ? Math.max(0, 1 - (mb.t - 4)) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.2);
@@ -330,10 +370,74 @@ export class Hud {
     }
     if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
-      const word = lv.spec.mode === 'boss' ? 'WARDEN DOWN' : lv.convoy ? (lv.convoy.delivered ? `${lv.convoy.delivered}/3 HOME` : 'CONVOY LOST') : 'CLEAR';
-      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, word, mid, h * 0.4, lv.convoy && !lv.convoy.delivered ? RED : GOLD, { scale: 4, align: 'center' });
+      const hs = lv.heist;
+      const word = lv.spec.mode === 'boss' ? 'WARDEN DOWN' : lv.convoy ? (lv.convoy.delivered ? `${lv.convoy.delivered}/3 HOME` : 'CONVOY LOST') : hs ? (hs.state === 'down' ? 'RUNNER DOWN' : `${hs.caught}/3 CAUGHT`) : 'CLEAR';
+      const bad = (lv.convoy && !lv.convoy.delivered) || (hs && hs.state !== 'down' && !hs.caught);
+      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, word, mid, h * 0.4, bad ? RED : GOLD, { scale: 4, align: 'center' });
     }
     if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+  }
+
+  /**
+   * A heist, on the field: a gold pip of hull under each strongbox still aboard and each engine
+   * running (what to shoot), CATCH! bobbing over a loose strongbox (red as it nears the bottom),
+   * the bridge's hull once its shield is down, and the jump coming.
+   */
+  private heist(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const hs = lv.heist!;
+    const blink = Math.floor(this.time * 6) % 2 === 0;
+    const pip = (e: { x: number; z: number; hp: number; max: number; dead: boolean }, w: number, col: string) => {
+      if (e.dead) return;
+      const s = this.toScreen(view, e.x, FLIGHT_Y, e.z + 2.2);
+      const x = Math.round(s.x - w / 2);
+      const y = Math.round(s.y);
+      ctx.fillStyle = 'rgba(14,10,22,0.75)';
+      ctx.fillRect(x - 1, y - 1, w + 2, 4);
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, Math.max(1, Math.round(w * (e.hp / e.max))), 2);
+    };
+    if (!hs.gone && lv.state === 'flying') {
+      hs.pods.forEach((e) => pip(e, 14, GOLD));
+      hs.engines.forEach((e) => pip({ ...e, z: e.z + 1.2, x: e.x, hp: e.hp, max: e.max, dead: e.dead }, 18, '#ffb04a'));
+      const c = hs.core;
+      if (!c.shielded && !c.dead) {
+        const s = this.toScreen(view, c.x, FLIGHT_Y, c.z - 5);
+        const bw = 44;
+        const x = Math.round(s.x - bw / 2);
+        drawText(ctx, 'BRIDGE', s.x, s.y - 12, blink ? HEIST : INK, { align: 'center' });
+        ctx.fillStyle = 'rgba(14,10,22,0.8)';
+        ctx.fillRect(x - 1, s.y - 2, bw + 2, 5);
+        ctx.fillStyle = c.flash > 0 ? '#ffffff' : HEIST;
+        ctx.fillRect(x, s.y - 1, Math.max(1, Math.round(bw * (c.hp / c.max))), 3);
+      }
+      if (hs.state === 'spool') {
+        // the jump coming: a countdown over it
+        const left = hs.jumpIn;
+        const s = this.toScreen(view, hs.x, FLIGHT_Y, hs.z + RUNNER.back + 2.5);
+        drawText(ctx, `JUMP IN ${left.toFixed(1)}`, s.x, s.y, left < 3 && blink ? '#ffffff' : '#8af0ff', { align: 'center' });
+      }
+    }
+    for (const c of hs.loose) {
+      if (c.dead) continue;
+      const s = this.toScreen(view, c.x, FLIGHT_Y, c.z);
+      const low = c.z > lv.bottom - 12;
+      const col = low ? (blink ? RED : '#ffffff') : GOLD;
+      const bob = Math.round(Math.sin(this.time * 9) * 2);
+      const y = Math.round(s.y - 30 + bob);
+      drawText(ctx, 'CATCH!', s.x, y, col, { align: 'center' });
+      ctx.fillStyle = col;
+      for (let k = 0; k < 4; k++) ctx.fillRect(Math.round(s.x) - 3 + k, y + 10 + k, 7 - k * 2, 1);
+    }
+    // the spool's warning, once, as it starts
+    const sw = view.spoolWarn;
+    if (sw && sw.t < 2.6 && Math.floor(sw.t * 5) % 2 === 0) {
+      const y = Math.round(VIEW.h * 0.3);
+      ctx.fillStyle = 'rgba(20,80,110,0.55)';
+      ctx.fillRect(0, y, VIEW.w, 30);
+      drawText(ctx, 'JUMP DRIVE SPOOLING', VIEW.w / 2, y + 4, '#ffffff', { scale: 2, align: 'center' });
+      const aboard = hs.fate.filter((f) => f === 'aboard').length;
+      drawText(ctx, aboard ? `${aboard} STRONGBOX${aboard > 1 ? 'ES' : ''} STILL ABOARD` : 'NOTHING LEFT ABOARD', VIEW.w / 2, y + 21, aboard ? GOLD : '#8af0ff', { align: 'center' });
+    }
   }
 
   /**

@@ -7,6 +7,7 @@ import { input } from '../input';
 import { audio, type Track } from '../audio';
 import { newPilot, pilot, type PilotState } from '../sim/pilot';
 import type { Build } from '../sim/build';
+import type { PodFate } from '../sim/heist';
 
 export interface FlightResult {
   cleared: boolean;
@@ -19,6 +20,8 @@ export interface FlightResult {
   report: { rank: string | null; lines: string[] };
   /** An escort: which haulers made it (each carried a crate: a card at the results), and their pay. */
   convoy?: { delivered: number; home: boolean[]; paid: number };
+  /** A heist: what became of each strongbox (each caught one is a card at the results), and was the runner taken down. */
+  heist?: { fate: PodFate[]; downed: boolean; paid: number };
 }
 
 /**
@@ -45,6 +48,9 @@ export class Flight implements Screen {
     this.lv = new Level(spec, builds, hull);
     // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
     this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
+    // &runner=0.1: a heist's runner that much as tough (to see it go down)
+    const rk = Number(game.params.get('runner'));
+    if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
     this.view = new LevelView(this.lv);
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') ? this.lv.players.map(() => newPilot()) : null;
     audio.music(spec.planet.id as Track);
@@ -97,6 +103,7 @@ export class Flight implements Screen {
       stats: lv.players.map((p) => ({ hits: p.hits, grazes: p.grazes, kills: p.kills, crashes: p.crashes })),
       report: { rank: lv.rank, lines: report(lv) },
       convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid } : undefined,
+      heist: lv.heist ? { fate: [...lv.heist.fate], downed: lv.heist.state === 'down', paid: lv.heist.paid } : undefined,
     });
   }
 
@@ -130,6 +137,14 @@ function report(lv: Level): string[] {
     out.push(c.delivered ? `HAULERS HOME ${c.delivered}/3  +${c.paid} SCRAP${c.delivered === 3 ? '  CONVOY WHOLE' : ''}` : 'NO HAULER MADE IT HOME');
     const lost = 3 - c.delivered;
     if (lost) out.push(`${lost} CRATE${lost > 1 ? 'S' : ''} LOST WITH ${lost > 1 ? 'THEM' : 'IT'}`);
+    return out;
+  }
+  if (lv.heist) {
+    const h = lv.heist;
+    out.push(`STRONGBOXES CAUGHT ${h.caught}/3${h.state === 'down' ? `  RUNNER DOWN +${h.paid} SCRAP` : h.state === 'jumped' ? '  THE RUNNER GOT AWAY' : ''}`);
+    const fell = h.fate.filter((f) => f === 'fell').length;
+    const away = h.fate.filter((f) => f === 'jumped').length;
+    if (fell || away) out.push([fell ? `${fell} DROPPED` : '', away ? `${away} JUMPED WITH IT` : ''].filter(Boolean).join('  '));
     return out;
   }
   const bonus = lv.parBonus ? `  +${lv.parBonus} SCRAP` : '';

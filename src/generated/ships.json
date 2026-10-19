@@ -1038,5 +1038,69 @@
   ],
   "mounts": [],
   "variant": 0
+ },
+ "runner": {
+  "colliders": [],
+  "kind": "runner",
+  "max": [
+   6.29,
+   2.79,
+   7.0
+  ],
+  "min": [
+   -6.29,
+   -0.9,
+   -8.6
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "runner_engine": {
+  "colliders": [],
+  "kind": "runner_engine",
+  "max": [
+   1.24,
+   1.28,
+   4.21
+  ],
+  "min": [
+   -1.24,
+   -1.22,
+   -1.7
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "runner_pod": {
+  "colliders": [],
+  "kind": "runner_pod",
+  "max": [
+   1.5,
+   1.7,
+   1.65
+  ],
+  "min": [
+   -1.5,
+   -1.3,
+   -4.11
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "runner_turret": {
+  "colliders": [],
+  "kind": "runner_turret",
+  "max": [
+   0.8,
+   1.02,
+   0.8
+  ],
+  "min": [
+   -0.8,
+   0.0,
+   -2.1
+  ],
+  "mounts": [],
+  "variant": 0
  }
 }
