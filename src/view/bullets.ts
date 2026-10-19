@@ -72,6 +72,8 @@ interface ShapeDef {
   trail?: [number, number, number];
   /** Afterimages behind it (light that smears). */
   ghosts?: number;
+  /** Drawn this much bigger or smaller than its hitbox suggests. */
+  scale?: number;
 }
 
 // ── colours (linear) ─────────────────────────────────────────────────────────────────────────
@@ -205,8 +207,10 @@ const slug = (needle: boolean): ShapeDef => ({
     { geo: JACKET, stuff: 'metal', at: needle ? place(0, 0, 0, 0.7, 0.7, 1.3) : place(0, 0, -0.05, 1, 1, 0.9), color: (x, o) => o.copy(GUNMETAL).lerp(x.col, 0.08) },
   ],
   spin: [6, 'roll'],
-  halo: [1.6, 0.4],
-  trail: needle ? [4.8, 0.45, 1] : [3.6, 0.6, 0.9],
+  halo: needle ? [1.3, 0.3] : [1.4, 0.35],
+  // small rounds, kept close to their hitbox, with short tracers
+  trail: needle ? [2.6, 0.35, 0.7] : [2.6, 0.45, 0.75],
+  scale: needle ? 0.62 : 0.6,
 });
 const shard = (lance: boolean): ShapeDef => ({
   parts: [
@@ -457,7 +461,7 @@ export class BulletArt {
       // fired: it swells out of the muzzle, white
       const punch = Math.max(0, 1 - b.t / 0.08);
       // the body's radius: a little more than the hitbox, as it always was
-      const r = b.r * 2 * big * (1 + 0.4 * punch);
+      const r = b.r * 2 * big * (sh.scale ?? 1) * (1 + 0.4 * punch);
       x.col.setHex(b.color);
       x.age = b.t;
       x.life = Math.min(1, b.t / b.life);

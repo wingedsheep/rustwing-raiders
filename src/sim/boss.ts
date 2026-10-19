@@ -11,6 +11,15 @@
  *  - pursuer (the Sandking, ARU-0): a chase first, the level still racing by, with it coming up
  *    behind you; then it overtakes, and the screen holds for the rest.
  *  - hive (the Mother-of-Spores): bound to heartpods; kill them to open her up.
+ *
+ * And each has a signature, a move nobody else makes, named on its bar as it comes (a spell card,
+ * as Touhou calls them): Vask's SKY DIVE, Oko's CRANE SWING, the Sandking's STAMPEDE, the Mother's
+ * BLOOM, the Engine's FROST CROSS, Khet's TITAN EYE, Istra's DEEP BREATH, ARU-0's REPOSSESSION.
+ *
+ * Learnable, as Hollow Knight's are: its moves come round in the same order every phase, each has
+ * one tell, and each leaves it open. Hit it hard enough while it's open and it's STAGGERED (its
+ * poise, the bar under its hull, broken). A phase taken without a hit pays a CLEAN bonus, and at
+ * the end it makes a LAST STAND: everything it has, once more, faster.
  */
 
 import type { Enemy, Level } from './level';
@@ -20,10 +29,28 @@ import { clamp, hashStr, lerp, rng, shuffle, smooth } from '../util';
 import { go, over, release, type AttackKind, type Tele } from './combat';
 import { foeSkin, type Foe } from './factions';
 import { lerpAngle } from './foes';
-import { strike } from './strikes';
+import { strike, type Strike } from './strikes';
 
 export type BossStyle = 'brawler' | 'fortress' | 'pursuer' | 'hive';
-export type BossMove = 'charge' | 'slam' | 'sweep' | 'gate' | 'shells' | 'harpoon' | 'spores' | 'summon' | 'lunge';
+export type BossMove =
+  | 'charge'
+  | 'slam'
+  | 'sweep'
+  | 'gate'
+  | 'shells'
+  | 'harpoon'
+  | 'spores'
+  | 'summon'
+  | 'lunge'
+  // the signatures: one each
+  | 'skydive'
+  | 'crane'
+  | 'stampede'
+  | 'bloom'
+  | 'cross'
+  | 'eye'
+  | 'breath'
+  | 'repossess';
 
 export interface BossState {
   style: BossStyle;
@@ -58,6 +85,20 @@ export interface BossState {
   chaseT: number;
   /** Phases that have had their pods (hive). */
   pods: number;
+  /** Its own move (see SIGNATURE). */
+  sig: BossMove;
+  /** Damage taken towards a stagger (it breaks at POISE of its hull), and a breather after one. */
+  poise: number;
+  poiseCd: number;
+  /** The players' hits taken when this phase began (none since: a clean phase). */
+  hitsAt: number;
+  /** In its last stand (the last sliver of its hull). */
+  last: boolean;
+  /** The move's working counters (passes made, shots fired), and a turn direction. */
+  k: number;
+  dir: number;
+  /** A strike it's steering (the crane's ball). */
+  ball: Strike | null;
 }
 
 type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves';
@@ -94,7 +135,53 @@ const MOVES: Record<BossStyle, BossMove[][]> = {
   hive: [['spores', 'harpoon'], ['spores', 'summon', 'harpoon'], ['spores', 'harpoon', 'summon']],
 };
 
-const KIND: Record<BossMove, AttackKind> = { charge: 'charge', lunge: 'charge', slam: 'slam', sweep: 'sweep', gate: 'gate', shells: 'shell', harpoon: 'harpoon', spores: 'spores', summon: 'pulse' };
+const KIND: Record<BossMove, AttackKind> = {
+  charge: 'charge',
+  lunge: 'charge',
+  slam: 'slam',
+  sweep: 'sweep',
+  gate: 'gate',
+  shells: 'shell',
+  harpoon: 'harpoon',
+  spores: 'spores',
+  summon: 'pulse',
+  skydive: 'charge',
+  crane: 'sweep',
+  stampede: 'slam',
+  bloom: 'spores',
+  cross: 'beam',
+  eye: 'beam',
+  breath: 'pulse',
+  repossess: 'torpedo',
+};
+
+/** Each boss's own move, and what it's called on its bar. */
+const SIGNATURE: Record<string, BossMove> = {
+  orutal: 'skydive',
+  halcyon: 'crane',
+  kessra: 'stampede',
+  mirefall: 'bloom',
+  glacis: 'cross',
+  ashgrave: 'eye',
+  vesh: 'breath',
+  cinder: 'repossess',
+};
+export const MOVE_NAME: Partial<Record<BossMove, string>> = {
+  skydive: 'SKY DIVE',
+  crane: 'CRANE SWING',
+  stampede: 'STAMPEDE',
+  bloom: 'BLOOM',
+  cross: 'FROST CROSS',
+  eye: 'TITAN EYE',
+  breath: 'DEEP BREATH',
+  repossess: 'REPOSSESSION',
+};
+
+/** Damage that breaks its poise (a share of its hull), and how fast poise comes back. */
+const POISE = 0.075;
+const POISE_BACK = 0.012;
+/** Below this share of its hull it makes its last stand. */
+const LAST = 0.08;
 
 /** Who comes when it calls. */
 const HELP: Record<string, [Foe, number]> = {
@@ -124,6 +211,9 @@ export function makeBoss(planet: string): BossState {
   const moves = MOVES[style].map((l) => [...l]);
   // Khet hooks you in his last phase; the others slam
   if (planet === 'ashgrave') moves[2][1] = 'harpoon';
+  // its own move comes second in every phase (seen early, and every time round)
+  const sig = SIGNATURE[planet] ?? 'skydive';
+  for (const l of moves) l.splice(1, 0, sig);
   return {
     style,
     phase: 0,
@@ -151,7 +241,43 @@ export function makeBoss(planet: string): BossState {
     yanked: false,
     chaseT: 0,
     pods: -1,
+    sig,
+    poise: 0,
+    poiseCd: 0,
+    hitsAt: 0,
+    last: false,
+    k: 0,
+    dir: 1,
+    ball: null,
   };
+}
+
+/** How near its poise is to breaking, 0..1 (1 while it's staggered). */
+export const poiseOf = (e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.poise / (e.max * POISE), 0, 1));
+
+/** The name of the signature it's making, if it is. */
+export const sigName = (e: Enemy) => (e.boss && e.boss.move === e.boss.sig && (e.state === 'windup' || e.state === 'attack') ? MOVE_NAME[e.boss.sig] : undefined);
+
+/** Hit: its poise gives, and when it breaks it's STAGGERED, whatever it was doing. */
+export function bossHurt(lv: Level, e: Enemy, dmg: number) {
+  const b = e.boss!;
+  if (e.t < 3.5 || e.shielded || b.poiseCd > 0 || e.state === 'stagger') return;
+  b.poise += dmg;
+  if (b.poise < e.max * POISE) return;
+  b.poise = 0;
+  b.poiseCd = 5;
+  // whatever it was making stops: beams go out, a swinging ball drops
+  for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+  dropBall(b);
+  if (e.grab >= 0) release(lv, e, true);
+  b.move ??= 'summon';
+  go(lv, e, 'stagger', 2.6);
+  lv.emit({ type: 'bossStagger', enemy: e.id, x: e.x, z: e.z });
+}
+
+function dropBall(b: BossState) {
+  if (b.ball) b.ball.dead = true;
+  b.ball = null;
 }
 
 /** What a hit is worth on it now: armour, and the weak points when it's open. */
@@ -159,6 +285,8 @@ export function bossTaken(lv: Level, e: Enemy, crit: boolean) {
   const b = e.boss!;
   const open = e.state === 'recover' || e.state === 'stagger';
   if (crit && open) lv.emit({ type: 'weakHit', enemy: e.id, x: e.x, z: e.z, dmg: 0 });
+  // poise broken: wide open, whatever it is
+  if (e.state === 'stagger' && !(b.style === 'hive' && lv.enemies.some((o) => !o.dead && o.links.includes(e.id)))) return crit ? 2.2 : 1.8;
   switch (b.style) {
     case 'brawler':
       return open ? 1.5 : crit ? 1 : 0.8;
@@ -202,16 +330,39 @@ export function updateBoss(lv: Level, e: Enemy) {
   if (b.style === 'pursuer' && b.phase === 0) b.chaseT += DT;
   let want = e.hp < e.max / 3 ? 2 : e.hp < (e.max * 2) / 3 ? 1 : 0;
   if (b.style === 'pursuer' && b.chaseT > 30) want = Math.max(want, 1);
-  if (want > b.phase && !b.move) {
-    b.phase = want;
+  b.poiseCd = Math.max(0, b.poiseCd - DT);
+  b.poise = Math.max(0, b.poise - e.max * POISE_BACK * DT);
+  const last = e.hp < e.max * LAST && !b.last;
+  if ((want > b.phase || last) && (!b.move || e.state === 'recover' || e.state === 'stagger')) {
+    // a phase taken without a hit: paid for, in scrap thrown from its hull
+    const hits = lv.players.reduce((n, p) => n + p.hits, 0);
+    if (hits === b.hitsAt) {
+      const scrap = 15 + b.phase * 10 + Math.round(lv.spec.difficulty * 10);
+      for (let k = 0; k < 6; k++) lv.drop('scrap', e.x + (lv.rand() - 0.5) * 6, e.z + 2 + lv.rand() * 3, Math.round(scrap / 6));
+      lv.emit({ type: 'phaseClean', phase: b.phase, x: e.x, z: e.z, scrap });
+    }
+    b.hitsAt = hits;
+    if (last) {
+      b.last = true;
+      b.phase = 2;
+      b.moveN = 0;
+      // the last stand: its own move, straight away, and then everything at once
+      b.moves[2] = [b.sig, ...b.moves[2].filter((m) => m !== b.sig && m !== 'summon'), b.sig];
+    } else {
+      b.phase = want;
+      b.moveN = 0;
+    }
     b.current = 0;
     b.pt = 0;
     b.shieldT = 1.6;
-    b.moveN = 0;
+    b.move = null;
+    dropBall(b);
+    if (e.grab >= 0) release(lv, e, false);
+    go(lv, e, 'idle');
     lv.chase = false;
     for (const x of lv.bullets) lv.cancel(x);
     lv.lasers.length = 0;
-    lv.emit({ type: 'bossPhase', phase: b.phase, style: b.style });
+    lv.emit({ type: 'bossPhase', phase: b.last ? 3 : b.phase, style: b.style });
     lv.emit({ type: 'explode', x: e.x, z: e.z, y: e.y, size: 4, color: e.skin.colors[2] });
   }
   if (b.style === 'pursuer' && b.phase === 0) lv.chase = true;
@@ -237,7 +388,8 @@ export function updateBoss(lv: Level, e: Enemy) {
   const pat = list[b.current % list.length];
   // on a chase it's all moves (a breath between them)
   const chase = b.style === 'pursuer' && b.phase === 0;
-  const len = chase ? 0.6 : LENGTH[pat];
+  // in its last stand it hardly stops to breathe between moves
+  const len = chase || b.last ? 0.6 : LENGTH[pat];
   b.pt += DT;
   if (b.pt > len + 0.9) {
     b.current++;
@@ -312,8 +464,91 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
     case 'summon':
       go(lv, e, 'windup', 0.8, 'pulse', null);
       break;
+    default:
+      b.k = 0;
+      startSig(lv, e, b, px, pz);
   }
 }
+
+/** The screen z of a spot, kept off the very edges. */
+const lane = (lv: Level, z: number) => clamp(z - lv.scroll, -HALF_H + 7, HALF_H - 6);
+
+/** The signature moves: each its own tell (see runMove for the moves themselves). */
+function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
+  const m = b.move!;
+  const col = e.skin.colors[2];
+  const fast = b.last ? 0.75 : b.phase >= 2 ? 0.88 : 1;
+  switch (m) {
+    case 'skydive': {
+      // she picks your lane, flies out to the far side of it, and the lane is drawn across
+      const side = b.k === 0 ? (px > 0 ? -1 : 1) : b.sx > 0 ? 1 : -1;
+      b.dir = -side;
+      b.mx = side * (HALF_W - 6);
+      b.ms = lane(lv, pz);
+      const z = lv.scroll + b.ms;
+      go(lv, e, 'windup', (b.k ? 0.9 : 1.4) * fast, 'charge', { shape: 'line', x: b.mx, z, x2: -side * (HALF_W + 6), z2: z, w: 8.5, lock: (b.k ? 0.5 : 0.8) * fast, body: true });
+      break;
+    }
+    case 'crane': {
+      // the arc the ball will swing through, swept out in light
+      b.dir = lv.rand() < 0.5 ? 1 : -1;
+      const len = craneLen(b);
+      go(lv, e, 'windup', 1.25 * fast, 'sweep', { shape: 'sweep', x: e.x, z: e.z, a0: -b.dir * CRANE_A, a1: b.dir * CRANE_A, len: len + 2.6, w: 1.6 });
+      break;
+    }
+    case 'stampede':
+      // it rears: the ground about it shakes
+      go(lv, e, 'windup', 0.95 * fast, 'slam', { shape: 'ring', x: e.x, z: e.z, r: 9, w: 2 });
+      break;
+    case 'bloom':
+      b.dir = b.dir > 0 ? -1 : 1;
+      b.angle = lv.rand() * Math.PI;
+      go(lv, e, 'windup', 1.0 * fast, 'spores', { shape: 'ring', x: e.x, z: e.z, r: 10, w: 3 });
+      break;
+    case 'cross': {
+      // four beams drawn out from its core, then they burn and turn
+      b.dir = b.dir > 0 ? -1 : 1;
+      b.angle = Math.PI / 4;
+      const n = crossBeams(b);
+      for (let k = 0; k < n; k++) {
+        const a = b.angle + (k / n) * Math.PI * 2;
+        lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(a) * 75, z2: e.z + Math.cos(a) * 75, warn: 1.3 * fast, on: crossTime(b) + 0.1, color: col, owner: e.id });
+      }
+      go(lv, e, 'windup', 1.3 * fast, 'beam', { shape: 'ring', x: e.x, z: e.z, r: 6, w: 2 });
+      break;
+    }
+    case 'eye': {
+      // the eye opens on you: a thin line that thickens, then the beam, following you
+      e.aim = Math.atan2(px - e.x, pz - e.z);
+      lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, warn: 1.1 * fast, on: eyeTime(b), color: col, owner: e.id });
+      go(lv, e, 'windup', 1.1 * fast, 'beam', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, w: 2.2, lock: 0.7 * fast });
+      break;
+    }
+    case 'breath':
+      // how far the pull will reach
+      go(lv, e, 'windup', 0.9 * fast, 'pulse', { shape: 'ring', x: e.x, z: e.z, r: BREATH_R, w: 3 });
+      break;
+    case 'repossess': {
+      const p = lv.nearest(e.x, e.z);
+      b.mx = px;
+      b.ms = pz;
+      go(lv, e, 'windup', (b.k ? 0.75 : 1.15) * fast, 'torpedo', p ? { shape: 'lock', id: p.id } : null);
+      break;
+    }
+  }
+}
+
+const CRANE_A = 1.15;
+const craneLen = (b: BossState) => 16 + b.phase * 1.5;
+const craneSwings = (b: BossState) => (b.last ? 4 : b.phase >= 2 ? 3 : 2);
+const CRANE_P = 1.3;
+const crossBeams = (b: BossState) => (b.last ? 6 : 4);
+const crossTime = (b: BossState) => 3.4 + b.phase * 0.4;
+const eyeTime = (b: BossState) => 3 + b.phase * 0.5;
+const BREATH_R = 34;
+const BREATH_IN = 2.2;
+const repoShots = (b: BossState) => 2 + b.phase + (b.last ? 1 : 0);
+const divePasses = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
 
 function endMove(lv: Level, e: Enemy, b: BossState, dur: number, stagger = false) {
   go(lv, e, stagger ? 'stagger' : 'recover', dur);
@@ -349,7 +584,9 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
       tl.x = p.x;
       tl.z = p.z;
     }
+    sigWindup(lv, e, b);
     if (!over(e)) return;
+    if (sigGo(lv, e, b)) return;
     b.gone = 0;
     switch (m) {
       case 'slam':
@@ -458,9 +695,260 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
       } else if (!lv.strikes.some((k) => k.owner === e.id && k.kind === 'harpoon')) endMove(lv, e, b, 1.5);
       break;
     }
+    case 'skydive':
+    case 'crane':
+    case 'bloom':
+    case 'cross':
+    case 'eye':
+    case 'breath':
+      sigAttack(lv, e, b);
+      break;
     default:
       // the rest are thrown and left to do their work: it watches, open
-      endMove(lv, e, b, m === 'gate' ? 2.2 : m === 'summon' ? 0.8 : 1.4);
+      endMove(lv, e, b, m === 'gate' ? 2.2 : m === 'summon' ? 0.8 : m === 'stampede' ? 1.8 : m === 'repossess' ? 2.2 : 1.4);
+  }
+}
+
+/** A signature's windup: what it tracks while it tells. */
+function sigWindup(lv: Level, e: Enemy, b: BossState) {
+  const p = lv.nearest(e.x, e.z);
+  const tl = e.tele;
+  switch (b.move) {
+    case 'skydive': {
+      // out to the end of the lane (it follows you till it locks)
+      if (p && tl && tl.shape === 'line' && e.stateT < tl.lock) b.ms = lerp(b.ms, lane(lv, p.z), 0.12);
+      b.sx = lerp(b.sx, b.mx, 0.09);
+      b.ss = lerp(b.ss, b.ms, 0.09);
+      if (tl && tl.shape === 'line') {
+        tl.x = b.sx;
+        tl.z = tl.z2 = lv.scroll + b.ms;
+      }
+      break;
+    }
+    case 'crane':
+    case 'stampede':
+    case 'bloom':
+    case 'cross':
+    case 'breath':
+      if (tl && (tl.shape === 'sweep' || tl.shape === 'ring')) {
+        tl.x = e.x;
+        tl.z = e.z;
+      }
+      break;
+    case 'eye': {
+      if (tl && tl.shape === 'line' && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.06);
+      aimBeams(lv, e, e.aim, 1);
+      if (tl && tl.shape === 'line') {
+        tl.x = e.x;
+        tl.z = e.z;
+        tl.x2 = e.x + Math.sin(e.aim) * 75;
+        tl.z2 = e.z + Math.cos(e.aim) * 75;
+      }
+      break;
+    }
+    case 'repossess':
+      // where you are, until the last moment: it fires where you were
+      if (p && e.stateT < e.stateDur - 0.32) {
+        b.mx = p.x;
+        b.ms = p.z;
+      }
+      break;
+  }
+}
+
+/** Point its beams: `n` of them spread evenly from angle `a`. */
+function aimBeams(lv: Level, e: Enemy, a: number, n: number) {
+  let k = 0;
+  for (const l of lv.lasers)
+    if (l.owner === e.id) {
+      const ak = a + (k++ / n) * Math.PI * 2;
+      l.x = e.x;
+      l.z = e.z;
+      l.x2 = e.x + Math.sin(ak) * 75;
+      l.z2 = e.z + Math.cos(ak) * 75;
+    }
+}
+
+/** A signature's windup is over: off it goes. True if it has dealt with its own state. */
+function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
+  const col = e.skin.colors[2];
+  const p = lv.nearest(e.x, e.z);
+  const px = p?.x ?? 0;
+  const pz = p?.z ?? lv.bottom - 8;
+  b.fire = 0;
+  switch (b.move) {
+    case 'skydive':
+      b.gone = 0;
+      go(lv, e, 'attack', 0, 'charge');
+      return true;
+    case 'crane': {
+      const len = craneLen(b);
+      const a = -b.dir * CRANE_A;
+      b.ball = strike(lv, 'ball', e.x + Math.sin(a) * len, e.z + Math.cos(a) * len, { r: 2.7, warn: 0, active: 99, air: true, owner: e.id, color: col });
+      go(lv, e, 'attack', CRANE_P * craneSwings(b), 'sweep');
+      // (the ball's out: it's its own warning now)
+      e.tele = null;
+      return true;
+    }
+    case 'stampede': {
+      // a line of stomps marching away from it through where you are, left foot, right foot;
+      // later a second line beside it, a beat behind
+      const dz = pz >= e.z ? 1 : -1;
+      const lines = b.last ? 3 : b.phase >= 1 ? 2 : 1;
+      const side = px > 0 ? -1 : 1;
+      for (let n = 0; n < lines; n++) {
+        const cx = clamp(px + (n === 0 ? 0 : n === 1 ? side * 13 : -side * 13), -HALF_W + 4, HALF_W - 4);
+        for (let k = 0; k < 14; k++) {
+          const z = e.z + dz * (7 + k * 5);
+          if (!lv.onScreen(cx, z, 2)) break;
+          const x = cx + (k % 2 ? 3.2 : -3.2);
+          strike(lv, 'slam', x, z, { r: 3.1, warn: 0.75 + k * 0.27 + n * 0.14, active: 0.2, air: true, owner: e.id, color: col });
+        }
+      }
+      go(lv, e, 'attack', 0, 'slam');
+      e.tele = null;
+      return true;
+    }
+    case 'repossess': {
+      // the beam goes where you were a moment ago; and a pair of collector mines at the spot
+      const a = Math.atan2(b.mx - e.x, b.ms - e.z);
+      lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, warn: 0.32, on: 0.45, color: col, owner: e.id });
+      lv.emit({ type: 'telegraph', x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, t: 0.32 });
+      if (b.k % 2 === 1 || b.phase >= 2)
+        for (const s of [-1, 1]) lv.bullet(b.mx + Math.cos(a) * s * 5, b.ms - Math.sin(a) * s * 5, 0, 0, { kind: 'mine', r: 0.7, life: 1.6, split: 6, color: col });
+      b.k++;
+      if (b.k < repoShots(b)) startSig(lv, e, b, px, pz);
+      else go(lv, e, 'attack', 0, 'torpedo');
+      return true;
+    }
+    case 'eye':
+    case 'cross':
+    case 'bloom':
+      go(lv, e, 'attack', b.move === 'eye' ? eyeTime(b) : b.move === 'cross' ? crossTime(b) : b.last ? 4.2 : 3.4, KIND[b.move]);
+      e.tele = null;
+      return true;
+    case 'breath':
+      b.k = 0;
+      go(lv, e, 'attack', BREATH_IN, 'pulse');
+      return true;
+  }
+  return false;
+}
+
+/** A signature, under way. */
+function sigAttack(lv: Level, e: Enemy, b: BossState) {
+  const col = e.skin.colors[2];
+  const p = lv.nearest(e.x, e.z);
+  switch (b.move) {
+    case 'skydive': {
+      // across the lane, low and fast, sowing eggs behind her
+      const sp = 58 * (e.stun > 0 ? 0.4 : 1);
+      b.sx += b.dir * sp * DT;
+      b.gone += sp * DT;
+      if (b.gone > 5) {
+        b.gone -= 5;
+        lv.bullet(b.sx, e.z, 0, 0, { kind: 'mine', r: 0.7, life: 1.1 + lv.rand() * 0.4, split: b.phase >= 1 ? 6 : 4, color: col });
+      }
+      if (Math.abs(b.sx) > HALF_W - 6 && Math.sign(b.sx) === b.dir) {
+        b.sx = b.dir * (HALF_W - 6);
+        b.k++;
+        if (b.k < divePasses(b)) startSig(lv, e, b, p?.x ?? 0, p?.z ?? 0);
+        // she lands at the far end, winded
+        else endMove(lv, e, b, 2.3);
+      }
+      break;
+    }
+    case 'crane': {
+      // a pendulum under the barge; at each end of its swing it sheds shrapnel
+      const len = craneLen(b);
+      const u = e.stateT / CRANE_P;
+      const a = -b.dir * CRANE_A * Math.cos(Math.PI * u);
+      if (b.ball) {
+        b.ball.x = e.x + Math.sin(a) * len;
+        b.ball.z = e.z + Math.cos(a) * len;
+        b.ball.vx = -b.dir * CRANE_A * Math.sin(Math.PI * u) * (Math.PI / CRANE_P) * len * Math.cos(a);
+      }
+      if (Math.floor(u) > b.k && b.ball) {
+        b.k = Math.floor(u);
+        if (b.phase >= 1 || b.last) {
+          const n = 7 + b.phase;
+          for (let k = 0; k < n; k++) lv.bullet(b.ball.x, b.ball.z, (k / n) * Math.PI * 2 + b.k, 7, { color: col, kind: 'big', r: 0.6 });
+        }
+        lv.emit({ type: 'strike', kind: 'slam', x: b.ball.x, z: b.ball.z, r: 1.5 });
+      }
+      if (over(e)) {
+        dropBall(b);
+        endMove(lv, e, b, 2);
+      }
+      break;
+    }
+    case 'bloom': {
+      // a flower of spores turning one way, and halfway through, back the other
+      const half = e.stateDur / 2;
+      if (e.stateT - DT < half && e.stateT >= half) {
+        b.dir = -b.dir;
+        lv.emit({ type: 'telegraph', x: e.x, z: e.z, x2: e.x, z2: e.z, t: 0.2 });
+      }
+      b.fire -= DT;
+      if (b.fire <= 0) {
+        b.fire = 0.11;
+        b.angle += b.dir * 0.14;
+        const arms = Math.min(7, 5 + b.phase);
+        for (let k = 0; k < arms; k++) lv.bullet(e.x, e.z, b.angle + (k / arms) * Math.PI * 2, 6.2, { color: col, kind: 'spore', r: 0.5 });
+      }
+      if (over(e)) endMove(lv, e, b, 1.8);
+      break;
+    }
+    case 'cross': {
+      const n = crossBeams(b);
+      const turn = Math.PI / 2 + b.phase * (Math.PI / 6);
+      aimBeams(lv, e, b.angle + b.dir * turn * clamp(e.stateT / e.stateDur, 0, 1), n);
+      if (over(e)) {
+        for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+        endMove(lv, e, b, 1.9);
+      }
+      break;
+    }
+    case 'eye': {
+      // it follows you, slower than you can fly: keep moving
+      const rate = 0.42 + b.phase * 0.12 + (b.last ? 0.15 : 0);
+      const want = lv.aim(e.x, e.z);
+      const da = Math.atan2(Math.sin(want - e.aim), Math.cos(want - e.aim));
+      e.aim += clamp(da, -rate * DT, rate * DT);
+      aimBeams(lv, e, e.aim, 1);
+      if (over(e)) {
+        for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+        endMove(lv, e, b, 2.1);
+      }
+      break;
+    }
+    case 'breath': {
+      // in: everything near is drawn to her maw (boost against it; a dash is free of it)
+      for (const q of lv.players) {
+        if (q.down || q.dashT > 0) continue;
+        const dx = e.x - q.x;
+        const dz = e.z - q.z;
+        const dl = Math.hypot(dx, dz) || 1;
+        if (dl > BREATH_R || dl < e.r) continue;
+        const pull = (8 + b.phase * 1.5) * (1 - 0.65 * q.boosting) * (1 - dl / (BREATH_R * 1.3));
+        q.x += (dx / dl) * pull * DT;
+        q.z += (dz / dl) * pull * DT;
+      }
+      if (over(e)) {
+        // and out: a wall of bubbles, three rows deep, fanned at you
+        const a = lv.aim(e.x, e.z);
+        const rows = b.last ? 4 : 3;
+        // (each row's bubbles sit in the gaps of the one before: weave through)
+        for (let r = 0; r < rows; r++) {
+          const n = 8;
+          const step = 1.9 / n;
+          for (let k = 0; k < n; k++) lv.bullet(e.x, e.z + 2, a + (k - (n - 1) / 2 + (r % 2) * 0.5) * step, 6 + r * 1.8, { color: col, kind: 'big', r: 0.7 });
+        }
+        lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
+        endMove(lv, e, b, 2.3);
+      }
+      break;
+    }
   }
 }
 
@@ -472,7 +960,7 @@ function at(e: Enemy, m: { x: number; z: number }) {
 function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
   const col = e.skin.colors[2];
   const d = lv.spec.difficulty;
-  const hard = (1 + b.phase * 0.2 + d * 0.3) / 1.35;
+  const hard = (1 + b.phase * 0.2 + d * 0.3 + (b.last ? 0.3 : 0)) / 1.35;
   b.fire -= DT * hard;
   if (b.fire > 0) return;
   b.shots++;

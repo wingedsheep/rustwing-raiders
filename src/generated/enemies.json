@@ -1,4 +1,53 @@
 {
+ "enemy_blimp_mech": {
+  "colliders": [],
+  "kind": "enemy_blimp_mech",
+  "max": [
+   2.78,
+   2.6,
+   4.45
+  ],
+  "min": [
+   -2.78,
+   -1.3,
+   -4.379
+  ],
+  "mounts": [
+   {
+    "p": [
+     -2.85,
+     -0.2,
+     -1.15
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     -2.85,
+     -0.2,
+     0.75
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     2.85,
+     -0.2,
+     -1.15
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     2.85,
+     -0.2,
+     0.75
+    ],
+    "type": "port"
+   }
+  ],
+  "variant": 0
+ },
  "enemy_bomber_beast": {
   "colliders": [],
   "kind": "enemy_bomber_beast",
@@ -127,6 +176,87 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_gunboat_mech": {
+  "colliders": [],
+  "kind": "enemy_gunboat_mech",
+  "max": [
+   1.61,
+   1.85,
+   4.113
+  ],
+  "min": [
+   -1.61,
+   -0.35,
+   -3.172
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.17,
+     0.98,
+     -2.9
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     -0.17,
+     0.98,
+     -2.9
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     -1.62,
+     0.36,
+     -0.6
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     -1.62,
+     0.36,
+     0.55
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     -1.62,
+     0.36,
+     1.7
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     1.62,
+     0.36,
+     -0.6
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     1.62,
+     0.36,
+     0.55
+    ],
+    "type": "port"
+   },
+   {
+    "p": [
+     1.62,
+     0.36,
+     1.7
+    ],
+    "type": "port"
+   }
+  ],
+  "variant": 0
+ },
  "enemy_gunship_beast": {
   "colliders": [],
   "kind": "enemy_gunship_beast",
@@ -159,6 +289,31 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_halo_mech": {
+  "colliders": [],
+  "kind": "enemy_halo_mech",
+  "max": [
+   1.72,
+   0.62,
+   1.748
+  ],
+  "min": [
+   -1.757,
+   -0.22,
+   -1.748
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     0.2,
+     -0.5
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
  "enemy_lancer_beast": {
   "colliders": [],
   "kind": "enemy_lancer_beast",
@@ -189,6 +344,31 @@
    -2.188
   ],
   "mounts": [],
+  "variant": 0
+ },
+ "enemy_manta_beast": {
+  "colliders": [],
+  "kind": "enemy_manta_beast",
+  "max": [
+   3.772,
+   0.446,
+   4.967
+  ],
+  "min": [
+   -3.772,
+   -0.428,
+   -2.972
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     0.0,
+     -2.4
+    ],
+    "type": "muzzle"
+   }
+  ],
   "variant": 0
  },
  "enemy_serpent_body_beast": {
@@ -287,6 +467,55 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_spindle_mech": {
+  "colliders": [],
+  "kind": "enemy_spindle_mech",
+  "max": [
+   1.992,
+   3.15,
+   1.992
+  ],
+  "min": [
+   -1.992,
+   0.0,
+   -1.992
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     2.55,
+     -1.85
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     0.0,
+     2.55,
+     1.85
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     1.85,
+     2.55,
+     -0.0
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     -1.85,
+     2.55,
+     -0.0
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
  "enemy_swarm_beast": {
   "colliders": [],
   "kind": "enemy_swarm_beast",
@@ -317,6 +546,31 @@
    -0.36
   ],
   "mounts": [],
+  "variant": 0
+ },
+ "enemy_technical_mech": {
+  "colliders": [],
+  "kind": "enemy_technical_mech",
+  "max": [
+   1.21,
+   2.097,
+   2.05
+  ],
+  "min": [
+   -1.21,
+   -0.1,
+   -2.16
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     1.84,
+     -1.05
+    ],
+    "type": "muzzle"
+   }
+  ],
   "variant": 0
  },
  "enemy_turret_beast": {

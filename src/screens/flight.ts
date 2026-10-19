@@ -63,6 +63,9 @@ export class Flight implements Screen {
         c.part = rollItem(this.lv.rand, k === 3 ? 'scatter' : 'rivet', tier);
         c.vx = c.vz = 0;
       });
+    // &foes=gunboat,elite:ramjack: the level's waves are these, one after another
+    const only = game.params.get('foes');
+    if (only) this.lv.director.only(only.split(','));
     this.view = new LevelView(this.lv);
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
     audio.music(spec.planet.id as Track);

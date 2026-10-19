@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import type { Level, Player } from '../sim/level';
+import type { Enemy, Level, Player } from '../sim/level';
+import { poiseOf, sigName } from '../sim/boss';
+import { FOES, type Foe } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { frameById, LOAD_CLASS, partById, type PartClass } from '../game/parts';
@@ -49,6 +51,22 @@ export const CLASS_COLOR: Record<PartClass, string> = {
   defense: '#a0a8b8',
   booster: '#d08aff',
   special: '#8affb0',
+};
+
+/** The kinds met so far, in any run (the field guide shows each once). */
+const JOURNAL = (() => {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem('rustwing.journal') ?? '[]'));
+  } catch {
+    return new Set<string>();
+  }
+})();
+const saveJournal = () => {
+  try {
+    localStorage.setItem('rustwing.journal', JSON.stringify([...JOURNAL]));
+  } catch {
+    // (no storage: it shows again next time)
+  }
 };
 
 /** A framed panel, pixel-art style: dark fill, a light top-left edge and a dark bottom-right. */
@@ -117,6 +135,8 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 export class Hud {
   private v = new THREE.Vector3();
   time = 0;
+  /** The field-guide card showing (see journal). */
+  private guide: { kind: Foe; t: number; color: string } | null = null;
   /** Device pixels, and device pixels per UI texel (to put world points on the UI). */
   dw = 1;
   dh = 1;
@@ -311,6 +331,111 @@ export class Hud {
     }
   }
 
+  /**
+   * The boss's bar: its hull in three segments, one a phase (the one it's in bright, the ones
+   * gone dark), its poise under it (full: it breaks, STAGGERED), and the name of its signature
+   * move in a ribbon under the plate while it makes it. LAST STAND blinks at the end.
+   */
+  private bossBar(ctx: CanvasRenderingContext2D, lv: Level, boss: Enemy, mid: number, w: number) {
+    const b = boss.boss!;
+    const bw = Math.min(440, w - 80);
+    const bx = Math.round(mid - bw / 2);
+    const blink = Math.floor(this.time * 6) % 2 === 0;
+    plate(ctx, bx, 28, bw, 24);
+    drawText(ctx, lv.spec.planet.boss.name, bx + 5, 31, INK, { shadow: false });
+    // which phase: three pips, or the last stand
+    if (b.last) drawText(ctx, 'LAST STAND', bx + bw - 5, 31, blink ? RED : '#ffffff', { shadow: false, align: 'right' });
+    else
+      for (let k = 0; k < 3; k++) {
+        ctx.fillStyle = k < b.phase ? '#4a3e58' : k === b.phase ? RED : '#8a8098';
+        ctx.fillRect(bx + bw - 30 + k * 9, 33, 6, 4);
+      }
+    // the hull in three segments, with a gap between
+    const x0 = bx + 5;
+    const sw = (bw - 10 - 4) / 3;
+    const f = boss.hp / boss.max;
+    for (let k = 0; k < 3; k++) {
+      const sx = Math.round(x0 + k * (sw + 2));
+      const lo = k / 3;
+      const seg = clamp((f - lo) * 3, 0, 1);
+      const col = boss.shielded ? DIM : boss.flash > 0 ? '#ffffff' : 2 - k === b.phase ? RED : '#c83a3a';
+      bar(ctx, sx, 41, Math.round(sw), 4, seg, col, 'rgba(42,34,54,0.9)');
+    }
+    // poise: fills as it's hit, and breaks
+    const pz = poiseOf(boss);
+    const stag = boss.state === 'stagger';
+    bar(ctx, x0, 47, bw - 10, 2, pz, stag ? (blink ? '#ffffff' : GOLD) : '#e8d8a0', 'rgba(42,34,54,0.7)');
+    if (stag) drawText(ctx, 'STAGGERED', mid, 56, blink ? GOLD : '#ffffff', { align: 'center' });
+    // its signature, named as it comes
+    const name = sigName(boss);
+    if (name && !stag) {
+      const tw = textWidth(name, 2) + 24;
+      const ry = 56;
+      ctx.fillStyle = 'rgba(14,10,22,0.78)';
+      ctx.fillRect(Math.round(mid - tw / 2), ry - 2, tw, 18);
+      ctx.fillStyle = hex(boss.skin.colors[2]);
+      ctx.fillRect(Math.round(mid - tw / 2), ry - 2, tw, 1);
+      ctx.fillRect(Math.round(mid - tw / 2), ry + 15, tw, 1);
+      drawText(ctx, name, mid, ry, boss.state === 'windup' && blink ? '#ffffff' : hex(boss.skin.colors[2]), { scale: 2, align: 'center' });
+    }
+  }
+
+  /**
+   * An elite on the field: its plate at the top, as a boss's (its name, what it is, its armour in
+   * gold over its hull, and how many attacks it chains).
+   */
+  private elitePlate(ctx: CanvasRenderingContext2D, lv: Level, mid: number, w: number) {
+    const e = lv.enemies.find((o) => o.elite && !o.dead && o.t > 0.5 && o.title && lv.onScreen(o.x, o.z, 2));
+    if (!e) return;
+    const bw = Math.min(260, w - 80);
+    const bx = Math.round(mid - bw / 2);
+    plate(ctx, bx, 28, bw, 21);
+    const what = (FOES as Record<string, { name: string }>)[e.arch]?.name ?? e.skin.name ?? e.arch;
+    drawText(ctx, e.title!, bx + 5, 31, GOLD, { shadow: false });
+    drawText(ctx, `· ${what.toUpperCase()}`, bx + 9 + textWidth(e.title!), 31, DIM, { shadow: false });
+    const of = e.d.chain ?? 0;
+    if (of > 1) drawText(ctx, `CHAINS ${of}`, bx + bw - 5, 31, '#ffe0b0', { shadow: false, align: 'right' });
+    const x0 = bx + 5;
+    if (e.armour > 0) bar(ctx, x0, 40, bw - 10, 3, e.armour / e.armourMax, e.hitT < 0.07 ? '#ffffff' : GOLD, 'rgba(42,34,54,0.9)');
+    else if (e.state === 'stagger' && Math.floor(this.time * 6) % 2) drawText(ctx, 'ARMOUR BROKEN', mid, 52, GOLD, { align: 'center' });
+    bar(ctx, x0, 44, bw - 10, 2, e.hp / e.max, e.flash > 0 ? '#ffffff' : RED, 'rgba(42,34,54,0.9)');
+  }
+
+  /**
+   * The field guide (Hollow Knight's Hunter's Journal, cut down): the first time a kind is met,
+   * a card slides in at the side with its name and how it fights. Remembered between runs.
+   */
+  private journal(ctx: CanvasRenderingContext2D, lv: Level, h: number) {
+    if (!this.guide) {
+      const e = lv.enemies.find((o) => !o.dead && o.t > 0.6 && !o.bounty && FOES[o.arch as Foe]?.tip && !JOURNAL.has(o.arch) && lv.onScreen(o.x, o.z, -2));
+      if (e) {
+        JOURNAL.add(e.arch);
+        saveJournal();
+        this.guide = { kind: e.arch as Foe, t: 0, color: hex(e.skin.colors[2]) };
+      }
+    }
+    const g = this.guide;
+    if (!g) return;
+    g.t += 1 / 60;
+    if (g.t > 6.5) {
+      this.guide = null;
+      return;
+    }
+    const def = FOES[g.kind];
+    const cw = 150;
+    const slide = Math.min(1, g.t * 4) * (g.t > 6 ? Math.max(0, 1 - (g.t - 6) * 2) : 1);
+    const x = Math.round(-cw + (cw + 8) * (1 - (1 - slide) ** 3));
+    const lines = wrap(def.tip ?? '', cw - 12);
+    const ch = 30 + lines.length * 10;
+    const y = Math.round(h * 0.5 - ch / 2);
+    plate(ctx, x, y, cw, ch, 0.8);
+    ctx.fillStyle = g.color;
+    ctx.fillRect(x, y, 2, ch);
+    drawText(ctx, 'NEW FOE', x + 7, y + 4, DIM, { shadow: false });
+    drawText(ctx, def.name.toUpperCase(), x + 7, y + 13, g.color, { shadow: false });
+    lines.forEach((l, i) => drawText(ctx, l, x + 7, y + 25 + i * 10, INK, { shadow: false }));
+  }
+
   /** A world point (on the flight plane) in UI texels. */
   private toScreen(view: LevelView, x: number, y: number, z: number) {
     this.v.set(x, y, z).project(view.eye);
@@ -418,15 +543,9 @@ export class Hud {
       drawText(ctx, 'WARNING', mid, Math.round(h * 0.38) + 6, '#ffffff', { scale: 2, align: 'center' });
       drawText(ctx, bb.name, mid, Math.round(h * 0.38) + 28, GOLD, { align: 'center' });
     }
-    if (boss && boss.t > 0) {
-      const bw = Math.min(420, w - 80);
-      const bx = Math.round(mid - bw / 2);
-      plate(ctx, bx, 30, bw, 16);
-      drawText(ctx, lv.spec.planet.boss.name, bx + 4, 32, INK, { shadow: false });
-      bar(ctx, bx + 4, 41, bw - 8, 3, boss.hp / boss.max, boss.shielded ? '#8a8098' : RED);
-      ctx.fillStyle = DARK;
-      for (const f of [1 / 3, 2 / 3]) ctx.fillRect(bx + 4 + Math.round((bw - 8) * f), 41, 1, 3);
-    }
+    if (boss && boss.t > 0) this.bossBar(ctx, lv, boss, mid, w);
+    else this.elitePlate(ctx, lv, mid, w);
+    this.journal(ctx, lv, h);
     if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
       const hs = lv.heist;

@@ -86,6 +86,8 @@ export interface DashMod {
   detonate?: number;
   /** The dash-strike hits harder and lasts longer: +50% more punch and half as long again, per 1. */
   strike?: number;
+  /** Nothing can hurt you for the length of a dash. */
+  shroud?: boolean;
 }
 
 /** The AUX verb: a defensive action on its own button. */
@@ -244,7 +246,7 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'torch', name: 'Plasma Torch', cls: 'gun', tags: ['heat', 'energy'], rarity: 'common', shape: [[0, 0]], mass: 1, power: 2,
-    gun: { rate: 24, damage: 1.5, speed: 30, count: 1, spread: 0.25, life: 0.34, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
+    gun: { rate: 24, damage: 1.8, speed: 30, count: 1, spread: 0.25, life: 0.34, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
     text: 'A short tongue of plasma. Melts bullets it touches.',
   },
   {
@@ -359,6 +361,11 @@ export const PARTS: PartDef[] = [
     id: 'blink', name: 'Blink Coil', cls: 'engine', tags: ['tech', 'arc'], rarity: 'epic', shape: [[0, 0]], mass: 0.6, power: 3,
     mod: { blink: 9 }, link: { want: { cls: ['power'] }, text: 'A POWER CELL TOUCHING' },
     text: 'The dash is a blink: you are just there, past bullets and enemies. A perfect still counts where you left.',
+  },
+  {
+    id: 'slipfield', name: 'Slip Field', cls: 'engine', tags: ['energy', 'tech'], rarity: 'epic', shape: [[0, 0]], mass: 0.8, power: 3,
+    mod: { shroud: true }, link: { want: { cls: ['power'] }, text: 'A POWER CELL TOUCHING' },
+    text: 'The dash wraps the ship in a field: nothing can touch you while you dash. Fly straight through fire.',
   },
   {
     id: 'wake', name: 'Wake Charges', cls: 'engine', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 1, power: 0,

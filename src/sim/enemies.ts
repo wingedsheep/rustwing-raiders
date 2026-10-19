@@ -76,6 +76,11 @@ export interface EnemyData {
   /** Brutes: where it charged from. */
   bx?: number;
   bs?: number;
+  /** Elites: how many attacks they chain, and which of them it's on (see combat.ts CHAIN). */
+  chain?: number;
+  combo?: number;
+  /** A move's counter (volleys fired, flanks used). */
+  k?: number;
 }
 
 export function enemyRadius(arch: Enemy['arch']) {
@@ -296,7 +301,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -14;
       if (t < 1.4) moveTo(lv, e, hx, lerp(-HALF_H - 4, hz, smooth(t / 1.4)));
-      else if (t < 7 || e.state === 'attack' || e.state === 'windup') {
+      else if (t < (e.elite ? 40 : 7) || e.state === 'attack' || e.state === 'windup') {
         moveTo(lv, e, hx + Math.sin(t * 0.6) * 1.5, hz);
         const beam = lv.lasers.find((l) => l.owner === e.id);
         if (e.state === 'idle') {
@@ -336,7 +341,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       // armoured, until it charges: a stamp, a lunge at you, a slam that rings out; then it's open
       const hx = d.hx ?? 0;
       if (t < 3) moveTo(lv, e, hx, lerp(-HALF_H - 5, -13, smooth(t / 3)));
-      else if (t < 16 || e.state !== 'idle') {
+      else if (t < (e.elite ? 45 : 16) || e.state !== 'idle') {
         if (e.state === 'idle' && d.ph === 1) {
           // back up to where it stands
           moveTo(lv, e, lerp(e.x, d.bx ?? hx, 0.04), lerp(sz(lv, e), d.bs ?? -13, 0.04));
@@ -438,7 +443,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'carrier': {
       const hx = d.hx ?? 0;
       if (t < 4) moveTo(lv, e, hx, lerp(-HALF_H - 6, -15, smooth(t / 4)));
-      else if (t < 20) {
+      else if (t < (e.elite ? 45 : 20)) {
         moveTo(lv, e, hx + Math.sin(t * 0.25) * 10, -15 + Math.sin(t * 0.4));
         e.heading = 0;
         d.fire = (d.fire ?? 1) - DT * pace(lv) * slow;

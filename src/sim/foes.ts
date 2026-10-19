@@ -5,7 +5,7 @@
  */
 
 import { TORPEDO, type Enemy, type Level, type Player } from './level';
-import { DT, FLIGHT_Y, HALF_H, HALF_W } from './types';
+import { DT, FLIGHT_Y, HALF_H, HALF_W, fromFlight, toFlight } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
@@ -77,6 +77,35 @@ function leave(lv: Level, e: Enemy, dx = 0) {
 
 const ps = (lv: Level, p: Player) => p.z - lv.scroll;
 
+/** A ground vehicle to (x, ground z): up on the land (or the water) there. */
+function drive(lv: Level, e: Enemy, x: number, zg: number, boat = false) {
+  const t = lv.terrain;
+  const h = boat ? t.water(zg) : Math.max(t.height(x, zg), t.water(zg));
+  e.vx = (x - e.x) / DT;
+  e.x = x;
+  e.y = h;
+  e.z = toFlight(zg, h);
+}
+
+/** Is there water to float on at (x, ground z)? */
+export const afloat = (lv: Level, x: number, zg: number) => lv.terrain.height(x, zg) < lv.terrain.water(zg) - 0.25;
+
+/** Fire a row of shots out of a hull's flank: `side` 1 to its right (of its heading), -1 to its left. */
+function broadside(lv: Level, e: Enemy, side: number, ports: number, spacing: number, spread: number, speed: number) {
+  const out = e.heading - side * (Math.PI / 2);
+  const fx = Math.sin(e.heading);
+  const fz = Math.cos(e.heading);
+  for (let k = 0; k < ports; k++) {
+    const off = (k - (ports - 1) / 2) * spacing;
+    const a = out + (lv.rand() - 0.5) * spread;
+    lv.bullet(e.x + fx * off + Math.sin(out) * e.r * 0.6, e.z + fz * off + Math.cos(out) * e.r * 0.6, a, speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
+  }
+  lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+}
+
+/** Which flank of it faces you (1: its right). */
+const flank = (lv: Level, e: Enemy) => (Math.sin(lv.aim(e.x, e.z) - e.heading) < 0 ? 1 : -1);
+
 /** Does it run into the land or an obstacle here? */
 function crashes(lv: Level, e: Enemy) {
   if (lv.terrain.solid(e.x, e.z, 0)) return true;
@@ -86,6 +115,8 @@ function crashes(lv: Level, e: Enemy) {
 
 export function updateFoe(lv: Level, e: Enemy): void {
   const d = e.d;
+  // an elite doesn't tire and leave: it stays till it's beaten (or a long while)
+  if (e.elite && !e.bounty && e.t < 45) d.n = Math.min(d.n ?? 0, 1);
   const p = lv.nearest(e.x, e.z);
   const ok = live(lv, e);
   const s = sz(lv, e);
@@ -112,7 +143,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
         e.heading = e.aim;
         // it only lunges down at you, never across: from above, with room to get out of the way
         const down = p && Math.abs(lv.aim(e.x, e.z)) < 0.9 && ps(lv, p) - s > 10 && Math.abs(p.x) < HALF_W - 5;
-        if (e.stateT > 0.35 && ok && p && down && Math.abs(s - hz) < 3) {
+        // an elite on a chain goes again from where it is
+        const again = e.elite && (d.combo ?? 0) > 0 && p && ps(lv, p) - s > 7 && Math.abs(lv.aim(e.x, e.z)) < 1.1;
+        if (e.stateT > 0.35 && ok && p && ((down && Math.abs(s - hz) < 3) || again)) {
           const len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 8, 20, 44);
           d.len = len;
           go(lv, e, 'windup', 0.85 * quick(lv), 'lunge', line(e, len, e.r * 1.5, 0.5 * quick(lv), true));
@@ -261,7 +294,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
         break;
       }
-      if ((d.n ?? 0) >= 4 || e.t > 17) {
+      if ((d.n ?? 0) >= 4 || (e.t > 17 && !e.elite)) {
         leave(lv, e, side * 16);
         break;
       }
@@ -296,7 +329,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         e.heading = e.aim;
         break;
       }
-      if (((d.n ?? 0) >= 3 || e.t > 20) && e.state !== 'windup') {
+      if (((d.n ?? 0) >= 3 || (e.t > 20 && !e.elite)) && e.state !== 'windup') {
         leave(lv, e, (hx < 0 ? -1 : 1) * 10);
         break;
       }
@@ -735,6 +768,271 @@ export function updateFoe(lv: Level, e: Enemy): void {
         moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT);
         if (over(e)) go(lv, e, 'idle');
       }
+      break;
+    }
+    // --- the second wave: boats, cars, airships, and odd things that fly ------------------
+    case 'gunboat': {
+      // patrols the water across its reach; turns its flank to you and fires a broadside out of
+      // it (the guns on that side glow, and the arc is drawn); its deck gun picks at you between
+      const zg = d.tz ?? fromFlight(e.z, e.y);
+      d.tz = zg;
+      const dir = d.dir ?? 1;
+      const nx = e.x + dir * 3.2 * DT * slow;
+      if (!afloat(lv, nx + dir * 3, zg) || Math.abs(nx) > HALF_W - 3) d.dir = -dir;
+      else drive(lv, e, nx, zg, true);
+      e.heading = lerpAngle(e.heading, (d.dir ?? 1) * (Math.PI / 2), 0.04);
+      e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.1);
+      if (!ok || s > HALF_H - 8 || !p) break;
+      if (e.state === 'idle') {
+        d.fire = (d.fire ?? 0.8) - DT;
+        if (d.fire <= 0) {
+          d.fire = 1.5;
+          lv.bullet(e.x, e.z, e.aim, 11, { color: e.skin.colors[2], look: lookOf(lv, e) });
+        }
+        if (e.stateT > 2.2) {
+          d.side = flank(lv, e);
+          const out = e.heading - d.side * (Math.PI / 2);
+          go(lv, e, 'windup', 1.0 * quick(lv), 'broadside', { shape: 'sweep', x: e.x, z: e.z, a0: out - 0.5, a1: out + 0.5, len: 30, w: 0 });
+        }
+      } else if (e.state === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'sweep') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          d.shots = 0;
+          d.fire = 0;
+          go(lv, e, 'attack', 0.6, 'broadside');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0 && (d.shots ?? 0) < 3) {
+          d.fire = 0.18;
+          d.shots = (d.shots ?? 0) + 1;
+          broadside(lv, e, d.side ?? 1, 3, 1.4, 0.35, 9.5);
+        }
+        if (over(e)) go(lv, e, 'recover', 1.5);
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'technical': {
+      // a gun truck: tears in from the side in a cloud of dust, skids to a stop, empties the gun
+      // in the bed at you (a line that locks), and tears off again
+      const dir = d.dir ?? 1;
+      const zg = d.tz ?? fromFlight(e.z, e.y);
+      if (e.state === 'idle' || e.state === 'recover') {
+        const sp = (e.state === 'recover' ? 7 : 15) * slow;
+        d.tz = zg + 3.5 * DT;
+        drive(lv, e, e.x + dir * sp * DT, d.tz);
+        e.heading = lerpAngle(e.heading, Math.atan2(dir * sp, 3.5), 0.15);
+      } else {
+        // skidding: it slews round and stops
+        d.tz = zg;
+        drive(lv, e, e.x + dir * Math.max(0, 9 - e.stateT * 30) * DT, zg);
+      }
+      e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
+      if (Math.abs(e.x) > HALF_W + 8) {
+        lv.escape(e);
+        break;
+      }
+      if (!ok || !p) break;
+      if (e.state === 'idle') {
+        const inside = Math.abs(e.x) < HALF_W - 8;
+        if (inside && e.stateT > ((d.n ?? 0) ? 0.9 : 0.4) && (d.n ?? 0) < 2 && s < HALF_H - 6) go(lv, e, 'windup', 0.65 * quick(lv), 'burst', line(e, 34, 0.5, 0.4 * quick(lv)));
+      } else if (e.state === 'windup') {
+        track(lv, e, 0.15);
+        if (over(e)) {
+          d.shots = 0;
+          d.fire = 0;
+          go(lv, e, 'attack', 0.55, 'burst');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0) {
+          d.fire = 0.12;
+          lv.bullet(e.x, e.z, e.aim + (lv.rand() - 0.5) * 0.08, 14, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+        }
+        if (over(e)) {
+          d.n = (d.n ?? 0) + 1;
+          go(lv, e, 'recover', 1.1);
+        }
+      } else if (e.state === 'stagger' && over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'blimp': {
+      // a heavy: noses in slow, turns broadside and rolls a volley out of one flank and then the
+      // other; parachute mines drop from its gondola; its flanks are hot while it reloads
+      const hx = d.hx ?? 0;
+      const hz = d.hz ?? -14;
+      if (e.t < 3) {
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 3)), lerp(-HALF_H - 6, hz, smooth(e.t / 3)));
+        e.heading = 0;
+        break;
+      }
+      if (e.t > (d.stay ?? 24) && e.state === 'idle') {
+        leave(lv, e);
+        break;
+      }
+      ease(lv, e, hx + Math.sin(e.t * 0.22) * 9, hz + Math.sin(e.t * 0.5) * 1.2, 1, 3);
+      e.heading = lerpAngle(e.heading, Math.PI / 2, 0.01);
+      d.mine = (d.mine ?? 2.5) - DT * slow;
+      if (d.mine <= 0 && ok) {
+        d.mine = 3.2;
+        lv.bullet(e.x, e.z + 1, 0, 2.5, { kind: 'mine', r: 0.7, life: 2, split: 6, color: e.skin.colors[2], look: lookOf(lv, e) });
+      }
+      if (e.state === 'idle') {
+        if (e.stateT > 2.4 && ok && p) {
+          d.side = flank(lv, e);
+          d.k = 0;
+          const out = e.heading - d.side * (Math.PI / 2);
+          go(lv, e, 'windup', 1.1 * quick(lv), 'broadside', { shape: 'sweep', x: e.x, z: e.z, a0: out - 0.6, a1: out + 0.6, len: 34, w: 0 });
+        }
+      } else if (e.state === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'sweep') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          d.shots = 0;
+          d.fire = 0;
+          go(lv, e, 'attack', 1.1, 'broadside');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0 && (d.shots ?? 0) < 4) {
+          d.fire = 0.22;
+          d.shots = (d.shots ?? 0) + 1;
+          broadside(lv, e, d.side ?? 1, 2, 2.2, 0.5, 8.5);
+        }
+        if (over(e)) {
+          // and then the other flank, once
+          if ((d.k ?? 0) === 0) {
+            d.k = 1;
+            d.side = -(d.side ?? 1);
+            const out = e.heading - d.side * (Math.PI / 2);
+            go(lv, e, 'windup', 0.8 * quick(lv), 'broadside', { shape: 'sweep', x: e.x, z: e.z, a0: out - 0.6, a1: out + 0.6, len: 34, w: 0 });
+          } else go(lv, e, 'recover', 1.8);
+        }
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'spindle': {
+      // a pylon of the old machine: its arms are drawn out, with arrows the way they'll turn;
+      // then they spin, firing down their length; each time it turns the other way
+      if (!ok || s > HALF_H - 8 || !p) break;
+      d.a ??= lv.rand() * Math.PI;
+      if (e.state === 'idle') {
+        if (e.stateT > 1.4) {
+          d.dir = (d.dir ?? 1) > 0 ? -1 : 1;
+          go(lv, e, 'windup', 1.0, 'spin', { shape: 'spin', x: e.x, z: e.z, a: d.a, arms: 4, dir: d.dir, len: 9 });
+        }
+      } else if (e.state === 'windup') {
+        if (over(e)) {
+          d.fire = 0;
+          go(lv, e, 'attack', 2.4, 'spin');
+        }
+      } else if (e.state === 'attack') {
+        d.a += (d.dir ?? 1) * 1.25 * DT * slow;
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0) {
+          d.fire = 0.13;
+          for (let k = 0; k < 4; k++) lv.bullet(e.x, e.z, d.a + (k * Math.PI) / 2, 8.5, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+        }
+        if (over(e)) go(lv, e, 'recover', 1.5);
+      } else if (over(e)) go(lv, e, 'idle');
+      e.heading = d.a;
+      e.aim = d.a;
+      break;
+    }
+    case 'halo': {
+      // a ring drone: two rings of shards, the first with its gap where you are, the second with
+      // its gap turned away (the way it's spinning): you have to move between them
+      const hx = d.hx ?? 0;
+      const hz = d.hz ?? -14;
+      if (e.t < 1.4) {
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.4)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.4)));
+        break;
+      }
+      if (e.t > (d.stay ?? 14) && e.state === 'idle') {
+        leave(lv, e);
+        break;
+      }
+      ease(lv, e, hx + Math.sin(e.t * 0.6) * 6, hz + Math.cos(e.t * 0.9), 2, 7);
+      e.heading += DT * (e.state === 'windup' ? 6 : 1.5);
+      if (e.state === 'idle') {
+        if (e.stateT > 1.8 && ok && p) {
+          d.dir = lv.rand() < 0.5 ? -1 : 1;
+          go(lv, e, 'windup', 0.95, 'ring', { shape: 'ring', x: e.x, z: e.z, r: 5, w: 1 });
+        }
+      } else if (e.state === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'ring') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          d.a = lv.aim(e.x, e.z);
+          d.k = 0;
+          d.fire = 0;
+          go(lv, e, 'attack', 0.75, 'ring');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0 && (d.k ?? 0) < 2) {
+          d.fire = 0.55;
+          const gap = (d.a ?? 0) + (d.k ? (d.dir ?? 1) * 0.6 : 0);
+          const n = 18;
+          for (let k = 0; k < n; k++) {
+            const a = gap + (k / n) * Math.PI * 2;
+            if (Math.abs(Math.atan2(Math.sin(a - gap), Math.cos(a - gap))) < 0.38) continue;
+            lv.bullet(e.x, e.z, a, 8, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+          }
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          d.k = (d.k ?? 0) + 1;
+        }
+        if (over(e)) go(lv, e, 'recover', 1.3);
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'manta': {
+      // a sky manta glides across the top in a long wave, sowing thorns that hang in its wake
+      // and then burst up and down; now and then it rears and flings a fan of them at you
+      const dir = d.dir ?? 1;
+      const u = e.t * 6.5 * slow;
+      const x = -dir * (HALF_W + 7) + dir * u;
+      const z = (d.hz ?? -15) + Math.sin(e.t * 0.9 + (d.phase ?? 0)) * 5;
+      if (e.state === 'windup') moveTo(lv, e, lerp(e.x, x, 0.02), lerp(s, z, 0.02));
+      else moveTo(lv, e, x, z);
+      if (Math.abs(e.x) > HALF_W + 9 && e.t > 3) {
+        lv.escape(e);
+        break;
+      }
+      d.mine = (d.mine ?? 0.6) - DT * slow;
+      if (d.mine <= 0 && ok && e.state !== 'windup') {
+        d.mine = 0.5;
+        const b = lv.bullet(e.x - Math.sin(e.heading) * 2, e.z - Math.cos(e.heading) * 2, 0, 0, { kind: 'mine', r: 0.5, life: 1.5, split: 2, color: e.skin.colors[2], look: lookOf(lv, e) });
+        b.splitA = e.heading + Math.PI / 2;
+      }
+      if (!ok || !p) break;
+      if (e.state === 'idle') {
+        if (e.stateT > 2.6 && Math.abs(e.x) < HALF_W - 8) go(lv, e, 'windup', 0.8 * quick(lv), 'spit', { shape: 'ring', x: e.x, z: e.z, r: 7, w: 1.4 });
+      } else if (e.state === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'ring') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          const a = lv.aim(e.x, e.z);
+          for (let k = 0; k < 7; k++) lv.bullet(e.x, e.z, a + (k / 6 - 0.5) * 1.1, 9, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          go(lv, e, 'attack', 0.2, 'spit');
+        }
+      } else if (e.state === 'attack') {
+        if (over(e)) go(lv, e, 'recover', 1.2);
+      } else if (over(e)) go(lv, e, 'idle');
       break;
     }
     // --- bounties -------------------------------------------------------------------------

@@ -32,6 +32,13 @@ export type Foe =
   | 'gatekeeper'
   | 'heartpod'
   | 'puffball'
+  // the second wave of kinds: boats, cars, airships and odd fliers
+  | 'gunboat'
+  | 'technical'
+  | 'blimp'
+  | 'spindle'
+  | 'halo'
+  | 'manta'
   // bounties: worth chasing down before they get away
   | 'runner'
   | 'vault'
@@ -45,28 +52,38 @@ export interface FoeDef {
   score: number;
   scrap: number;
   /** The model to clone (enemy_<model>_<mech|beast>), and how big. */
-  model: Archetype;
+  model: Archetype | 'gunboat' | 'technical' | 'blimp' | 'spindle' | 'halo' | 'manta';
   beast: boolean;
   scale: number;
   /** Stands on the ground (scrolls with the land). */
   ground?: boolean;
+  /** Rides the water (a boat): only sent where there's water to float on. */
+  water?: boolean;
+  /** For the field guide, the first time it's met: what it does, and how to beat it. */
+  tip?: string;
 }
 
 export const FOES: Record<Foe, FoeDef> = {
-  ramjack: { name: 'Ramjack', faction: 'scrap', hp: 40, r: 1.6, score: 300, scrap: 3, model: 'dart', beast: false, scale: 1.5 },
-  rattler: { name: 'Rattler', faction: 'scrap', hp: 30, r: 1.4, score: 250, scrap: 2, model: 'dart', beast: false, scale: 1.25 },
-  hookjaw: { name: 'Hookjaw', faction: 'scrap', hp: 70, r: 2, score: 500, scrap: 4, model: 'gunship', beast: false, scale: 1 },
-  rigger: { name: 'Torpedo Rig', faction: 'scrap', hp: 65, r: 1.8, score: 550, scrap: 4, model: 'bomber', beast: false, scale: 1.05 },
-  ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4 },
-  flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true },
-  swooper: { name: 'Swooper', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2 },
-  burrower: { name: 'Burrower', faction: 'wild', hp: 90, r: 2.2, score: 700, scrap: 5, model: 'serpent', beast: true, scale: 1.4 },
-  spitter: { name: 'Spitter', faction: 'wild', hp: 40, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: true, scale: 1.1, ground: true },
-  warden: { name: 'Warden', faction: 'lattice', hp: 110, r: 2, score: 700, scrap: 5, model: 'gunship', beast: false, scale: 1 },
-  prism: { name: 'Prism', faction: 'lattice', hp: 70, r: 1.6, score: 600, scrap: 4, model: 'lancer', beast: false, scale: 1.2 },
-  gatekeeper: { name: 'Gatekeeper', faction: 'lattice', hp: 60, r: 1.5, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.2, ground: true },
-  heartpod: { name: 'Heartpod', faction: 'bloom', hp: 50, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: true, scale: 0.6 },
-  puffball: { name: 'Puffball', faction: 'bloom', hp: 6, r: 0.9, score: 60, scrap: 0, model: 'swarm', beast: true, scale: 0.9 },
+  ramjack: { name: 'Ramjack', faction: 'scrap', hp: 40, r: 1.6, score: 300, scrap: 3, model: 'dart', beast: false, scale: 1.5, tip: 'LINES UP, LOCKS, LUNGES: SIDESTEP THE LANE, THEN HIT IT WHILE IT SPINS OUT' },
+  rattler: { name: 'Rattler', faction: 'scrap', hp: 30, r: 1.4, score: 250, scrap: 2, model: 'dart', beast: false, scale: 1.25, tip: 'COMES UP FROM BEHIND: BOOST TO OUTRUN IT, OR LET IT BRAKE AND PUNISH IT' },
+  hookjaw: { name: 'Hookjaw', faction: 'scrap', hp: 70, r: 2, score: 500, scrap: 4, model: 'gunship', beast: false, scale: 1, tip: 'HARPOONS YOU AND REELS YOU IN: DASH TO SNAP THE LINE' },
+  rigger: { name: 'Torpedo Rig', faction: 'scrap', hp: 65, r: 1.8, score: 550, scrap: 4, model: 'bomber', beast: false, scale: 1.05, tip: 'LOCKS ON, THEN TORPEDOES: TURN HARD, DASH THROUGH, OR SHOOT THEM DOWN' },
+  ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4, tip: 'A RIVAL: ROLLS AWAY FROM YOUR FIRE. BOOST PAST IT TO BEAT IT' },
+  flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true , tip: 'SHELLS LAND WHERE YOU WILL BE: CHANGE YOUR PACE' },
+  swooper: { name: 'Swooper', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2, tip: 'ITS SHADOW MARKS YOU, THEN IT DIVES THROUGH THE MARK' },
+  burrower: { name: 'Burrower', faction: 'wild', hp: 90, r: 2.2, score: 700, scrap: 5, model: 'serpent', beast: true, scale: 1.4, tip: 'A RIPPLE COMES FOR YOU, THEN IT ERUPTS: GET OFF THE MARK' },
+  spitter: { name: 'Spitter', faction: 'wild', hp: 40, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: true, scale: 1.1, ground: true , tip: 'LOBS ACID AHEAD OF YOU: KEEP OUT OF THE PUDDLE' },
+  warden: { name: 'Warden', faction: 'lattice', hp: 110, r: 2, score: 700, scrap: 5, model: 'gunship', beast: false, scale: 1, tip: 'SHIELDED IN FRONT: GET ROUND IT, OR HIT IT AS IT DROPS THE SHIELD TO FIRE' },
+  prism: { name: 'Prism', faction: 'lattice', hp: 70, r: 1.6, score: 600, scrap: 4, model: 'lancer', beast: false, scale: 1.2, tip: 'CLOSED, IT THROWS SHOTS BACK: HIT IT WHEN IT OPENS TO SWEEP, OR FIRE IN FOCUS' },
+  gatekeeper: { name: 'Gatekeeper', faction: 'lattice', hp: 60, r: 1.5, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.2, ground: true , tip: 'TWO PYLONS, A CLOSING GATE: FLY THE GAP, OR DROP A PYLON' },
+  heartpod: { name: 'Heartpod', faction: 'bloom', hp: 50, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: true, scale: 0.6, tip: 'BINDS ITS FRIENDS AND HEALS THEM: KILL THE POD FIRST' },
+  puffball: { name: 'Puffball', faction: 'bloom', hp: 6, r: 0.9, score: 60, scrap: 0, model: 'swarm', beast: true, scale: 0.9, tip: 'SPORE MINES: BOOST NEAR ONE AND IT COMES AFTER YOU' },
+  gunboat: { name: 'Gunboat', faction: 'scrap', hp: 120, r: 2.4, score: 900, scrap: 6, model: 'gunboat', beast: false, scale: 1.1, ground: true, water: true, tip: 'BROADSIDES OUT OF ITS FLANK: KEEP OFF ITS BEAM, AHEAD OR ASTERN' },
+  technical: { name: 'Technical', faction: 'scrap', hp: 50, r: 1.6, score: 400, scrap: 3, model: 'technical', beast: false, scale: 1.1, ground: true, tip: 'IT SKIDS TO A STOP TO FIRE: SLIDE OFF ITS LINE, HIT IT WHILE IT STANDS' },
+  blimp: { name: 'Dreadnought', faction: 'scrap', hp: 260, r: 3.6, score: 1400, scrap: 10, model: 'blimp', beast: false, scale: 1, tip: 'HEAVY: A BROADSIDE EACH WAY AND MINES BELOW. GET ABOVE IT' },
+  spindle: { name: 'Spindle', faction: 'lattice', hp: 90, r: 1.8, score: 650, scrap: 4, model: 'spindle', beast: false, scale: 1.1, ground: true, tip: 'ITS ARMS SPIN THE WAY THE ARROWS SHOW: CIRCLE WITH THEM' },
+  halo: { name: 'Halo', faction: 'lattice', hp: 70, r: 1.7, score: 600, scrap: 4, model: 'halo', beast: false, scale: 1.1, tip: 'TWO RINGS: THE FIRST GAP IS WHERE YOU ARE, THE SECOND IS NOT' },
+  manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
   runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 2, model: 'bomber', beast: false, scale: 0.8 },
   vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55 },
   cache: { name: 'Iron Crate', faction: 'scrap', hp: 80, r: 1.9, score: 700, scrap: 2, model: 'bomber', beast: false, scale: 0.7 },
@@ -117,23 +134,38 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
     ['hookjaw', 1.4, 0.25],
     ['rigger', 1.5, 0.2],
     ['ace', 0.6, 0.45],
+    ['technical', 2, 0.05],
+    ['gunboat', 1.8, 0.1],
+    ['blimp', 0.9, 0.4],
   ],
   lattice: [
     ['warden', 2.6, 0],
     ['prism', 2, 0.1],
     ['gatekeeper', 1.6, 0.15],
+    ['halo', 1.5, 0.05],
+    ['spindle', 1.3, 0.1],
   ],
   wild: [
     ['swooper', 3, 0],
     ['spitter', 2, 0.05],
     ['burrower', 1.4, 0.2],
+    ['manta', 1.3, 0.2],
   ],
   bloom: [
     ['puffball', 2.5, 0],
     ['heartpod', 2, 0.15],
     ['swooper', 1, 0.1],
     ['spitter', 1.4, 0],
+    ['manta', 0.8, 0.25],
   ],
+};
+
+/** Elites have names (on their plate): a few for each faction. */
+export const ELITE_NAMES: Record<Faction, string[]> = {
+  scrap: ['GRISTLE', 'OLD RUST', 'BLACK MOLLY', 'HACKSAW', 'THE BARON', 'RIVET-JAW', 'MAD DOSSA', 'CINDERBACK'],
+  lattice: ['ARBITER', 'THE CENSOR', 'WARDEN PRIME', 'UNIT NINE', 'THE AUDITOR', 'SEVENFOLD'],
+  wild: ['SCARBACK', 'GREYMAW', 'OLD MOTHER', 'THE WIDOW', 'SPLITHORN', 'HOLLOWEYE'],
+  bloom: ['ROTHEART', 'THE SWELLING', 'GRAVEBLOOM', 'MOTHERSPAWN'],
 };
 
 /** The bounties a faction puts out. */
@@ -170,7 +202,7 @@ export function foeSkin(planet: Planet, foe: Foe): EnemySkin {
   const local = planet.enemies.find((s) => s.kind === kind)?.colors ?? pal;
   const lean = def.faction === 'bloom' || def.faction === 'lattice' ? 0.12 : 0.2;
   return {
-    archetype: def.model,
+    archetype: def.model as Archetype,
     name: def.name,
     kind,
     colors: [mix(pal[0], local[0], lean), mix(pal[1], local[1], lean), pal[2]],

@@ -9,12 +9,12 @@ import type { Archetype, Biome, EnemySkin, Planet } from '../world/planets';
 import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, toFlight, type Intent } from './types';
 import { Terrain } from './terrain';
 import { stats, type Build, type Gun, type Stats } from './build';
-import { rng, type Rng, clamp, damp, lerp } from '../util';
+import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
 import type { BossState, BossStyle } from './boss';
-import { foeDefaults, foeHurt, winded, foeShot, foeTaken, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
-import { FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
+import { CHAIN, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
+import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, Edge, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
@@ -42,11 +42,12 @@ const SKIM = 1.6;
 /** A kill this close is point-blank: a little Burn. */
 const POINT_BLANK = 7;
 /**
- * The dash: a fixed burst, untouchable only at the start (the slip). Fire that would have hit
- * where you dashed from, during the slip, is a perfect. After it, a moment before the next.
+ * The dash: a fixed burst, and not a safe one: what it runs into still hits you (unless a Slip
+ * Field makes it untouchable). Fire that would have hit where you dashed from, during the opening slip, is a
+ * perfect. After it, a moment before the next.
  */
 const DASH_SPEED = 62;
-const DASH_TIME = 0.13;
+const DASH_TIME = 0.17;
 const DASH_RECOVER = 0.25;
 /** A perfect soaks up the bullets this close. */
 const PERFECT_R = 2.4;
@@ -291,6 +292,11 @@ export interface Enemy extends FoeFields {
   /** Its ground height (turrets) or flying height (everything else). */
   y: number;
   elite: boolean;
+  /** An elite's name ("GRISTLE"), for its plate. */
+  title?: string;
+  /** Armour over the hull (elites): it takes the hits first, and breaking it leaves it reeling. */
+  armour: number;
+  armourMax: number;
   stun: number;
   flash: number;
   /** Which way it faces (radians, 0 = down the screen towards you). */
@@ -372,7 +378,8 @@ export type LevelEvent =
   | { type: 'reload'; id: number; gun: number; perfect: boolean; rounds: number }
   /** `dot`: a burn's tick, not a blow. */
   /** `edge`: the crit was the gun's edge; `strike`: a dash-strike's. */
-  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean }
+  /** `armour`: it landed on an elite's armour. */
+  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean; armour?: boolean }
   | { type: 'explode'; x: number; z: number; y: number; size: number; color: number; enemy?: number }
   | { type: 'enemyShot'; x: number; z: number; color: number; look?: Faction }
   /** A bullet cancelled (by a bomb, a perfect, a hit): it pops instead of vanishing. */
@@ -934,14 +941,14 @@ export class Level {
       const dl = Math.hypot(mx, mz);
       p.dashX = dl > 0.2 ? mx / dl : 0;
       p.dashZ = dl > 0.2 ? mz / dl : -1;
-      // committed: a fixed burst, safe only at the very start (see perfectDash)
+      // committed: a fixed burst, and nothing in it is safe (see perfectDash)
       p.dashT = DASH_TIME;
       p.dashLock = DASH_TIME + DASH_RECOVER;
       p.slip = s.slip;
       p.slipX = p.x;
       p.slipZ = p.z - this.scroll;
       p.perfect = false;
-      p.inv = Math.max(p.inv, s.slip);
+      if (s.mod.shroud) p.inv = Math.max(p.inv, DASH_TIME);
       p.strike = STRIKE_TIME * (1 + 0.5 * s.mod.strike);
       this.emit({ type: 'dash', id: p.id, x: p.x, z: p.z, dx: p.dashX, dz: p.dashZ });
       this.dashMods(p);
@@ -1359,7 +1366,7 @@ export class Level {
   spawn(arch: Enemy['arch'], skin: EnemySkin, x: number, z: number, d: EnemyData, opts: Partial<Enemy> = {}): Enemy {
     const diff = this.spec.difficulty;
     const foe = isFoe(arch) ? FOES[arch] : undefined;
-    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * (1 + diff * 0.9) * (opts.elite ? 3 : 1) * this.tough;
+    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * (1 + diff * 0.9) * (opts.elite ? 2.4 : 1) * this.tough;
     const e: Enemy = {
       id: this.id(),
       arch,
@@ -1375,6 +1382,8 @@ export class Level {
       ground: arch === 'turret' || !!foe?.ground,
       y: arch === 'turret' || foe?.ground ? 0 : FLIGHT_Y,
       elite: false,
+      armour: 0,
+      armourMax: 0,
       stun: 0,
       flash: 0,
       heading: 0,
@@ -1393,6 +1402,9 @@ export class Level {
       e.scrap *= 3;
       e.score *= 3;
       e.drop = true;
+      e.armour = e.armourMax = e.max * 0.45;
+      e.d.chain = CHAIN[arch] ?? 0;
+      if (!e.title && arch !== 'boss') e.title = pick(this.rand, ELITE_NAMES[lookOf(this, e)]);
     }
     this.enemies.push(e);
     this.emit({ type: 'spawn', enemy: e.id });
@@ -1423,10 +1435,25 @@ export class Level {
     }
     // cracked open: it takes more
     dmg *= k * markTaken(e);
-    e.hp -= dmg;
     if (!dot) e.flash = 0.08;
-    foeHurt(this, e, dmg);
     if (p) p.charge = Math.min(1, p.charge + dmg * 0.0018 * p.stats.specialRate);
+    // armour first (what's left over from the blow that breaks it is lost); broken, it reels
+    if (e.armour > 0) {
+      e.armour -= dmg * (dot ? 0.5 : 1);
+      foeHurt(this, e, 0);
+      this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill: false, crit, dot, edge, strike: s?.strike, armour: true });
+      if (e.armour <= 0) {
+        e.armour = 0;
+        e.stun = Math.max(e.stun, 1.2);
+        if (e.grab >= 0) release(this, e, true);
+        go(this, e, 'stagger', 2.6);
+        e.d.combo = 0;
+        this.emit({ type: 'armourBreak', enemy: e.id, x: e.x, z: e.z });
+      }
+      return;
+    }
+    e.hp -= dmg;
+    foeHurt(this, e, dmg);
     const kill = e.hp <= 0;
     this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike });
     if (!kill) return;
@@ -2422,11 +2449,11 @@ export class Level {
     sweep(this.sentinels);
   }
 
-  /** A dash through fire, timed right: what would have hit you is soaked up, and the dash given back. */
+  /** A dash out of fire, timed right: what would have hit where you were is soaked up, and the dash given back. */
   perfectDash(p: Player) {
     let absorbed = 0;
     const gz = this.scroll + p.slipZ;
-    const near = (b: Bullet) => Math.min((b.x - p.x) ** 2 + (b.z - p.z) ** 2, (b.x - p.slipX) ** 2 + (b.z - gz) ** 2) < PERFECT_R * PERFECT_R;
+    const near = (b: Bullet) => (b.x - p.slipX) ** 2 + (b.z - gz) ** 2 < PERFECT_R * PERFECT_R;
     for (const b of this.bullets)
       if (!b.dead && near(b)) {
         this.cancel(b, 0.6);

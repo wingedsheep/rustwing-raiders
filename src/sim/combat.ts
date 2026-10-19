@@ -12,7 +12,7 @@
 import type { Enemy, Level, Player, Shot } from './level';
 import { DT } from './types';
 import { FOES, TELL, factionOf, isFoe, type Faction } from './factions';
-import { bossReflects, bossTaken } from './boss';
+import { bossHurt, bossReflects, bossTaken } from './boss';
 import { strike } from './strikes';
 
 export type FoeState = 'idle' | 'windup' | 'attack' | 'recover' | 'stagger' | 'dodge' | 'hidden';
@@ -37,7 +37,10 @@ export type AttackKind =
   | 'fan'
   | 'beam'
   | 'jink'
-  | 'torpedo';
+  | 'torpedo'
+  | 'broadside'
+  | 'spin'
+  | 'ring';
 
 /** A tell's shape on the flight plane. `ground`: fixed to the land (it scrolls with it). */
 export type Tele =
@@ -49,7 +52,9 @@ export type Tele =
   | { shape: 'edge'; x: number; z: number }
   | { shape: 'gate'; x: number; x2: number; z: number; gx: number; gap: number }
   /** A lock-on: brackets closing in on player `id` (what a torpedo will chase). */
-  | { shape: 'lock'; id: number };
+  | { shape: 'lock'; id: number }
+  /** A spinning turret: its `arms` drawn out from angle `a`, and arrows the way they'll turn (`dir`). */
+  | { shape: 'spin'; x: number; z: number; a: number; arms: number; dir: number; len: number };
 
 /** What every enemy carries for the fight (and for the view to draw it). */
 export interface FoeFields {
@@ -106,12 +111,65 @@ export type FoeEvent =
   | { type: 'outran'; id: number; enemy: number }
   | { type: 'overtake'; enemy: number; by: number }
   | { type: 'link'; enemy: number; to: number; on: boolean }
-  | { type: 'jam'; id: number; dur: number };
+  | { type: 'jam'; id: number; dur: number }
+  /** A boss's poise broken: STAGGERED, wide open. */
+  | { type: 'bossStagger'; enemy: number; x: number; z: number }
+  /** A boss's phase taken without a hit: paid in `scrap`. */
+  | { type: 'phaseClean'; phase: number; x: number; z: number; scrap: number }
+  /** An elite's armour broken: it reels. */
+  | { type: 'armourBreak'; enemy: number; x: number; z: number }
+  /** An elite's chain: attack `n` of `of` coming (n === of: the last, then it's open for long). */
+  | { type: 'chain'; enemy: number; n: number; of: number };
+
+/**
+ * An elite chains its attack (Hollow Knight's way): this many in a row, each tell quicker than the
+ * one before, and after the last it's open for longer. Learn the count and you know when to go in.
+ */
+export const CHAIN: Partial<Record<string, number>> = {
+  ramjack: 3,
+  hookjaw: 2,
+  rigger: 2,
+  flakker: 3,
+  swooper: 3,
+  spitter: 3,
+  warden: 3,
+  prism: 2,
+  heartpod: 2,
+  gunship: 3,
+  brute: 2,
+  lancer: 2,
+  gunboat: 2,
+  technical: 3,
+  spindle: 2,
+  manta: 2,
+  blimp: 2,
+  halo: 3,
+};
 
 /** Into a state: the events that go with it. */
 export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKind = 'lunge', tele: Tele | null = null) {
+  // an elite's chain: straight on to the next attack, or (the last) open for long
+  let skip = false;
+  const of = e.elite && !e.boss ? (e.d.chain ?? 0) : 0;
+  if (of > 1) {
+    const n = e.d.combo ?? 0;
+    if (state === 'recover') {
+      if (n + 1 < of) {
+        e.d.combo = n + 1;
+        state = 'idle';
+        dur = 0;
+        skip = true;
+      } else {
+        e.d.combo = 0;
+        dur *= 1.6;
+      }
+    } else if (state === 'windup') {
+      if (n > 0) dur *= 0.7;
+      lv.emit({ type: 'chain', enemy: e.id, n: n + 1, of });
+    }
+  }
   e.state = state;
-  e.stateT = 0;
+  e.stateT = skip ? 30 : 0;
   e.stateDur = dur;
   if (state === 'windup') {
     e.tele = tele;
@@ -144,6 +202,12 @@ const TAKEN: Partial<Record<string, [number, number, number]>> = {
   warden: [1, 1.5, 2],
   prism: [1, 2, 2.5],
   heartpod: [1, 1.6, 2],
+  gunboat: [0.8, 1.6, 2],
+  technical: [1, 1.8, 2.2],
+  blimp: [0.7, 1.6, 2],
+  spindle: [0.6, 1.8, 2.2],
+  halo: [1, 1.8, 2.2],
+  manta: [1, 1.6, 2],
   brute: [0.5, 1.5, 2],
   gunship: [1, 1.3, 1.6],
   lancer: [1, 1.8, 2],
@@ -208,6 +272,7 @@ export function foeTaken(lv: Level, e: Enemy, from: { x: number; z: number } | n
 /** It was hit (after damage): the counters some foes have. */
 export function foeHurt(lv: Level, e: Enemy, dmg: number) {
   e.hitT = 0;
+  if (e.boss) bossHurt(lv, e, dmg);
   // a hooked player is let go if the hook takes enough
   if (e.grab >= 0) {
     e.d.yank = (e.d.yank ?? 0) + dmg;

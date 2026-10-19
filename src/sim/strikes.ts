@@ -11,7 +11,8 @@ import type { Level, Player } from './level';
 import { DT } from './types';
 import { clamp, lerp } from '../util';
 
-export type StrikeKind = 'shell' | 'acid' | 'puddle' | 'slam' | 'wave' | 'spore' | 'gate' | 'harpoon';
+/** `ball`: a body its owner swings about (a crane's wrecking ball), hurting all the while it's out. */
+export type StrikeKind = 'shell' | 'acid' | 'puddle' | 'slam' | 'wave' | 'spore' | 'gate' | 'harpoon' | 'ball';
 
 export interface Strike {
   kind: StrikeKind;
@@ -130,6 +131,9 @@ export function updateStrikes(lv: Level, dz: number) {
         s.dead = true;
         lv.emit({ type: 'strike', kind: 'gateDown', x: s.gx, z: s.z, r: 0 });
       } else if (s.z > lv.bottom + 4) s.dead = true;
+    } else if (s.kind === 'ball') {
+      const o = lv.enemies.find((e) => e.id === s.owner);
+      if (!o || o.dead) s.dead = true;
     } else if (s.kind === 'harpoon') {
       const o = lv.enemies.find((e) => e.id === s.owner);
       if (s.t > s.active || !o || o.dead || !lv.onScreen(s.x, s.z, 2)) s.dead = true;
@@ -155,7 +159,7 @@ function touch(lv: Level, s: Strike, p: Player) {
   switch (s.effect) {
     case 'hurt':
       // a ring or a gate is passed once, hit or not; the rest burn while you're in them
-      if (lv.hurt(p, p.x, p.z, s.kind) || s.kind === 'wave' || s.kind === 'gate' || s.kind === 'slam') s.hit |= s.kind === 'puddle' || s.kind === 'shell' ? 0 : bit;
+      if (lv.hurt(p, p.x, p.z, s.kind) || s.kind === 'wave' || s.kind === 'gate' || s.kind === 'slam') s.hit |= s.kind === 'puddle' || s.kind === 'shell' || s.kind === 'ball' ? 0 : bit;
       break;
     case 'slow':
       p.slow = Math.max(p.slow, 0.9);

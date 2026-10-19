@@ -2,12 +2,14 @@
 b = secondary, c = accent (glowing where it is an eye, a light or an engine). Every archetype comes
 in two families, `enemy_<archetype>_mech` (smuggler-era junk-tech: fins, intakes, glowing
 thrusters) and `enemy_<archetype>_beast` (wings, carapace, eyes that glow). All face +y, centred on
-the origin (the runtime puts fliers at flight height); the turret stands on z = 0.
+the origin (the runtime puts fliers at flight height); the turret, technical and spindle stand on
+z = 0, the gunboat floats with its waterline at z = 0.
 
 Each template plays one loop, `<kind>_<name>_idle` (see CLIPS). Parts the runtime needs to find
 carry a `part` extra and are named `<kind>_<part>[_<n>]`:
     part=head     the turret's aiming head (rotate it about z; barrels point +y)
     part=muzzle   where shots leave (gun tips, maws, spouts)
+    part=port     a broadside gun port (gunboat, blimp), numbered left side first
     part=emitter  the lancer's beam origin
     part=bay      the carrier's launch bay
 The serpent comes in three templates per family (head, body, tail), each `seg_length` long, joints
@@ -846,10 +848,382 @@ def serpent_beast():
     osc(tail, clip, "rotation_euler", T, (2, 0.12, 1, 0.25))
 
 
+# --- mission foes: river gunboat, desert technical, lattice pylon, sky manta, airship, ring drone ------
+
+FOAM = "#eef4f2"
+
+
+def mount(parent, kind, part, loc, n=None):
+    """A marker that also lands in src/generated/enemies.json's mounts (type = part), for the sim."""
+    obj = marker(parent, kind, part, loc, n)
+    obj["mount"] = part
+    return obj
+
+
+def gunboat_mech():
+    """An armoured river monitor, ~5.5 x 2.4, waterline at z = 0."""
+    kind, clip, root = _root("gunboat", "mech", "bob")
+    T = 3.0
+    b = Model(f"{kind}_body", seed=126)
+    outline = [(0, 2.8), (-0.75, 2.0), (-1.2, 0.85), (-1.2, -2.3), (-1.0, -2.7), (1.0, -2.7), (1.2, -2.3), (1.2, 0.85),
+               (0.75, 2.0)]
+    hull(b, [(x * 0.92, y * 0.97) for x, y in outline], -0.35, 0.0, B, inset=1.0)          # below the waterline
+    hull(b, outline, 0.0, 0.5, A, inset=0.88)                                              # armoured hull
+    deck = [(0, 2.35), (-0.62, 1.7), (-0.95, 0.75), (-0.95, -2.15), (-0.8, -2.4), (0.8, -2.4), (0.95, -2.15),
+            (0.95, 0.75), (0.62, 1.7)]
+    b.slab(deck, 0.48, 0.56, B.shade(1.25))                                               # deck plating
+    for k in range(4):  # plank seams
+        b.box((1.7, 0.08, 0.04), (0, -1.9 + k * 0.5, 0.57), B)
+    for s in (1, -1):  # armour belt: a rim of plates along each side
+        for k, y in enumerate((1.25, 0.2, -0.8, -1.8)):
+            b.box((0.24, 0.9, 0.2), (s * 1.0, y, 0.55), A.shade(0.8) if k % 2 else A, rot=(0, s * 0.2, 0))
+    # the bridge: an armoured wheelhouse aft of centre
+    b.box((1.3, 1.25, 0.65), (0, -0.85, 0.88), A, taper=0.85)
+    b.box((1.2, 1.15, 0.12), (0, -0.85, 1.24), B)                                        # roof
+    b.box((1.0, 0.18, 0.2), (0, -0.25, 1.0), GLASS, rot=(0.3, 0, 0))                      # vision slits
+    b.box((0.9, 0.08, 0.06), (0, -0.2, 1.1), C, glow=True, rot=(0.3, 0, 0))
+    b.box((0.36, 0.36, 0.22), (0.3, -1.05, 1.4), B.shade(0.8))                            # searchlight
+    b.box((0.26, 0.1, 0.16), (0.3, -0.85, 1.42), C, glow=True)
+    b.cyl(0.05, 0.55, (-0.35, -1.15, 1.3), DARK, segs=4)                                  # mast
+    b.box((0.4, 0.08, 0.06), (-0.35, -1.15, 1.75), DARK)
+    # squat funnel with a rusty band and a sooty mouth
+    b.cyl(0.34, 0.75, (0, -1.95, 0.55), B, segs=7)
+    b.cyl(0.37, 0.18, (0, -1.95, 0.95), C, segs=7)
+    b.cyl(0.24, 0.05, (0, -1.95, 1.29), DARK, segs=7)
+    # stern: a hazard-striped transom and a stern rail
+    for k in range(5):
+        b.box((0.36, 0.14, 0.12), (-0.72 + k * 0.36, -2.55, 0.52), C if k % 2 == 0 else DARK)
+    # foredeck: anchor capstan and a hatch
+    b.cyl(0.18, 0.15, (0, 2.0, 0.55), DARK, segs=6)
+    b.box((0.5, 0.4, 0.1), (-0.45, 0.25, 0.6), B.shade(0.8))
+    b.box((0.45, 0.6, 0.25), (0.55, 0.35, 0.65), A.shade(0.85))                          # ammo lockers
+    # broadside casemates: three per side, glowing ports
+    ports = []
+    for s in (-1, 1):
+        for y in (0.6, -0.55, -1.7):
+            b.box((0.55, 0.7, 0.5), (s * 1.18, y, 0.36), B, taper=0.8)
+            b.box((0.3, 0.3, 0.1), (s * 1.18, y, 0.62), A.shade(0.8))
+            b.box((0.2, 0.34, 0.26), (s * 1.46, y, 0.36), DARK)
+            b.box((0.14, 0.28, 0.2), (s * 1.54, y, 0.36), C, glow=True)
+            ports.append((s * 1.62, y, 0.36))
+    body = b.build(root)
+    # forward turret: twin barrels on a round armoured drum
+    h = Model(f"{kind}_head", seed=127)
+    h.cyl(0.62, 0.3, (0, 0, 0), B, segs=8)
+    hull(h, [(-0.35, 0.55), (-0.55, 0.15), (-0.5, -0.5), (0.5, -0.5), (0.55, 0.15), (0.35, 0.55)], 0.3, 0.62, A,
+         inset=0.75)
+    h.box((0.4, 0.25, 0.08), (0, -0.2, 0.64), B)
+    for s in (1, -1):
+        tube(h, 0.11, 0.4, 1.45, s * 0.17, 0.42, DARK, segs=6)
+        tube(h, 0.15, 0.4, 0.75, s * 0.17, 0.42, B, segs=6)
+        h.cyl(0.13, 0.07, (s * 0.17, 1.42, 0.42), C, segs=6, rot=(-math.pi / 2, 0, 0), glow=True)
+    head = h.build(body, loc=(0, 1.35, 0.56), part="head")
+    head.name = f"{kind}_head"
+    for k, s in enumerate((1, -1)):
+        mount(head, kind, "muzzle", (s * 0.17, 1.55, 0.42), k)
+    for k, p in enumerate(ports):
+        mount(body, kind, "port", p, k)
+    # foam: a bow wave and a churned wake, riding the water (not the hull)
+    f = Model(f"{kind}_foam")
+    for s in (1, -1):
+        flat(f, [(0, 3.05), (s * 0.95, 2.05), (s * 1.4, 1.2), (s * 1.2, 1.25), (s * 0.7, 2.0), (0, 2.75)][:: s],
+             0.02, 0.03, FOAM)
+        flat(f, [(s * 1.2, -0.2), (s * 1.42, -1.2), (s * 1.3, -1.1), (s * 1.15, -0.3)][:: s], 0.02, 0.03, FOAM)
+    for k, (y, w, l) in enumerate(((-2.95, 0.75, 0.9), (-3.5, 0.95, 0.65), (-4.0, 1.1, 0.4))):  # a broken V of wake
+        for s in (1, -1):
+            f.box((l, 0.24, 0.03), (s * w, y + 0.12 * k, 0.02), FOAM, rot=(0, 0, s * 0.45))
+    f.box((0.9, 0.35, 0.03), (0, -2.9, 0.02), FOAM)                                        # prop wash
+    foam = f.build(root)
+    osc(foam, clip, "scale", T, (0, 0.06, 2, 0), (1, 0.04, 2, 0.25))
+    osc(body, clip, "location", T, (2, 0.05, 1, 0))
+    osc(body, clip, "rotation_euler", T, (1, 0.035, 1, 0.0), (0, 0.015, 1, 0.5))       # at rest on frame 0
+
+
+def technical_mech():
+    """A rusty desert pickup with a heavy gun on the bed, ~3.8 x 2, on z = 0."""
+    kind, clip, root = _root("technical", "mech", "idle")
+    T = 1.0
+    R = 0.5
+    frame = group(f"{kind}_frame", parent=root)                                          # the wheels hang off this
+    for k, (x, y) in enumerate(((-0.9, 1.2), (0.9, 1.2), (-0.9, -1.15), (0.9, -1.15))):
+        w = Model(f"{kind}_wheel_{k}")
+        s = 1 if x > 0 else -1
+        w.cyl(R, 0.46, (-0.23, 0, 0), DARK, segs=8, rot=(0, math.pi / 2, 0))
+        for j in range(4):  # chunky tread blocks
+            a = TAU * j / 4
+            w.box((0.5, 0.2, 0.2), (0, math.cos(a) * R, math.sin(a) * R), "#2c2a30", rot=(a, 0, 0))
+        w.cyl(0.24, 0.06, (s * 0.22, 0, 0), B, segs=6, rot=(0, s * math.pi / 2, 0))     # hub
+        w.box((0.08, 0.3, 0.08), (s * 0.27, 0, 0), C)
+        obj = w.build(frame, loc=(x, y, R))
+        spin(obj, clip, T, -2, axis=0)
+    b = Model(f"{kind}_body", seed=128)
+    RUST = A.shade(0.75)
+    b.box((1.55, 3.6, 0.3), (0, 0.0, 0.62), B)                                            # chassis
+    hull(b, [(-0.72, 1.95), (-0.78, 0.95), (0.78, 0.95), (0.72, 1.95)], 0.7, 1.12, A, inset=0.9)  # hood
+    b.box((0.6, 0.5, 0.06), (-0.12, 1.45, 1.13), RUST)                                    # rust patch
+    b.box((0.3, 0.4, 0.06), (0.4, 1.15, 1.13), B.shade(0.8))                              # primer patch
+    b.box((1.5, 0.95, 0.85), (0, 0.48, 1.1), A, taper=0.88)                               # cab
+    b.box((1.2, 0.3, 0.4), (0, 0.98, 1.3), GLASS, rot=(-0.45, 0, 0))                      # windscreen
+    b.box((1.25, 0.65, 0.1), (0, 0.4, 1.56), RUST)                                        # roof
+    b.box((0.34, 0.12, 0.12), (0, 0.76, 1.65), C, glow=True)                              # roof light
+    # the bed: low walls round a dark floor
+    b.box((1.45, 1.75, 0.08), (0, -0.95, 0.8), DARK)
+    for s in (1, -1):
+        b.box((0.14, 1.85, 0.38), (s * 0.72, -0.95, 0.95), A)
+    b.box((1.55, 0.14, 0.38), (0, -1.86, 0.95), RUST)                                     # tailgate
+    # roll cage: a hoop behind the cab and bars back to the tailgate
+    for s in (1, -1):
+        limb(b, (s * 0.68, -0.05, 0.9), (s * 0.6, -0.05, 1.95), 0.07, 0.07, DARK, segs=4)
+        limb(b, (s * 0.6, -0.05, 1.95), (s * 0.68, -1.75, 1.1), 0.06, 0.06, DARK, segs=4)
+    limb(b, (-0.6, -0.05, 1.95), (0.6, -0.05, 1.95), 0.07, 0.07, DARK, segs=4)
+    # spare tyre lying on the hood
+    b.cyl(0.36, 0.18, (0.0, 1.5, 1.08), DARK, segs=8)
+    b.cyl(0.16, 0.2, (0.0, 1.5, 1.08), B, segs=6)
+    # hazard-striped bumper, headlights
+    for k in range(5):
+        b.box((0.36, 0.22, 0.24), (-0.72 + k * 0.36, 2.05, 0.68), C if k % 2 == 0 else DARK)
+    for s in (1, -1):
+        b.box((0.24, 0.1, 0.16), (s * 0.5, 1.98, 0.95), C, glow=True)
+        b.box((0.22, 0.2, 0.14), (s * 0.55, -1.95, 0.75), C, glow=True)                 # tail lights
+        for y in (1.2, -1.15):  # mudguards: a lip over each wheel
+            b.box((0.22, 1.05, 0.08), (s * 0.84, y, 1.04), B.shade(0.8), rot=(0, s * 0.45, 0))
+        tube(b, 0.08, -1.0, -1.6, s * 0.55, 0.55, DARK, segs=5)                         # exhausts
+    body = b.build(frame)
+    # the heavy gun, swivelling on a post in the bed
+    g = Model(f"{kind}_head", seed=129)
+    g.cyl(0.14, 0.75, (0, 0, 0), DARK, segs=5)
+    g.box((0.46, 0.8, 0.34), (0, 0.05, 0.95), B)                                        # receiver
+    g.box((0.85, 0.12, 0.5), (0, 0.4, 1.0), A, rot=(-0.25, 0, 0))                         # gun shield
+    g.box((0.3, 0.34, 0.3), (0.36, -0.1, 0.88), A.shade(0.8))                            # ammo box
+    tube(g, 0.11, 0.4, 1.9, 0, 1.0, DARK, segs=6)
+    tube(g, 0.17, 0.8, 1.3, 0, 1.0, B, segs=6)                                            # cooling jacket
+    g.cyl(0.14, 0.07, (0, 1.87, 1.0), C, segs=6, rot=(-math.pi / 2, 0, 0), glow=True)
+    limb(g, (-0.12, -0.3, 0.95), (-0.25, -0.6, 0.9), 0.06, 0.06, DARK, segs=4)            # grips
+    head = g.build(body, loc=(0, -0.95, 0.84), part="head")
+    head.name = f"{kind}_head"
+    mount(head, kind, "muzzle", (0, 2.0, 1.0))
+    osc(body, clip, "location", T, (2, 0.035, 2, 0), (0, 0.01, 1, 0))
+    osc(body, clip, "rotation_euler", T, (0, 0.02, 2, 0.0), (1, 0.015, 1, 0))
+
+
+def spindle_mech():
+    """A lattice-machine pylon: an octagonal plinth, a column with turning rings, a four-armed head."""
+    kind, clip, root = _root("spindle", "mech", "hum")
+    T = 4.0
+    b = Model(f"{kind}_base", seed=130)
+    oct8 = [(math.cos(TAU * (k + 0.5) / 8) * 1.3, math.sin(TAU * (k + 0.5) / 8) * 1.3) for k in range(8)]
+    hull(b, oct8, 0, 0.4, B, inset=0.88)
+    oct6 = [(math.cos(TAU * (k + 0.5) / 8) * 0.95, math.sin(TAU * (k + 0.5) / 8) * 0.95) for k in range(8)]
+    hull(b, oct6, 0.4, 0.75, A, inset=0.85)
+    for k in range(8):  # glowing inlays on the plinth corners, and slate studs between
+        a = TAU * (k + 0.5) / 8
+        b.box((0.3, 0.1, 0.06), (math.cos(a) * 1.0, math.sin(a) * 1.0, 0.41), C, glow=True, rot=(0, 0, a))
+        a2 = TAU * k / 8
+        b.box((0.22, 0.22, 0.14), (math.cos(a2) * 0.78, math.sin(a2) * 0.78, 0.76), B, rot=(0, 0, a2))
+    b.cyl(0.3, 1.5, (0, 0, 0.75), A, segs=6)                                              # the column
+    for k in range(6):  # a channel of light up each face
+        a = TAU * (k + 0.5) / 6
+        b.box((0.08, 0.06, 1.2), (math.cos(a) * 0.27, math.sin(a) * 0.27, 1.45), C, glow=True, rot=(0, 0, a + math.pi / 2))
+    b.cyl(0.45, 0.15, (0, 0, 2.2), B, segs=8)                                             # bearing under the head
+    base = b.build(root)
+    for k, (z, r, turns) in enumerate(((1.05, 0.62, 1), (1.65, 0.5, -1))):
+        m = Model(f"{kind}_ring_{k}")
+        n = 4 if k == 0 else 3
+        for j in range(n):  # fins on a slate collar
+            a = TAU * j / n
+            m.box((0.5, 0.12, 0.22), (math.cos(a) * r, math.sin(a) * r, 0), A, rot=(0, 0, a))
+            m.box((0.14, 0.14, 0.14), (math.cos(a) * (r + 0.28), math.sin(a) * (r + 0.28), 0), C, glow=True, rot=(0, 0, a))
+        m.cyl(r * 0.75, 0.16, (0, 0, -0.08), B, segs=8)
+        obj = m.build(base, loc=(0, 0, z))
+        spin(obj, clip, T, turns)
+        pulse(obj, clip, T, 0.06, harm=2, phase=k * 0.25, axes=(2,))
+    h = Model(f"{kind}_head", seed=131)
+    h.cyl(0.5, 0.32, (0, 0, 0), B, segs=8)
+    h.cyl(0.38, 0.12, (0, 0, 0.32), A, segs=8)
+    for k, a in enumerate((math.pi / 2, -math.pi / 2, 0, math.pi)):  # +y, -y, +x, -x
+        ca, sa = math.cos(a), math.sin(a)
+        h.box((1.05, 0.38, 0.26), (ca * 0.9, sa * 0.9, 0.17), A, rot=(0, 0, a), taper=0.8)
+        h.box((0.6, 0.16, 0.06), (ca * 0.85, sa * 0.85, 0.31), B, rot=(0, 0, a))
+        h.box((0.28, 0.5, 0.34), (ca * 1.42, sa * 1.42, 0.17), B, rot=(0, 0, a))          # claw cradling the crystal
+        h.ball(0.26, (ca * 1.62, sa * 1.62, 0.22), C, subdiv=0, glow=True, scale=(1.6, 0.95, 0.95), rot=(0, 0, a))
+    head = h.build(base, loc=(0, 0, 2.35), part="head")
+    head.name = f"{kind}_head"
+    core = Model(f"{kind}_core")
+    core.ball(0.3, (0, 0, 0), C, subdiv=1, glow=True)
+    core_obj = core.build(head, loc=(0, 0, 0.5))
+    pulse(core_obj, clip, T, 0.2, harm=4)
+    for k, a in enumerate((math.pi / 2, -math.pi / 2, 0, math.pi)):
+        mount(head, kind, "muzzle", (round(math.cos(a) * 1.85, 3), round(math.sin(a) * 1.85, 3), 0.2), k)
+
+
+def manta_beast():
+    """A huge sky ray: broad undulating wings, glowing spots, a long whip tail. ~7.5 span."""
+    kind, clip, root = _root("manta", "beast", "glide")
+    T = 2.0
+    b = Model(f"{kind}_body", seed=132)
+    b.ball(1.0, (0, 0.1, 0), A, subdiv=2, scale=(1.15, 2.2, 0.32))
+    b.ball(1.0, (0, -0.1, 0.06), B, subdiv=1, scale=(0.6, 1.6, 0.31))                     # dark saddle down the back
+    b.slab([(-0.9, 1.6), (-1.2, -0.6), (-0.6, -1.9), (0.6, -1.9), (1.2, -0.6), (0.9, 1.6)], -0.1, 0.1, A)
+    for (x, y, r) in ((0, 0.8, 0.17), (0.32, 0.2, 0.13), (-0.32, 0.2, 0.13), (0, -0.4, 0.15), (0.25, -1.0, 0.11),
+                      (-0.25, -1.0, 0.11), (0, -1.5, 0.1)):
+        b.ball(r, (x, y, 0.38 - abs(y + 0.1) * 0.08), C, subdiv=0, glow=True, scale=(1, 1.2, 0.6))
+    b.box((1.1, 0.25, 0.1), (0, 2.25, -0.02), DARK)                                         # the wide mouth
+    eyes(b, 0.88, 1.85, 0.12, 0.13, pupil=False)
+    for s in (1, -1):  # cephalic fins, curling forward like horns
+        chain(b, [(s * 0.7, 1.95, 0.0), (s * 0.85, 2.5, 0.05), (s * 0.62, 2.95, 0.12)], [0.2, 0.15, 0.05], B, segs=5)
+        flat(b, [(s * 0.25, -1.65), (s * 0.85, -1.75), (s * 0.4, -2.3), (s * 0.15, -2.0)][:: s], 0.0, 0.06, B)  # pelvic fins
+    body = b.build(root)
+    # wings: an inner and an outer panel per side, the outer lagging, so the flap rolls out like a wave
+    inner = [(0, 1.6), (0, -1.55), (1.35, -0.85), (1.35, 0.95)]
+    outer = [(0, 0.95), (0, -0.85), (0.8, -0.75), (1.6, -1.0), (0.85, 0.3)]
+    for k, s in enumerate((1, -1)):
+        wi = Model(f"{kind}_wing_{'r' if s > 0 else 'l'}")
+        hull(wi, inner if s > 0 else mirror(inner), -0.06, 0.08, A, inset=0.92)
+        band = [(0.1, 1.45), (0.1, 1.0), (1.35, 0.45), (1.35, 0.9)]                       # dark leading edge
+        flat(wi, band if s > 0 else mirror(band), 0.09, 0.03, B)
+        for (x, y) in ((0.45, 0.3), (0.95, -0.05), (0.5, -0.6), (1.1, -0.55)):
+            wi.ball(0.13, (s * x, y, 0.12), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
+        w_in = wi.build(body, loc=(s * 0.85, 0.15, 0.0))
+        osc(w_in, clip, "rotation_euler", T, (1, -s * 0.22, 1, 0.0))
+        wo = Model(f"{kind}_wingtip_{'r' if s > 0 else 'l'}")
+        hull(wo, outer if s > 0 else mirror(outer), -0.05, 0.06, A, inset=0.9)
+        band = [(0.0, 0.9), (0.0, 0.45), (1.5, -0.9), (0.85, 0.25)]
+        flat(wo, band if s > 0 else mirror(band), 0.07, 0.03, B)
+        wo.ball(0.12, (s * 0.55, -0.4, 0.1), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
+        w_out = wo.build(w_in, loc=(s * 1.33, 0.0, 0.0))
+        osc(w_out, clip, "rotation_euler", T, (1, -s * 0.35, 1, -0.12))
+    # the whip tail: three segments, each swaying a little after the one before
+    parent, y0 = body, -2.0
+    for k, (L, r0, r1) in enumerate(((1.1, 0.24, 0.16), (1.0, 0.16, 0.1), (1.0, 0.1, 0.04))):
+        t = Model(f"{kind}_tail_{k}")
+        limb(t, (0, 0, 0), (0, -L, 0), r0, r1, B, segs=5)
+        if k == 1:
+            t.box((0.3, 0.3, 0.06), (0, -0.2, 0.08), C, glow=True, rot=(0, 0, 0.785))
+        if k == 2:
+            t.ball(0.14, (0, -L, 0), C, subdiv=0, glow=True, scale=(1, 1.8, 0.6))
+        obj = t.build(parent, loc=(0, y0, 0.02))
+        osc(obj, clip, "rotation_euler", T, (2, 0.22 + k * 0.08, 1, 0.15 + k * 0.12), (0, 0.06, 1, 0.1 + k * 0.1))
+        parent, y0 = obj, -L
+    mount(body, kind, "muzzle", (0, 2.4, 0.0))
+    osc(body, clip, "location", T, (2, 0.14, 1, 0.0))
+    osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.5))
+
+
+def blimp_mech():
+    """A pirate armoured airship, ~8.5 long: a patched faceted envelope, a gondola, gun sponsons."""
+    kind, clip, root = _root("blimp", "mech", "drift")
+    T = 3.0
+    ZE = 0.55                                                                              # envelope axis
+    b = Model(f"{kind}_body", seed=133)
+    prof = [(4.25, 0.35), (3.7, 1.1), (2.8, 1.5), (1.4, 1.6), (-0.8, 1.6), (-2.3, 1.4), (-3.4, 0.95), (-4.1, 0.45)]
+    for k, ((y0, r0), (y1, r1)) in enumerate(zip(prof, prof[1:])):
+        tube(b, r0, y0, y1, 0, ZE, A.shade(0.8) if k % 2 else A, segs=8, r_end=r1)
+    b.ball(0.35, (0, 4.2, ZE), B, subdiv=0, scale=(1, 0.6, 1))                              # nose cap
+    tube(b, 1.64, 1.9, 1.55, 0, ZE, C, segs=8)                                            # painted band
+    tube(b, 1.64, -2.0, -2.35, 0, ZE, C, segs=8)
+    for (x, y, w, l, c) in ((0.45, 2.6, 0.7, 0.8, B), (-0.55, 0.6, 0.9, 1.0, B.shade(1.2)), (0.6, -1.0, 0.6, 0.7, A.shade(0.75)),
+                            (-0.3, -2.9, 0.6, 0.6, B), (0.7, 1.3, 0.45, 0.5, A.shade(0.7)), (-0.65, -1.6, 0.5, 0.55, B)):  # patches riveted over the top
+        z = ZE + math.sqrt(max(0.0, 1.55 ** 2 - x * x)) - 0.02
+        b.box((w, l, 0.12), (x, y, z), c, rot=(0, -math.asin(x / 1.6) * 0.8, 0))
+    # a skull painted across the top
+    zt = ZE + 1.55
+    b.ball(0.48, (0, 0.95, zt), "#ece4d0", subdiv=1, scale=(1, 0.95, 0.25))
+    b.box((0.5, 0.3, 0.12), (0, 0.45, zt - 0.02), "#ece4d0")
+    for s in (1, -1):
+        b.box((0.24, 0.22, 0.1), (s * 0.19, 0.98, zt + 0.1), DARK)
+        b.box((0.55, 0.1, 0.06), (s * 0.55, 0.3, zt - 0.05), "#ece4d0", rot=(0, 0, s * 0.6))  # crossbones
+    b.box((0.08, 0.14, 0.1), (0, 0.78, zt + 0.08), DARK)
+    for k in range(3):  # top lights down the spine
+        b.box((0.14, 0.2, 0.1), (0, -0.6 - k * 0.9, zt + 0.02 - k * 0.04), C, glow=True)
+    # tail fins: a + of four
+    fin(b, [(-2.6, ZE + 1.1), (-4.0, ZE + 0.6), (-4.4, ZE + 2.05), (-3.6, ZE + 2.05)], 0, 0.12, B)
+    fin(b, [(-2.6, ZE - 1.0), (-4.0, ZE - 0.5), (-4.4, ZE - 1.7), (-3.6, ZE - 1.7)], 0, 0.12, B)
+    for pts in both([(0.9, -2.7), (1.0, -4.1), (2.2, -4.45), (2.2, -3.6)]):
+        hull(b, pts, ZE - 0.06, ZE + 0.08, B, inset=0.95)
+    for s in (1, -1):
+        b.box((0.3, 0.6, 0.1), (s * 2.0, -4.0, ZE + 0.1), C)                               # fin tips
+    # the gondola, slung on struts
+    hull(b, [(0, 1.9), (-0.55, 1.4), (-0.6, -1.2), (-0.4, -1.6), (0.4, -1.6), (0.6, -1.2), (0.55, 1.4)], -1.3, -0.75, B,
+         inset=0.85)
+    b.box((0.8, 0.25, 0.22), (0, 1.55, -0.9), GLASS)
+    b.box((0.7, 0.08, 0.06), (0, 1.68, -0.85), C, glow=True)
+    for s in (1, -1):
+        for y in (1.0, -0.9):
+            limb(b, (s * 0.35, y, -0.8), (s * 0.7, y, -0.6), 0.06, 0.06, DARK, segs=4)
+    # gun sponsons on outriggers: two each side, barrels out to the flanks
+    ports = []
+    for s in (-1, 1):
+        for y in (1.15, -0.75):
+            limb(b, (s * 0.5, y, -0.95), (s * 1.75, y, -0.25), 0.11, 0.09, DARK, segs=5)
+            b.ball(0.38, (s * 1.85, y, -0.2), A, subdiv=1, scale=(1, 1, 0.85))
+            b.box((0.36, 0.4, 0.14), (s * 1.85, y, 0.08), B)
+            for d in (0.09, -0.09):  # twin barrels
+                b.box((0.75, 0.12, 0.12), (s * 2.35, y + d, -0.2), DARK)
+            b.box((0.1, 0.36, 0.16), (s * 2.73, y, -0.2), C, glow=True)
+            ports.append((s * 2.85, y, -0.2))
+    # engine pods aft, on pylons
+    for s in (1, -1):
+        limb(b, (s * 0.9, -2.9, ZE - 0.3), (s * 1.75, -3.0, ZE - 0.45), 0.12, 0.12, DARK, segs=4)
+        tube(b, 0.4, -2.3, -3.6, s * 1.8, ZE - 0.45, A, segs=7, r_end=0.3)
+        b.cyl(0.24, 0.06, (s * 1.8, -2.28, ZE - 0.45), DARK, segs=7, rot=(-math.pi / 2, 0, 0))
+        b.box((0.16, 0.3, 0.1), (s * 1.8, -2.75, ZE - 0.05), C, glow=True)
+    body = b.build(root)
+    for k, s in enumerate((-1, 1)):
+        hub = group(f"{kind}_prop_mount_{k}", (s * 1.8, -3.7, ZE - 0.45), parent=body)
+        hub.rotation_euler = (math.pi / 2, 0, 0)
+        rotor(hub, f"{kind}_prop_{k}", (0, 0, 0), 0.9, 3, clip, T, s * 6, color=B, hub=C)
+    for k, p in enumerate(ports):
+        mount(body, kind, "port", p, k)
+    osc(body, clip, "location", T, (2, 0.12, 1, 0))
+    osc(body, clip, "rotation_euler", T, (0, 0.02, 1, 0.5), (1, 0.015, 1, 0))
+
+
+def halo_mech():
+    """A lattice ring drone: an armoured ring ~3.4 across spinning about a glowing core."""
+    kind, clip, root = _root("halo", "mech", "spin")
+    T = 3.0
+    body = group(f"{kind}_body", parent=root)
+    r = Model(f"{kind}_ring", seed=134)
+    N, R = 9, 1.42
+    for k in range(N):
+        a = TAU * k / N
+        c, s = math.cos(a), math.sin(a)
+        # a trapezoid plate, wider outside, its top sloping in
+        a0, a1 = a - TAU / N * 0.42, a + TAU / N * 0.42
+        ri, ro = R - 0.34, R + 0.34
+        pts = [(math.cos(a0) * ri, math.sin(a0) * ri), (math.cos(a0) * ro, math.sin(a0) * ro),
+               (math.cos(a1) * ro, math.sin(a1) * ro), (math.cos(a1) * ri, math.sin(a1) * ri)]
+        hull(r, pts, -0.22, 0.22, A if k % 3 else A.shade(0.82), inset=0.8)
+        r.box((0.2, 0.36, 0.08), (c * (R + 0.2), s * (R + 0.2), 0.2), B, rot=(0, 0, a))    # a slate rim block
+        ag = a + TAU / N / 2                                                               # glowing seam to the next
+        r.box((0.6, 0.14, 0.36), (math.cos(ag) * R, math.sin(ag) * R, 0.0), C, glow=True, rot=(0, 0, ag))
+    for k in range(3):  # struts in to the core
+        a = TAU * k / 3 + math.pi / 2
+        limb(r, (math.cos(a) * 0.42, math.sin(a) * 0.42, 0), (math.cos(a) * (R - 0.25), math.sin(a) * (R - 0.25), 0),
+             0.11, 0.09, B, segs=5)
+        r.box((0.24, 0.24, 0.24), (math.cos(a) * 0.82, math.sin(a) * 0.82, 0), C, glow=True, rot=(0, 0, a))
+    r.cyl(0.55, 0.26, (0, 0, -0.13), B, segs=8)                                           # the bearing the struts meet
+    ring = r.build(body)
+    spin(ring, clip, T, 1)
+    c = Model(f"{kind}_core")
+    c.ball(0.42, (0, 0, 0), C, subdiv=1, glow=True)
+    c.box((0.22, 0.22, 0.22), (0, 0.44, 0), C, glow=True, rot=(0, 0, 0.785))
+    core = c.build(body, loc=(0, 0, 0.2))
+    pulse(core, clip, T, 0.18, harm=3)
+    sh = Model(f"{kind}_shell")
+    for s in (1, -1):  # two dark brackets over the core, facing forward
+        sh.box((0.18, 0.7, 0.2), (s * 0.4, 0.0, 0.32), DARK)
+    sh.build(body, loc=(0, 0, 0))
+    mount(body, kind, "muzzle", (0, 0.5, 0.2))
+    osc(body, clip, "location", T, (2, 0.1, 1, 0))
+    osc(body, clip, "rotation_euler", T, (0, 0.05, 1, 0.5), (1, 0.05, 1, 0))
+
+
 def build():
     for fn in (dart_mech, dart_beast, swarm_mech, swarm_beast, gunship_mech, gunship_beast, turret_mech, turret_beast,
                bomber_mech, bomber_beast, lancer_mech, lancer_beast, brute_mech, brute_beast, carrier_mech,
-               carrier_beast, serpent_mech, serpent_beast):
+               carrier_beast, serpent_mech, serpent_beast, gunboat_mech, technical_mech, spindle_mech, manta_beast,
+               blimp_mech, halo_mech):
         fn()
     linearize()
     lift = float(os.environ.get("ENEMY_PREVIEW_LIFT", "0"))
@@ -857,11 +1231,14 @@ def build():
         _lift(lift)
 
 
+GROUND = ("enemy_turret", "enemy_gunboat", "enemy_technical", "enemy_spindle")   # stand on z = 0 (water: the waterline)
+
+
 def _lift(dz):
     import bpy
     import kit
     for root in [o for o in bpy.data.objects if o.parent is None and "kind" in o]:
-        if root["kind"].startswith("enemy_turret"):
+        if root["kind"].startswith(GROUND):
             continue
         for ch in root.children:
             ch.location.z += dz

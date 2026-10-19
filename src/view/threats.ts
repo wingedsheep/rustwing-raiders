@@ -25,6 +25,7 @@ const Y = FLIGHT_Y + 1.5;
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const DISC = new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2);
 const RING = new THREE.RingGeometry(0.86, 1, 40).rotateX(-Math.PI / 2);
+const THIN = new THREE.RingGeometry(0.965, 1, 48).rotateX(-Math.PI / 2);
 const CHEVRON = (() => {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, 0, 0, 0, 1, 1, 0, 0, -1, 0, -0.6, 0, 0, 0.4, 1, 0, -0.6], 3));
@@ -70,6 +71,7 @@ export class Threats {
   private planes = new Pool(this.group, PLANE, 44);
   private discs = new Pool(this.group, DISC, 43);
   private rings = new Pool(this.group, RING, 45);
+  private thins = new Pool(this.group, THIN, 45);
   private chevrons = new Pool(this.group, CHEVRON, 46);
   /** Wedges and arcs depend on their angles: built as needed and kept by key. */
   private arcs = new Map<string, THREE.Mesh>();
@@ -82,7 +84,8 @@ export class Threats {
       if (e.dead || e.t < 0) continue;
       const col = colorOf(e);
       if (e.tele && (e.state === 'windup' || e.state === 'attack')) this.tele(e, e.tele, col, lv, halfW, halfH);
-      if (!e.boss && e.hitT < 1.4 && e.hp > 0 && e.state !== 'hidden') this.health(e);
+      if (!e.boss && (e.hitT < 1.4 || e.elite) && e.hp > 0 && e.state !== 'hidden') this.health(e);
+      if (e.elite && (e.d.chain ?? 0) > 1 && e.state !== 'hidden') this.chain(e);
       if (e.bounty) this.bounty(e);
       for (const id of e.links) {
         const o = lv.enemies.find((x) => x.id === id && !x.dead);
@@ -98,6 +101,7 @@ export class Threats {
     this.planes.end();
     this.discs.end();
     this.rings.end();
+    this.thins.end();
     this.chevrons.end();
     for (const [k, m] of this.arcs)
       if (!this.arcsUsed.has(k)) {
@@ -122,25 +126,14 @@ export class Threats {
     const c = locked ? 0xffffff : col;
     const a = (0.25 + 0.5 * k) * flick;
     switch (t.shape) {
-      case 'line': {
-        if (t.body) {
-          this.charge(t, k, locked, col, flick);
-          break;
-        }
-        this.line(t.x, t.z, t.x2, t.z2, t.w, col, a * 0.5);
-        // the core fills in from the source as it ripens
-        const fx = t.x + (t.x2 - t.x) * k;
-        const fz = t.z + (t.z2 - t.z) * k;
-        this.line(t.x, t.z, fx, fz, Math.max(0.25, t.w * 0.3), c, a + 0.2);
+      case 'line':
+        // no line across the field: a mark on the enemy, pointing the way it'll go
+        this.mark(e, k, locked, col, flick, [Math.atan2(t.x2 - t.x, t.z2 - t.z)]);
         break;
-      }
-      case 'sweep': {
-        const m = this.arc(`s${e.id}`, 0, t.len, t.a0, t.a1, col, a * 0.45);
-        m.position.set(t.x, Y, t.z);
-        // the beam's leading edge, where it will start
-        this.line(t.x, t.z, t.x + Math.sin(t.a0) * t.len, t.z + Math.cos(t.a0) * t.len, t.w, c, a + 0.2);
+      case 'sweep':
+        // the way it'll start and the way it'll swing to (a broadside: the middle of its fan)
+        this.mark(e, k, locked, col, flick, t.w <= 0 ? [(t.a0 + t.a1) / 2] : [t.a0, t.a1]);
         break;
-      }
       case 'circle': {
         const ring = this.rings.take(c, a + 0.3);
         ring.position.set(t.x, Y, t.z);
@@ -174,19 +167,47 @@ export class Threats {
         break;
       }
       case 'gate':
-        this.gate(t.x, t.x2, t.z, t.gx, t.gap, col, a);
+        this.gate(t.x, t.x2, t.z, t.gx, t.gap, col, a, true);
         break;
       case 'lock':
-        this.lock(e, t.id, k, col, flick, lv);
+        this.lock(t.id, k, col, flick, lv);
         break;
+      case 'spin': {
+        const arms: number[] = [];
+        for (let n = 0; n < t.arms; n++) arms.push(t.a + (n / t.arms) * Math.PI * 2);
+        this.mark(e, k, locked, col, flick, arms);
+        break;
+      }
+    }
+  }
+
+  /**
+   * An elite's chain: a pip for each attack it chains, lit as each comes, and all lit and white
+   * on the last (the one that leaves it open). Over it, so the count can be read and learnt.
+   */
+  private chain(e: Enemy) {
+    const of = e.d.chain ?? 0;
+    const busy = e.state === 'windup' || e.state === 'attack';
+    const n = busy ? (e.d.combo ?? 0) + 1 : (e.d.combo ?? 0);
+    const z = e.z - e.r - 1.6;
+    const last = busy && n === of;
+    for (let k = 0; k < of; k++) {
+      const x = e.x + (k - (of - 1) / 2) * 1.1;
+      const ink = this.discs.take(INK, 0.7);
+      ink.position.set(x, Y, z);
+      ink.scale.setScalar(0.42);
+      const lit = k < n;
+      const d = this.discs.take(last ? 0xffffff : lit ? 0xffd04a : 0x5a5060, lit ? 1 : 0.8);
+      d.position.set(x, Y + 0.02, z);
+      d.scale.setScalar(lit && busy && k === n - 1 ? 0.3 + 0.06 * Math.sin(this.time * 20) : 0.28);
     }
   }
 
   /**
    * A lock-on: four brackets close in on the ship from wide and turned, squaring up as the lock
-   * ripens, with a dotted line back to who's locking. At the end they snap tight and go white.
+   * ripens. At the end they snap tight and go white.
    */
-  private lock(e: Enemy, id: number, k: number, col: number, flick: number, lv: Level) {
+  private lock(id: number, k: number, col: number, flick: number, lv: Level) {
     const p = lv.players[id];
     if (!p || p.down) return;
     const ease = 1 - (1 - k) ** 2;
@@ -207,16 +228,6 @@ export class Threats {
           this.line(cx - Math.sin(ea) * w * 0.4, cz - Math.cos(ea) * w * 0.4, cx + Math.sin(ea) * arm, cz + Math.cos(ea) * arm, w, c, o);
         }
       }
-    // the line back to the launcher, marching towards you
-    const dx = p.x - e.x;
-    const dz = p.z - e.z;
-    const len = Math.hypot(dx, dz);
-    if (len > 4) {
-      const ux = dx / len;
-      const uz = dz / len;
-      const step = 2.4;
-      for (let d = 2 + ((this.time * 8) % step); d < len - r; d += step) this.line(e.x + ux * d, e.z + uz * d, e.x + ux * (d + 1), e.z + uz * (d + 1), 0.16, col, 0.35 * flick);
-    }
   }
 
   /**
@@ -258,46 +269,22 @@ export class Threats {
   }
 
   /**
-   * Where a charging enemy will run: a faint lane with rails along its edges, chevrons marching
-   * down it towards where it ends, and a bar across the end. Reads as a path, not a beam: the
-   * chevrons light up from the enemy outwards as it ripens, and go white once it's locked.
+   * A tell on the enemy itself: a thin ring closing in on it as the attack ripens, and a small
+   * chevron just outside it for each way it'll go. White once it has locked.
    */
-  private charge(t: Extract<Tele, { shape: 'line' }>, k: number, locked: boolean, col: number, flick: number) {
-    const dx = t.x2 - t.x;
-    const dz = t.z2 - t.z;
-    const len = Math.hypot(dx, dz);
-    if (len < 0.5) return;
-    const ux = dx / len;
-    const uz = dz / len;
-    const half = t.w / 2;
+  private mark(e: Enemy, k: number, locked: boolean, col: number, flick: number, dirs: number[]) {
     const hot = locked ? 0xffffff : col;
-    // the lane: a whisper of a fill, and its two edges
-    this.line(t.x, t.z, t.x2, t.z2, t.w, col, (0.06 + 0.08 * k) * flick);
-    for (const sd of [-1, 1]) {
-      const ox = -uz * half * sd;
-      const oz = ux * half * sd;
-      this.line(t.x + ox, t.z + oz, t.x2 + ox, t.z2 + oz, 0.14, col, (0.3 + 0.35 * k) * flick);
+    const ease = 1 - (1 - k) ** 2;
+    const r = e.r * 1.4 + 0.6 + (1 - ease) * 2.5;
+    const ring = this.thins.take(hot, (0.15 + 0.35 * k) * flick);
+    ring.position.set(e.x, Y, e.z);
+    ring.scale.setScalar(r);
+    for (const an of dirs) {
+      const ch = this.chevrons.take(hot, (0.3 + 0.5 * k) * flick);
+      ch.position.set(e.x + Math.sin(an) * (r + 0.6), Y, e.z + Math.cos(an) * (r + 0.6));
+      ch.scale.setScalar(0.55);
+      ch.rotation.y = an;
     }
-    // chevrons from just past the body to the end, lit up to how ripe it is, sliding forwards
-    const step = Math.max(2.2, t.w * 0.9);
-    const start = Math.min(len * 0.3, 2 + t.w * 0.5);
-    const off = (this.time * (locked ? 14 : 5)) % step;
-    const size = clamp(t.w * 0.35, 0.7, 1.8);
-    const angle = Math.atan2(dx, dz);
-    for (let d = start + off; d < len - size; d += step) {
-      const f = d / len;
-      const lit = f <= k;
-      // fade in at the start of the lane and out at its end, so the march reads smoothly
-      const edge = clamp(Math.min((d - start) / step, (len - size - d) / step), 0, 1);
-      const ch = this.chevrons.take(lit ? hot : col, (lit ? 0.85 : 0.22) * edge * flick);
-      ch.position.set(t.x + ux * d, Y + 0.02, t.z + uz * d);
-      ch.scale.setScalar(size);
-      ch.rotation.y = angle;
-    }
-    // where it stops
-    const bx = t.x2 - ux * 0.3;
-    const bz = t.z2 - uz * 0.3;
-    this.line(bx + uz * half, bz - ux * half, bx - uz * half, bz + ux * half, 0.45, k >= 1 || locked ? hot : col, (0.4 + 0.5 * k) * flick);
   }
 
   private strike(s: Strike, lv: Level, halfW: number) {
@@ -327,9 +314,15 @@ export class Threats {
       case 'puddle':
       case 'spore': {
         if (warn) {
-          const ring = this.rings.take(col, 0.4 + 0.4 * k);
+          const ring = this.rings.take(k > 0.8 ? 0xffffff : col, 0.4 + 0.4 * k);
           ring.position.set(s.x, Y, s.z);
           ring.scale.setScalar(s.r);
+          // filling as it comes down (only for what lands: a foot, a slam)
+          if (s.kind === 'slam') {
+            const fill = this.discs.take(col, 0.15 + 0.3 * k);
+            fill.position.set(s.x, Y - 0.01, s.z);
+            fill.scale.setScalar(Math.max(0.05, s.r * k));
+          }
         } else this.blast(s, col);
         break;
       }
@@ -345,8 +338,29 @@ export class Threats {
         break;
       }
       case 'gate':
-        this.gate(-halfW - 4, halfW + 4, s.z, s.gx, s.gap, warn ? col : 0xffffff, warn ? 0.3 + 0.4 * k : 0.9);
+        this.gate(-halfW - 4, halfW + 4, s.z, s.gx, s.gap, warn ? col : 0xffffff, warn ? 0.3 + 0.4 * k : 0.9, warn);
         break;
+      case 'ball': {
+        // where it reaches: a ring round it, hot while it's swinging fast
+        const fast = Math.min(1, Math.abs(s.vx) / 25);
+        const ring = this.rings.take(fast > 0.5 ? 0xffffff : col, 0.45 + 0.4 * fast);
+        ring.position.set(s.x, Y, s.z);
+        ring.scale.setScalar(s.r);
+        const fill = this.discs.take(col, 0.12 + 0.1 * fast);
+        fill.position.set(s.x, Y - 0.01, s.z);
+        fill.scale.setScalar(s.r);
+        // the chain back to the crane, in links
+        const o = lv.enemies.find((e) => e.id === s.owner);
+        if (o) {
+          const n = 12;
+          for (let k = 1; k < n; k++) {
+            const link = this.discs.take(k % 2 ? 0x8a8090 : 0x5a5060, 0.95);
+            link.position.set(o.x + ((s.x - o.x) * k) / n, Y + 0.05, o.z + ((s.z - o.z) * k) / n);
+            link.scale.setScalar(0.42);
+          }
+        }
+        break;
+      }
       case 'harpoon': {
         const head = this.discs.take(0xfff0c0, 1);
         head.position.set(s.x, Y + 0.1, s.z);
@@ -367,12 +381,13 @@ export class Threats {
     d.scale.setScalar(s.r * (s.kind === 'puddle' ? 1 : 0.8 + 0.4 * f));
   }
 
-  /** A beam across from x to x2 at z, with a gap at gx ± gap. */
-  private gate(x: number, x2: number, z: number, gx: number, gap: number, col: number, a: number) {
+  /** A beam across from x to x2 at z, with a gap at gx ± gap; dashed while it's only a warning. */
+  private gate(x: number, x2: number, z: number, gx: number, gap: number, col: number, a: number, warn = false) {
     const l0 = gx - gap;
     const r0 = gx + gap;
-    if (l0 > x) this.line(x, z, l0, z, 0.7, col, a);
-    if (r0 < x2) this.line(r0, z, x2, z, 0.7, col, a);
+    const bar = (x0: number, x1: number) => (warn ? this.dashed(x0, z, x1, z, 0.12, col, a * 0.6, 0, col, 0, 0.6, 1.8) : this.line(x0, z, x1, z, 0.7, col, a));
+    if (l0 > x) bar(x, l0);
+    if (r0 < x2) bar(r0, x2);
     // the gap's posts, so the hole reads
     for (const px of [l0, r0]) {
       const post = this.discs.take(0xffffff, a + 0.2);
@@ -396,7 +411,7 @@ export class Threats {
    * took flashing white at its end. (Shields are drawn in the scene, see shields.ts.)
    */
   private health(e: Enemy) {
-    const fade = clamp((1.4 - e.hitT) / 0.3, 0, 1);
+    const fade = e.elite ? 1 : clamp((1.4 - e.hitT) / 0.3, 0, 1);
     const w = clamp(e.r * 2.2, 2.4, 6);
     const z = e.z + e.r + 1.3;
     const f = clamp(e.hp / e.max, 0, 1);
@@ -406,6 +421,37 @@ export class Threats {
     const fill = this.planes.take(e.hitT < 0.07 ? 0xffffff : f > 0.5 ? 0xfff0c0 : f > 0.25 ? 0xffb04a : 0xff5a3a, 0.95 * fade);
     fill.position.set(e.x - (w * (1 - f)) / 2, Y + 0.05, z);
     fill.scale.set(Math.max(0.05, w * f), 1, 0.3);
+    // an elite's armour: a gold band over it, to break first
+    if (e.armourMax > 0 && e.armour > 0) {
+      const g = clamp(e.armour / e.armourMax, 0, 1);
+      const band = this.planes.take(e.hitT < 0.07 ? 0xffffff : 0xffd04a, fade);
+      band.position.set(e.x - (w * (1 - g)) / 2, Y + 0.07, z - 0.42);
+      band.scale.set(Math.max(0.05, w * g), 1, 0.32);
+      const back = this.planes.take(INK, 0.75 * fade);
+      back.position.set(e.x, Y + 0.06, z - 0.42);
+      back.scale.set(w + 0.3, 1, 0.5);
+    }
+  }
+
+  /**
+   * A dashed band from (x, z) to (x2, z2), w wide, its dashes marching away from the start at
+   * speed. The dashes up to lit (0 → 1 along it) are drawn in hot at a; the rest faintly in col.
+   */
+  private dashed(x: number, z: number, x2: number, z2: number, w: number, col: number, a: number, lit = 1, hot = col, speed = 0, dash = 1, gap = 1.4) {
+    const len = Math.hypot(x2 - x, z2 - z);
+    if (len < 0.5) return;
+    const ux = (x2 - x) / len;
+    const uz = (z2 - z) / len;
+    const step = dash + gap;
+    for (let d = ((this.time * speed) % step) - step; d < len; d += step) {
+      const d0 = Math.max(0, d);
+      const d1 = Math.min(len, d + dash);
+      if (d1 - d0 < 0.05) continue;
+      const on = (d0 + d1) / 2 <= len * lit;
+      // fading out over its last stretch, so it doesn't end on a hard edge
+      const tail = clamp((len - d0) / Math.min(6, len * 0.3), 0, 1);
+      this.line(x + ux * d0, z + uz * d0, x + ux * d1, z + uz * d1, w, on ? hot : col, (on ? a : a * 0.4) * tail);
+    }
   }
 
   /** A flat band from (x, z) to (x2, z2), w wide. */

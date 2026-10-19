@@ -9,8 +9,10 @@ import { HALF_H, HALF_W, toFlight } from './types';
 import { LOOT } from './build';
 import { makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
-import { BOUNTIES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
+import { BOUNTIES, FOES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
+import { CHAIN } from './combat';
+import { afloat } from './foes';
 import { boarderSkin } from './convoy';
 
 /** How much of a wave roll goes to the planet's old roster (the rest to the factions' foes). */
@@ -68,6 +70,7 @@ export class Director {
     const end = mode === 'boss' ? L - 40 : L - 70;
     let at = 70;
     let n = 0;
+    const seen = new Set<string>();
     while (at < end) {
       // a breather as each new biome comes in, so it can be looked at
       const bz = -at;
@@ -82,13 +85,27 @@ export class Director {
       const biome = lv.terrain.biome(bz - HALF_H);
       for (const f of factionsIn(lv.spec.planet, biome))
         for (const [foe, w, from] of ROSTER[f]) if (t >= from) weights.push([foe, w]);
-      const first = weighted(r, weights);
+      // (no boats where there's no water)
+      const wet = biome.water !== null;
+      const can = weights.filter(([a, w]) => w > 0 && (wet || !(isFoe(a) && FOES[a].water)));
+      const first = weighted(r, can);
+      const fresh = !seen.has(first);
+      seen.add(first);
       this.wave(at, first);
-      // later on, waves come in pairs
-      if (r() < 0.2 + t * 0.35 + d * 0.2) {
-        const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw', 'rigger'];
-        const second = weighted(r, weights.filter(([a]) => !solo.includes(a) && a !== first));
-        this.wave(at + 8, second);
+      // a kind is met alone the first time; after that it comes with others. A squad is a pair
+      // that works together (a role that pins you, one that punishes it, see SQUADS); else a pair
+      // of any two that have been met
+      const have = (a: string) => can.some(([b]) => b === a);
+      const squads = SQUADS.filter((q) => q.from <= t && q.kinds.includes(first) && q.kinds.every((k) => have(k) && (seen.has(k) || k === first)));
+      if (!fresh && squads.length && r() < 0.3 + t * 0.35 + d * 0.2) {
+        const q = pick(r, squads);
+        let k = 0;
+        for (const kind of q.kinds) if (kind !== first) this.wave(at + q.gap * ++k, kind);
+      } else if (!fresh && r() < 0.15 + t * 0.3 + d * 0.2) {
+        // later on, waves come in pairs
+        const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw', 'rigger', 'blimp'];
+        const met = can.filter(([a]) => !solo.includes(a) && a !== first && seen.has(a));
+        if (met.length) this.wave(at + 8, weighted(r, met));
       }
       at += gap * (0.75 + r() * 0.5);
       n++;
@@ -96,12 +113,14 @@ export class Director {
     // a supply drop in every level: an elite carrying a part
     const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : mode === 'heist' ? [] : [0.45 + r() * 0.2];
     for (const f of elites) {
-      const options = roster.filter((s) => ['gunship', 'brute', 'carrier', 'bomber'].includes(s.archetype));
-      const s = pick(r, options.length ? options : roster);
-      // sometimes the faction sends its own: an ace (scrappers), a warden guard (the lattice)
+      // a champion of the faction (or of the planet's old guard), with a fight to learn: armour
+      // to break, and attacks it chains (see combat.ts CHAIN)
       const own = factionOf(lv.spec.planet);
-      if (r() < 0.4 && (own === 'scrap' || own === 'lattice')) this.beats.push({ at: f * L, run: () => this.spawnFoe(own === 'scrap' ? 'ace' : 'warden', true) });
-      else this.beats.push({ at: f * L, run: () => this.spawnArch(s.archetype, true) });
+      const foes = ROSTER[own].filter(([foe, , from]) => CHAIN[foe] && from <= f).map(([foe]) => foe);
+      const archs = roster.map((s) => s.archetype).filter((a) => a === 'gunship' || a === 'brute' || a === 'lancer');
+      const who = pick(r, [...foes, ...foes, ...archs]);
+      if (!who) continue;
+      this.beats.push({ at: f * L, run: () => (isFoe(who) ? this.spawnFoe(who, true) : this.spawnArch(who, true)) });
     }
     // bounties: something worth chasing, briefly, before it gets away
     const bounties = mode === 'hunt' ? 3 : mode === 'raid' ? 2 : mode === 'escort' ? 1 : 0;
@@ -125,6 +144,19 @@ export class Director {
     }
     this.beats.sort((a, b) => a.at - b.at);
     void n;
+  }
+
+  /** Dev (`&foes=gunboat,elite:ramjack`): every wave of the level one of these, in turn, early and often. */
+  only(kinds: string[]) {
+    const lv = this.lv;
+    this.beats = this.beats.filter((b) => b.at >= -lv.terrain.end - 60 - 25);
+    for (let k = 0, at = 25; at < this.length - 80; k++, at += 40) {
+      const [a, b] = kinds[k % kinds.length].split(':');
+      const elite = a === 'elite';
+      const kind = (elite ? b : a) as Archetype | Foe;
+      this.beats.push({ at, run: () => (isFoe(kind) ? this.spawnFoe(kind, elite) : this.spawnArch(kind as Archetype, elite)) });
+    }
+    this.beats.sort((a, b) => a.at - b.at);
   }
 
   private wave(at: number, arch: Archetype | Foe) {
@@ -175,12 +207,12 @@ export class Director {
       }
       case 'flakker':
       case 'spitter': {
-        const n = 2 + (r() < 0.5 ? 1 : 0);
+        const n = elite ? 1 : 2 + (r() < 0.5 ? 1 : 0);
         this.ground(foe, skin, n, opts);
         break;
       }
       case 'swooper': {
-        const n = 2 + (r() < 0.3 + d * 0.3 ? 1 : 0);
+        const n = elite ? 1 : 2 + (r() < 0.3 + d * 0.3 ? 1 : 0);
         for (let k = 0; k < n; k++) {
           const hx = lerp(-HALF_W + 10, HALF_W - 10, (k + 0.5) / n);
           lv.spawn(foe, skin, hx, top, { hx, x0: hx, phase: k * 1.1 }, { ...opts, t: -k * 0.5 });
@@ -194,17 +226,17 @@ export class Director {
         const n = elite ? 1 : 1 + (r() < 0.5 + d * 0.2 ? 1 : 0);
         for (let k = 0; k < n; k++) {
           const hx = n === 1 ? rx(14) : (k === 0 ? -1 : 1) * lerp(10, 20, r());
-          lv.spawn(foe, skin, hx, top, { hx, hz: lerp(-15, -10, r()), x0: hx * 0.5, stay: 11 + r() * 3 }, { ...opts, t: -k * 0.4 });
+          lv.spawn(foe, skin, hx, top, { hx, hz: lerp(-15, -10, r()), x0: hx * 0.5, stay: elite ? 40 : 11 + r() * 3 }, { ...opts, t: -k * 0.4 });
         }
         // an elite warden comes with a heartpod-like escort: a prism behind it
         if (elite) lv.spawn('prism', foeSkin(lv.spec.planet, 'prism'), 0, top, { hx: -HALF_W * 0.4, hz: -19 }, {});
         break;
       }
       case 'prism': {
-        const n = 1 + (r() < 0.25 + d * 0.25 ? 1 : 0);
+        const n = elite ? 1 : 1 + (r() < 0.25 + d * 0.25 ? 1 : 0);
         for (let k = 0; k < n; k++) {
           const hx = n === 1 ? rx(14) : (k === 0 ? -1 : 1) * lerp(12, 22, r());
-          lv.spawn(foe, skin, hx, top, { hx, hz: lerp(-17, -12, r()), x0: hx, stay: 13 + r() * 3 }, { ...opts, t: -k * 1.2 });
+          lv.spawn(foe, skin, hx, top, { hx, hz: lerp(-17, -12, r()), x0: hx, stay: elite ? 40 : 13 + r() * 3 }, { ...opts, t: -k * 1.2 });
         }
         break;
       }
@@ -222,6 +254,43 @@ export class Director {
       case 'puffball': {
         const n = 6 + Math.floor(r() * 4 + d * 3);
         for (let k = 0; k < n; k++) lv.spawn(foe, skin, lerp(-HALF_W + 4, HALF_W - 4, (k + r() * 0.8) / n), top - r() * 10, {}, opts);
+        break;
+      }
+      case 'gunboat': {
+        // on water ahead, with room to patrol; with none, a gun truck comes instead
+        if (!this.water(skin, opts)) this.spawnFoe('technical', elite, bounty);
+        break;
+      }
+      case 'technical': {
+        const n = elite ? 1 : 2 + (r() < 0.3 + d * 0.3 ? 1 : 0);
+        const dir = r() < 0.5 ? -1 : 1;
+        for (let k = 0; k < n; k++) {
+          const zg = lv.top - 6 - k * 7 - r() * 4;
+          const x = -dir * (HALF_W + 3 + k * 6);
+          const y = Math.max(lv.terrain.height(x, zg), lv.terrain.water(zg));
+          lv.spawn(foe, skin, x, toFlight(zg, y), { dir, tz: zg }, { ...opts, y, heading: (dir * Math.PI) / 2 });
+        }
+        break;
+      }
+      case 'blimp': {
+        const hx = rx(16);
+        lv.spawn(foe, skin, hx, top - 4, { hx, x0: hx * 0.4, hz: lerp(-17, -12, r()), stay: elite ? 45 : 22 + r() * 4 }, opts);
+        break;
+      }
+      case 'spindle':
+        this.ground(foe, skin, elite ? 1 : 1 + (r() < 0.3 + d * 0.3 ? 1 : 0), opts);
+        break;
+      case 'halo': {
+        const n = elite ? 1 : 1 + (r() < 0.35 + d * 0.3 ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+          const hx = n === 1 ? rx(14) : (k === 0 ? -1 : 1) * lerp(12, 22, r());
+          lv.spawn(foe, skin, hx, top, { hx, x0: hx, hz: lerp(-17, -11, r()), stay: elite ? 40 : 12 + r() * 4 }, { ...opts, t: -k * 0.8 });
+        }
+        break;
+      }
+      case 'manta': {
+        const dir = r() < 0.5 ? -1 : 1;
+        lv.spawn(foe, skin, -dir * (HALF_W + 7), lv.scroll - 15, { dir, hz: lerp(-17, -10, r()), phase: r() * 6 }, { ...opts, heading: (dir * Math.PI) / 2 });
         break;
       }
       case 'runner':
@@ -251,6 +320,22 @@ export class Director {
       lv.spawn(foe, skin, x, zf, {}, { ...opts, y: h });
       placed++;
     }
+  }
+
+  /** A gunboat on open water just ahead (false if there's none). */
+  private water(skin: EnemySkin, opts: Partial<Enemy>) {
+    const lv = this.lv;
+    const r = this.r;
+    for (let tries = 0; tries < 30; tries++) {
+      const x = lerp(-HALF_W + 8, HALF_W - 8, r());
+      const zg = lv.top - 12 - r() * 14;
+      if (!afloat(lv, x, zg) || !afloat(lv, x - 5, zg) || !afloat(lv, x + 5, zg)) continue;
+      const y = lv.terrain.water(zg);
+      const dir = r() < 0.5 ? -1 : 1;
+      lv.spawn('gunboat', skin, x, toFlight(zg, y), { dir, tz: zg }, { ...opts, y, heading: (dir * Math.PI) / 2 });
+      return true;
+    }
+    return false;
   }
 
   /** A gate across the way: two pylons at the edges, the beam between them closing as it comes. */
@@ -311,7 +396,7 @@ export class Director {
         const count = elite ? 1 : 1 + (r() < 0.5 ? 1 : 0);
         for (let k = 0; k < count; k++) {
           const hx = count === 1 ? lerp(-20, 20, r()) : (k === 0 ? -1 : 1) * lerp(12, 22, r());
-          lv.spawn('gunship', skin, hx, top, { hx, hz: lerp(-16, -9, r()), stay: 5 + r() * 3, x0: hx * 0.5 }, opts);
+          lv.spawn('gunship', skin, hx, top, { hx, hz: lerp(-16, -9, r()), stay: elite ? 30 : 5 + r() * 3, x0: hx * 0.5 }, opts);
         }
         break;
       }
@@ -369,7 +454,7 @@ export class Director {
     for (const e of lv.enemies) if (e.t < 0) e.dead = true;
     lv.emit({ type: 'bossWarning', name: p.boss.name });
     const skin: EnemySkin = { archetype: 'brute', name: p.boss.name, kind: p.boss.kind, colors: p.boss.colors };
-    const hp = 2600 * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
+    const hp = 2400 * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
     lv.spawn('boss', skin, 0, lv.top - 20, {}, { boss: makeBoss(p.id), hp, max: hp, t: -2.5 });
   }
 
@@ -444,6 +529,38 @@ const HAZARD_GAP: Record<HazardKind, number> = {
   spore_cloud: 5,
   laser_gate: 7,
 };
+
+/**
+ * Squads: kinds that make each other worse, as Doom Eternal pairs its demons. One pins you or
+ * fences you in, the other punishes you for it: shells that move you on while ramjacks dive,
+ * wardens shielding a prism that opens to sweep, a spindle's spinning arms and a halo's rings.
+ * `gap`: how far behind each other they come (distance flown).
+ */
+const SQUADS: { kinds: (Archetype | Foe)[]; from: number; gap: number }[] = [
+  // scrappers
+  { kinds: ['flakker', 'ramjack'], from: 0.1, gap: 6 },
+  { kinds: ['rattler', 'ramjack'], from: 0.2, gap: 5 },
+  { kinds: ['gunboat', 'technical'], from: 0.15, gap: 6 },
+  { kinds: ['technical', 'flakker'], from: 0.1, gap: 5 },
+  { kinds: ['blimp', 'ramjack'], from: 0.4, gap: 10 },
+  { kinds: ['hookjaw', 'flakker'], from: 0.3, gap: 6 },
+  // the lattice
+  { kinds: ['warden', 'prism'], from: 0.15, gap: 4 },
+  { kinds: ['spindle', 'halo'], from: 0.15, gap: 6 },
+  { kinds: ['gatekeeper', 'halo'], from: 0.25, gap: 3 },
+  { kinds: ['warden', 'spindle'], from: 0.2, gap: 6 },
+  // the wilds and the bloom
+  { kinds: ['swooper', 'spitter'], from: 0.05, gap: 5 },
+  { kinds: ['manta', 'swooper'], from: 0.25, gap: 8 },
+  { kinds: ['burrower', 'spitter'], from: 0.25, gap: 4 },
+  { kinds: ['manta', 'puffball'], from: 0.25, gap: 6 },
+  { kinds: ['heartpod', 'spitter'], from: 0.2, gap: 6 },
+  // the planets' old guard
+  { kinds: ['lancer', 'dart'], from: 0.15, gap: 5 },
+  { kinds: ['turret', 'swarm'], from: 0.1, gap: 6 },
+  { kinds: ['gunship', 'dart'], from: 0.2, gap: 6 },
+  { kinds: ['bomber', 'swarm'], from: 0.3, gap: 6 },
+];
 
 /** How likely each archetype is (t: how far through the level, d: difficulty). */
 const WEIGHT: Record<Archetype, (t: number, d: number) => number> = {

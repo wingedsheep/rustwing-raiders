@@ -3,7 +3,9 @@
  * what's on the screen. Every frame it tries a fan of moves a half-second ahead against where the
  * bullets, lasers, hazards, the land and the enemies will be, and picks the one that stays clear
  * and gets it somewhere useful: under an enemy to shoot it, onto scrap, to a downed partner,
- * after a bounty before it gets away. It boosts when the Burn is high and the screen is calm, likes to skim past
+ * after a bounty before it gets away. It fights at the range its guns want (close in with a
+ * scattergun or a torch, stood off with rivets and rails; over the top of things with mines, so
+ * they're behind it). It boosts when the Burn is high and the screen is calm, likes to skim past
  * obstacles a little, and dashes through bullets at the last moment when it sees a perfect with a
  * safe place to come out. It's not meant to be perfect; it's meant to find unfair bits. A level that
  * the autopilot can't survive with a decent ship probably has a spot nobody could.
@@ -12,6 +14,7 @@
  */
 
 import type { Level, Player } from './level';
+import type { Gun } from './build';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
 import { clamp } from '../util';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
@@ -101,8 +104,46 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   const targets = lv.enemies.some((e) => !e.dead && lv.onScreen(e.x, e.z, -2));
   intent.fire = targets && !p.jam.some((j) => j > 0 && p.heat.every((h) => h > 0.85)) && !holdFire(lv, p);
   // the heavies: a round now and then while there's something to shoot, never the last one in a hurry
+  // (mines want something close behind to drop on: hold them till there is)
   intent.heavy = intent.fire && p.heavyT > 0.45 && p.rounds.some((r) => r > 0);
+  if (intent.heavy && style(p).mines) intent.heavy = lv.enemies.some((e) => !e.dead && e.t >= 0 && e.z > p.z - 2 && (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < 10 * 10);
   return intent;
+}
+
+/** How far a gun's fire carries. */
+function reach(g: Gun) {
+  const sp = g.spec;
+  if (sp.shot === 'beam') return 30;
+  if (sp.shot === 'arc') return 15;
+  if (sp.shot === 'mine') return 0;
+  return sp.speed * sp.life;
+}
+
+const styles = new WeakMap<object, { standoff: number; mines: boolean }>();
+/**
+ * How a ship wants to fight, from its guns: how far below its target to sit (most of its damage
+ * has to reach: a scattergun's pellets die at 18, a torch's flame at 10, rivets carry 50), and
+ * whether it's mine-led (it wants things behind it).
+ */
+function style(p: Player) {
+  let st = styles.get(p.stats);
+  if (st) return st;
+  let w = 0;
+  let wr = 0;
+  let mine = 0;
+  for (const g of p.stats.guns) {
+    const sp = g.spec;
+    // what it puts out a second (a heavy counts half: it's only some of the presses)
+    const dps = sp.damage * sp.count * sp.rate * (sp.heavy ? 0.5 : 1);
+    if (sp.shot === 'mine') mine += dps;
+    else {
+      w += dps;
+      wr += dps * reach(g);
+    }
+  }
+  st = { standoff: w ? clamp((wr / w) * 0.4, 5, 15) : 15, mines: mine > w };
+  styles.set(p.stats, st);
+  return st;
 }
 
 function goalFor(lv: Level, p: Player): { x: number; z: number } {
@@ -161,7 +202,12 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
       target = e;
     }
   }
-  if (target) return { x: target.x, z: clamp(target.z + 15, lv.scroll - 4, bottom) };
+  if (target) {
+    const st = style(p);
+    // mines: over the top of it, so it's behind; anything else: under it, as close as the guns need
+    const z = st.mines ? target.z - 5 : target.z + st.standoff;
+    return { x: target.x, z: clamp(z, st.mines ? lv.top + 6 : lv.scroll - 4, bottom) };
+  }
   // a canyon: keep to the middle of it
   const ahead = lv.top + 10;
   const rest = bottom;

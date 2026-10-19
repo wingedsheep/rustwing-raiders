@@ -134,6 +134,7 @@ export class LevelView {
   private shots: THREE.InstancedMesh;
   private beams: THREE.Mesh[] = [];
   private laserMeshes: THREE.Mesh[] = [];
+  private balls: { ball: THREE.Group; links: THREE.Mesh[] }[] = [];
   private bolts: { mesh: THREE.Mesh; t: number }[] = [];
   private clouds: { obj: THREE.Group; x: number; z: number; drift: number }[] = [];
   /** The shot down, on their way to the ground. */
@@ -314,6 +315,16 @@ export class LevelView {
           break;
         }
         case 'hit': {
+          if (e.armour) {
+            // on an elite's armour: it rings and throws gold sparks, and gives nothing
+            const ev = this.enemies.get(e.enemy);
+            if (ev) ev.punch = Math.min(1, ev.punch + 0.25);
+            if (!e.dot) {
+              this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z + 0.6, e.dmg >= 10 ? 6 : 2, 0xffd04a, 14, 0.15, 0.14);
+              audio.play('hit_armor', { pan: e.x / HALF_W, vol: e.dmg >= 10 ? 0.5 : 0.25, pitch: 1.1 + Math.random() * 0.2 });
+            }
+            break;
+          }
           if (e.dot && !e.kill) {
             // a burn's tick: an ember off it, nothing more
             const en = lv.enemies.find((o) => o.id === e.enemy);
@@ -490,12 +501,13 @@ export class LevelView {
           break;
         case 'windup': {
           const en = lv.enemies.find((o) => o.id === e.enemy);
+          // a boss's signature: a low horn, so the ear learns it too
+          if (en?.boss && en.boss.move === en.boss.sig && en.boss.k === 0) audio.play('horn', { pitch: 0.5, vol: 0.7 });
           if (en && e.kind === 'torpedo') {
             audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5 });
             const prey = e.tele?.shape === 'lock' ? lv.players[e.tele.id] : undefined;
             if (prey) this.pop('LOCK ON', prey.x, prey.z + 4, '#ff8a4a');
-          }
-          else if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
+          } else if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
           break;
         }
         case 'release':
@@ -772,6 +784,36 @@ export class LevelView {
           this.bossBanner = { name: e.name, t: 0 };
           audio.play('boss_warning');
           audio.music('boss');
+          break;
+        case 'armourBreak': {
+          // the armour comes off in plates: it reels, wide open
+          const en = lv.enemies.find((o) => o.id === e.enemy);
+          this.shards(e.x, e.z, 16, 0xffd04a);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, (en?.r ?? 2) * 2.4, 0.3, true, 0xffd04a);
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 1.2, z: e.z, size: 5, grow: 1.4, life: 0.1, color: HOT, carried: true });
+          this.pop('ARMOUR BROKEN', e.x, e.z - 3, '#ffd04a', true);
+          this.hitstop = Math.max(this.hitstop, 5);
+          this.trauma = Math.min(1, this.trauma + 0.35);
+          audio.play('shield_break', { pan: e.x / HALF_W, pitch: 0.6 });
+          audio.play('explode_small', { pan: e.x / HALF_W, pitch: 0.7, vol: 0.6 });
+          break;
+        }
+        case 'bossStagger':
+          // its poise broken: a freeze, a white ring, and a long moment to hit it
+          this.hitstop = Math.max(this.hitstop, 9);
+          this.trauma = Math.min(1, this.trauma + 0.5);
+          this.flash = 0.35;
+          this.flashColor.set(0xffe8a0);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, 12, 0.35, true, 0xffffff);
+          this.shards(e.x, e.z, 20, 0xffe8a0);
+          this.pop('STAGGERED!', e.x, e.z - 7, '#ffe08a', true);
+          audio.play('react_shatter', { pan: e.x / HALF_W, pitch: 0.7 });
+          audio.play('explode_big', { pan: e.x / HALF_W, vol: 0.6 });
+          break;
+        case 'phaseClean':
+          this.pop(`CLEAN  +${e.scrap}`, e.x, e.z + 6, '#9af0b0', true);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.4, true, 0x9af0b0);
+          audio.play('level_clear', { pitch: 1.25, vol: 0.7 });
           break;
         case 'bossPhase':
           this.trauma = 0.8;
@@ -1331,6 +1373,7 @@ export class LevelView {
     this.updateShots();
     this.updateBeams();
     this.updateLasers();
+    this.updateBalls();
     this.updatePickups(dt);
     this.updateDecoys();
     this.traits.update(dt, scrollDz);
@@ -1570,9 +1613,13 @@ export class LevelView {
       const base = (e.elite ? 1.3 : 1) * (foe?.scale ?? 1);
       v.obj.scale.set(base * (1 + v.punch * 0.22), base * (1 - v.punch * 0.15), base * (1 - v.punch * 0.12));
       const facing = e.boss ? 0 : e.heading + Math.PI;
-      if (v.head) {
+      if (v.head && (e.arch === 'turret' || e.arch === 'spindle')) {
         v.head.rotation.y = e.heading + Math.PI;
         v.obj.rotation.y = 0;
+      } else if (v.head) {
+        // a gun on a hull (a truck's bed, a boat's foredeck): the hull faces its way, the gun yours
+        v.obj.rotation.y = facing;
+        v.head.rotation.y = e.aim - e.heading;
       } else v.obj.rotation.y = facing;
       if (!e.ground && !e.boss) v.obj.rotation.z = clamp(-e.vx / 30, -0.5, 0.5);
       // the tell on the body: it heats up through the windup and flickers at the end; open to
@@ -1595,6 +1642,7 @@ export class LevelView {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      this.trail(e, groundZ);
       // marked: on fire, crawling with lightning, glinting through its cracks
       const mk = e.mk;
       const lift = e.y + 0.4;
@@ -1621,6 +1669,81 @@ export class LevelView {
       }
   }
 
+  /**
+   * What a body leaves as it goes: a truck's dust, a boat's wake, an airship's smoke; and Istra
+   * drawing her breath, the air streaming in to her maw.
+   */
+  private trail(e: Enemy, groundZ: number) {
+    const sp = Math.abs(e.vx) + Math.abs(e.vz);
+    if (e.arch === 'technical' && sp > 2 && Math.random() < 0.3) {
+      const back = e.heading + Math.PI;
+      this.fx.add({ x: e.x + Math.sin(back) * 1.6 + (Math.random() - 0.5), y: e.y + 0.3, z: groundZ + Math.cos(back) * 1.6, vx: Math.sin(back) * 3 + (Math.random() - 0.5) * 2, vy: 1.2, vz: Math.cos(back) * 3, size: 0.5, grow: 1.8, life: 0.55 + Math.random() * 0.3, color: DUST, to: DUST_END, glow: false });
+    } else if (e.arch === 'gunboat' && Math.random() < 0.5) {
+      const back = e.heading + Math.PI;
+      for (const sd of [-1, 1]) {
+        const a = back + sd * 0.5;
+        this.fx.add({ x: e.x + Math.sin(back) * 2.6, y: e.y + 0.05, z: groundZ + Math.cos(back) * 2.6, vx: Math.sin(a) * 2.5, vz: Math.cos(a) * 2.5, size: 0.5, grow: 1.6, life: 1.1, color: FOAM, to: FOAM_END, glow: false });
+      }
+    } else if (e.arch === 'blimp' && Math.random() < 0.12) {
+      this.fx.add({ x: e.x + (Math.random() - 0.5) * 3, y: e.y + 0.6, z: groundZ - 3.5, vy: 1, vz: -2, size: 0.7, grow: 2, life: 1.2, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+    } else if (e.boss?.move === 'breath' && e.state === 'attack') {
+      for (let k = 0; k < 3; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 14 + Math.random() * 18;
+        this.fx.add({ x: e.x + Math.sin(a) * r, y: FLIGHT_Y + 0.6, z: e.z + Math.cos(a) * r, vx: -Math.sin(a) * r * 1.6, vz: -Math.cos(a) * r * 1.6, size: 0.18, grow: 1.5, life: 0.55, color: BREATH, carried: true });
+      }
+    }
+  }
+
+  /** A crane's wrecking ball: dark iron and spikes on a chain from the boss, a shadow under it. */
+  private updateBalls() {
+    let k = 0;
+    for (const s of this.lv.strikes) {
+      if (s.kind !== 'ball' || s.dead) continue;
+      const o = this.lv.enemies.find((e) => e.id === s.owner);
+      if (!o) continue;
+      let b = this.balls[k];
+      if (!b) {
+        const ball = new THREE.Group();
+        ball.add(part(GEO.dodeca, toon(0x3a3640), [0, 0, 0], 4.2));
+        ball.add(part(GEO.sphere, toon(0x6a5a50), [0, 0.9, 0], 2.4));
+        for (let n = 0; n < 12; n++) {
+          const a = (n / 12) * Math.PI * 2;
+          const up = n % 2 ? 0.6 : -0.4;
+          ball.add(part(GEO.cone4, toon(0x9a8a7a), [Math.cos(a) * 2, up, Math.sin(a) * 2], [0.7, 1.4, 0.7], [Math.PI / 2, 0, -a + Math.PI / 2]));
+        }
+        ball.add(part(GEO.sphere, toon(0xff6a2a, { glow: 1 }), [0, 1.9, 0], 0.9));
+        const links: THREE.Mesh[] = [];
+        for (let n = 0; n < 14; n++) {
+          const l = part(GEO.torus, toon(0x5a5258), [0, 0, 0], 1.3);
+          links.push(l);
+          this.scene.add(l);
+        }
+        ball.traverse((m) => ((m as THREE.Mesh).isMesh ? (m.castShadow = true) : 0));
+        this.scene.add(ball);
+        b = { ball, links };
+        this.balls.push(b);
+      }
+      b.ball.visible = true;
+      b.ball.position.set(s.x, FLIGHT_Y, s.z);
+      b.ball.rotation.y += 0.05;
+      b.ball.rotation.z = s.vx * 0.01;
+      // the chain sags a little between the boss and the ball
+      b.links.forEach((l, n) => {
+        const f = (n + 0.5) / b!.links.length;
+        l.visible = true;
+        l.position.set(o.x + (s.x - o.x) * f, FLIGHT_Y + 1.2 - Math.sin(f * Math.PI) * 0.8, o.z + (s.z - o.z) * f);
+        l.rotation.set(n % 2 ? Math.PI / 2 : 0, Math.atan2(s.x - o.x, s.z - o.z), 0);
+      });
+      if (Math.abs(s.vx) > 8 && Math.random() < 0.5) this.fx.sparks(s.x, FLIGHT_Y, s.z, 1, 0xffd890, 6, 0.25, 0.15);
+      k++;
+    }
+    for (; k < this.balls.length; k++) {
+      this.balls[k].ball.visible = false;
+      for (const l of this.balls[k].links) l.visible = false;
+    }
+  }
+
   private makeEnemy(e: Enemy): EnemyView {
     // a runner's part: the heist view draws it, on the runner
     if (e.d.qp !== undefined) return { inst: null, obj: new THREE.Group(), head: null, ring: null, seen: true, boss: false, ground: false, skin: e.skin.colors, punch: 0, knock: 0, part: true };
@@ -1645,7 +1768,7 @@ export class LevelView {
     obj.traverse((o) => {
       if (!head && o.userData.part === 'head' && o !== obj) head = o;
     });
-    if (e.arch !== 'turret') head = null;
+    if (e.arch !== 'turret' && e.arch !== 'spindle' && e.arch !== 'technical' && e.arch !== 'gunboat') head = null;
     obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
     this.scene.add(obj);
     let ring: THREE.Mesh | null = null;
@@ -2158,6 +2281,11 @@ export class LevelView {
 const Y = new THREE.Vector3(0, 1, 0);
 /** A beam: a flat strip from the gun (z 0.5) up to where it ends (z -0.5), across x. */
 const BEAM_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const DUST = new THREE.Color(0xc8a878);
+const DUST_END = new THREE.Color(0x8a7a6a);
+const FOAM = new THREE.Color(0xf0f8ff);
+const FOAM_END = new THREE.Color(0x9ac8d8);
+const BREATH = new THREE.Color(0xd8f0ff);
 /** Light poured down a strip: a white-hot core, a coloured sheath, pulses running up it, and a ragged, crawling edge. */
 function beamMaterial() {
   return new THREE.ShaderMaterial({

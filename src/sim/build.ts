@@ -102,7 +102,7 @@ export interface Stats {
   aux: AuxKind | null;
   auxStr: number;
   /** What the dash does besides (each summed over the dash mods, at their strength). */
-  mod: Required<Omit<DashMod, 'refill'>> & { refill: boolean };
+  mod: Required<Omit<DashMod, 'refill' | 'shroud'>> & { refill: boolean; shroud: boolean };
   /** Background effects, summed at strength (see Passive in game/parts.ts). */
   skin: number;
   gamble: number;
@@ -209,7 +209,7 @@ export function stats(b: Build): Stats {
   let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
-  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, strike: 0, refill: false };
+  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, strike: 0, refill: false, shroud: false };
   const pas = { skin: 0, gamble: 0, salvage: 0, echo: 0, mirror: 0, crit: 0 };
   let thunder = 0;
   let vengeful = false;
@@ -247,6 +247,7 @@ export function stats(b: Build): Stats {
       mod.ghost += (def.mod.ghost ?? 0) * str;
       mod.detonate = Math.max(mod.detonate, (def.mod.detonate ?? 0) * str);
       mod.refill ||= !!def.mod.refill;
+      mod.shroud ||= !!def.mod.shroud;
       mod.strike = Math.max(mod.strike, (def.mod.strike ?? 0) * str);
       mod.volley = Math.max(mod.volley, (def.mod.volley ?? 0) * Math.min(str, 1));
     }
