@@ -145,11 +145,22 @@ export class Hud {
   heavyKeys: string[] = [];
   /** Each player's device (the pause shows their controls). */
   devs: DeviceId[] = [];
+  /** Scrap on its way up to the tin, from where it was picked up (UI texels); it counts when it lands. */
+  private motes: { x: number; y: number; t: number; v: number; bend: number }[] = [];
+  /** Where the tin is, and how hard the count last jumped (1, falling away). */
+  private tin = { x: 0, y: 0 };
+  private bump = 0;
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
+    for (const g of view.scrapGot) {
+      const s = this.toScreen(view, g.x, FLIGHT_Y, g.z);
+      this.motes.push({ x: s.x, y: s.y, t: 0, v: g.v, bend: (Math.random() - 0.5) * 140 });
+    }
+    view.scrapGot.length = 0;
     this.topBar(ctx, lv);
     this.field(ctx, lv, view);
+    this.flyMotes(ctx);
     if (paused) this.pause(ctx, lv);
   }
 
@@ -221,15 +232,57 @@ export class Hud {
     const align = ps[1] ? 'left' : 'right';
     plate(ctx, ps[1] ? tx - 4 : tx - 104, 4, 108, 20);
     const sx = ps[1] ? tx + 2 : tx - 98;
-    drawText(ctx, `${lv.scrap}`, sx, 7, GOLD, { shadow: false });
-    ctx.fillStyle = GOLD;
-    ctx.fillRect(sx - 0 + textWidth(`${lv.scrap}`) + 3, 9, 3, 3);
+    // (what's still flying up doesn't count yet)
+    const shown = `${Math.max(0, lv.scrap - this.motes.reduce((a, m) => a + m.v, 0))}`;
+    const b = this.bump;
+    drawText(ctx, shown, sx, 7 - Math.round(b * 2), b > 0.55 ? '#ffffff' : GOLD, { shadow: false });
+    const ix = sx + textWidth(shown) + 4;
+    this.tin = { x: ix, y: 10 };
+    const r = 1 + Math.round(b * 2);
+    ctx.fillStyle = b > 0.55 ? '#ffffff' : GOLD;
+    ctx.fillRect(ix - r, 10 - r, r * 2 + 1, r * 2 + 1);
+    if (b > 0) {
+      // a ring off the tin as a piece lands
+      const o = Math.round(3 + (1 - b) * 6);
+      ctx.globalAlpha = b;
+      ctx.strokeStyle = GOLD;
+      ctx.strokeRect(ix - o + 0.5, 10 - o + 0.5, o * 2, o * 2);
+      ctx.globalAlpha = 1;
+    }
+    this.bump = Math.max(0, b - 4 / 60);
     drawText(ctx, String(lv.score).padStart(7, '0'), ps[1] ? tx + 98 : tx - 4, 7, INK, { align: 'right', shadow: false });
     void align;
     if (lv.combo > 1) {
       const big = lv.combo > 20;
       drawText(ctx, `${lv.combo}× CHAIN`, w / 2, 30, big ? GOLD : CYAN, { align: 'center' });
     }
+  }
+
+  /** The scrap flying up to the tin: off to the side first, then drawn in hard, a short gold tail behind. */
+  private flyMotes(ctx: CanvasRenderingContext2D) {
+    const FLY = 0.42;
+    const at = (m: (typeof this.motes)[number], t: number) => {
+      const f = clamp(t / FLY, 0, 1);
+      const e = f * f;
+      const cx = m.x + m.bend;
+      const cy = m.y + 10;
+      const u = 1 - e;
+      return { x: u * u * m.x + 2 * u * e * cx + e * e * this.tin.x, y: u * u * m.y + 2 * u * e * cy + e * e * this.tin.y };
+    };
+    for (const m of this.motes) {
+      m.t += 1 / 60;
+      const big = m.v > 1;
+      for (let k = 2; k >= 0; k--) {
+        const p = at(m, m.t - k * 0.025);
+        const s = (big ? 2 : 1) + (k === 0 ? 1 : 0);
+        ctx.globalAlpha = k === 0 ? 1 : 0.5 / k;
+        ctx.fillStyle = k === 0 && big ? '#ffffff' : GOLD;
+        ctx.fillRect(Math.round(p.x) - s, Math.round(p.y) - s, s * 2, s * 2);
+      }
+      ctx.globalAlpha = 1;
+      if (m.t >= FLY) this.bump = Math.min(1, this.bump + (big ? 0.8 : 0.5));
+    }
+    this.motes = this.motes.filter((m) => m.t < FLY);
   }
 
   /** A player's plate: hull, shield, dashes, special, at one end of the top bar. */

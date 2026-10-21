@@ -279,6 +279,8 @@ export interface Bullet {
 }
 
 /** Torpedoes: drift out for `launch` seconds, then light and chase (turning at `turn` rad/s, up to `speed`) until `fuel` runs out. */
+/** How fast loose scrap sinks down the screen (units a second), to fall off the bottom if no one takes it. */
+const SCRAP_DRIFT = 4;
 export const TORPEDO = { launch: 0.45, fuel: 2.8, turn: 2.1, speed: 19, accel: 26, hp: 12, life: 5 };
 
 /**
@@ -1833,7 +1835,9 @@ export class Level {
           break;
         }
       }
-      if (!pulled) k.z -= dz * 0.75; // drifts down the screen, slower than the land
+      // drifts down the screen and off it: scrap at its own steady pace (even when the screen
+      // holds still for a boss), the rest slower than the land
+      if (!pulled) k.z -= k.kind === 'scrap' ? dz - SCRAP_DRIFT * DT : dz * 0.75;
       k.x += k.vx * DT;
       k.z += k.vz * DT;
       if (k.z > this.bottom + 3 && !pulled) k.dead = true;

@@ -5,7 +5,7 @@ import { WorldView } from './world-view';
 import { Fx } from './fx';
 import { Life } from './life';
 import { Threats } from './threats';
-import { BulletArt } from './bullets';
+import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
@@ -26,6 +26,10 @@ import { TraitsView } from './traits';
 import { TRAITS, itemName, tierOf, type Tier } from '../game/loot';
 import { TIER_COLOR } from '../ui/widgets';
 import { EDGES, type Edge } from '../game/parts';
+
+/** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
+const SCRAP_GLOW = new THREE.SpriteMaterial({ map: SOFT, color: 0xffc04a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
+const SCRAP_TRAIL = new THREE.Color(0xffd070);
 
 /** A heist's colour (see hud.ts HEIST). */
 const HEIST_HEX = '#5ae0c0';
@@ -178,6 +182,10 @@ export class LevelView {
   bossBanner: { name: string; t: number } | null = null;
   /** Floating texts for the HUD (score pops, GRAZE, part names), in world coords; `big` ones are called out large. */
   pops: { text: string; x: number; z: number; t: number; color: string; big?: boolean }[] = [];
+  /** Scrap picked up this frame, for the HUD to fly off to the tin (it takes them as it draws). */
+  scrapGot: { x: number; z: number; v: number }[] = [];
+  /** Each ship's running scrap tally, a pop that hangs on while the pieces keep coming. */
+  private tally: { pop: LevelView['pops'][number]; n: number }[] = [];
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private v = new THREE.Vector3();
@@ -752,8 +760,10 @@ export class LevelView {
           this.pop('SPECIAL READY', lv.players[e.id].x, lv.players[e.id].z - 3, '#ffe08a');
           break;
         case 'pickup':
-          if (e.kind === 'scrap') audio.play('pickup_scrap', { pan: e.x / HALF_W, vol: 0.6 });
-          else if (e.kind === 'ring') {
+          if (e.kind === 'scrap') {
+            audio.play('pickup_scrap', { pan: e.x / HALF_W, vol: e.value > 1 ? 0.85 : 0.6 });
+            this.gotScrap(e.id, e.x, e.z, e.value);
+          } else if (e.kind === 'ring') {
             audio.play('pickup_scrap', { pan: e.x / HALF_W, pitch: 1.5 });
             this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.3, true, 0xffe08a);
             this.pop(`+${e.value}`, e.x, e.z, '#ffe08a');
@@ -761,7 +771,7 @@ export class LevelView {
             audio.play('heal');
             this.pop('+1 HULL', e.x, e.z, '#8affb0');
           } else this.gotPart(e.part, e.x, e.z);
-          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, e.kind === 'scrap' ? 3 : 14, 0xffe08a, 8, 0.25, 0.18);
+          if (e.kind !== 'scrap') this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, 0xffe08a, 8, 0.25, 0.18);
           break;
         case 'heavy': {
           if (e.fired) {
@@ -1316,6 +1326,25 @@ export class LevelView {
       this.edgeSaid.set(edge, this.time);
       this.pop(EDGES[edge].pop, x, z + 2.2, EDGE_COLOR);
     }
+  }
+
+  /** Scrap in: a flash and a ring where it was, the ship's tally up, and a mote for the HUD to fly to the tin. */
+  private gotScrap(id: number, x: number, z: number, v: number) {
+    const big = v > 1;
+    this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 12 : 6, 0xffe08a, big ? 12 : 9, 0.28, 0.24);
+    this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 4 : 2, 0xffffff, 14, 0.15, 0.2);
+    this.fx.ring(x, FLIGHT_Y, z, big ? 2.6 : 1.6, 0.2, true, 0xffe08a);
+    if (this.scrapGot.length < 80) this.scrapGot.push({ x, z, v });
+    const p = this.lv.players[id];
+    let t = this.tally[id];
+    // (a fresh tally once the last has had a moment's quiet)
+    if (!t || t.pop.t > 0.5 || !this.pops.includes(t.pop)) {
+      t = { pop: { text: '', x: 0, z: 0, t: 0, color: '#ffe08a' }, n: 0 };
+      this.tally[id] = t;
+      this.pops.push(t.pop);
+    }
+    t.n += v;
+    Object.assign(t.pop, { text: `+${t.n}`, x: p.x, z: p.z - 1.5, t: 0, color: t.n >= 25 ? '#ffffff' : '#ffe08a' });
   }
 
   pop(text: string, x: number, z: number, color: string, big = false) {
@@ -2013,8 +2042,11 @@ export class LevelView {
         let inst: Instance | null = null;
         let obj: THREE.Object3D;
         if (k.kind === 'scrap') {
+          // bigger than the model, and lit from underneath so it reads against any ground
           inst = library.clone('pickup_scrap');
-          obj = inst?.obj ?? part(GEO.oct, toon(0xc8b080), [0, 0, 0], 0.5);
+          obj = new THREE.Group();
+          obj.add(inst?.obj ?? part(GEO.oct, toon(0xc8b080), [0, 0, 0], 0.3), new THREE.Sprite(SCRAP_GLOW));
+          obj.children[1].position.y = 0.15;
         } else if (k.kind === 'part') {
           inst = library.clone('pickup_part');
           obj = inst?.obj ?? part(GEO.box, toon(0x5a8a6a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]);
@@ -2040,6 +2072,16 @@ export class LevelView {
         v.obj.scale.setScalar(done ? 1.3 : 1);
       } else {
         v.obj.rotation.y += dt * (k.kind === 'part' ? 1.5 : 5);
+        if (k.kind === 'scrap') {
+          // it pops out of the wreck, glints as it drifts, and streaks when the magnet has it
+          const big = k.value > 1;
+          const f = Math.min(1, k.t / 0.22);
+          const pop = f * (1 + 0.5 * Math.sin(f * Math.PI));
+          v.obj.scale.setScalar((big ? 2.5 : 1.8) * pop);
+          v.obj.children[1].scale.setScalar((big ? 2.2 : 1.6) * (1 + 0.2 * Math.sin(this.time * 9 + k.x * 3)));
+          if (Math.random() < (big ? 0.06 : 0.025)) this.fx.sparks(k.x, FLIGHT_Y + 0.9, k.z, 1, 0xffffff, 1.5, 0.3, 0.35);
+          if (k.vx * k.vx + k.vz * k.vz > 100) this.fx.add({ x: k.x, y: FLIGHT_Y + 0.5, z: k.z, life: 0.16, size: big ? 0.45 : 0.32, grow: 0.2, color: SCRAP_TRAIL });
+        }
         if (k.kind === 'part') {
           const tier = k.part ? tierOf(k.part) : 'common';
           const col = tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
