@@ -2,10 +2,14 @@
  * Loot: no two parts that drop are quite the same. A part as found is an item: the part itself,
  * a tier, and what was rolled for it.
  *
- * - The tier says how much was rolled: a COMMON part is stock, a RARE one has one mod, an EPIC two,
- *   and a LEGENDARY one has a mod and a trait.
+ * - The tier says how much was rolled: a COMMON part is stock, a RARE one has a mod (or, as often
+ *   as not, an affix instead), an EPIC a mod and an affix, and a LEGENDARY a mod, an affix and a trait.
  * - Mods are numbers, rolled within a range (+10..30% damage, -25..60% mass, ...). The roll is
  *   kept (0..1), so a card can show how good it came out.
+ * - Affixes are Dead Cells' kind: not a number but a habit. A gun whose crits burst, whose kills
+ *   throw splinters, that finishes what it leaves nearly dead; a dash that throws the bullets it
+ *   soaks back; a hull with a second wind. Two Rivet Guns found on one run needn't fly alike, and
+ *   what drops early says how the run will want to be flown.
  * - Traits are legendary and change the rules for that part: a gun that fires a mirror twin, a
  *   booster that reaches every gun on the ship, a part that links wherever it sits, shots that
  *   split or come back, kills that pass their marks on, a dash that leaves a turret behind or ends
@@ -33,11 +37,19 @@ export type TraitId =
   | 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic' | 'volatile' | 'splitting'
   | 'sentinel' | 'boomerang' | 'frenzied' | 'thunderous' | 'vengeful' | 'ravenous';
 
+export type AffixId =
+  | 'blasting' | 'shrapnel' | 'executioner' | 'giantslayer' | 'spite' | 'ricochet' | 'scavenger'
+  | 'deflecting' | 'afterburn' | 'adrenal'
+  | 'secondwind' | 'barbed' | 'reactive'
+  | 'hotwired' | 'primed'
+  | 'surging' | 'lingering';
+
 /** A part as found: which part, and what was rolled for it. Plain ids are stock commons. */
 export interface Item {
   id: string;
   tier?: Tier;
   mods?: Mod[];
+  affix?: AffixId;
   trait?: TraitId;
 }
 
@@ -113,6 +125,48 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
   prismatic: { name: 'PRISMATIC', text: 'Counts as one of every tag towards set bonuses. Clashes with nothing new.', fits: (d) => !d.conduit },
 };
 
+export interface AffixSpec {
+  name: string;
+  /** The line on a card. */
+  text: string;
+  fits: (d: PartDef) => boolean;
+}
+
+const gun = (d: PartDef) => !!d.gun;
+
+/**
+ * The affixes. Each changes when or how a part does its work, so a run's drops pull its flying one
+ * way or another: crits that burst want edges, a spiteful gun wants you to take risks, a deflecting
+ * dash wants perfects. A card shows one in its own colour, with a ✦.
+ */
+export const AFFIXES: Record<AffixId, AffixSpec> = {
+  // guns
+  blasting: { name: 'BLASTING', text: 'Its crits burst: a blast round what they hit.', fits: gun },
+  shrapnel: { name: 'SHRAPNEL', text: 'Its kills burst into five splinters that fly on.', fits: gun },
+  executioner: { name: 'EXECUTIONER', text: 'Finishes off what it leaves below 15% hull. On a Warden, +50% below a quarter.', fits: gun },
+  giantslayer: { name: 'GIANTSLAYER', text: '+60% on elites, Wardens and anything big.', fits: gun },
+  spite: { name: 'SPITE', text: '+70% for 5 s after you are hit.', fits: gun },
+  ricochet: { name: 'RICOCHET', text: 'Its shots glance off what they hit to the nearest other enemy.', fits: (d) => projectile(d) && !['mine', 'flame', 'flak'].includes(d.gun!.shot) },
+  scavenger: { name: 'SCAVENGER', text: 'Its kills shake loose more scrap, and now and then a repair kit.', fits: gun },
+  // engines and dash mods
+  deflecting: { name: 'DEFLECTING', text: 'A perfect dash throws the bullets it soaks back at them.', fits: (d) => d.cls === 'engine' },
+  afterburn: { name: 'AFTERBURN', text: 'Dashes leave a wake of fire: what crosses it burns.', fits: (d) => d.cls === 'engine' },
+  adrenal: { name: 'ADRENAL', text: 'A perfect dash charges the special a fifth and the aux halfway.', fits: (d) => d.cls === 'engine' },
+  // the hull
+  secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you one hull.', fits: (d) => d.cls === 'defense' },
+  barbed: { name: 'BARBED', text: 'Whatever rams you, or you ram, takes a hard hit and reels.', fits: (d) => d.cls === 'defense' && !d.aux },
+  reactive: { name: 'REACTIVE', text: 'Losing a shield lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
+  // boosters and power: on the guns they touch
+  hotwired: { name: 'HOT-WIRED', text: 'Touching guns’ shots pierce one more.', fits: (d) => (d.cls === 'booster' || d.cls === 'power') && !d.conduit && !d.special },
+  primed: { name: 'PRIMED', text: 'After a perfect dash, touching guns hit +60% for 3 s.', fits: (d) => (d.cls === 'booster' || d.cls === 'power') && !d.conduit && !d.special },
+  // specials
+  surging: { name: 'SURGING', text: 'The special also reloads every heavy and cools every gun.', fits: (d) => !!d.special },
+  lingering: { name: 'LINGERING', text: 'Nothing can touch you for 1.5 s after the special.', fits: (d) => !!d.special },
+};
+
+/** The colour an affix is written in (on cards, in the hangar, over the ship). */
+export const AFFIX_COLOR = '#5ef0c8';
+
 export const tierOf = (it: Item): Tier => it.tier ?? 'common';
 
 /** What it's called: a legendary carries its trait in its name. */
@@ -126,12 +180,18 @@ export function toItem(it: Item): Item {
   const out: Item = { id: it.id };
   if (it.tier) out.tier = it.tier;
   if (it.mods) out.mods = it.mods.map((m) => ({ ...m }));
+  if (it.affix) out.affix = it.affix;
   if (it.trait) out.trait = it.trait;
   return out;
 }
 
-/** How many mods each tier rolls. */
-const MOD_COUNT: Record<Tier, number> = { common: 0, rare: 1, epic: 2, legendary: 1 };
+/** How many mods each tier rolls (a rare's may be an affix instead: see rollItem). */
+const MOD_COUNT: Record<Tier, number> = { common: 0, rare: 1, epic: 1, legendary: 1 };
+/** How likely a tier is to carry an affix. */
+const AFFIX_CHANCE: Record<Tier, number> = { common: 0, rare: 0.45, epic: 1, legendary: 1 };
+
+/** Affixes that fit a part. */
+export const affixesFor = (d: PartDef) => (Object.keys(AFFIXES) as AffixId[]).filter((a) => AFFIXES[a].fits(d));
 
 /** Rolls an item of a part at a tier (as near as the part allows: conduit is only ever stock). */
 export function rollItem(r: Rng, id: string, tier: Tier): Item {
@@ -141,15 +201,20 @@ export function rollItem(r: Rng, id: string, tier: Tier): Item {
   const it: Item = { id, tier };
   // rolls lean high on the better tiers
   const floor = tier === 'legendary' ? 0.45 : tier === 'epic' ? 0.2 : 0;
-  const mods = kinds.slice(0, MOD_COUNT[tier]).map((k) => ({ k, roll: floor + (1 - floor) * r() }));
+  const affixes = affixesFor(d);
+  const affix = affixes.length && r() < AFFIX_CHANCE[tier] ? pick(r, affixes) : undefined;
+  // a rare carries one thing: the affix, or a mod
+  const n = tier === 'rare' && affix ? 0 : MOD_COUNT[tier];
+  const mods = kinds.slice(0, n).map((k) => ({ k, roll: floor + (1 - floor) * r() }));
   if (mods.length) it.mods = mods;
+  if (affix) it.affix = affix;
   if (tier === 'legendary') {
     const traits = (Object.keys(TRAITS) as TraitId[]).filter((t) => TRAITS[t].fits(d));
     // prismatic fits everything: only when nothing better does, or now and then
     const best = traits.filter((t) => t !== 'prismatic');
     it.trait = best.length && r() < 0.8 ? pick(r, best) : 'prismatic';
   }
-  if (!it.mods && tier !== 'legendary' && tier !== 'common') it.tier = 'common';
+  if (!it.mods && !it.affix && tier !== 'legendary' && tier !== 'common') it.tier = 'common';
   return it;
 }
 
@@ -185,7 +250,7 @@ const cache = new WeakMap<Item, ItemDef>();
 /** The PartDef an item works as: its rolled numbers applied. Stock items come back as the part. */
 export function itemDef(it: Item): ItemDef {
   const base = partById(it.id);
-  if (!it.mods && !it.trait) return base as ItemDef;
+  if (!it.mods && !it.trait && !it.affix) return base as ItemDef;
   let d = cache.get(it);
   if (d && d.id === it.id) return d;
   d = { ...base, item: it, potency: 1, chargeRate: 1, dashRecover: 1 };

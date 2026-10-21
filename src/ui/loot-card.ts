@@ -9,7 +9,7 @@ import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED } from './hud';
 import { drawText, textWidth, wrap } from './font';
 import { partStats, TIER_BODY, TIER_COLOR, TIER_DARK } from './widgets';
 import { frameById, partById, verbOf, type PartDef, type Verb } from '../game/parts';
-import { itemDef, MODS, modValue, tierOf, TRAITS, type Item, type Tier } from '../game/loot';
+import { AFFIX_COLOR, AFFIXES, itemDef, MODS, modValue, tierOf, TRAITS, type Item, type Tier } from '../game/loot';
 import { cellsOf, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
 import { portraits } from '../view/portraits';
@@ -280,6 +280,26 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
       pips(ctx, m.roll, x + w - 31, ty + 1, tc);
       ty += 10;
     }
+  }
+
+  // its affix: how it plays differently, in its own colour
+  if (it.affix && ty + 20 < limit) {
+    const af = AFFIXES[it.affix];
+    const lines = wrap(af.text.toUpperCase(), w - 22);
+    const th = 13 + Math.min(lines.length, Math.floor((limit - ty - 15) / 9)) * 9;
+    ty += 2;
+    ctx.fillStyle = '#0f2a26';
+    ctx.fillRect(x + 5, ty, w - 10, th);
+    ctx.fillStyle = AFFIX_COLOR;
+    ctx.fillRect(x + 5, ty, 2, th);
+    drawText(ctx, `✦ ${af.name}`, x + 11, ty + 3, AFFIX_COLOR);
+    let ly = ty + 13;
+    for (const l of lines) {
+      if (ly + 8 > ty + th) break;
+      drawText(ctx, l, x + 11, ly, '#bff8e8');
+      ly += 9;
+    }
+    ty += th + 4;
   }
 
   // a legendary's trait: the rule it breaks

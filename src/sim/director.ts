@@ -17,6 +17,8 @@ import { boarderSkin } from './convoy';
 
 /** How much of a wave roll goes to the planet's old roster (the rest to the factions' foes). */
 const OLD_SHARE = 0.55;
+/** Hot crates turn up from this difficulty on (not on the first stops). */
+const HOT_FROM = 0.15;
 /** Bounties: how long each stays before it gets away. */
 const BOUNTY_LIFE: Partial<Record<Foe, number>> = { runner: 9, vault: 10, cache: 12, ace: 14 };
 
@@ -132,6 +134,8 @@ export class Director {
       const part = r() < 0.3 + d * 0.15;
       this.beats.push({ at: f * L, run: () => this.spawnFoe(foe, false, { reward: Math.round(20 + 15 * d + (foe === 'ace' ? 10 : 0)), part, life: BOUNTY_LIFE[foe] ?? 10 }) });
     }
+    // a hot crate, now and then once the run's under way: a great part, if you'll fly for it
+    if ((mode === 'raid' || mode === 'hunt') && d >= HOT_FROM && r() < (mode === 'hunt' ? 0.6 : 0.4)) this.beats.push({ at: (0.15 + r() * 0.25) * L, run: () => lv.hotCrate() });
     if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss() });
     // an escort: raiders come to board the haulers, more of them as it goes on
     if (mode === 'escort') {
@@ -460,7 +464,7 @@ export class Director {
     this.bossSpawned = true;
     lv.state = 'boss';
     for (const e of lv.enemies) if (e.t < 0) e.dead = true;
-    lv.emit({ type: 'bossWarning', name: p.boss.name });
+    lv.emit({ type: 'bossWarning', name: p.boss.name, title: p.boss.title });
     const skin: EnemySkin = { archetype: 'brute', name: p.boss.name, kind: p.boss.kind, colors: p.boss.colors };
     const hp = 2400 * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
     lv.spawn('boss', skin, 0, lv.top - 20, {}, { boss: makeBoss(p.id), hp, max: hp, t: -2.5 });

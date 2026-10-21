@@ -12,7 +12,7 @@ import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
 import { backdrop, hearts, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
-import { itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
+import { AFFIX_COLOR, AFFIXES, itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
 import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
 import type { DeviceId } from '../input';
@@ -463,8 +463,9 @@ export class Hangar implements Screen {
     const lines: [string, string][] = [];
     // what was rolled for it, then a legendary's rule, then what it is
     if (it.mods?.length) lines.push([it.mods.map((m) => MODS[m.k].short(modValue(m))).join('   '), '#e8e0f0']);
+    if (it.affix) for (const l of wrap(`✦ ${AFFIXES[it.affix].name}: ${AFFIXES[it.affix].text}`, tw).slice(0, 2)) lines.push([l, AFFIX_COLOR]);
     if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
-    for (const l of wrap(def.text, tw).slice(0, it.trait ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
+    for (const l of wrap(def.text, tw).slice(0, it.trait || it.affix ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     if (def.duo) lines.push([`DUO PART: ${def.duo[0]} + ${def.duo[1]}`, CYAN]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     const lp = linkedPct(this.run.crew[who].build.frame);

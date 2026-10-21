@@ -94,6 +94,14 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
       intent.y = -DIRS[plan.k][1];
       intent.focus = false;
     }
+    // something reeling within reach: dash through it (a takedown), if the dash's way is clear
+    const td = !intent.dash && plan ? takedownDash(lv, p) : null;
+    if (td) {
+      intent.dash = true;
+      intent.x = DIRS[td][0];
+      intent.y = -DIRS[td][1];
+      intent.focus = false;
+    }
     // the foes' own reasons to dash: hooked, or a ring to go through (see dodge.ts)
     const forced = threatDash(lv, p);
     if (forced) {
@@ -252,6 +260,31 @@ function chasing(lv: Level, p: Player) {
   return lv.enemies.some((e) => !e.dead && e.bounty && e.t >= 0 && lv.onScreen(e.x, e.z) && Math.hypot(e.x - p.x, e.z - p.z) > 10);
 }
 
+/** A takedown: the way to dash (an index into DIRS) that passes through something staggered, if one does. */
+function takedownDash(lv: Level, p: Player): number | null {
+  const reach = DASH_SPEED * DASH_TIME;
+  for (const e of lv.enemies) {
+    if (e.dead || e.ground || e.t < 0 || e.state !== 'stagger' || e.d.td) continue;
+    const ex = e.x - p.x;
+    const ez = e.z - p.z;
+    if (ex * ex + ez * ez > (reach + e.r) ** 2) continue;
+    let best = -1;
+    let miss = Infinity;
+    for (let k = 1; k < DIRS.length; k++) {
+      const [dx, dz] = DIRS[k];
+      const l = Math.hypot(dx, dz);
+      const along = clamp((ex * dx + ez * dz) / l, 0, reach);
+      const off = Math.hypot(ex - (dx / l) * along, ez - (dz / l) * along);
+      if (off < miss) {
+        miss = off;
+        best = k;
+      }
+    }
+    if (best > 0 && miss < e.r + p.stats.core + 0.8) return best;
+  }
+  return null;
+}
+
 /**
  * The best dash from here: which way, whether fire was about to land where it is (dashing out of
  * it in the slip is a perfect), whether the way out is clear (a dash isn't safe: what it runs into
@@ -294,7 +327,8 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
         const hr = core + b.r + 0.4;
         if ((b.x + b.vx * t - x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) way += 2;
       }
-      for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && (e.x + e.vx * t - x) ** 2 + (e.z + (e.vz - scroll) * t - z) ** 2 < (e.r * 0.75 + core + 0.6) ** 2) way += 3;
+      // (not what's staggered: a dash through that is a takedown, see takedownDash)
+      for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && e.state !== 'stagger' && (e.x + e.vx * t - x) ** 2 + (e.z + (e.vz - scroll) * t - z) ** 2 < (e.r * 0.75 + core + 0.6) ** 2) way += 3;
       if (threatCost(lv, x, z, t, core) >= 500) way += 3;
     }
     danger += way;

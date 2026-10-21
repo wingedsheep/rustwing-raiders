@@ -15,6 +15,7 @@ import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
 import { audio } from '../audio';
 import type { Biome } from '../world/planets';
+import type { Read } from '../sim/boss';
 import { clamp, damp, lerp } from '../util';
 import type { PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
@@ -23,13 +24,16 @@ import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
 import { ConvoyView } from './convoy-view';
 import { HeistView } from './heist-view';
 import { TraitsView } from './traits';
-import { TRAITS, itemName, tierOf, type Tier } from '../game/loot';
+import { AFFIXES, AFFIX_COLOR, TRAITS, itemName, tierOf, type AffixId, type Tier } from '../game/loot';
 import { TIER_COLOR } from '../ui/widgets';
+import { HOT as HOT_TEXT } from '../ui/hud';
 import { EDGES, type Edge } from '../game/parts';
 
 /** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
 const SCRAP_GLOW = new THREE.SpriteMaterial({ map: SOFT, color: 0xffc04a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
 const SCRAP_TRAIL = new THREE.Color(0xffd070);
+/** Hot crates (see Level.hotCrate). */
+const HOT_HEX = 0xff6a2a;
 
 /** A heist's colour (see hud.ts HEIST). */
 const HEIST_HEX = '#5ae0c0';
@@ -99,6 +103,10 @@ export class LevelView {
   private reacted = new Set<string>();
   /** Enemies a shatter just staggered (their SHATTER! says it; no STAGGERED over it). */
   private shattered = new Set<number>();
+  /** When each affix was last named over the ship (see 'affix'). */
+  private affixT = new Map<AffixId, number>();
+  /** Staggers seen this level (the first few teach the takedown). */
+  private staggers = 0;
   readonly camera = new THREE.OrthographicCamera(-HALF_W, HALF_W, FIELD_H / 2, -FIELD_H / 2, 1, 400);
   /** Half the view on screen (world units), from the window's shape. */
   halfW = HALF_W;
@@ -179,7 +187,9 @@ export class LevelView {
   private biomeIdx = -1;
   /** For the HUD: the biome that just came in and how long ago. */
   biomeBanner: { name: string; line: string; t: number } | null = null;
-  bossBanner: { name: string; t: number } | null = null;
+  bossBanner: { name: string; title: string; t: number } | null = null;
+  /** What the boss last said it read in how you fly (see boss.ts READ_LINE), and how long ago. */
+  bossRead: { read: Read; side: number; t: number } | null = null;
   /** Floating texts for the HUD (score pops, GRAZE, part names), in world coords; `big` ones are called out large. */
   pops: { text: string; x: number; z: number; t: number; color: string; big?: boolean }[] = [];
   /** Scrap picked up this frame, for the HUD to fly off to the tin (it takes them as it draws). */
@@ -549,7 +559,8 @@ export class LevelView {
         case 'exposed':
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, e.stagger ? 10 : 5, 0xffe08a, 10, 0.3, 0.2);
           if (e.stagger) {
-            if (!this.shattered.has(e.enemy)) this.pop('STAGGERED', e.x, e.z - 2, '#ffe08a');
+            // (the first few a level say what to do about it)
+            if (!this.shattered.has(e.enemy)) this.pop(this.staggers++ < 3 ? 'STAGGERED · DASH IT!' : 'STAGGERED', e.x, e.z - 2, '#ffe08a');
             this.hitstop = Math.max(this.hitstop, 3);
             audio.play('hit_armor', { pan: e.x / HALF_W, pitch: 0.7 });
           }
@@ -812,7 +823,7 @@ export class LevelView {
           audio.play('laser_charge', { pan: e.x / HALF_W, vol: 0.6 });
           break;
         case 'bossWarning':
-          this.bossBanner = { name: e.name, t: 0 };
+          this.bossBanner = { name: e.name, title: e.title, t: 0 };
           audio.play('boss_warning');
           audio.music('boss');
           break;
@@ -874,6 +885,80 @@ export class LevelView {
           break;
         case 'failed':
           audio.music(null);
+          break;
+        case 'takedown': {
+          // the dash through something reeling: a freeze, a slash of light, and it's thrown
+          this.hitstop = Math.max(this.hitstop, e.boss ? 12 : 9);
+          this.slowmo = 0.3;
+          this.slowmoT = e.kill ? 0.4 : 0.25;
+          this.trauma = Math.min(1, this.trauma + (e.boss ? 0.6 : 0.45));
+          this.flash = Math.max(this.flash, 0.3);
+          this.flashColor.set(0xfff4d0);
+          const p = lv.players[e.id];
+          this.bolt([p.x - p.dashX * 6, p.z - p.dashZ * 6, e.x + p.dashX * 4, e.z + p.dashZ * 4], 0xfff4d0);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, e.boss ? 12 : 6, 0.3, true, 0xffffff);
+          this.shards(e.x, e.z, e.boss ? 22 : 14, 0xffe08a);
+          this.pop(e.heal ? 'TAKEDOWN  +KIT' : 'TAKEDOWN', e.x, e.z - 3, e.heal ? '#8affb0' : '#fff4d0', true);
+          audio.play('react_shatter', { pan: e.x / HALF_W, pitch: 0.8 });
+          audio.play('ram', { pan: e.x / HALF_W, pitch: 0.7 });
+          audio.duck(0.5);
+          break;
+        }
+        case 'affix': {
+          // named now and then, so you learn what it is that just happened (not every time)
+          const t = this.affixT.get(e.affix) ?? -9;
+          this.fx.ring(e.x, FLIGHT_Y, e.z, e.affix === 'secondwind' ? 10 : 4, 0.3, true, 0x5ef0c8);
+          if (e.affix === 'secondwind') {
+            this.hitstop = Math.max(this.hitstop, 14);
+            this.flash = 0.6;
+            this.flashColor.set(0x5ef0c8);
+            audio.play('heal', { pitch: 0.7 });
+          } else if (e.affix === 'reactive') audio.play('shield_break', { pan: e.x / HALF_W, pitch: 1.4, vol: 0.6 });
+          else if (e.affix === 'deflecting') audio.play('parry', { pan: e.x / HALF_W, vol: 0.6 });
+          if (lv.time - t > 6 || e.affix === 'secondwind') {
+            this.affixT.set(e.affix, lv.time);
+            this.pop(`✦ ${AFFIXES[e.affix].name}`, e.x, e.z - 4, AFFIX_COLOR);
+          }
+          break;
+        }
+        case 'hot': {
+          const name = e.part ? itemName(e.part) : 'PART';
+          if (e.state === 'appear') {
+            this.pop('HOT CRATE', e.x, e.z + 4, HOT_TEXT, true);
+            audio.play('risk_up', { pan: e.x / HALF_W, pitch: 0.8 });
+          } else if (e.state === 'on') {
+            // taken: the fuse is lit
+            this.hitstop = Math.max(this.hitstop, 5);
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.35, true, HOT_HEX);
+            this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 18, HOT_HEX, 14, 0.4, 0.2);
+            this.pop('FUSE LIT!', e.x, e.z - 4, HOT_TEXT, true);
+            this.pop('FLY CLOSE TO KEEP IT BURNING', e.x, e.z, '#ffd0a0');
+            audio.play('risk_up', { pitch: 0.6 });
+          } else if (e.state === 'open') {
+            // cracked open: the part, and the Burn all back at once
+            this.gotPart(e.part, e.x, e.z);
+            this.pop('CRACKED OPEN', e.x, e.z - 8, '#ffffff', true);
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 10, 0.5, true, 0xffffff);
+            this.shards(e.x, e.z, 18, HOT_HEX);
+          } else if (e.state === 'blown') {
+            this.trauma = 1;
+            this.flash = 0.7;
+            this.flashColor.set(HOT_HEX);
+            this.hitstop = Math.max(this.hitstop, 10);
+            this.fx.explode(e.x, FLIGHT_Y, e.z, 3, HOT_HEX);
+            this.pop(`BLOWN: ${name}`, e.x, e.z - 4, HOT_TEXT, true);
+            audio.play('explode_big', { pan: e.x / HALF_W });
+            audio.play('risk_lost');
+          } else {
+            this.pop(`LOST: ${name}`, e.x, e.z - 4, HOT_TEXT, true);
+            audio.play('risk_lost');
+          }
+          break;
+        }
+        case 'bossRead':
+          // it's noticed how you fly: a low note, and it says so under its bar
+          this.bossRead = { read: e.read, side: e.side, t: 0 };
+          audio.play('horn', { pitch: 0.75, vol: 0.4 });
           break;
         case 'mark':
           this.marked(e.enemy, e.kind, e.x, e.z);
@@ -1451,6 +1536,7 @@ export class LevelView {
     this.pops = this.pops.filter((p) => p.t < (p.big ? 1.6 : 0.9));
     if (this.biomeBanner) this.biomeBanner.t += dt;
     if (this.bossBanner) this.bossBanner.t += dt;
+    if (this.bossRead) this.bossRead.t += dt;
     // juice decays
     this.chainT -= dt;
     this.multiT -= dt;
@@ -2050,6 +2136,13 @@ export class LevelView {
         } else if (k.kind === 'part') {
           inst = library.clone('pickup_part');
           obj = inst?.obj ?? part(GEO.box, toon(0x5a8a6a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]);
+        } else if (k.kind === 'hot') {
+          // a faction strongbox: the crate, banded, a warning light on top
+          obj = new THREE.Group();
+          inst = library.clone('pickup_part');
+          obj.add(inst?.obj ?? part(GEO.box, toon(0x6a4a3a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]));
+          obj.add(part(GEO.box, toon(0x2a1e24), [0, 0, 0], [1.25, 0.18, 0.95]));
+          obj.add(part(GEO.oct, flat(HOT_HEX), [0, 0.65, 0], 0.32));
         } else if (k.kind === 'repair') {
           obj = new THREE.Group();
           obj.add(part(GEO.box, flat(0x8affb0), [0, 0, 0], [1, 0.3, 0.35]), part(GEO.box, flat(0x8affb0), [0, 0, 0], [0.35, 0.3, 1]));
@@ -2057,7 +2150,7 @@ export class LevelView {
           obj = part(new THREE.TorusGeometry(2.4, 0.22, 4, 18), toon(0xffd04a, { glow: 0.6 }), [0, 0, 0], 1);
         }
         this.scene.add(obj);
-        v = { obj, inst, beacon: k.kind === 'part' && k.part ? this.beacon(tierOf(k.part)) : undefined };
+        v = { obj, inst, beacon: (k.kind === 'part' || k.kind === 'hot') && k.part ? this.beacon(tierOf(k.part)) : undefined };
         if (v.beacon) this.scene.add(v.beacon);
         this.pickups.set(k, v);
         if (k.part?.tier === 'legendary') audio.play('loot_epic', { pan: k.x / HALF_W, pitch: 0.8, vol: 0.6 });
@@ -2071,7 +2164,9 @@ export class LevelView {
         v.obj.visible = !done || Math.floor(this.time * 20) % 2 === 0;
         v.obj.scale.setScalar(done ? 1.3 : 1);
       } else {
-        v.obj.rotation.y += dt * (k.kind === 'part' ? 1.5 : 5);
+        v.obj.rotation.y += dt * (k.kind === 'part' || k.kind === 'hot' ? 1.5 : 5);
+        // the strongbox's light blinks: it's live
+        if (k.kind === 'hot') v.obj.children[2].visible = Math.floor(this.time * 5) % 2 === 0;
         if (k.kind === 'scrap') {
           // it pops out of the wreck, glints as it drifts, and streaks when the magnet has it
           const big = k.value > 1;
@@ -2082,9 +2177,9 @@ export class LevelView {
           if (Math.random() < (big ? 0.06 : 0.025)) this.fx.sparks(k.x, FLIGHT_Y + 0.9, k.z, 1, 0xffffff, 1.5, 0.3, 0.35);
           if (k.vx * k.vx + k.vz * k.vz > 100) this.fx.add({ x: k.x, y: FLIGHT_Y + 0.5, z: k.z, life: 0.16, size: big ? 0.45 : 0.32, grow: 0.2, color: SCRAP_TRAIL });
         }
-        if (k.kind === 'part') {
+        if (k.kind === 'part' || k.kind === 'hot') {
           const tier = k.part ? tierOf(k.part) : 'common';
-          const col = tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
+          const col = k.kind === 'hot' && Math.random() < 0.5 ? HOT_HEX : tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
           v.obj.scale.setScalar(1 + Math.sin(this.time * 6) * 0.08);
           if (Math.random() < (tier === 'legendary' ? 0.6 : tier === 'epic' ? 0.35 : 0.15)) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, col, tier === 'legendary' ? 7 : 4, 0.4, 0.2);
           if (v.beacon) {
@@ -2143,6 +2238,8 @@ export class LevelView {
       if (tier !== 'common') this.fx.ring(x, FLIGHT_Y, z, tier === 'epic' ? 6 : 4, 0.3, true, TIER_HEX[tier]);
       audio.play(tier === 'epic' ? 'loot_epic' : 'pickup_part');
     }
+    // what it does differently, under the name
+    if (it?.affix) this.pop(`✦ ${AFFIXES[it.affix].name}`, x, z + (tier === 'legendary' ? 4 : 3.5), AFFIX_COLOR);
   }
 
   private updateHazards(dt: number) {

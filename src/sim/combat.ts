@@ -170,6 +170,7 @@ export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKi
       lv.emit({ type: 'chain', enemy: e.id, n: n + 1, of });
     }
   }
+  if (state === 'stagger') e.d.td = 0;
   e.state = state;
   e.stateT = skip ? 30 : 0;
   e.stateDur = dur;

@@ -5,7 +5,7 @@
 
 import { CELL, FRAMES, LOAD, PARTS, TAG_BONUS, frameById, partById, type AuxKind, type LoadClass, type DashMod, type FrameDef, type GunSpec, type PartDef, type Tag } from '../game/parts';
 import { links } from './links';
-import { tagsOf, type Item, type ItemDef } from '../game/loot';
+import { tagsOf, type AffixId, type Item, type ItemDef } from '../game/loot';
 import { BURN, MARK_BIT, SHOCK, tagMarks } from './marks';
 
 /** An item bolted on somewhere. */
@@ -61,6 +61,9 @@ export interface Gun {
   sentinel: boolean;
   boomerang: boolean;
   frenzied: boolean;
+  /** Its own affix (the gun ones: see AFFIXES in game/loot.ts), and a PRIMED part touching it. */
+  affix?: AffixId;
+  primed: boolean;
   /** A HEAVY gun's rounds (0: a main gun, on the held trigger). */
   heavy: number;
   /** Where it's bolted on. */
@@ -121,6 +124,8 @@ export interface Stats {
   thunder: number;
   vengeful: boolean;
   ravenous: boolean;
+  /** The ship-wide affixes it carries: an engine's DEFLECTING dash, a SECOND WIND hull, a SURGING special. */
+  affixes: Partial<Record<AffixId, true>>;
 }
 
 export const rotOf = (p: Placement) => (p.rot ?? (p.turned ? 1 : 0)) & 3;
@@ -219,7 +224,10 @@ export function stats(b: Build): Stats {
   let thunder = 0;
   let vengeful = false;
   let ravenous = false;
+  const affixes: Stats['affixes'] = {};
   for (const { p, def, str, idle } of parts) {
+    // a special's affix works only on the special that runs (the gun ones ride on the gun)
+    if (p.affix && str > 0 && !def.gun && !(def.special && (idle || special))) affixes[p.affix] = true;
     if (p.trait === 'thunderous') thunder = Math.max(thunder, Math.max(0.5, Math.min(str, 1.5)));
     if (p.trait === 'vengeful') vengeful = true;
     hp += def.hp ?? 0;
@@ -301,8 +309,11 @@ export function stats(b: Build): Stats {
     let markStr = marks ? Math.max(0.5, gs) : 0;
     let flaw = false;
     let edgeMul = 2;
+    let primed = false;
     for (const { p: q, def: d, str } of parts) {
       if (!touching(p, q) || str <= 0) continue;
+      if (q.affix === 'hotwired') spec.pierce = (spec.pierce ?? 0) + 1;
+      primed ||= q.affix === 'primed';
       if (d.boost) {
         spec.damage *= 1 + (d.boost.damage ?? 0) * str;
         spec.rate *= 1 + (d.boost.rate ?? 0) * str;
@@ -338,7 +349,7 @@ export function stats(b: Build): Stats {
     const g: Gun = {
       part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, homing, burst, cool, drone: false, crit, throttle, exchange, storm, volley,
       marks, markStr, flaw, edgeMul, volatile: p.trait === 'volatile', split: p.trait === 'splitting',
-      sentinel: p.trait === 'sentinel', boomerang: p.trait === 'boomerang', frenzied: p.trait === 'frenzied', heavy, at: p,
+      sentinel: p.trait === 'sentinel', boomerang: p.trait === 'boomerang', frenzied: p.trait === 'frenzied', affix: p.affix, primed, heavy, at: p,
     };
     guns.push(g);
     // twinned: a mirror copy from the other side of the hull (both off the middle, if it's there)
@@ -397,6 +408,7 @@ export function stats(b: Build): Stats {
     thunder,
     vengeful,
     ravenous,
+    affixes,
   };
 }
 

@@ -12,7 +12,7 @@ import { stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
-import type { BossState, BossStyle } from './boss';
+import type { BossState, BossStyle, Read } from './boss';
 import { CHAIN, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
@@ -20,7 +20,7 @@ import type { AuxKind, Edge, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
 import { Convoy } from './convoy';
 import { Heist } from './heist';
-import { rollItem, rollTier, type Item } from '../game/loot';
+import { rollItem, rollTier, type AffixId, type Item } from '../game/loot';
 
 export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
 
@@ -170,6 +170,15 @@ export interface Player {
   lockT: number[];
   /** Crits each edge has landed (for the autopilot's report). */
   edges: Partial<Record<Edge, number>>;
+  /** Affixes: seconds of SPITE left (after a hit), of PRIMED (after a perfect); SECOND WIND spent this level. */
+  spiteT: number;
+  primeT: number;
+  wind: boolean;
+  /** Takedowns landed (for the autopilot's report). */
+  takedowns: number;
+  /** A hot crate carried (see HOT): what's in it, and its fuse (0 it blows, 1 it's open). */
+  crate?: Item;
+  fuse: number;
 }
 
 /** SENTINEL: a copy of a gun left behind by a dash, firing on its own until it winks out. */
@@ -241,6 +250,9 @@ export interface Shot {
   /** BOOMERANG: it turns at the end of its flight; `back`: it has, and is on its way home. */
   boomerang?: boolean;
   back?: boolean;
+  /** Its gun's affix; `rico`: a RICOCHET's glance (it doesn't glance again). */
+  affix?: AffixId;
+  rico?: boolean;
   dead: boolean;
 }
 
@@ -351,7 +363,7 @@ export interface Wave {
   missed: number;
 }
 
-export type PickupKind = 'scrap' | 'part' | 'repair' | 'ring';
+export type PickupKind = 'scrap' | 'part' | 'repair' | 'ring' | 'hot';
 
 export interface Pickup {
   x: number;
@@ -420,7 +432,9 @@ export type LevelEvent =
   | { type: 'telegraph'; x: number; z: number; x2: number; z2: number; t: number }
   | { type: 'beam'; x: number; z: number; x2: number; z2: number; color: number }
   | { type: 'spawn'; enemy: number }
-  | { type: 'bossWarning'; name: string }
+  | { type: 'bossWarning'; name: string; title: string }
+  /** The boss read how you fly, and is answering it (`side`: the side you hug, for 'side'). */
+  | { type: 'bossRead'; read: Read; side: number }
   | { type: 'bossPhase'; phase: number; style?: BossStyle }
   | { type: 'biome'; index: number }
   /** The fight around the foes: tells, punish windows, kills and how (see combat.ts). */
@@ -488,6 +502,12 @@ export type LevelEvent =
   | { type: 'nova'; id: number; x: number; z: number; power: number }
   /** RAVENOUS: a kill at (x, z) fed the special (`full`: and filled it). */
   | { type: 'feed'; id: number; x: number; z: number; full: boolean }
+  /** An affix did its thing (the view names it over the ship, now and then). */
+  | { type: 'affix'; id: number; affix: AffixId; x: number; z: number }
+  /** A dash through something staggered: `heal`, it left a repair kit (an elite's, a boss's first a phase). */
+  | { type: 'takedown'; id: number; enemy: number; x: number; z: number; kill: boolean; heal: boolean; boss: boolean }
+  /** A hot crate: there to take (`id` -1), taken, cracked open (the part's yours), blown (a hull and the part gone), or let go at the level's end. */
+  | { type: 'hot'; id: number; state: 'appear' | 'on' | 'open' | 'blown' | 'lost'; x: number; z: number; part?: Item }
   /** A shocked enemy seized up for a beat. */
   | { type: 'jolt'; enemy: number; x: number; z: number }
   /** Escorts (see convoy.ts): a hauler hit, lost, boarded, delivered; raiders coming to board one. */
@@ -572,6 +592,8 @@ export class Level {
   readonly sentinels: Sentinel[] = [];
   /** A special going off right now: what it kills doesn't feed a RAVENOUS special. */
   private inSpecial = false;
+  /** Boss phases a takedown has already paid a repair kit in. */
+  private readonly tookPhase = new Set<number>();
   private nextId = 1;
   private biomeShown = -1;
 
@@ -663,6 +685,11 @@ export class Level {
         lockOn: s.guns.map(() => 0),
         lockT: s.guns.map(() => 0),
         edges: {},
+        spiteT: 0,
+        primeT: 0,
+        wind: false,
+        takedowns: 0,
+        fuse: 0,
       });
     });
     this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
@@ -792,6 +819,7 @@ export class Level {
   finish() {
     if (this.state === 'clear') return;
     this.state = 'clear';
+    for (const p of this.players) this.dropCrate(p);
     const hard = 1 + this.spec.difficulty * 0.5;
     // a fight: how much got through
     const seen = this.killed + this.missed;
@@ -825,13 +853,15 @@ export class Level {
       const i = intents[p.id] ?? NEUTRAL;
       // (no Burn, no boost)
       const press = clamp(i.boost ?? 0, 0, 1);
-      const want = p.down || over || p.burn <= 0 ? 0 : press;
+      // (a hot crate takes the Burn: no boost while it's carried, see tickCrate)
+      this.tickCrate(p);
+      const want = p.down || over || p.burn <= 0 || p.crate ? 0 : press;
       const was = p.boosting > 0.05;
       p.boosting = want;
       p.burn = Math.max(0, p.burn - BURN_DRAIN * p.boosting * DT);
       // let go, and after a moment it comes back on its own (a racer's quickly, a hauler's slowly)
       if (p.boosting > 0.05) p.burnWait = BURN_WAIT;
-      else if ((p.burnWait = Math.max(0, p.burnWait - DT)) <= 0 && !p.down) p.burn = Math.min(1, p.burn + p.stats.burnBack * DT);
+      else if ((p.burnWait = Math.max(0, p.burnWait - DT)) <= 0 && !p.down && !p.crate) p.burn = Math.min(1, p.burn + p.stats.burnBack * DT);
       p.boostTime += p.boosting * DT;
       if (was !== p.boosting > 0.05) this.emit({ type: 'boost', id: p.id, on: !was });
     }
@@ -907,6 +937,8 @@ export class Level {
     p.slip = Math.max(0, p.slip - DT);
     p.dashLock = Math.max(0, p.dashLock - DT);
     p.strike = Math.max(0, p.strike - DT);
+    p.spiteT = Math.max(0, p.spiteT - DT);
+    p.primeT = Math.max(0, p.primeT - DT);
     p.focus = i.focus;
     if (p.frenzyT > 0 && (p.frenzyT -= DT) <= 0) {
       p.frenzy = 0;
@@ -1021,6 +1053,18 @@ export class Level {
     this.inSpecial = true;
     this.specialGoes(p, kind, k);
     this.inSpecial = false;
+    const af = p.stats.affixes;
+    // SURGING: every heavy loaded, every gun cool
+    if (af.surging) {
+      p.heat.fill(0);
+      p.jam.fill(0);
+      p.stats.guns.forEach((g, n) => (p.rounds[n] = Math.max(p.rounds[n], g.heavy)));
+      this.emit({ type: 'affix', id: p.id, affix: 'surging', x: p.x, z: p.z });
+    }
+    if (af.lingering) {
+      p.inv = Math.max(p.inv, LINGER * k);
+      this.emit({ type: 'affix', id: p.id, affix: 'lingering', x: p.x, z: p.z });
+    }
   }
 
   private specialGoes(p: Player, kind: NonNullable<Stats['special']>, k: number) {
@@ -1107,7 +1151,7 @@ export class Level {
           const flaw = g.flaw && marksOn(e) > 0;
           const edge = !flaw && this.edged(sp.edge, e, p, gx, gz, e.id === p.lockOn[k] ? p.lockT[k] : 0);
           if (edge) p.edges[sp.edge] = (p.edges[sp.edge] ?? 0) + 1;
-          this.damage(e, hit.dmg * (edge ? g.edgeMul : flaw ? 2 : 1) * (p.strike > 0 ? this.strikeMul(p) : 1), p.id, hit.crit || flaw || edge, undefined, undefined, false, edge ? sp.edge : undefined);
+          this.damage(e, hit.dmg * (edge ? g.edgeMul : flaw ? 2 : 1) * (p.strike > 0 ? this.strikeMul(p) : 1), p.id, hit.crit || flaw || edge, undefined, undefined, false, edge ? sp.edge : undefined, g.affix);
           mark(this, e, g.marks, g.markStr, p.id);
         }
       }
@@ -1214,7 +1258,7 @@ export class Level {
     const strike = p.strike > 0 && !turret;
     hit.dmg *= mul * (strike ? this.strikeMul(p) : 1);
     if (sp.shot === 'arc') {
-      this.arc(p.id, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw, edge: sp.edge, edgeMul: g.edgeMul });
+      this.arc(p.id, x, z, hit.dmg, 3 + (p.stats.bonus.arc ? 2 : 0) + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw, edge: sp.edge, edgeMul: g.edgeMul, affix: g.affix });
       return;
     }
     // and pulls spreads in: a focused stream instead of a fan
@@ -1232,6 +1276,7 @@ export class Level {
       if (g.volatile) s.volatile = true;
       if (g.split) s.split = true;
       if (g.boomerang) s.boomerang = true;
+      if (g.affix) s.affix = g.affix;
       s.edge = sp.edge;
       s.edgeMul = g.edgeMul;
       if (strike) s.strike = true;
@@ -1277,6 +1322,7 @@ export class Level {
       h.crit = s.crit;
       h.flaw = s.flaw;
       h.volatile = s.volatile;
+      h.affix = s.affix;
       h.edge = s.edge;
       h.edgeMul = s.edgeMul;
       h.ox = s.ox;
@@ -1290,7 +1336,7 @@ export class Level {
    * shocks what it hits unless told otherwise. `from`: it starts at this enemy (a reaction), not at
    * a gun, and can go any way.
    */
-  arc(owner: number, x: number, z: number, dmg: number, jumps: number, opts: { from?: Enemy; reach?: number; bits?: number; pow?: number; flaw?: boolean; edge?: Edge; edgeMul?: number } = {}) {
+  arc(owner: number, x: number, z: number, dmg: number, jumps: number, opts: { from?: Enemy; reach?: number; bits?: number; pow?: number; flaw?: boolean; edge?: Edge; edgeMul?: number; affix?: AffixId } = {}) {
     const points = [x, z];
     const done: Enemy[] = opts.from ? [opts.from] : [];
     const bits = opts.bits ?? SHOCK;
@@ -1315,7 +1361,7 @@ export class Level {
       const p = this.players[owner];
       const edge = !flaw && !!opts.edge && !!p && this.edged(opts.edge, best, p, x, z);
       if (edge) p.edges[opts.edge!] = (p.edges[opts.edge!] ?? 0) + 1;
-      this.damage(best, dmg * (j === 0 ? 1 : 0.8) * (edge ? (opts.edgeMul ?? 2) : flaw ? 2 : 1), owner, flaw || edge, undefined, undefined, false, edge ? opts.edge : undefined);
+      this.damage(best, dmg * (j === 0 ? 1 : 0.8) * (edge ? (opts.edgeMul ?? 2) : flaw ? 2 : 1), owner, flaw || edge, undefined, undefined, false, edge ? opts.edge : undefined, opts.affix);
       mark(this, best, bits, opts.pow ?? 1, owner);
       cx = best.x;
       cz = best.z;
@@ -1358,18 +1404,31 @@ export class Level {
     p.causes[cause] = (p.causes[cause] ?? 0) + 1;
     // Burn Engine: the price of the power
     if (p.stats.gamble > 0) p.burn = 0;
-    if (p.shield > 0) {
+    p.spiteT = SPITE_TIME;
+    // a hit jolts a hot crate's fuse; when it blows, it's the hull it takes (shields or not)
+    if (p.crate) p.fuse -= HOT_JOLT;
+    if (p.shield > 0 && cause !== 'crate') {
       p.shield--;
       p.inv = 0.8;
       if (p.stats.mirror && cause === 'bullet') this.mirror(p, x, z, p.stats.mirror);
       this.emit({ type: 'playerHit', id: p.id, shield: true, x, z });
+      if (p.stats.affixes.reactive) this.reactive(p);
     } else {
       p.hp -= amount;
       p.inv = 1.4;
       this.emit({ type: 'playerHit', id: p.id, shield: false, x, z });
+      // SECOND WIND: once a level, the blow that would down you doesn't
+      if (p.hp <= 0 && p.stats.affixes.secondwind && !p.wind) {
+        p.wind = true;
+        p.hp = 1;
+        p.inv = 2.5;
+        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.cancel(b, 0.6);
+        this.emit({ type: 'affix', id: p.id, affix: 'secondwind', x: p.x, z: p.z });
+      }
       if (p.hp <= 0) {
         p.hp = 0;
         p.down = true;
+        this.dropCrate(p);
         p.revive = 0;
         p.firing = false;
         this.emit({ type: 'down', id: p.id, x: p.x, z: p.z });
@@ -1447,9 +1506,14 @@ export class Level {
    * a shot, which has had its own say in collide); `s`: the shot, if it was one; `dot`: a burn's
    * tick (no blow to make a fuss of).
    */
-  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false, edge?: Edge) {
+  damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false, edge?: Edge, affix?: AffixId) {
     if (e.dead || e.shielded) return;
     const p = this.players[owner];
+    const af = dot ? undefined : (s?.affix ?? affix);
+    if (af === 'giantslayer' && (e.elite || e.boss || e.r >= GIANT_R)) dmg *= GIANT_DMG;
+    if (af === 'executioner' && e.boss && e.hp < e.max * 0.25) dmg *= 1.5;
+    // a BLASTING crit bursts (not its own burst's hits: those come in with no shot and no affix)
+    if (af === 'blasting' && crit) this.blast(e.x, e.z, BLAST_R, dmg * 0.45, owner, { quiet: false });
     // armour, shields, exposed after an attack (see combat.ts)
     const k = foeTaken(this, e, from === undefined ? (p ? { x: p.x, z: p.z } : null) : from, crit);
     if (k <= 0) {
@@ -1477,6 +1541,12 @@ export class Level {
       return;
     }
     e.hp -= dmg;
+    // EXECUTIONER: what's left that low is finished off
+    if (af === 'executioner' && !e.boss && e.hp > 0 && e.hp < e.max * EXECUTE) {
+      dmg += e.hp;
+      e.hp = 0;
+      if (p) this.emit({ type: 'affix', id: p.id, affix: af, x: e.x, z: e.z });
+    }
     foeHurt(this, e, dmg);
     const kill = e.hp <= 0;
     this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike });
@@ -1498,6 +1568,103 @@ export class Level {
     }
     this.emit({ type: 'kill', enemy: e.id, arch: e.arch, x: e.x, z: e.z, ...killHow(e, p, close, s) });
     this.kill(e, owner, close);
+    if (af === 'shrapnel') this.shrapnel(e, owner, dmg);
+    if (af === 'scavenger') {
+      for (let i = 0; i < 3; i++) this.drop('scrap', e.x + (this.rand() - 0.5) * e.r, e.z + (this.rand() - 0.5) * e.r, 1);
+      if (this.rand() < SCAVENGE_REPAIR) this.drop('repair', e.x, e.z, 1);
+    }
+  }
+
+  /** A hot crate: a faction strongbox, a part rolled well above the level's luck. It drifts down the screen: take it or let it go. */
+  hotCrate() {
+    const r = this.rand;
+    const x = (r() - 0.5) * HALF_W * 1.1;
+    const z = this.top + 2;
+    const tier = rollTier(r, this.spec.difficulty + 1, true) === 'legendary' || r() < 0.2 ? 'legendary' : 'epic';
+    const part = rollItem(r, this.director.loot(), tier);
+    this.pickups.push({ x, z, vx: 0, vz: 0, kind: 'hot', value: 0, t: 0, dead: false, part });
+    this.emit({ type: 'hot', id: -1, state: 'appear', x, z, part });
+  }
+
+  /**
+   * A hot crate's fuse: it burns down, and the Burn you earn (grazes, skims, perfects, point-blank
+   * kills, takedowns) winds it back instead of filling the meter. Full, it cracks open; out, it blows.
+   */
+  private tickCrate(p: Player) {
+    if (!p.crate || p.down) return;
+    p.fuse += p.burn * HOT_FEED - HOT_BURN * DT;
+    p.burn = 0;
+    if (p.fuse >= 1) {
+      this.loot[p.id].push(p.crate);
+      this.emit({ type: 'hot', id: p.id, state: 'open', x: p.x, z: p.z, part: p.crate });
+      p.crate = undefined;
+      p.burn = HOT_OPEN_BURN;
+    } else if (p.fuse <= 0) {
+      const part = p.crate;
+      p.crate = undefined;
+      this.emit({ type: 'hot', id: p.id, state: 'blown', x: p.x, z: p.z, part });
+      this.blast(p.x, p.z, 5, 30, p.id, { quiet: true });
+      p.inv = 0;
+      this.hurt(p, p.x, p.z, 'crate');
+    }
+  }
+
+  /** Downed, or the level over, with a crate still hot: it's gone. */
+  private dropCrate(p: Player) {
+    if (!p.crate) return;
+    this.emit({ type: 'hot', id: p.id, state: 'lost', x: p.x, z: p.z, part: p.crate });
+    p.crate = undefined;
+  }
+
+  /** SHRAPNEL: a kill bursts into splinters that fly on (they don't burst again). */
+  private shrapnel(e: Enemy, owner: number, dmg: number) {
+    const a0 = this.rand() * Math.PI * 2;
+    const each = clamp(dmg * 0.35, 4, 30);
+    for (let k = 0; k < 5; k++) this.addShot(owner, 'slug', e.x, e.z, a0 + (k / 5) * Math.PI * 2, 40, each, 0.35, 0, 0).hit.push(e.id);
+  }
+
+  /** RICOCHET: a shot that's hit glances off to the nearest other enemy (once). */
+  private ricochet(s: Shot, e: Enemy) {
+    let best: Enemy | undefined;
+    let bd = RICOCHET_REACH ** 2;
+    for (const o of this.enemies) {
+      if (o === e || o.dead || o.shielded || o.t < 0 || s.hit.includes(o.id)) continue;
+      const d = (o.x - e.x) ** 2 + (o.z - e.z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = o;
+      }
+    }
+    if (!best) return;
+    const r = this.addShot(s.owner, s.kind === 'missile' || s.kind === 'rail' ? s.kind : 'slug', s.x, s.z, Math.atan2(best.x - s.x, -(best.z - s.z)), 50, s.dmg * 0.6, 0.6, 0, 0.6);
+    r.hit.push(e.id);
+    r.rico = true;
+    r.marks = s.marks;
+    r.markStr = s.markStr;
+  }
+
+  /** A dash through something staggered: the big hit. An elite's, or a boss's first in a phase, leaves a repair kit. */
+  private takedown(p: Player, e: Enemy) {
+    e.d.td = 1;
+    p.takedowns++;
+    let heal = false;
+    if (e.boss) {
+      const ph = e.boss.phase;
+      if (!this.tookPhase.has(ph)) {
+        this.tookPhase.add(ph);
+        heal = true;
+      }
+    } else heal = e.elite;
+    const dmg = e.boss ? e.max * TAKEDOWN_BOSS : Math.max(TAKEDOWN_MIN, e.max * TAKEDOWN_FOE);
+    // back on its heels: its poise doesn't count this one, and it goes on reeling
+    this.damage(e, dmg, p.id, true, null);
+    p.dashes = Math.min(p.stats.dashes, p.dashes + 1);
+    p.burn = Math.min(1, p.burn + BURN_TAKEDOWN);
+    p.inv = Math.max(p.inv, 0.5);
+    p.strike = Math.max(p.strike, STRIKE_TIME);
+    // the kit pops out towards you, so it's yours if you want it
+    if (heal) this.drop('repair', lerp(e.x, p.x, 0.5), lerp(e.z, p.z, 0.5), 1);
+    this.emit({ type: 'takedown', id: p.id, enemy: e.id, x: e.x, z: e.z, kill: e.dead, heal, boss: !!e.boss });
   }
 
   /** `close`: a point-blank kill, double scrap. */
@@ -1896,13 +2063,23 @@ export class Level {
       }
       // ramming
       for (const e of this.enemies) {
+        if (e.dead || e.ground || e.state === 'hidden') continue;
+        // a dash through anything staggered is a takedown (once a stagger)
+        if (p.dashT > 0 && e.state === 'stagger' && !e.d.td && e.t >= 0) {
+          const tr = e.r + core + TAKEDOWN_REACH;
+          if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < tr * tr) this.takedown(p, e);
+          continue;
+        }
         // (anything left reeling after its attack is there to be punished, not to punish)
-        if (e.dead || e.ground || e.state === 'hidden' || winded(e)) continue;
+        if (winded(e)) continue;
         const r = e.r * 0.75 + core;
         if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < r * r) {
           // a Ram Prow dashing through: the dash does the hitting (see ramAlong)
           if (p.dashT > 0 && p.stats.mod.ram > 0) continue;
-          if (this.hurt(p, p.x, p.z, 'ram:' + e.arch)) this.damage(e, e.arch === 'swarm' ? 999 : 20, p.id, false);
+          if (this.hurt(p, p.x, p.z, 'ram:' + e.arch)) {
+            this.damage(e, e.arch === 'swarm' ? 999 : 20, p.id, false);
+            if (p.stats.affixes.barbed) this.barb(p, e);
+          }
         }
       }
       // the land and what stands on it: hit it, or skim it
@@ -1938,6 +2115,16 @@ export class Level {
           continue;
         }
         if ((k.x - p.x) ** 2 + (k.z - p.z) ** 2 < 1.6 * 1.6) {
+          // one hot crate at a time: it takes the Burn you have, and all you earn after
+          if (k.kind === 'hot') {
+            if (p.crate) continue;
+            k.dead = true;
+            p.crate = k.part;
+            p.fuse = HOT_START;
+            p.burn = 0;
+            this.emit({ type: 'hot', id: p.id, state: 'on', x: k.x, z: k.z, part: k.part });
+            continue;
+          }
           k.dead = true;
           const v = k.value;
           if (k.kind === 'scrap') this.scrap += v;
@@ -2024,6 +2211,7 @@ export class Level {
         }
         this.damage(e, dmg, s.owner, crit, null, s, false, edge);
         if (!e.dead) mark(this, e, s.marks, s.markStr, s.owner);
+        if (s.affix === 'ricochet' && !s.rico) this.ricochet(s, e);
         if (s.split && !s.hit.length) this.split(s, e);
         s.hit.push(e.id);
         if (s.kind === 'missile') this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner, { bits: s.marks, pow: s.markStr });
@@ -2258,6 +2446,8 @@ export class Level {
     let dmg = g.spec.damage * (1 + p.stats.gamble * p.burn);
     if (g.spec.speedy) dmg *= 1 + p.boosting;
     if (p.stats.swift) dmg *= 1 + p.stats.swift * this.pace(p);
+    if (g.affix === 'spite' && p.spiteT > 0) dmg *= SPITE_DMG;
+    if (g.primed && p.primeT > 0) dmg *= PRIMED_DMG;
     const crit = g.crit > 0 && p.crit > 0;
     return { dmg: crit ? dmg * 2 : dmg, crit };
   }
@@ -2286,6 +2476,14 @@ export class Level {
       w.marks = CRACK;
     }
     if (m.ghost > 0) this.decoy(p, 'ghost', x0, z0, GHOST_LIFE, m.ghost);
+    // AFTERBURN: a wake of fire the length of the dash
+    if (s.affixes.afterburn)
+      for (let k = 0; k < 5; k++) {
+        const t = k / 4;
+        const f = this.addShot(p.id, 'flame', lerp(x0, x1, t), lerp(z0, z1, t), 0, 0, AFTERBURN_DMG, AFTERBURN_LIFE, 99, 0);
+        f.tag = 'wake';
+        f.marks = BURN;
+      }
     this.leaveSentinels(p, x0, z0);
   }
 
@@ -2340,7 +2538,16 @@ export class Level {
       this.emit({ type: 'ram', id: p.id, x: e.x, z: e.z, enemy: e.id });
       e.stun = Math.max(e.stun, 0.3);
       this.damage(e, p.stats.mod.ram * (p.perfect ? 1.5 : 1), p.id, p.perfect);
+      if (p.stats.affixes.barbed) this.barb(p, e);
     }
+  }
+
+  /** BARBED: what you ram, or what rams you, takes a hard hit and reels (open to a takedown). */
+  private barb(p: Player, e: Enemy) {
+    if (e.dead) return;
+    this.damage(e, BARB_DMG, p.id, true, null);
+    if (!e.dead && !e.boss && e.state !== 'stagger') go(this, e, 'stagger', 1.4);
+    this.emit({ type: 'affix', id: p.id, affix: 'barbed', x: e.x, z: e.z });
   }
 
   private decoy(p: Player, kind: Decoy['kind'], x: number, z: number, life: number, power: number) {
@@ -2483,6 +2690,13 @@ export class Level {
     this.emit({ type: 'thunder', id: p.id, x: p.x, z: p.z, r, perfect: p.perfect, hit });
   }
 
+  /** REACTIVE: a shield lost lets out a shockwave. */
+  private reactive(p: Player) {
+    for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < REACTIVE_R * REACTIVE_R) this.cancel(b);
+    this.blast(p.x, p.z, REACTIVE_R * 0.8, 14, p.id, { bits: SHOCK, quiet: true });
+    this.emit({ type: 'affix', id: p.id, affix: 'reactive', x: p.x, z: p.z });
+  }
+
   /** VENGEFUL: a hit on you lets out a nova: the bullets round you are gone, and shrapnel flies out, harder on a low hull. */
   private nova(p: Player) {
     const power = 1 + 2 * (1 - p.hp / Math.max(1, p.stats.hp));
@@ -2562,6 +2776,28 @@ export class Level {
     }
     p.burn = Math.min(1, p.burn + BURN_PERFECT);
     this.emit({ type: 'perfect', id: p.id, x: p.x, z: p.z, absorbed });
+    const af = p.stats.affixes;
+    // DEFLECTING: what it soaked goes back at them (at least a few, to the nearest)
+    if (af.deflecting) {
+      for (let k = 0; k < Math.min(8, Math.max(3, absorbed)); k++) {
+        const t = this.nearest(p.x, p.z);
+        const dir = t ? Math.atan2(t.x - p.x, -(t.z - p.z)) : 0;
+        this.addShot(p.id, 'slug', p.x, p.z, dir + (k - 1.5) * 0.12, 55, DEFLECT_DMG, 1, 0, 1).tag = 'reflect';
+      }
+      this.emit({ type: 'affix', id: p.id, affix: 'deflecting', x: p.x, z: p.z });
+    }
+    // ADRENAL: the kit comes up
+    if (af.adrenal) {
+      const was = p.charge;
+      p.charge = Math.min(1, p.charge + 0.2);
+      if (was < 1 && p.charge >= 1 && p.stats.special) this.emit({ type: 'specialReady', id: p.id });
+      if (p.auxCd > 0) p.auxCd = Math.max(0, p.auxCd - p.auxMax * 0.5);
+      this.emit({ type: 'affix', id: p.id, affix: 'adrenal', x: p.x, z: p.z });
+    }
+    if (p.stats.guns.some((g) => g.primed)) {
+      if (p.primeT <= 0) this.emit({ type: 'affix', id: p.id, affix: 'primed', x: p.x, z: p.z });
+      p.primeT = PRIMED_TIME;
+    }
   }
 
   /** Flying a hair from the land or an obstacle without touching it: Burn. */
@@ -2676,6 +2912,7 @@ export class Level {
       this.emit({ type: 'crash', id: p.id, x: p.x, z: p.z });
       // a crash costs momentum: some Burn
       p.burn = Math.max(0, p.burn - BURN_CRASH);
+      if (p.crate) p.fuse -= HOT_JOLT;
     }
     this.hurt(p, p.x, p.z, 'land');
     return true;
@@ -2783,6 +3020,42 @@ const NOVA_SHOTS = 18;
 const NOVA_DMG = 9;
 /** RAVENOUS: special charge per kill. */
 const RAVENOUS_FEED = 0.1;
+/**
+ * Hot crates: the fuse it starts at, how fast it burns down (a second's worth), how much of the Burn
+ * you earn winds it, what a hit knocks off it, and the Burn you get back when it cracks open.
+ */
+const HOT_START = 0.5;
+const HOT_BURN = 0.02;
+const HOT_FEED = 1;
+const HOT_JOLT = 0.12;
+const HOT_OPEN_BURN = 1;
+/** Affixes (see AFFIXES in game/loot.ts). */
+const SPITE_TIME = 5;
+const SPITE_DMG = 1.7;
+const PRIMED_TIME = 3;
+const PRIMED_DMG = 1.6;
+const GIANT_DMG = 1.6;
+/** GIANTSLAYER: anything this big (or an elite, or a Warden) counts. */
+const GIANT_R = 2.2;
+const EXECUTE = 0.15;
+const BLAST_R = 2.6;
+const RICOCHET_REACH = 16;
+const SCAVENGE_REPAIR = 0.04;
+const DEFLECT_DMG = 16;
+const AFTERBURN_DMG = 4;
+const AFTERBURN_LIFE = 1.4;
+const BARB_DMG = 40;
+const REACTIVE_R = 7;
+const LINGER = 1.5;
+/**
+ * Takedowns: a dash through something staggered. Its hit (a share of the hull: a boss's is less),
+ * and how much more Burn it gives. The reach is past touching, so a dash that skims it counts.
+ */
+const TAKEDOWN_FOE = 0.6;
+const TAKEDOWN_MIN = 60;
+const TAKEDOWN_BOSS = 0.045;
+const TAKEDOWN_REACH = 1;
+const BURN_TAKEDOWN = 0.25;
 /** Escorts: a hauler draws aimed fire only when it's this much nearer (squared) than you. */
 const HAULER_BIAS = 1.6;
 

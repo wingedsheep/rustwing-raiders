@@ -55,6 +55,13 @@ export class Flight implements Screen {
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
     const rk = Number(game.params.get('runner'));
     if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
+    // &hot: a hot crate straight away (to see it, and fly for it)
+    if (game.params.has('hot')) {
+      this.lv.hotCrate();
+      const c = this.lv.pickups[this.lv.pickups.length - 1];
+      c.x = this.lv.players[0].x;
+      c.z = this.lv.players[0].z - 10;
+    }
     // &crates: a part crate of each tier ahead of you (to see their beacons and catch them)
     if (game.params.has('crates'))
       (['common', 'rare', 'epic', 'legendary'] as const).forEach((tier, k) => {

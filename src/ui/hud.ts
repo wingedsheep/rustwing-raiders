@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Enemy, Level, Player } from '../sim/level';
-import { poiseOf, sigName } from '../sim/boss';
+import { poiseOf, READ_LINE, sigName } from '../sim/boss';
 import { FOES, type Foe } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
@@ -32,6 +32,8 @@ export const DARK = '#120c18';
 export const PANEL = '#1c1526';
 export const EDGE = '#3a2e48';
 export const GOLD = '#ffd04a';
+/** Hot crates: the fuse, the crate. */
+export const HOT = '#ff6a2a';
 export const RED = '#ff5a4a';
 export const GREEN = '#8affb0';
 export const CYAN = '#8affe0';
@@ -150,6 +152,8 @@ export class Hud {
   /** Where the tin is, and how hard the count last jumped (1, falling away). */
   private tin = { x: 0, y: 0 };
   private bump = 0;
+  /** The fuse last frame (to flash its gains). */
+  private fuseWas = 0;
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
@@ -330,13 +334,47 @@ export class Hud {
       cx += 11;
     }
     // the Burn: what boosting spends, earned back by flying close; brighter while it's being spent
+    // (a hot crate's fuse takes its place while one's carried)
+    if (p.crate) bar(ctx, x0 + 4, 16, pw - 8, 2, p.fuse, p.fuse < 0.25 && Math.floor(this.time * 8) % 2 ? '#ffffff' : HOT, 'rgba(60,48,80,0.6)');
+    else {
     const burnCol = p.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : p.burn < 0.15 ? '#a04a3a' : '#ff8a3a';
     bar(ctx, x0 + 4, 16, pw - 8, 2, p.burn, burnCol, 'rgba(60,48,80,0.6)');
+    }
     if (s.special) {
       const ready = p.charge >= 1;
       bar(ctx, x0 + 4, 19, pw - 8, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', 'rgba(60,48,80,0.6)');
     }
     if (p.down) drawText(ctx, lv.players.length > 1 ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', side === 'left' ? x0 : x0 + pw, 28, RED, { align: side });
+  }
+
+  /**
+   * A hot crate's fuse, over the ship: a lit cord burning down towards the crate, a spark at its
+   * end. Low, it flickers and the crate blinks; the gain from each graze or perfect flashes white.
+   */
+  private fuse(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
+    const w = 40;
+    const x0 = Math.round(x - w / 2);
+    const f = clamp(p.fuse, 0, 1);
+    const low = f < 0.25;
+    const gain = f > this.fuseWas + 0.004;
+    this.fuseWas = f;
+    ctx.fillStyle = 'rgba(14,10,22,0.7)';
+    ctx.fillRect(x0 - 10, y - 2, w + 13, 8);
+    // the crate
+    ctx.fillStyle = low && Math.floor(this.time * 8) % 2 ? '#ffffff' : HOT;
+    ctx.fillRect(x0 - 8, y - 1, 6, 6);
+    ctx.fillStyle = '#1a1020';
+    ctx.fillRect(x0 - 6, y + 1, 2, 2);
+    // the cord, and how much is left of it
+    ctx.fillStyle = '#3a2e48';
+    ctx.fillRect(x0, y + 2, w, 2);
+    ctx.fillStyle = gain ? '#ffffff' : low ? RED : '#ffb04a';
+    ctx.fillRect(x0, y + 2, Math.round(w * f), 2);
+    // the spark at the burning end
+    const sx = x0 + Math.round(w * f);
+    ctx.fillStyle = Math.floor(this.time * 20) % 2 ? '#ffffff' : GOLD;
+    ctx.fillRect(sx - 1, y + 1 - (Math.floor(this.time * 15) % 2), 2, 3);
+    if (f > 0.85) drawText(ctx, 'OPEN', x0 + w + 4, y - 1, GOLD, { shadow: false });
   }
 
   /**
@@ -403,6 +441,8 @@ export class Hud {
         ctx.fillStyle = k < b.phase ? '#4a3e58' : k === b.phase ? RED : '#8a8098';
         ctx.fillRect(bx + bw - 30 + k * 9, 33, 6, 4);
       }
+    // stringing moves together: a pip for each still to come
+    if (b.combo > 0 || b.comboed) drawText(ctx, '>'.repeat(b.combo + 1), bx + bw - 36, 31, '#ffe0b0', { shadow: false, align: 'right' });
     // the hull in three segments, with a gap between
     const x0 = bx + 5;
     const sw = (bw - 10 - 4) / 3;
@@ -431,6 +471,21 @@ export class Hud {
       ctx.fillRect(Math.round(mid - tw / 2), ry + 15, tw, 1);
       drawText(ctx, name, mid, ry, boss.state === 'windup' && blink ? '#ffffff' : hex(boss.skin.colors[2]), { scale: 2, align: 'center' });
     }
+  }
+
+  /** What the boss has read in how you fly, under its bar: typed out, held, then gone. */
+  private bossRead(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, mid: number) {
+    const r = view.bossRead;
+    if (!r || r.t > 3.2) return;
+    const line = r.read === 'side' ? `SEES YOU HUGGING THE ${r.side < 0 ? 'LEFT' : 'RIGHT'}` : READ_LINE[r.read];
+    const text = `${lv.spec.planet.boss.name} ${line}`;
+    const shown = text.slice(0, Math.ceil(r.t * 60));
+    ctx.globalAlpha = clamp((3.2 - r.t) * 3, 0, 1);
+    const tw = textWidth(text) + 12;
+    ctx.fillStyle = 'rgba(14,10,22,0.7)';
+    ctx.fillRect(Math.round(mid - tw / 2), 76, tw, 12);
+    drawText(ctx, shown.padEnd(text.length, ' '), mid, 78, '#ffb0a0', { align: 'center' });
+    ctx.globalAlpha = 1;
   }
 
   /**
@@ -548,6 +603,7 @@ export class Hud {
         ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 14), Math.round(gw * (jam ? 1 : heat)), 2);
       }
       this.rounds(ctx, lv, p, s.x, s.y + 22);
+      if (p.crate) this.fuse(ctx, p, s.x, s.y - 26);
       // how it's loaded, said once as the level starts (steady goes without saying)
       if (lv.time > 1.2 && lv.time < 4.5 && p.stats.loadClass !== 'steady' && (lv.time < 3.6 || Math.floor(this.time * 8) % 2)) {
         const lc = LOAD_CLASS[p.stats.loadClass];
@@ -596,7 +652,18 @@ export class Hud {
       drawText(ctx, 'WARNING', mid, Math.round(h * 0.38) + 6, '#ffffff', { scale: 2, align: 'center' });
       drawText(ctx, bb.name, mid, Math.round(h * 0.38) + 28, GOLD, { align: 'center' });
     }
-    if (boss && boss.t > 0) this.bossBar(ctx, lv, boss, mid, w);
+    // and who it is, once the warning's done
+    if (bb && bb.t > 3.5 && bb.t < 7.5) {
+      const a = clamp(Math.min(bb.t - 3.5, 7.5 - bb.t) * 2, 0, 1);
+      ctx.globalAlpha = a;
+      drawText(ctx, bb.name, mid, Math.round(h * 0.36), GOLD, { scale: 2, align: 'center' });
+      drawText(ctx, bb.title.toUpperCase(), mid, Math.round(h * 0.36) + 20, '#d8cce8', { align: 'center' });
+      ctx.globalAlpha = 1;
+    }
+    if (boss && boss.t > 0) {
+      this.bossBar(ctx, lv, boss, mid, w);
+      this.bossRead(ctx, lv, view, mid);
+    }
     else this.elitePlate(ctx, lv, mid, w);
     this.journal(ctx, lv, h);
     if (lv.state === 'clear' && lv.ending > 0.4) {

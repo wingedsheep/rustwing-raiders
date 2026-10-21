@@ -17,6 +17,8 @@ import { strike } from './strikes';
 import type { PartKind } from './heist';
 
 export interface EnemyData {
+  /** Taken down this stagger (a dash through it: see Level.takedown). */
+  td?: number;
   path?: 'swoop' | 'dive' | 'cross' | 'loop';
   x0?: number;
   sz0?: number;

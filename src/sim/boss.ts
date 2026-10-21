@@ -16,10 +16,14 @@
  * as Touhou calls them): Vask's SKY DIVE, Oko's CRANE SWING, the Sandking's STAMPEDE, the Mother's
  * BLOOM, the Engine's FROST CROSS, Khet's TITAN EYE, Istra's DEEP BREATH, ARU-0's REPOSSESSION.
  *
- * Learnable, as Hollow Knight's are: its moves come round in the same order every phase, each has
- * one tell, and each leaves it open. Hit it hard enough while it's open and it's STAGGERED (its
- * poise, the bar under its hull, broken). A phase taken without a hit pays a CLEAN bonus, and at
- * the end it makes a LAST STAND: everything it has, once more, faster.
+ * Each move has one tell and leaves it open. Hit it hard enough while it's open and it's
+ * STAGGERED (its poise, the bar under its hull, broken). A phase taken without a hit pays a CLEAN
+ * bonus, and at the end it makes a LAST STAND: everything it has, once more, faster.
+ *
+ * And it reads you. It watches how you fly (hanging back, sitting still, hugging a side, boosting,
+ * crowding it, dashing through everything) and picks the move that answers it, and says so on its
+ * bar: change how you fly and it changes its mind. Its first phase goes round in order, to be
+ * learnt; after that it reads, and strings moves together (a short breath between, a long one after).
  */
 
 import type { Enemy, Level } from './level';
@@ -99,7 +103,62 @@ export interface BossState {
   dir: number;
   /** A strike it's steering (the crane's ball). */
   ball: Strike | null;
+  /** How it reads you (see READS), the last read it said out loud and when, and the last move it made. */
+  read: Record<Read, number>;
+  /** Which side you hug (-1 left, 1 right). */
+  readSide: number;
+  said: Read | null;
+  saidT: number;
+  lastMove: BossMove | null;
+  /** Moves since its signature, and moves left to string on before a long breath. */
+  sinceSig: number;
+  combo: number;
+  /** Perfects seen (to notice new ones). */
+  perfects: number;
+  /** The move just made was part of a string (its end is open longer). */
+  comboed: boolean;
 }
+
+/** What it notices about how you fly. */
+export type Read = 'back' | 'still' | 'side' | 'boost' | 'close' | 'dash';
+
+/** What it says on its bar when it answers a read. */
+export const READ_LINE: Record<Read, string> = {
+  back: 'SEES YOU HANGING BACK',
+  still: 'SEES YOU SITTING STILL',
+  side: 'SEES YOU HUGGING THE SIDE',
+  boost: 'IS LEADING YOUR BOOST',
+  close: 'FEELS YOU UP CLOSE',
+  dash: 'IS BAITING YOUR DASH',
+};
+
+/** Which reads each move answers. */
+const ANSWERS: Record<BossMove, Read[]> = {
+  charge: ['back', 'still'],
+  lunge: ['back'],
+  slam: ['close', 'still'],
+  sweep: ['side', 'still'],
+  gate: ['side', 'back'],
+  shells: ['still', 'back'],
+  harpoon: ['back', 'side'],
+  spores: ['close'],
+  summon: ['boost'],
+  skydive: ['side', 'still'],
+  crane: ['close'],
+  stampede: ['back'],
+  bloom: ['close', 'still'],
+  cross: ['still'],
+  eye: ['back', 'still'],
+  breath: ['back', 'side'],
+  repossess: ['boost', 'dash'],
+};
+
+/** How fast a read builds and fades (seconds), how sure it must be to act and to say so. */
+const READ_TAU = 5;
+const READ_ACT = 0.35;
+const READ_SAY = 0.55;
+/** How often it strings another move on, by phase (none in the first: it's learnt in order). */
+const COMBO = [0, 0.35, 0.6];
 
 type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves';
 
@@ -249,6 +308,15 @@ export function makeBoss(planet: string): BossState {
     k: 0,
     dir: 1,
     ball: null,
+    read: { back: 0, still: 0, side: 0, boost: 0, close: 0, dash: 0 },
+    readSide: 0,
+    said: null,
+    saidT: -99,
+    lastMove: null,
+    sinceSig: 0,
+    combo: 0,
+    perfects: 0,
+    comboed: false,
   };
 }
 
@@ -271,6 +339,9 @@ export function bossHurt(lv: Level, e: Enemy, dmg: number) {
   dropBall(b);
   if (e.grab >= 0) release(lv, e, true);
   b.move ??= 'summon';
+  // knocked out of a string of moves
+  b.combo = 0;
+  b.comboed = false;
   go(lv, e, 'stagger', 2.6);
   lv.emit({ type: 'bossStagger', enemy: e.id, x: e.x, z: e.z });
 }
@@ -325,6 +396,7 @@ export function updateBoss(lv: Level, e: Enemy) {
   b.shieldT = Math.max(0, b.shieldT - DT);
   e.shielded = b.shieldT > 0;
   e.heading = 0;
+  readYou(lv, e, b);
 
   // phases at two thirds and one third (a chase ends after half a minute regardless)
   if (b.style === 'pursuer' && b.phase === 0) b.chaseT += DT;
@@ -354,6 +426,8 @@ export function updateBoss(lv: Level, e: Enemy) {
     }
     b.current = 0;
     b.pt = 0;
+    b.combo = 0;
+    b.comboed = false;
     b.shieldT = 1.6;
     b.move = null;
     dropBall(b);
@@ -416,14 +490,22 @@ function home(lv: Level, e: Enemy, b: BossState) {
 }
 
 function startMove(lv: Level, e: Enemy, b: BossState) {
-  const list = b.moves[b.phase];
-  const m = list[b.moveN++ % list.length];
+  const m = pickMove(lv, b);
   b.move = m;
+  b.lastMove = m;
+  b.sinceSig = m === b.sig ? 0 : b.sinceSig + 1;
   b.parried = false;
   b.yanked = false;
+  // a string of moves starts here, now and then (not off the back of another)
+  if (!b.comboed && b.combo <= 0 && !b.last && lv.rand() < COMBO[b.phase]) {
+    b.combo = b.phase >= 2 && lv.rand() < 0.4 ? 2 : 1;
+    lv.emit({ type: 'chain', enemy: e.id, n: 1, of: b.combo + 1 });
+  }
   const p = lv.nearest(e.x, e.z);
-  const px = p?.x ?? 0;
-  const pz = p?.z ?? lv.bottom - 8;
+  // boosting a lot: it aims where you're going, not where you are
+  const lead = b.read.boost > READ_ACT ? 0.45 * b.read.boost : 0;
+  const px = (p?.x ?? 0) + (p ? p.vx * lead : 0);
+  const pz = (p?.z ?? lv.bottom - 8) + (p ? p.vz * lead : 0);
   const aim = Math.atan2(px - e.x, pz - e.z);
   e.aim = aim;
   const line = (len: number, w: number, lock: number, body = false): Tele => ({ shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * len, z2: e.z + Math.cos(aim) * len, w, lock, body });
@@ -468,6 +550,66 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
       b.k = 0;
       startSig(lv, e, b, px, pz);
   }
+  // dashing through everything: it holds its tell a beat longer, now and then, to bait the dash
+  if (e.state === 'windup' && b.read.dash > READ_ACT && lv.rand() < b.read.dash) e.stateDur *= 1.25 + lv.rand() * 0.35;
+}
+
+/**
+ * Which move next. The first phase (and the last stand) go round in order. After that it answers
+ * what it reads (the strongest read a move answers weighs it up), its signature comes round every
+ * few, and it never makes the same move twice running.
+ */
+function pickMove(lv: Level, b: BossState): BossMove {
+  const list = b.moves[b.phase];
+  if (b.phase === 0 || b.last) return list[b.moveN++ % list.length];
+  b.moveN++;
+  const moves = [...new Set(list)].filter((m) => m !== b.lastMove || list.length < 2);
+  if (b.sinceSig >= SIG_EVERY && moves.includes(b.sig)) return b.sig;
+  let best: Read | null = null;
+  const w = moves.map((m) => {
+    let top = 0;
+    let why: Read | null = null;
+    for (const r of ANSWERS[m])
+      if (b.read[r] > top) {
+        top = b.read[r];
+        why = r;
+      }
+    return { m, why: top > READ_ACT ? why : null, w: 1 + (top > READ_ACT ? 4 * top : 0) * (b.phase === 2 ? 1.5 : 1) };
+  });
+  let x = lv.rand() * w.reduce((s, o) => s + o.w, 0);
+  let pick = w[0];
+  for (const o of w) if ((x -= o.w) <= 0) {
+    pick = o;
+    break;
+  }
+  best = pick.why;
+  // and says so, if it's sure (not the same thing again soon)
+  if (best && b.read[best] > READ_SAY && (best !== b.said || lv.time - b.saidT > READ_AGAIN)) {
+    b.said = best;
+    b.saidT = lv.time;
+    lv.emit({ type: 'bossRead', read: best, side: b.readSide });
+  }
+  return pick.m;
+}
+
+/** Watching how you fly: each read eases towards what it sees (over READ_TAU seconds). */
+function readYou(lv: Level, e: Enemy, b: BossState) {
+  const ps = lv.players.filter((p) => !p.down);
+  if (!ps.length) return;
+  const k = DT / READ_TAU;
+  const see = (r: Read, v: number) => (b.read[r] += (clamp(v, 0, 1) - b.read[r]) * k);
+  const avg = (f: (p: (typeof ps)[number]) => number) => ps.reduce((s, p) => s + f(p), 0) / ps.length;
+  see('back', avg((p) => clamp((p.z - lv.scroll - HALF_H * 0.2) / (HALF_H * 0.5), 0, 1)));
+  see('still', avg((p) => (Math.hypot(p.vx, p.vz) < 5 ? 1 : 0)));
+  see('side', avg((p) => clamp((Math.abs(p.x) - HALF_W * 0.4) / (HALF_W * 0.3), 0, 1)));
+  see('boost', avg((p) => p.boosting));
+  see('close', avg((p) => clamp((16 - Math.hypot(p.x - e.x, p.z - e.z)) / 8, 0, 1)));
+  b.readSide = Math.sign(avg((p) => p.x)) || 1;
+  // a perfect is a jolt to the dash read (it fades like the rest)
+  const perfects = lv.players.reduce((n, p) => n + p.perfects, 0);
+  if (perfects > b.perfects) b.read.dash = Math.min(1, b.read.dash + 0.3 * (perfects - b.perfects));
+  b.perfects = perfects;
+  b.read.dash *= 1 - k;
 }
 
 /** The screen z of a spot, kept off the very edges. */
@@ -546,11 +688,22 @@ const crossBeams = (b: BossState) => (b.last ? 6 : 4);
 const crossTime = (b: BossState) => 3.4 + b.phase * 0.4;
 const eyeTime = (b: BossState) => 3 + b.phase * 0.5;
 const BREATH_R = 34;
+/** Its signature, at least every this many moves (after the first phase). */
+const SIG_EVERY = 3;
+/** Seconds before it says the same read again. */
+const READ_AGAIN = 14;
+/** How long it's open between the moves of a string. */
+const COMBO_BREATH = 0.45;
 const BREATH_IN = 2.2;
 const repoShots = (b: BossState) => 2 + b.phase + (b.last ? 1 : 0);
 const divePasses = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
 
 function endMove(lv: Level, e: Enemy, b: BossState, dur: number, stagger = false) {
+  // mid-string, only a breath open; the end of one, open for longer
+  if (!stagger && b.combo > 0) dur = Math.min(dur, COMBO_BREATH);
+  else if (!stagger && b.comboed) dur *= 1.4;
+  if (stagger) b.combo = 0;
+  b.comboed = b.combo > 0;
   go(lv, e, stagger ? 'stagger' : 'recover', dur);
 }
 
@@ -566,6 +719,11 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     if (over(e)) {
       go(lv, e, 'idle');
       b.move = null;
+      // stringing moves together: straight into the next
+      if (b.combo > 0 && !e.shielded) {
+        b.combo--;
+        startMove(lv, e, b);
+      }
     }
     return;
   }

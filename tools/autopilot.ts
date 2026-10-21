@@ -52,6 +52,10 @@ interface Result extends Job {
   score: number;
   grazes: number;
   perfects: number;
+  /** Dashes through something staggered. */
+  takedowns: number;
+  /** Hot crates: what came of each (o opened, b blown, l lost at the end or downed; '' none taken). */
+  crates: string;
   /** Crits from the guns' edges. */
   edges: number;
   /** Reactions set off (marks meeting). */
@@ -152,12 +156,14 @@ function fly(job: Job): Result {
   const pilots = lv.players.map(() => newPilot({ noBoost: job.noboost }));
   const log: string[] = [];
   const hhit: Record<string, number> = {};
+  let crates = '';
   const limit = 60 * 60 * 6;
   for (let f = 0; f < limit; f++) {
     const intents = lv.players.map((p, i) => pilot(lv, p, pilots[i]));
     lv.step(intents);
     for (const e of lv.events) {
       if (e.type === 'haulerHit') hhit[e.cause] = (hhit[e.cause] ?? 0) + e.dmg;
+      if (e.type === 'hot' && (e.state === 'open' || e.state === 'blown' || e.state === 'lost')) crates += e.state[0];
       if (!job.verbose) continue;
       const at = `${lv.time.toFixed(1)}s ${Math.round(lv.progress * 100)}%`;
       const biome = lv.terrain.biome(lv.scroll).id;
@@ -167,6 +173,8 @@ function fly(job: Job): Result {
       if (e.type === 'revive') log.push(`${at} P${e.id + 1} revived`);
       if (e.type === 'bossWarning') log.push(`${at} boss: ${e.name}`);
       if (e.type === 'bossPhase') log.push(`${at} boss phase ${e.phase + 1}`);
+      if (e.type === 'bossRead') log.push(`${at} boss reads: ${e.read}`);
+      if (e.type === 'takedown') log.push(`${at} P${e.id + 1} TAKEDOWN${e.heal ? ' +kit' : ''}${e.kill ? ' (kill)' : ''}`);
       if (e.type === 'biome') log.push(`${at} biome: ${spec.biomes[e.index]?.name}`);
       if (e.type === 'reaction') log.push(`${at} ${e.kind.toUpperCase()}`);
       if (e.type === 'detonate') log.push(`${at} DETONATE`);
@@ -194,6 +202,8 @@ function fly(job: Job): Result {
     score: lv.score,
     grazes: lv.players.reduce((s, p) => s + p.grazes, 0),
     perfects: lv.players.reduce((s, p) => s + p.perfects, 0),
+    takedowns: lv.players.reduce((s, p) => s + p.takedowns, 0),
+    crates,
     edges: lv.players.reduce((s, p) => s + Object.values(p.edges).reduce((a, n) => a + (n ?? 0), 0), 0),
     parries: lv.players.reduce((s, p) => s + p.parries, 0),
     reactions: lv.reactions,
@@ -266,7 +276,7 @@ if (!isMainThread) {
         console.log(
           `${mark} ${r.planet.padEnd(9)} ${r.mode.padEnd(5)} seed ${String(r.seed).padEnd(3)} ${r.time.toFixed(0).padStart(4)}s  ` +
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
-            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
+            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}${r.convoy ? `  convoy ${r.convoy}` : ''}`,
         );
@@ -286,6 +296,8 @@ if (!isMainThread) {
     `\n${results.length} runs in ${((Date.now() - t0) / 1000).toFixed(0)} s: ${results.length - failed.length} clear, ${failed.length} failed. ` +
       `Average hits ${(results.reduce((s, r) => s + r.hits, 0) / results.length).toFixed(1)}, ` +
       `perfects ${(results.reduce((s, r) => s + r.perfects, 0) / results.length).toFixed(1)}, ` +
+      `takedowns ${(results.reduce((s, r) => s + r.takedowns, 0) / results.length).toFixed(1)}, ` +
+      `crates ${['o', 'b', 'l'].map((k) => `${{ o: 'opened', b: 'blown', l: 'lost' }[k]} ${results.reduce((s, r) => s + r.crates.split('').filter((c) => c === k).length, 0)}`).join(' ')}, ` +
       `aux ${(results.reduce((s, r) => s + r.aux, 0) / results.length).toFixed(1)} (parried ${(results.reduce((s, r) => s + r.parries, 0) / results.length).toFixed(1)}), ` +
       `boost ${Math.round((results.reduce((s, r) => s + r.boost, 0) / results.length) * 100)}%, ` +
       `full clears ${results.filter((r) => r.fullClear).length}/${results.length}, ` +
