@@ -73,6 +73,8 @@ export interface EnemyData {
   away?: number;
   /** Prisms: seconds until it can throw another shot back. */
   refl?: number;
+  /** Wardens: damage its shield has stopped since it last cracked. */
+  worn?: number;
   /** Brutes: where it charged from. */
   bx?: number;
   bs?: number;

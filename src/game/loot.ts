@@ -100,7 +100,7 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
     text: 'Counts as touching every part on the ship.',
     fits: (d) => !!(d.boost || d.drone || (d.link && !d.link.side && !d.link.want.open)),
   },
-  keystone: { name: 'KEYSTONE', text: 'Always linked, wherever it sits: it runs at 150% anywhere.', fits: (d) => !!d.link },
+  keystone: { name: 'KEYSTONE', text: 'Always linked, wherever it sits: it runs as linked (150%) anywhere.', fits: (d) => !!d.link },
   overclock: { name: 'OVERCLOCKED', text: 'Runs at double strength, and draws double power.', fits: (d) => scales(d) || d.power < 0 },
   volatile: { name: 'VOLATILE', text: 'What it kills passes its marks on: the two nearest enemies catch them.', fits: (d) => projectile(d) },
   splitting: { name: 'SPLITTING', text: 'Every shot splits in two when it first hits, and the halves fly on.', fits: (d) => projectile(d) && (d.gun?.count ?? 1) <= 2 },

@@ -4,7 +4,7 @@
  * hangar draws this; stats() uses it. See game/parts.ts for the rules.
  */
 
-import { CLASHES, STRENGTH, frameById, type FrameDef, type PartDef, type Side, type Want } from '../game/parts';
+import { CLASHES, STRENGTH, frameById, linkedStr, type FrameDef, type PartDef, type Side, type Want } from '../game/parts';
 import { cellsOf, rotOf, socket, type Build, type Placement } from './build';
 import { itemDef, type ItemDef } from '../game/loot';
 
@@ -174,8 +174,8 @@ export function links(b: Build): Links {
       // a keystone is linked wherever it sits, and runs as if it were
       if (p.trait === 'keystone') {
         pl.link.ok = true;
-        pl.str *= STRENGTH.linked;
-      } else if (pl.link.ok) pl.str *= l.need ? 1 : STRENGTH.linked;
+        pl.str *= linkedStr(f);
+      } else if (pl.link.ok) pl.str *= l.need ? linkedStr(f, true) : linkedStr(f);
       else if (l.need) pl.str = STRENGTH.idle;
     }
     if (pl.clashes.some((c) => !c.fused)) pl.str *= STRENGTH.clash;

@@ -38,6 +38,7 @@ export type AttackKind =
   | 'beam'
   | 'jink'
   | 'torpedo'
+  | 'seekers'
   | 'broadside'
   | 'spin'
   | 'ring';
@@ -51,8 +52,8 @@ export type Tele =
   | { shape: 'ring'; x: number; z: number; r: number; w: number }
   | { shape: 'edge'; x: number; z: number }
   | { shape: 'gate'; x: number; x2: number; z: number; gx: number; gap: number }
-  /** A lock-on: brackets closing in on player `id` (what a torpedo will chase). */
-  | { shape: 'lock'; id: number }
+  /** A lock-on: brackets closing in on player `id` (what a torpedo will chase); `dirs`: the ways it'll launch, marked on it. */
+  | { shape: 'lock'; id: number; dirs?: number[] }
   /** A spinning turret: its `arms` drawn out from angle `a`, and arrows the way they'll turn (`dir`). */
   | { shape: 'spin'; x: number; z: number; a: number; arms: number; dir: number; len: number };
 
@@ -129,6 +130,7 @@ export const CHAIN: Partial<Record<string, number>> = {
   ramjack: 3,
   hookjaw: 2,
   rigger: 2,
+  rook: 2,
   flakker: 3,
   swooper: 3,
   spitter: 3,
@@ -194,6 +196,7 @@ const TAKEN: Partial<Record<string, [number, number, number]>> = {
   rattler: [1, 1.5, 2],
   hookjaw: [1, 1.5, 2],
   rigger: [1, 1.8, 2.2],
+  rook: [1, 1.8, 2.2],
   ace: [1, 1.5, 2],
   flakker: [1, 1.6, 2],
   swooper: [1, 2, 2.5],
@@ -248,16 +251,27 @@ export function foeShot(lv: Level, e: Enemy, s: Shot) {
   if (e.arch === 'cache' && !e.d.cracked && (s.vx * s.t) ** 2 + (s.vz * s.t) ** 2 < 7 * 7) return 1 / Math.max(e.taken, 0.05);
   if (e.guard > 0 && blocked(e, s.x - s.vx * s.t, s.z - s.vz * s.t)) {
     lv.emit({ type: 'guard', enemy: e.id, x: s.x, z: s.z });
+    wearGuard(lv, e, s.dmg);
     return 0;
   }
   return 1;
+}
+
+/** A shield soaks only so much: what it stops wears it, and worn through it cracks and leaves it reeling. */
+export function wearGuard(lv: Level, e: Enemy, dmg: number) {
+  e.d.worn = (e.d.worn ?? 0) + dmg;
+  if (e.d.worn < e.max * 0.3) return;
+  e.d.worn = 0;
+  e.guard = 0;
+  lv.emit({ type: 'crack', enemy: e.id, x: e.x, z: e.z });
+  go(lv, e, 'stagger', 2.2);
 }
 
 /** A shield faces `aim`: what comes from inside its arc (and from further than point blank) is stopped. */
 function blocked(e: Enemy, fx: number, fz: number) {
   const dx = fx - e.x;
   const dz = fz - e.z;
-  if (dx * dx + dz * dz < 5 * 5) return false;
+  if (dx * dx + dz * dz < 7 * 7) return false;
   const a = Math.atan2(dx, dz);
   return Math.abs(Math.atan2(Math.sin(a - e.aim), Math.cos(a - e.aim))) < e.guard;
 }

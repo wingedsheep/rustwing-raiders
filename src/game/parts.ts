@@ -501,6 +501,9 @@ export interface FrameDef {
   id: string;
   name: string;
   text: string;
+  /** What only this frame does, and what its shape costs it (the frame card says both). */
+  perk: { name: string; text: string };
+  weak: string;
   /** The socket grid, row 0 at the front: '#' a socket, '.' none. */
   grid: string[];
   hp: number;
@@ -512,6 +515,23 @@ export interface FrameDef {
   dash: number;
   /** The load it carries before it counts as full (engines add to it: see LOAD). */
   load: number;
+  /** Top speed against what its thrust alone would give (a racer is quicker than its engines say). */
+  speed: number;
+  /** Burn back a second once the boost is let go. */
+  burn: number;
+  /** Hit radius: a slim racer is hard to hit, a hauler isn't. */
+  core: number;
+  // the perks (see `perk`)
+  /** Plating: shields it starts with, that grow back like any shield. */
+  shield?: number;
+  /** Its dash rams, this hard (as a Ram Prow). */
+  ram?: number;
+  /** A perfect dash gives every dash back (as a Kick Spring). */
+  refill?: boolean;
+  /** Guns hit up to this much harder the faster it flies (+, flat out on the boost). */
+  swift?: number;
+  /** Linked parts run at this (150% elsewhere); a part that needs its link runs at a third of the extra. */
+  linked?: number;
   /** Parts it comes with, as [part, col, row]. */
   start: [string, number, number][];
 }
@@ -520,44 +540,57 @@ export const FRAMES: FrameDef[] = [
   {
     id: 'kestrel',
     name: 'Kestrel',
-    text: 'A stripped-down racer. Quick and twitchy, made of tinfoil.',
+    text: 'A stripped-down racer, made of tinfoil.',
+    perk: { name: 'SLIPSTREAM', text: 'Guns hit harder the faster you fly: +50% flat out. Its Burn comes back fastest.' },
+    weak: '3 HULL. FEW SOCKETS, LITTLE LOAD.',
     grid: ['.#.', '###', '###', '#.#'],
-    hp: 4, mass: 4, power: 4, thrust: 14, grip: 1.15, dash: 1, load: 8,
-    start: [['rivet', 1, 0], ['thruster', 0, 3], ['thruster', 2, 3], ['reactor', 1, 2]],
+    hp: 3, mass: 4, power: 4, thrust: 15, grip: 1.25, dash: 1, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
+    start: [['rivet', 1, 0], ['rivet', 1, 1], ['thruster', 0, 3], ['thruster', 2, 3], ['reactor', 1, 2]],
   },
   {
     id: 'mule',
     name: 'Mule',
-    text: 'A hauler with guns bolted on. Room for everything, moves like a fridge.',
+    text: 'A hauler with guns bolted on.',
+    perk: { name: 'IRONSIDES', text: 'Room for everything, and armour plate that soaks a hit, then grows back.' },
+    weak: 'MOVES LIKE A FRIDGE. A BIG TARGET.',
     grid: ['#####', '#####', '.###.'],
-    hp: 7, mass: 7, power: 6, thrust: 14, grip: 0.8, dash: 1, load: 12,
-    start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 2], ['plate', 2, 1]],
+    hp: 5, mass: 7, power: 4, thrust: 13, grip: 0.75, dash: 1, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
+    start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 2]],
   },
   {
     id: 'wasp',
     name: 'Wasp',
-    text: 'Twin booms like a pod racer. Guns on the prongs, engines everywhere.',
+    text: 'Twin booms like a pod racer.',
+    perk: { name: 'DARTER', text: 'Two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
+    weak: 'GUNS ONLY ON THE PRONGS. LOW POWER.',
     grid: ['#.#', '#.#', '###', '###'],
-    hp: 5, mass: 4.5, power: 5, thrust: 16, grip: 1.05, dash: 1, load: 8.5,
+    hp: 4, mass: 4.5, power: 4, thrust: 16, grip: 1.05, dash: 2, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
     start: [['rivet', 0, 0], ['rivet', 2, 0], ['thruster', 1, 3], ['reactor', 1, 2]],
   },
   {
     id: 'hammer',
     name: 'Hammerhead',
-    text: 'A wide armoured head for a front battery, and a slim tail.',
+    text: 'A wide armoured head and a slim tail.',
+    perk: { name: 'BATTERING RAM', text: 'The dash rams: whatever you dash through takes a hard hit and can\'t hurt you.' },
+    weak: 'STIFF IN A TURN. SLOW TO BURN.',
     grid: ['####', '####', '.##.', '.##.'],
-    hp: 6, mass: 6, power: 5, thrust: 14, grip: 0.9, dash: 1, load: 10.5,
+    hp: 4, mass: 6, power: 5, thrust: 14, grip: 0.8, dash: 1, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
     start: [['scatter', 1, 0], ['scatter', 2, 0], ['thruster', 1, 3], ['thruster', 2, 3]],
   },
   {
     id: 'lattice',
     name: 'Lattice',
-    text: 'An open truss: sockets everywhere, but few of them touch. Bridge them with conduit.',
+    text: 'An open truss: sockets everywhere.',
+    perk: { name: 'TUNED TRUSS', text: 'Links pay double: a linked part runs at 200%, one that needs its link at 133%.' },
+    weak: 'FEW SOCKETS TOUCH: BRIDGE THEM WITH CONDUIT.',
     grid: ['#.#.#', '#.#.#', '#####', '.#.#.'],
-    hp: 5, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1, load: 10,
+    hp: 4, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
     start: [['rivet', 0, 0], ['rivet', 4, 0], ['reactor', 2, 2], ['thruster', 1, 3], ['thruster', 3, 3]],
   },
 ];
+
+/** How strong a linked part runs on this frame (`need`: one that needs its link). */
+export const linkedStr = (f: FrameDef, need = false) => (need ? 1 + ((f.linked ?? STRENGTH.linked) - STRENGTH.linked) / 1.5 : f.linked ?? STRENGTH.linked);
 
 export const partById = (id: string) => PARTS.find((p) => p.id === id)!;
 

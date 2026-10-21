@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { TORPEDO, type Enemy, type Level } from '../sim/level';
+import { SEEKER, TORPEDO, type Bullet, type Enemy, type Level } from '../sim/level';
 import type { Tele } from '../sim/combat';
 import type { Strike } from '../sim/strikes';
 import { FOES, type Faction } from '../sim/factions';
-import { FLIGHT_Y } from '../sim/types';
+import { FLIGHT_Y, HALF_W } from '../sim/types';
 import { clamp } from '../util';
 
 /**
@@ -171,6 +171,7 @@ export class Threats {
         break;
       case 'lock':
         this.lock(t.id, k, col, flick, lv);
+        if (t.dirs) this.mark(e, k, locked, col, flick, t.dirs);
         break;
       case 'spin': {
         const arms: number[] = [];
@@ -233,7 +234,7 @@ export class Threats {
   /**
    * What enemy fire is about to do: an arrow at your ship's edge for every torpedo still
    * chasing you (pointing where it's coming from, brighter the nearer it is), and the lanes a
-   * mine's shrapnel will fly, drawn out from it as it ripens.
+   * mine's shrapnel will fly, drawn out from it as it ripens, and the lane of every seeker.
    */
   private fire(lv: Level) {
     for (const b of lv.bullets) {
@@ -251,6 +252,8 @@ export class Threats {
         ch.position.set(p.x + (dx / dist) * 3.6, Y, p.z + (dz / dist) * 3.6);
         ch.scale.setScalar(0.8 + 0.3 * near);
         ch.rotation.y = Math.atan2(-dx, -dz);
+      } else if (b.kind === 'seeker') {
+        this.seeker(b, lv);
       } else if (b.split > 0) {
         const k = clamp(b.t / b.life, 0, 1);
         if (k < 0.25) continue;
@@ -266,6 +269,45 @@ export class Threats {
         }
       }
     }
+  }
+
+  /**
+   * A seeker's lane. Stopped to turn, the lattice draws the leg it'll take in light, out from it to
+   * the edge of the screen, a lane as wide as what it'd hit, white for the last beat before it
+   * goes. Under way, the leg it's on, faint: you can always see where it's going.
+   */
+  private seeker(b: Bullet, lv: Level) {
+    const g = b.leg;
+    if (!g) return;
+    const halt = g.halt > 0;
+    // how far to the edge of the screen down that leg
+    const reach = g.dx ? (g.dx > 0 ? HALF_W - b.x : HALF_W + b.x) : g.dz > 0 ? lv.bottom - b.z : b.z - lv.top;
+    if (reach <= 0.5) return;
+    if (!halt) {
+      if (g.n < SEEKER.turns) this.line(b.x + g.dx, b.z + g.dz, b.x + g.dx * reach, b.z + g.dz * reach, 0.12, b.color, 0.16);
+      return;
+    }
+    const k = clamp(1 - g.halt / g.hold, 0, 1);
+    // drawn out quickly, then it holds and brightens
+    const len = reach * Math.min(1, k / 0.35);
+    const hot = k > 0.7;
+    const flick = hot && Math.floor(this.time * 24) % 2 ? 0.7 : 1;
+    const lane = (0.38 + b.r) * 2;
+    const x2 = b.x + g.dx * len;
+    const z2 = b.z + g.dz * len;
+    this.line(b.x, b.z, x2, z2, lane, b.color, (0.1 + 0.12 * k) * flick);
+    // the lane's edges, inked under, lit over
+    for (const side of [-1, 1]) {
+      const ox = g.dz * side * lane * 0.5;
+      const oz = g.dx * side * lane * 0.5;
+      this.line(b.x + ox, b.z + oz, x2 + ox, z2 + oz, 0.3, INK, 0.5 * flick);
+      this.line(b.x + ox, b.z + oz, x2 + ox, z2 + oz, 0.13, hot ? 0xffffff : b.color, (0.5 + 0.4 * k) * flick);
+    }
+    // and a corner where it stands: the turn it's making, square
+    const back = this.chevrons.take(hot ? 0xffffff : b.color, (0.6 + 0.4 * k) * flick);
+    back.position.set(b.x + g.dx * 1.4, Y, b.z + g.dz * 1.4);
+    back.scale.setScalar(0.6 + 0.15 * k);
+    back.rotation.y = Math.atan2(g.dx, g.dz);
   }
 
   /**

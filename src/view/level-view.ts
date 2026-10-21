@@ -418,6 +418,25 @@ export class LevelView {
           }
           audio.play('torpedo_down', { pan: e.x / HALF_W, vol: e.shot ? 0.8 : 0.5 });
           break;
+        case 'seeker':
+          if (e.how === 'halt') {
+            // it stops dead with a tick, higher each turn
+            this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 1.7, 0.16, true, e.color);
+            audio.play('seeker_halt', { pan: e.x / HALF_W, pitch: 1 + e.n * 0.15, vol: 0.55 });
+          } else if (e.how === 'go') {
+            this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.6, 0.14, true, 0xffffff);
+            audio.play('seeker_go', { pan: e.x / HALF_W, pitch: 1 + e.n * 0.1, vol: 0.5 });
+          } else {
+            // shot down (or broken on a hull): it goes like glass
+            this.pop1(e.x, e.z, e.color, 'lattice');
+            this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.4, 0.2, true, e.how === 'shot' ? 0xffffff : e.color);
+            if (e.how === 'shot') {
+              this.pop('SHOT DOWN', e.x, e.z - 2, '#9af4ff');
+              this.hitstop = Math.max(this.hitstop, 1);
+            }
+            audio.play('seeker_down', { pan: e.x / HALF_W, vol: e.how === 'shot' ? 0.7 : 0.45 });
+          }
+          break;
         case 'playerHit': {
           const p = lv.players[e.id];
           this.trauma = Math.min(1, this.trauma + (e.shield ? 0.3 : 0.6));
@@ -503,15 +522,17 @@ export class LevelView {
           const en = lv.enemies.find((o) => o.id === e.enemy);
           // a boss's signature: a low horn, so the ear learns it too
           if (en?.boss && en.boss.move === en.boss.sig && en.boss.k === 0) audio.play('horn', { pitch: 0.5, vol: 0.7 });
-          if (en && e.kind === 'torpedo') {
-            audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5 });
+          if (en && (e.kind === 'torpedo' || e.kind === 'seekers')) {
+            // (the lattice's lock is higher and colder)
+            audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5, pitch: e.kind === 'seekers' ? 1.25 : 1 });
             const prey = e.tele?.shape === 'lock' ? lv.players[e.tele.id] : undefined;
-            if (prey) this.pop('LOCK ON', prey.x, prey.z + 4, '#ff8a4a');
+            if (prey) this.pop('LOCK ON', prey.x, prey.z + 4, e.kind === 'seekers' ? '#9af4ff' : '#ff8a4a');
           } else if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
           break;
         }
         case 'release':
           if (e.kind === 'torpedo') audio.play('torpedo_launch', { pan: e.x / HALF_W, vol: 0.6 });
+          else if (e.kind === 'seekers') audio.play('seeker_go', { pan: e.x / HALF_W, pitch: 0.8, vol: 0.6 });
           else if (e.kind === 'lunge' || e.kind === 'ram' || e.kind === 'charge' || e.kind === 'dive') {
             this.fx.ring(e.x, FLIGHT_Y, e.z, 3, 0.18, true, 0xfff0d0);
             audio.play('dash', { pan: e.x / HALF_W, pitch: 0.7 });

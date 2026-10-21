@@ -200,6 +200,14 @@ export class Director {
         }
         break;
       }
+      case 'rook': {
+        const n = elite ? 1 : 1 + (r() < d * 0.3 ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+          const hx = n === 1 ? rx(14) : (k === 0 ? -1 : 1) * lerp(10, 18, r());
+          lv.spawn(foe, skin, hx, top, { hx, x0: hx * 0.5, hz: lerp(-19, -15, r()) }, { ...opts, t: -k * 1.6 });
+        }
+        break;
+      }
       case 'ace': {
         const dir = r() < 0.5 ? -1 : 1;
         lv.spawn(foe, skin, (p?.x ?? 0) + dir * 7, lv.bottom + 4, { dir }, opts);
@@ -549,6 +557,9 @@ const SQUADS: { kinds: (Archetype | Foe)[]; from: number; gap: number }[] = [
   { kinds: ['spindle', 'halo'], from: 0.15, gap: 6 },
   { kinds: ['gatekeeper', 'halo'], from: 0.25, gap: 3 },
   { kinds: ['warden', 'spindle'], from: 0.2, gap: 6 },
+  // the rook's darts herd you; the halo's rings or the gate close on where they herd you to
+  { kinds: ['rook', 'halo'], from: 0.25, gap: 5 },
+  { kinds: ['rook', 'gatekeeper'], from: 0.3, gap: 4 },
   // the wilds and the bloom
   { kinds: ['swooper', 'spitter'], from: 0.05, gap: 5 },
   { kinds: ['manta', 'swooper'], from: 0.25, gap: 8 },

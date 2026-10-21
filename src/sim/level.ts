@@ -13,7 +13,7 @@ import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
 import type { BossState, BossStyle } from './boss';
-import { CHAIN, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
+import { CHAIN, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, Edge, MarkKind } from '../game/parts';
@@ -37,6 +37,8 @@ const BURN_RING = 0.15;
 const BURN_CLOSE_KILL = 0.05;
 const BURN_PERFECT = 0.3;
 const BURN_CRASH = 0.2;
+/** Seconds after letting go of the boost before the Burn starts coming back (at the frame's rate). */
+const BURN_WAIT = 0.6;
 /** Skimming: within this far of the land or an obstacle (without touching) counts. */
 const SKIM = 1.6;
 /** A kill this close is point-blank: a little Burn. */
@@ -117,6 +119,8 @@ export interface Player {
   burn: number;
   /** How hard it's boosting this frame, 0..1 (0 once the Burn runs out). */
   boosting: number;
+  /** Seconds till the Burn starts coming back (it waits a moment after the boost is let go). */
+  burnWait: number;
   /** How close it's skimming the land or an obstacle this frame: 0 (not) to 1 (a hair away). */
   skim: number;
   skimT: number;
@@ -240,8 +244,8 @@ export interface Shot {
   dead: boolean;
 }
 
-/** torpedo: a homing round that can be shot down (see TORPEDO). */
-export type BulletKind = 'orb' | 'needle' | 'big' | 'mine' | 'spore' | 'torpedo';
+/** torpedo: a homing round that can be shot down (see TORPEDO); seeker: the lattice's, that only turns square (see SEEKER). */
+export type BulletKind = 'orb' | 'needle' | 'big' | 'mine' | 'spore' | 'torpedo' | 'seeker';
 
 export interface Bullet {
   x: number;
@@ -269,11 +273,21 @@ export interface Bullet {
   /** 0..1, fixed at launch: for the view, so spins and wobbles don't line up. */
   seed: number;
   hp: number;
+  /** Seekers: the turns it has made, how long it's been on this leg, and (`halt` > 0) how long it still holds (of `hold`), pointing (dx, dz) down its next. */
+  leg?: { n: number; t: number; halt: number; hold: number; dx: number; dz: number };
   dead: boolean;
 }
 
 /** Torpedoes: drift out for `launch` seconds, then light and chase (turning at `turn` rad/s, up to `speed`) until `fuel` runs out. */
 export const TORPEDO = { launch: 0.45, fuel: 2.8, turn: 2.1, speed: 19, accel: 26, hp: 12, life: 5 };
+
+/**
+ * Seekers (the Rook's): they fly with the screen, dead straight, and only ever turn square. Once its
+ * prey is level with it (or it meets the edge), one stops, points down its next leg for `halt`
+ * seconds while that lane is drawn, then snaps off down it, kicking up to `speed`. `turns` turns
+ * and it flies its last leg out. The first leg runs `out` seconds before it starts hunting.
+ */
+export const SEEKER = { out: 0.45, leg: 0.18, halt: 0.5, turns: 3, kick: 5, speed: 21, accel: 80, hp: 6, life: 10 };
 
 export interface Enemy extends FoeFields {
   id: number;
@@ -386,6 +400,8 @@ export type LevelEvent =
   | { type: 'bulletPop'; x: number; z: number; color: number; look: Faction }
   /** A torpedo goes off: shot down, or burnt out at the end of its run. */
   | { type: 'torpedo'; x: number; z: number; color: number; shot: boolean }
+  /** A seeker stops to turn (`n` turns made so far), goes off down its new leg, is shot down, or breaks on a hull. */
+  | { type: 'seeker'; x: number; z: number; color: number; how: 'halt' | 'go' | 'shot' | 'hit'; n: number }
   | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number }
   | { type: 'crash'; id: number; x: number; z: number }
   | { type: 'down'; id: number; x: number; z: number }
@@ -614,6 +630,7 @@ export class Level {
         causes: {},
         burn: BURN_START,
         boosting: 0,
+        burnWait: 0,
         skim: 0,
         skimT: 0,
         slip: 0,
@@ -810,6 +827,9 @@ export class Level {
       const was = p.boosting > 0.05;
       p.boosting = want;
       p.burn = Math.max(0, p.burn - BURN_DRAIN * p.boosting * DT);
+      // let go, and after a moment it comes back on its own (a racer's quickly, a hauler's slowly)
+      if (p.boosting > 0.05) p.burnWait = BURN_WAIT;
+      else if ((p.burnWait = Math.max(0, p.burnWait - DT)) <= 0 && !p.down) p.burn = Math.min(1, p.burn + p.stats.burnBack * DT);
       p.boostTime += p.boosting * DT;
       if (was !== p.boosting > 0.05) this.emit({ type: 'boost', id: p.id, on: !was });
     }
@@ -1031,6 +1051,7 @@ export class Level {
     if (b.dead) return;
     b.dead = true;
     if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: true });
+    else if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'shot', n: b.leg?.n ?? 0 });
     else this.emit({ type: 'bulletPop', x: b.x, z: b.z, color: b.color, look: b.look });
     if (this.rand() < chance) this.drop('scrap', b.x, b.z, 1);
   }
@@ -1431,6 +1452,7 @@ export class Level {
     const k = foeTaken(this, e, from === undefined ? (p ? { x: p.x, z: p.z } : null) : from, crit);
     if (k <= 0) {
       this.emit({ type: 'guard', enemy: e.id, x: e.x, z: e.z });
+      if (e.guard > 0) wearGuard(this, e, dmg);
       return;
     }
     // cracked open: it takes more
@@ -1542,6 +1564,15 @@ export class Level {
     const b = this.bullets[this.bullets.length - 1];
     if (b.split) b.splitA = this.rand() * Math.PI;
     if (b.kind === 'torpedo') b.hp = TORPEDO.hp;
+    if (b.kind === 'seeker') {
+      b.hp = SEEKER.hp;
+      const sp = Math.hypot(b.vx, b.vz) || 1;
+      // (square to the screen from the start: it only ever flies along x or z)
+      const across = Math.abs(b.vx) > Math.abs(b.vz);
+      b.leg = { n: 0, t: 0, halt: 0, hold: SEEKER.halt, dx: across ? Math.sign(b.vx) : 0, dz: across ? 0 : Math.sign(b.vz) || 1 };
+      b.vx = b.leg.dx * sp;
+      b.vz = b.leg.dz * sp;
+    }
     return b;
   }
 
@@ -1654,6 +1685,7 @@ export class Level {
         b.vx = vx;
       }
       if (b.kind === 'torpedo') this.steer(b);
+      else if (b.kind === 'seeker') this.square(b);
       else if (b.accel) {
         const sp = Math.hypot(b.vx, b.vz) || 1;
         const k = Math.max(0.5, sp + b.accel * DT) / sp;
@@ -1661,7 +1693,8 @@ export class Level {
         b.vz *= k;
       }
       b.x += b.vx * DT;
-      b.z += b.vz * DT - (b.kind === 'mine' && !slowScroll ? dz * 0.3 : 0);
+      // (a seeker is flown, not thrown: it keeps up with the screen, so its lanes stay square to it)
+      b.z += b.vz * DT - (b.kind === 'seeker' ? dz : b.kind === 'mine' && !slowScroll ? dz * 0.3 : 0);
       if (b.t > b.life || !this.onScreen(b.x, b.z, 6)) {
         if (b.split && b.t > b.life && !b.dead) {
           for (let k = 0; k < b.split; k++)
@@ -1692,6 +1725,44 @@ export class Level {
     const v = Math.min(TORPEDO.speed * (1 + this.spec.difficulty * 0.1), sp + TORPEDO.accel * DT);
     b.vx = Math.sin(have) * v;
     b.vz = Math.cos(have) * v;
+  }
+
+  /** A seeker: dead straight down its leg until its prey is level with it, then it stops, points, and turns square at it. */
+  private square(b: Bullet) {
+    const g = b.leg!;
+    g.t += DT;
+    if (g.halt > 0) {
+      g.halt -= DT;
+      if (g.halt > 0) return;
+      // and off down the new leg
+      g.n++;
+      g.t = 0;
+      b.vx = g.dx * SEEKER.kick;
+      b.vz = g.dz * SEEKER.kick;
+      this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'go', n: g.n });
+      return;
+    }
+    const v = Math.min(SEEKER.speed * (1 + this.spec.difficulty * 0.1), Math.hypot(b.vx, b.vz) + SEEKER.accel * DT);
+    b.vx = g.dx * v;
+    b.vz = g.dz * v;
+    if (g.n >= SEEKER.turns) return;
+    const room = this.onScreen(b.x + g.dx * 2, b.z + g.dz * 2, -1);
+    if (room && g.t < (g.n ? SEEKER.leg : SEEKER.out)) return;
+    const p = this.players[b.seek];
+    if (!p || p.down) return;
+    // what it's after: its prey, or a decoy pulling it (as anything that aims)
+    const a = this.aim(b.x, b.z);
+    const tx = Math.sin(a);
+    const tz = Math.cos(a);
+    // still ahead of it down this leg, and room to go: on it goes
+    if ((g.dx ? tx * g.dx : tz * g.dz) > 0.12 && room) return;
+    // level with it, or out of room: stop, and point down the other way at it
+    const across = g.dx === 0;
+    g.dx = across ? Math.sign(tx) || 1 : 0;
+    g.dz = across ? 0 : Math.sign(tz) || 1;
+    g.halt = g.hold = SEEKER.halt * (1 - this.spec.difficulty * 0.2);
+    b.vx = b.vz = 0;
+    this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'halt', n: g.n });
   }
 
   private updateLasers() {
@@ -1803,9 +1874,10 @@ export class Level {
         if (p.slip > 0 && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
         if (b.dead) continue;
         if (d2 < hitR * hitR) {
-          if (this.hurt(p, b.x, b.z)) {
+          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet')) {
             b.dead = true;
             if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
+            if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });
           }
         } else if (!(b.grazed & (1 << p.id)) && d2 < (hitR + 1.5) ** 2 && p.inv <= 0) {
           b.grazed |= 1 << p.id;
@@ -1873,13 +1945,13 @@ export class Level {
     }
     // what's left of the enemy fire against the haulers' hulls
     this.convoy?.collide();
-    // player shots against enemies (and the torpedoes coming for them)
-    const torps = this.bullets.some((b) => b.kind === 'torpedo' && !b.dead);
+    // player shots against enemies (and the torpedoes and seekers coming for them)
+    const torps = this.bullets.some((b) => b.hp > 0 && !b.dead);
     for (const s of this.shots) {
       if (s.dead) continue;
       if (torps && s.kind !== 'flame' && s.kind !== 'mine') {
         for (const b of this.bullets) {
-          if (b.dead || b.kind !== 'torpedo' || (b.x - s.x) ** 2 + (b.z - s.z) ** 2 > (b.r + s.r + 0.4) ** 2) continue;
+          if (b.dead || b.hp <= 0 || (b.x - s.x) ** 2 + (b.z - s.z) ** 2 > (b.r + s.r + 0.4) ** 2) continue;
           b.hp -= s.dmg;
           if (b.hp <= 0) {
             this.cancel(b, 0.6);
@@ -2177,12 +2249,18 @@ export class Level {
     return best;
   }
 
-  /** A gun's damage now: Burn Engine, the lance's speed, Hair Trigger's crits. */
+  /** A gun's damage now: Burn Engine, the lance's speed, the Kestrel's slipstream, Hair Trigger's crits. */
   private gunDamage(p: Player, g: Gun) {
     let dmg = g.spec.damage * (1 + p.stats.gamble * p.burn);
     if (g.spec.speedy) dmg *= 1 + p.boosting;
+    if (p.stats.swift) dmg *= 1 + p.stats.swift * this.pace(p);
     const crit = g.crit > 0 && p.crit > 0;
     return { dmg: crit ? dmg * 2 : dmg, crit };
+  }
+
+  /** How fast it's flying, 0..1: about half at full speed, 1 flat out on the boost or in a dash. */
+  pace(p: Player) {
+    return Math.min(1, Math.hypot(p.vx, p.vz) / (p.stats.speed * (1 + SURGE_SHIP)));
   }
 
   /** The dash just began: what the dash mods add. */

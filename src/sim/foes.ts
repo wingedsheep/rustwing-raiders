@@ -4,7 +4,7 @@
  * as in enemies.ts: `s` is z from the middle of the screen (negative is up, towards the top).
  */
 
-import { TORPEDO, type Enemy, type Level, type Player } from './level';
+import { SEEKER, TORPEDO, type Enemy, type Level, type Player } from './level';
 import { DT, FLIGHT_Y, HALF_H, HALF_W, fromFlight, toFlight } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { go, lookOf, over, release, type Tele } from './combat';
@@ -605,25 +605,25 @@ export function updateFoe(lv: Level, e: Enemy): void {
     }
     // --- the lattice ----------------------------------------------------------------------
     case 'warden': {
-      // a shield in front; it drops it to fire
+      // a shield in front; it drops it to fire, and enough fire into it cracks it (see wearGuard)
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -12;
       if (e.t < 1.6) {
         moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
         e.aim = lv.aim(e.x, e.z);
-        e.guard = 0.9;
+        e.guard = 0.7;
         break;
       }
       if (e.t > (d.stay ?? 10) && e.state === 'idle') {
-        e.guard = 0.9;
+        e.guard = 0.7;
         leave(lv, e);
         break;
       }
       ease(lv, e, hx + Math.sin(e.t * 0.5) * 3, hz, 2, 6);
       e.heading = e.aim;
       if (e.state === 'idle' || e.state === 'windup') {
-        e.aim = turn(e.aim, lv.aim(e.x, e.z), 0.7);
-        e.guard = 0.9;
+        e.aim = turn(e.aim, lv.aim(e.x, e.z), 0.5);
+        e.guard = 0.7;
       }
       if (e.state === 'idle') {
         if (e.stateT > 2 && ok) go(lv, e, 'windup', 1.0, 'bar', line(e, 40, 6, 1.0));
@@ -639,7 +639,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           go(lv, e, 'attack', 0.3, 'bar');
         }
       } else if (e.state === 'attack') {
-        if (over(e)) go(lv, e, 'recover', 1.0);
+        if (over(e)) go(lv, e, 'recover', 1.6);
       } else if (over(e)) go(lv, e, 'idle');
       break;
     }
@@ -993,6 +993,52 @@ export function updateFoe(lv: Level, e: Enemy): void {
           d.k = (d.k ?? 0) + 1;
         }
         if (over(e)) go(lv, e, 'recover', 1.3);
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'rook': {
+      // a dart carrier: locks on, then lets go darts out to its sides that fly only straight and turn
+      // only square (see SEEKER). Each stops and draws its next lane before it takes it: step off the
+      // lane. Shoot them down, or hit the rook while it reloads
+      const hx = d.hx ?? 0;
+      const hz = d.hz ?? -17;
+      if (e.t < 1.6) {
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        e.heading = 0;
+        break;
+      }
+      if (((d.n ?? 0) >= 3 || (e.t > 22 && !e.elite)) && e.state !== 'windup') {
+        leave(lv, e, (hx < 0 ? -1 : 1) * 10);
+        break;
+      }
+      // it keeps square to the screen, and slides along it in steps
+      const step = Math.round(Math.sin(e.t * 0.4) * 2) * 4;
+      ease(lv, e, hx + step, hz, 2.5, 8);
+      e.heading = 0;
+      const three = e.elite || lv.spec.difficulty > 0.9;
+      const dirs = three ? [Math.PI / 2, -Math.PI / 2, 0] : [Math.PI / 2, -Math.PI / 2];
+      if (e.state === 'idle') {
+        if (e.stateT > (d.n ? 2.4 : 1.3) && ok && p) {
+          d.prey = p.id;
+          go(lv, e, 'windup', 1.1, 'seekers', { shape: 'lock', id: p.id, dirs });
+        }
+      } else if (e.state === 'windup') {
+        if (over(e)) {
+          d.n = (d.n ?? 0) + 1;
+          for (const a of dirs)
+            lv.bullet(e.x + Math.sin(a) * e.r, e.z + Math.cos(a) * e.r, a, 12, {
+              kind: 'seeker',
+              r: 0.5,
+              life: SEEKER.life,
+              seek: d.prey ?? 0,
+              color: e.skin.colors[2],
+              look: lookOf(lv, e),
+            });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          go(lv, e, 'attack', 0.3, 'seekers');
+        }
+      } else if (e.state === 'attack') {
+        if (over(e)) go(lv, e, 'recover', 1.7);
       } else if (over(e)) go(lv, e, 'idle');
       break;
     }

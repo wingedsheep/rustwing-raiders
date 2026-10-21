@@ -5,7 +5,7 @@ import { startBuild, stats, type Build } from '../sim/build';
 import { input, type DeviceId } from '../input';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
-import { DARK, DIM, EDGE, GOLD, H, INK, VIEW, W, frame, hex, schematic } from '../ui/hud';
+import { DARK, DIM, EDGE, GOLD, H, INK, RED, VIEW, W, frame, hex, schematic } from '../ui/hud';
 import { hints } from '../ui/widgets';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
@@ -40,7 +40,7 @@ const CARD_Y = 58;
 const CARD_W = 280;
 const CARD_H = 290;
 /** The 3D window inside a card. */
-const WIN = { x: 6, y: 20, w: 268, h: 116 };
+const WIN = { x: 6, y: 20, w: 268, h: 104 };
 const PPU = 9;
 const SWAP_T = 0.24;
 const LAUNCH_T = 1.15;
@@ -477,7 +477,7 @@ export class Title implements Screen {
       if (k > 0.6) drawText(ctx, 'READY', wx + WIN.w / 2, wy + WIN.h - 14, DARK, { align: 'center', shadow: false });
     }
     // the name, between arrows that kick when pressed
-    const ny = y + 144;
+    const ny = y + 132;
     drawText(ctx, f.name.toUpperCase(), x + CARD_W / 2, ny, s.locked ? GOLD : INK, { scale: 2, align: 'center' });
     if (!s.locked) {
       const pulse = Math.floor(this.t * 2) % 2 === 0;
@@ -489,14 +489,18 @@ export class Title implements Screen {
     const px0 = Math.round(x + CARD_W / 2 - (FRAMES.length * (pw + 3) - 3) / 2);
     FRAMES.forEach((_, k) => {
       ctx.fillStyle = k === s.frame ? col : '#3a2e48';
-      ctx.fillRect(px0 + k * (pw + 3), y + 163, pw, k === s.frame ? 3 : 2);
+      ctx.fillRect(px0 + k * (pw + 3), y + 151, pw, k === s.frame ? 3 : 2);
     });
-    wrap(f.text, CARD_W - 24).slice(0, 3).forEach((l, k) => drawText(ctx, l, x + CARD_W / 2, y + 172 + k * 9, '#c8bcd8', { align: 'center' }));
+    // what it is, what only it does, and what its shape costs it
+    drawText(ctx, f.text, x + CARD_W / 2, y + 159, '#c8bcd8', { align: 'center' });
+    drawText(ctx, f.perk.name, x + CARD_W / 2, y + 169, GOLD, { align: 'center' });
+    wrap(f.perk.text, CARD_W - 16).slice(0, 2).forEach((l, k) => drawText(ctx, l, x + CARD_W / 2, y + 178 + k * 9, INK, { align: 'center' }));
+    drawText(ctx, f.weak, x + CARD_W / 2, y + 196, RED, { align: 'center' });
     ctx.fillStyle = EDGE;
-    ctx.fillRect(x + 8, y + 203, CARD_W - 16, 1);
+    ctx.fillRect(x + 8, y + 205, CARD_W - 16, 1);
     // the numbers, as bars against the other frames
     ROWS.forEach((r, k) => {
-      const ry = y + 210 + k * 10;
+      const ry = y + 211 + k * 10;
       drawText(ctx, r.name, x + 8, ry, DIM);
       const segs = 12;
       const bx = x + 70;

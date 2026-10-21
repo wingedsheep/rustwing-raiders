@@ -13,11 +13,14 @@
  * Used by tools/autopilot.ts (headless, many seeds) and in the browser with ?autopilot.
  */
 
-import type { Level, Player } from './level';
+import type { Bullet, Level, Player } from './level';
 import type { Gun } from './build';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
 import { clamp } from '../util';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
+
+/** How fast a bullet comes down the flight plane (a seeker keeps up with the screen: it's flown, not thrown). */
+const fall = (lv: Level, b: Bullet) => (b.kind === 'seeker' ? b.vz - lv.speedNow : b.vz);
 
 const DIRS: [number, number][] = [[0, 0]];
 for (let k = 0; k < 16; k++) DIRS.push([Math.cos((k / 16) * Math.PI * 2), Math.sin((k / 16) * Math.PI * 2)]);
@@ -264,7 +267,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
     const z = p.z - scroll * t;
     for (const b of lv.bullets) {
       const hr = core + b.r + 0.2;
-      if ((b.x + b.vx * t - p.x) ** 2 + (b.z + b.vz * t - z) ** 2 < hr * hr) {
+      if ((b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) {
         perfect = true;
         break;
       }
@@ -289,7 +292,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       if (p.stats.mod.shroud) continue;
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.4;
-        if ((b.x + b.vx * t - x) ** 2 + (b.z + b.vz * t - z) ** 2 < hr * hr) way += 2;
+        if ((b.x + b.vx * t - x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) way += 2;
       }
       for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && (e.x + e.vx * t - x) ** 2 + (e.z + (e.vz - scroll) * t - z) ** 2 < (e.r * 0.75 + core + 0.6) ** 2) way += 3;
       if (threatCost(lv, x, z, t, core) >= 500) way += 3;
@@ -299,7 +302,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       const z = ez - scroll * (t - DASH_TIME);
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.9;
-        if ((b.x + b.vx * t - ex) ** 2 + (b.z + b.vz * t - z) ** 2 < hr * hr) danger++;
+        if ((b.x + b.vx * t - ex) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) danger++;
       }
       for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && (e.x - ex) ** 2 + (e.z - z) ** 2 < (e.r + 1.5) ** 2) danger++;
       if (threatCost(lv, ex, z, t, core) >= 500) danger++;
@@ -339,7 +342,7 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
     if (!safe) {
       for (const b of lv.bullets) {
         const bx = b.x + b.vx * t;
-        const bz = b.z + b.vz * t;
+        const bz = b.z + fall(lv, b) * t;
         const dd = (bx - x) ** 2 + (bz - z) ** 2;
         const hr = core + b.r;
         if (dd < hr * hr) c += 1000 * weight;
@@ -417,7 +420,7 @@ function useAux(lv: Level, p: Player, best: number): boolean {
     for (const b of lv.bullets) {
       const t = 4 * DT;
       const z = p.z - lv.speedNow * t;
-      if ((b.x + b.vx * t - p.x) ** 2 + (b.z + b.vz * t - z) ** 2 < 1.8 * 1.8) return true;
+      if ((b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < 1.8 * 1.8) return true;
     }
     return false;
   }

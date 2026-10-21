@@ -314,6 +314,22 @@
   ],
   "variant": 0
  },
+ "enemy_heartpod_beast": {
+  "colliders": [],
+  "kind": "enemy_heartpod_beast",
+  "max": [
+   2.468,
+   1.131,
+   2.976
+  ],
+  "min": [
+   -2.468,
+   -1.333,
+   -2.38
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_lancer_beast": {
   "colliders": [],
   "kind": "enemy_lancer_beast",

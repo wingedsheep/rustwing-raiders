@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run } from '../sim/run';
 import { cellsOf, fits, gunDir, partAt, rotOf, stats, type Build, type Placement, type Stats } from '../sim/build';
-import { EDGES, frameById, LOAD_CLASS, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
+import { EDGES, frameById, linkedStr, LOAD_CLASS, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -43,7 +43,7 @@ const RULES = [
   'GUNS FIRE THE WAY THEY SIT: FRONT AND MIDDLE FORWARD, OUTER COLUMNS OUT AT AN ANGLE, THE BACK ROW BEHIND.',
   'HEAT GUNS BURN, ARC SHOCKS, EXPLOSIVE CRACKS. TWO MARKS ON ONE ENEMY REACT: MOUNT THEM APART, LAND THEM TOGETHER.',
   'BOOSTERS HELP THE GUNS THEY TOUCH. CONDUIT RELAYS: WHAT TOUCHES ONE RUN OF IT TOUCHES.',
-  'LINKED PARTS RUN AT 150%. ARC OR EXPLOSIVE TOUCHING HEAT CLASH: BOTH AT 50%.',
+  'LINKED PARTS RUN AT 150% (200% ON A LATTICE). ARC OR EXPLOSIVE TOUCHING HEAT CLASH: BOTH AT 50%.',
   'BACK-ROW ENGINES PUSH HARDER. 3 OF A TAG WAKE ITS SET BONUS, 5 MAKE IT STRONGER.',
   'EVERY GUN HAS AN EDGE: WHEN IT CRITS. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
   'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT DASH RELOADS A ROUND.',
@@ -72,6 +72,9 @@ function boostText(d: PartDef, str: number) {
  * What placing `p` did, step by step: each link it made (with its number), what it needs and
  * hasn't got, clashes, set bonuses it woke, and the damage it adds up to.
  */
+/** What a linked part runs at on this frame, as the hangar says it ('150%'). */
+const linkedPct = (frame: string) => `${Math.round(linkedStr(frameById(frame)) * 100)}%`;
+
 function explain(b: Build, p: Placement, before: Stats): Step[] {
   const lk = links(b);
   const after = stats(b);
@@ -84,7 +87,7 @@ function explain(b: Build, p: Placement, before: Stats): Step[] {
     const [c, r] = cellsOf(q)[0];
     const by = lk.of(e.a)!;
     const text =
-      e.kind === 'boost' ? boostText(by.def, by.str) : e.kind === 'drone' ? 'DRONE COPY' : e.kind === 'link' ? (by.def.link?.need ? 'LINKED: ON' : 'LINKED: 150%') : e.kind === 'fuse' ? 'FUSED: 125%' : 'CLASH: 50%';
+      e.kind === 'boost' ? boostText(by.def, by.str) : e.kind === 'drone' ? 'DRONE COPY' : e.kind === 'link' ? (by.def.link?.need ? 'LINKED: ON' : `LINKED: ${linkedPct(b.frame)}`) : e.kind === 'fuse' ? 'FUSED: 125%' : 'CLASH: 50%';
     out.push({ c, r, text: `${partById(q.id).name.split(' ')[0]} ${text}`, color: EDGE_COLOR[e.kind] });
   }
   const def = partById(p.id);
@@ -334,6 +337,7 @@ export class Hangar implements Screen {
       ctx.clearRect(x, 32, 292, 188);
       const s = stats(this.run.crew[0].build);
       drawText(ctx, s.frame.name.toUpperCase(), x + 4, 36, INK);
+      drawText(ctx, s.frame.perk.name, x + 4 + textWidth(s.frame.name.toUpperCase() + ' '), 36, GOLD);
       this.linksPanel(ctx, this.bays[0], 0, x, 228, 292, 316);
     }
     // the 3D goes under the UI canvas: cut windows for it
@@ -463,12 +467,13 @@ export class Hangar implements Screen {
     for (const l of wrap(def.text, tw).slice(0, it.trait ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     if (def.duo) lines.push([`DUO PART: ${def.duo[0]} + ${def.duo[1]}`, CYAN]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
+    const lp = linkedPct(this.run.crew[who].build.frame);
     if (pl) {
       // the links it has, or hasn't
       if (pl.idle) lines.push([`IDLE: ${pl.idle}`, RED]);
       if (def.link) {
         const ok = pl.link?.ok;
-        const how = def.link.need ? (ok ? 'LINKED' : 'NEEDS') : ok ? 'LINKED 150%:' : 'LINK FOR 150%:';
+        const how = def.link.need ? (ok ? 'LINKED' : 'NEEDS') : ok ? `LINKED ${lp}:` : `LINK FOR ${lp}:`;
         const who = ok ? pl.partners.map((q) => partById(q.id).name).join(', ') || def.link.text : def.link.text;
         lines.push([`${how} ${who}`.slice(0, 50), ok ? GREEN : def.link.need ? RED : GOLD]);
       }
@@ -481,7 +486,7 @@ export class Hangar implements Screen {
         lines.push([`${giving ? 'BOOSTS' : 'BOOSTED BY'} ${[...new Set(other)].join(', ')}`.slice(0, 50), EDGE_COLOR.boost]);
       }
       if (pl.str !== 1 && !pl.idle) lines.push([`RUNNING AT ${Math.round(pl.str * 100)}%`, pl.str > 1 ? GREEN : pl.str > 0 ? GOLD : RED]);
-    } else if (def.link) lines.push([`${def.link.need ? 'NEEDS' : 'LINK FOR 150%:'} ${def.link.text}`, DIM]);
+    } else if (def.link) lines.push([`${def.link.need ? 'NEEDS' : `LINK FOR ${lp}:`} ${def.link.text}`, DIM]);
     // and its numbers, if there's room
     const st = partStats(def);
     let ty = y + 15;
@@ -508,7 +513,7 @@ export class Hangar implements Screen {
     for (const pl of lk.parts) {
       if (pl.idle) lines.push([`${pl.def.name}: IDLE, ${pl.idle}`, RED]);
       else if (pl.def.link && !pl.link?.ok && pl.def.link.need) lines.push([`${pl.def.name}: NEEDS ${pl.def.link.text}`, RED]);
-      else if (pl.def.link && pl.link?.ok && !pl.def.link.need) lines.push([`${pl.def.name}: LINKED, 150%`, GREEN]);
+      else if (pl.def.link && pl.link?.ok && !pl.def.link.need) lines.push([`${pl.def.name}: LINKED, ${linkedPct(b.frame)}`, GREEN]);
     }
     for (const e of lk.edges) if (e.kind === 'clash' || e.kind === 'fuse') lines.push([`${e.kind === 'fuse' ? 'FUSED' : 'CLASH'}: ${partById(e.a.id).name} + ${partById(e.b.id).name}`, e.kind === 'fuse' ? GOLD : RED]);
     const relays = lk.edges.filter((e) => e.via.length && e.kind !== 'clash').length;

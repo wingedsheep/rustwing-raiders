@@ -14,7 +14,7 @@
 
 export type Sfx =
   | 'shot_rivet' | 'shot_scatter' | 'shot_rail' | 'shot_arc' | 'shot_missile' | 'shot_flak' | 'shot_mine' | 'flak_burst'
-  | 'hit' | 'hit_armor' | 'enemy_shot' | 'lock_on' | 'torpedo_launch' | 'torpedo_down' | 'explode_small' | 'explode_big' | 'explode_boss'
+  | 'hit' | 'hit_armor' | 'enemy_shot' | 'lock_on' | 'torpedo_launch' | 'torpedo_down' | 'seeker_halt' | 'seeker_go' | 'seeker_down' | 'explode_small' | 'explode_big' | 'explode_boss'
   | 'player_hit' | 'player_down' | 'shield_break' | 'shield_up' | 'dash' | 'graze' | 'overheat'
   | 'pickup_scrap' | 'pickup_part' | 'heal'
   | 'special_bomb' | 'special_phase' | 'special_emp' | 'special_overdrive' | 'special_ready'
@@ -394,6 +394,31 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'square', 1500 * p, 600 * p, 0.08, 0.05, 0.001);
     return 0.4;
   }, 0.04, 4),
+
+  // a seeker stopping dead to turn: a dry clock tick, a glassy ping over it
+  seeker_halt: S((t, p, o) => {
+    noise(o, t, 0.018, 'bandpass', 4200 * p, 4200 * p, 3, 0.16);
+    tone(o, t, 'square', 1250 * p, 1250 * p, 0.03, 0.05, 0.001);
+    tone(o, t + 0.01, 'sine', 2500 * p, 2450 * p, 0.16, 0.06, 0.002);
+    return 0.2;
+  }, 0.03, 4, { tuned: true }),
+
+  // and off down its new leg: a short zip that climbs
+  seeker_go: S((t, p, o) => {
+    tone(o, t, 'sawtooth', 500 * p, 1900 * p, 0.09, 0.05, 0.002, 0.08);
+    noise(o, t, 0.1, 'bandpass', 1500 * p, 6000 * p, 2, 0.08, 0.004);
+    return 0.12;
+  }, 0.03, 4),
+
+  // a seeker shot down: a crystal going to pieces
+  seeker_down: S((t, p, o) => {
+    noise(o, t, 0.04, 'highpass', 3500, 3500, 0.7, 0.18);
+    for (let i = 0; i < 6; i++) {
+      const f = (2800 + Math.random() * 4200) * p;
+      tone(o, t + Math.random() * 0.12, 'sine', f, f * 0.95, 0.05 + Math.random() * 0.08, 0.045, 0.001);
+    }
+    return 0.25;
+  }, 0.04, 3, { rev: 0.2 }),
 
   explode_small: S((t, p, o) => {
     boom(o, t, p, 0.45, 0.26);

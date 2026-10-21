@@ -13,6 +13,15 @@ export function threatCost(lv: Level, x: number, z: number, t: number, core: num
   const scroll = lv.speedNow;
   const m = core + 0.5;
   let c = 0;
+  // a seeker stopped to turn: the lane it has drawn, from just before it goes till it's well down it
+  for (const b of lv.bullets) {
+    const g = b.leg;
+    if (b.dead || !g || g.halt <= 0 || t < g.halt - 0.3 || t > g.halt + 1.2) continue;
+    const bz = b.z - scroll * t;
+    const along = (x - b.x) * g.dx + (z - bz) * g.dz;
+    const across = Math.abs((x - b.x) * g.dz - (z - bz) * g.dx);
+    if (along > -1 && across < b.r + m + 0.3) c += 900;
+  }
   for (const s of lv.strikes) {
     if (s.dead || s.hit) continue;
     const st = s.t + t;

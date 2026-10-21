@@ -96,8 +96,12 @@ export interface Stats {
   /** Tags with their set bonus awake: 1 at three, 2 at five. */
   bonus: Partial<Record<Tag, 1 | 2>>;
   drones: number;
-  /** Hit radius (the bit of you bullets can hit: small, like every good shmup). */
+  /** Hit radius (the bit of you bullets can hit: small, like every good shmup; the frame says how small). */
   core: number;
+  /** Burn back a second once the boost is let go (the frame's). */
+  burnBack: number;
+  /** Kestrel: guns hit up to this much harder the faster it flies. */
+  swift: number;
   /** The aux verb, and how strong it runs (1 = 100%). */
   aux: AuxKind | null;
   auxStr: number;
@@ -195,7 +199,7 @@ export function stats(b: Build): Stats {
   for (const t of Object.keys(tags) as Tag[]) if (tags[t] >= 3) bonus[t] = tags[t] >= 5 ? 2 : 1;
 
   let hp = f.hp;
-  let shield = 0;
+  let shield = f.shield ?? 0;
   let mass = f.mass;
   let powerOut = f.power;
   let powerDraw = 0;
@@ -209,7 +213,8 @@ export function stats(b: Build): Stats {
   let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
-  const mod = { ram: 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, strike: 0, refill: false, shroud: false };
+  // (the frame's own perk counts as a dash mod: the Hammerhead's ram, the Wasp's refill)
+  const mod = { ram: f.ram ?? 0, blink: 0, mines: 0, ghost: 0, volley: 0, detonate: 0, strike: 0, refill: !!f.refill, shroud: false };
   const pas = { skin: 0, gamble: 0, salvage: 0, echo: 0, mirror: 0, crit: 0 };
   let thunder = 0;
   let vengeful = false;
@@ -365,7 +370,7 @@ export function stats(b: Build): Stats {
     powerDraw,
     brown,
     thrust,
-    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * (loadClass === 'overloaded' ? 0.88 : 1),
+    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * (loadClass === 'overloaded' ? 0.88 : 1),
     accel: 140 * grip * (loadClass === 'overloaded' ? 0.8 : 1),
     dashes: Math.max(1, f.dash + Math.floor(dash) + (bonus.drive ? 1 : 0) + (loadClass === 'nimble' ? 1 : loadClass === 'overloaded' ? -1 : 0)),
     dashCooldown: (1.1 / (1 + dash * 0.6)) * dashRecover * (loadClass === 'nimble' ? 0.8 : loadClass === 'overloaded' ? 1.5 : 1),
@@ -381,7 +386,9 @@ export function stats(b: Build): Stats {
     tags,
     bonus,
     drones,
-    core: 0.38,
+    core: f.core,
+    burnBack: f.burn,
+    swift: f.swift ?? 0,
     aux,
     auxStr,
     mod,

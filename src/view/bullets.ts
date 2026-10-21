@@ -20,7 +20,8 @@ import { FLIGHT_Y, TILT } from '../sim/types';
  *  - bloom:   spores. Lumpy pods glowing through their folds; seeds trailing down.
  *
  * Torpedoes are their own thing whoever fires them: a gunmetal hull, fins and a nose in the
- * faction's colour, a lamp, and a flame once they've lit.
+ * faction's colour, a lamp, and a flame once they've lit. The rook's seekers are crystal darts,
+ * square in section, that burn white while they stop to turn.
  *
  * Every shape is a list of parts; each part is one instanced mesh, placed in the bullet's own
  * frame (+z the way it flies, in units of the bullet's body radius).
@@ -29,9 +30,10 @@ import { FLIGHT_Y, TILT } from '../sim/types';
 const MAX = 1500;
 const MAX_GLOW = 4000;
 
-/** Shape ids: [orb, needle, big, mine] per faction, then the torpedo. */
+/** Shape ids: [orb, needle, big, mine] per faction, then the torpedo and the seeker. */
 const FAMILY: Record<Faction, number> = { scrap: 0, lattice: 4, wild: 8, bloom: 12 };
 const TORP = 16;
+const SEEK = 17;
 
 /** What a part is made of. */
 export type Stuff = 'metal' | 'matte' | 'wet' | 'glass' | 'light' | 'haze';
@@ -47,6 +49,8 @@ interface Ctx {
   time: number;
   /** A torpedo whose motor has lit. */
   lit: boolean;
+  /** A seeker stopped to turn: 0 → 1 through the stop (-1 under way). */
+  hold: number;
 }
 
 interface PartDef {
@@ -74,6 +78,8 @@ interface ShapeDef {
   ghosts?: number;
   /** Drawn this much bigger or smaller than its hitbox suggests. */
   scale?: number;
+  /** Its shadow plate, bigger or smaller (long thin things, things with down). */
+  plate?: number;
 }
 
 // ── colours (linear) ─────────────────────────────────────────────────────────────────────────
@@ -226,11 +232,13 @@ const shard = (lance: boolean): ShapeDef => ({
 const spores = (body: THREE.BufferGeometry, size: number, light: PartDef['color'], spin: ShapeDef['spin'], inner = 0.86): ShapeDef => ({
   parts: [
     { geo: ROUGH, stuff: 'light', at: place(0, 0, 0, size * inner), color: light },
-    { geo: body, stuff: 'matte', at: place(0, 0, 0, size), color: tint(0.8) },
+    { geo: body, stuff: 'matte', at: place(0, 0, 0, size), color: tint(1.3, 0.1) },
   ],
   spin,
   halo: [2.0, 0.35],
 });
+/** The seeker's collar: a square ring (a torus of four sides), corners on the dart's own. */
+const COLLAR = new THREE.TorusGeometry(0.62, 0.07, 4, 4);
 const sporeLight = (k: number) => (x: Ctx, o: THREE.Color) => o.copy(x.col).lerp(SPORE, 0.4).multiplyScalar(k);
 
 const SHAPES: ShapeDef[] = [
@@ -240,7 +248,7 @@ const SHAPES: ShapeDef[] = [
   {
     // flak: iron plate, red-hot inside
     parts: [
-      { geo: FLAK, stuff: 'metal', color: (x, o) => o.copy(IRON).lerp(x.col, 0.12) },
+      { geo: FLAK, stuff: 'metal', color: (x, o) => o.copy(IRON).lerp(x.col, 0.3) },
       { geo: ROUGH, stuff: 'light', at: place(0, 0, 0, 0.68), color: (x, o) => o.copy(x.col).lerp(HOT, 0.4).multiplyScalar(2 + 0.5 * Math.sin(x.time * 20 + x.seed * 9)) },
     ],
     spin: [3, 'tumble'],
@@ -249,12 +257,12 @@ const SHAPES: ShapeDef[] = [
   {
     // a naval mine: studded iron, and a lamp that blinks faster as it ripens
     parts: [
-      { geo: SPHERE, stuff: 'metal', at: place(0, 0, 0, 0.72), color: (x, o) => o.copy(IRON).lerp(x.col, 0.18) },
+      { geo: SPHERE, stuff: 'metal', at: place(0, 0, 0, 0.72), color: (x, o) => o.copy(IRON).lerp(x.col, 0.35) },
       { geo: STUDS, stuff: 'metal', color: (_, o) => o.copy(GUNMETAL) },
       { geo: SPHERE, stuff: 'light', at: place(0, 0.68, 0, 0.2), color: (x, o) => (blinkOn(x) ? o.copy(x.col).lerp(WHITE, 0.4).multiplyScalar(3) : o.copy(x.col).multiplyScalar(0.25)) },
     ],
     spin: [0.8, 'yaw'],
-    halo: [1.6, 0.18],
+    halo: [1.8, 0.3],
   },
   // lattice
   shard(false),
@@ -273,7 +281,7 @@ const SHAPES: ShapeDef[] = [
     // a glass cube, tumbling, its heart blinking faster as it ripens
     parts: [
       { geo: OCTA, stuff: 'light', at: place(0, 0, 0, 0.4), color: (x, o) => (blinkOn(x) ? o.copy(WHITE).multiplyScalar(3) : o.copy(x.col).multiplyScalar(1.2)) },
-      { geo: new THREE.BoxGeometry(1.15, 1.15, 1.15), stuff: 'glass', color: tint(0.9) },
+      { geo: new THREE.BoxGeometry(1.15, 1.15, 1.15), stuff: 'glass', color: tint(1.4, 0.15) },
     ],
     spin: [2.4, 'tumble'],
     halo: [1.7, 0.25],
@@ -282,30 +290,30 @@ const SHAPES: ShapeDef[] = [
   {
     // spit, dripping
     parts: [
-      { geo: TEAR, stuff: 'wet', color: tint(0.9) },
-      { geo: SPHERE, stuff: 'wet', at: place(0.1, 0, -1.85, 0.22), color: tint(0.85), size: x => 0.8 + 0.2 * Math.sin(x.time * 9 + x.seed * 5) },
-      { geo: SPHERE, stuff: 'wet', at: place(-0.12, 0, -2.5, 0.14), color: tint(0.8), size: x => 0.8 + 0.2 * Math.sin(x.time * 9 + x.seed * 5 + 2) },
+      { geo: TEAR, stuff: 'wet', color: tint(1.3, 0.1) },
+      { geo: SPHERE, stuff: 'wet', at: place(0.1, 0, -1.85, 0.22), color: tint(1.25, 0.1), size: x => 0.8 + 0.2 * Math.sin(x.time * 9 + x.seed * 5) },
+      { geo: SPHERE, stuff: 'wet', at: place(-0.12, 0, -2.5, 0.14), color: tint(1.2, 0.1), size: x => 0.8 + 0.2 * Math.sin(x.time * 9 + x.seed * 5 + 2) },
     ],
     wobble: 0.08,
-    halo: [1.4, 0.12],
+    halo: [1.6, 0.3],
   },
   {
     // a thorn, tip first, polished
-    parts: [{ geo: new THREE.ConeGeometry(0.42, 1.95, 10).rotateX(Math.PI / 2), stuff: 'wet', color: (x, o) => o.copy(x.col).lerp(CREAM, 0.35) }],
+    parts: [{ geo: new THREE.ConeGeometry(0.42, 1.95, 10).rotateX(Math.PI / 2), stuff: 'wet', color: (x, o) => o.copy(x.col).lerp(CREAM, 0.35).multiplyScalar(1.3) }],
     spin: [5, 'roll'],
-    halo: [1.2, 0.1],
+    halo: [1.5, 0.3],
   },
   {
     // a big glob, breathing
-    parts: [{ geo: SPHERE, stuff: 'wet', at: place(0, 0, 0, 0.86, 0.8, 0.9), color: tint(0.85) }],
+    parts: [{ geo: SPHERE, stuff: 'wet', at: place(0, 0, 0, 0.86, 0.8, 0.9), color: tint(1.3, 0.1) }],
     wobble: 0.1,
-    halo: [1.5, 0.15],
+    halo: [1.7, 0.3],
   },
   {
     // an egg sac: a membrane you can see into, something glowing inside, a heartbeat that quickens
     parts: [
       { geo: SPHERE, stuff: 'light', at: place(0, 0, 0, 0.35), color: (x, o) => o.copy(x.col).lerp(WHITE, 0.3).multiplyScalar(1.5 + 2 * beat(x)), size: x => 0.8 + 0.5 * beat(x) },
-      { geo: SPHERE, stuff: 'glass', at: place(0, 0, 0, 0.74, 0.74, 0.86), color: tint(0.75), size: x => 1 + 0.06 * beat(x) },
+      { geo: SPHERE, stuff: 'glass', at: place(0, 0, 0, 0.74, 0.74, 0.86), color: tint(1.2, 0.1), size: x => 1 + 0.06 * beat(x) },
     ],
     halo: [1.5, 0.25],
   },
@@ -314,7 +322,7 @@ const SHAPES: ShapeDef[] = [
   {
     // a seed, trailing its down
     parts: [
-      { geo: SPHERE, stuff: 'matte', at: place(0, 0, 0, 0.42, 0.42, 0.8), color: tint(0.75) },
+      { geo: SPHERE, stuff: 'matte', at: place(0, 0, 0, 0.42, 0.42, 0.8), color: tint(1.3, 0.15) },
       { geo: DOWN, stuff: 'matte', color: (_, o) => o.copy(CREAM) },
       { geo: TUFTS, stuff: 'haze', color: (_, o) => o.copy(CREAM).multiplyScalar(0.9) },
     ],
@@ -337,6 +345,25 @@ const SHAPES: ShapeDef[] = [
       { geo: FLAME_CORE, stuff: 'haze', color: (_, o) => o.copy(HOT).lerp(WHITE, 0.6).multiplyScalar(2.5), size: x => (x.lit ? 0.9 + 0.15 * Math.sin(x.time * 60 + x.seed * 11) : 0) },
       { geo: FLAME, stuff: 'haze', color: (x, o) => o.copy(HOT).lerp(x.col, 0.25).multiplyScalar(1.1), size: x => (x.lit ? 0.8 + 0.3 * Math.sin(x.time * 47 + x.seed * 7) : 0) },
     ],
+  },
+  {
+    // the seeker: a crystal dart, square in section, a square collar of light at its waist. Stopped
+    // to turn it burns white, its collar blinking quicker and opening out until it goes
+    parts: [
+      { geo: OCTA, stuff: 'light', at: place(0, 0, 0.15, 0.2, 0.2, 0.9), color: (x, o) => o.copy(WHITE).multiplyScalar(x.hold >= 0 ? 3 + 2 * x.hold : 2.6) },
+      { geo: OCTA, stuff: 'glass', at: place(0, 0, 0.1, 0.5, 0.5, 1.45), color: (x, o) => o.copy(x.col).lerp(WHITE, x.hold >= 0 ? 0.3 + 0.5 * x.hold : 0.1).multiplyScalar(1.4) },
+      {
+        geo: COLLAR,
+        stuff: 'light',
+        at: place(0, 0, -0.35),
+        color: (x, o) => (x.hold >= 0 && (x.age * (6 + 14 * x.hold)) % 1 < 0.5 ? o.copy(WHITE).multiplyScalar(3) : o.copy(x.col).lerp(WHITE, 0.2).multiplyScalar(2)),
+        size: x => (x.hold >= 0 ? 1 + 0.45 * x.hold : 1),
+      },
+    ],
+    halo: [1.8, 0.4],
+    trail: [3, 0.4, 0.55],
+    ghosts: 3,
+    scale: 1.25,
   },
 ];
 
@@ -368,6 +395,22 @@ export const SOFT = (() => {
   g.addColorStop(0, 'rgba(255,255,255,1)');
   g.addColorStop(0.25, 'rgba(255,255,255,0.55)');
   g.addColorStop(0.6, 'rgba(255,255,255,0.15)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, n, n);
+  return new THREE.CanvasTexture(c);
+})();
+
+/** A shadow plate: dark and solid out to most of its radius, then a quick soft edge. */
+const PLATE = (() => {
+  const n = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.9)');
+  g.addColorStop(0.8, 'rgba(255,255,255,0.35)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, n, n);
@@ -420,6 +463,8 @@ export class BulletArt {
   private glow: THREE.InstancedMesh;
   /** Tracers and exhaust: the same, but tapering to a tail. */
   private streaks: THREE.InstancedMesh;
+  /** A dark shadow behind each bullet, so it stands off bright ground as well as dark. */
+  private backing: THREE.InstancedMesh;
   private m = new THREE.Matrix4();
   private base = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -428,7 +473,7 @@ export class BulletArt {
   private s = new THREE.Vector3();
   private axis = new THREE.Vector3();
   private c = new THREE.Color();
-  private x: Ctx = { col: new THREE.Color(), age: 0, life: 0, seed: 0, time: 0, lit: false };
+  private x: Ctx = { col: new THREE.Color(), age: 0, life: 0, seed: 0, time: 0, lit: false, hold: -1 };
 
   constructor() {
     const mats = new Map<Stuff, THREE.Material>();
@@ -442,14 +487,16 @@ export class BulletArt {
       }),
     );
     const soft = new THREE.MeshBasicMaterial({ map: SOFT, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-    this.glow = instanced(new THREE.PlaneGeometry(1, 1), soft, MAX_GLOW, 28);
+    // halos go down first, the shadow plate over them and the bullet over that: a dark rim, light beyond
+    this.glow = instanced(new THREE.PlaneGeometry(1, 1), soft, MAX_GLOW, 24);
     this.streaks = instanced(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: STREAK, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), MAX_GLOW, 28);
-    this.group.add(this.glow, this.streaks);
+    this.backing = instanced(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: PLATE, transparent: true, depthWrite: false, opacity: 0.8 }), MAX, 25);
+    this.group.add(this.glow, this.streaks, this.backing);
   }
 
   update(time: number, bullets: Bullet[], cam: THREE.Quaternion) {
     for (const ms of this.meshes) for (const m of ms) m.count = 0;
-    this.glow.count = this.streaks.count = 0;
+    this.glow.count = this.streaks.count = this.backing.count = 0;
     const x = this.x;
     x.time = time;
     for (let i = 0; i < Math.min(bullets.length, MAX); i++) {
@@ -458,18 +505,21 @@ export class BulletArt {
       const sh = SHAPES[id];
       // (a torpedo is drawn slimmer than its hitbox: it's a long thing, not a round one)
       const big = b.kind === 'big' ? 2.2 : b.kind === 'mine' ? 1.6 : 1;
-      // fired: it swells out of the muzzle, white
-      const punch = Math.max(0, 1 - b.t / 0.08);
+      // a seeker stopped to turn
+      const hold = b.leg && b.leg.halt > 0 ? clamp01(1 - b.leg.halt / b.leg.hold) : -1;
+      // fired: it swells out of the muzzle, white (and a seeker again as it stops)
+      const punch = Math.max(0, 1 - b.t / 0.08, hold >= 0 ? 1 - hold / 0.2 : 0);
       // the body's radius: a little more than the hitbox, as it always was
       const r = b.r * 2 * big * (sh.scale ?? 1) * (1 + 0.4 * punch);
-      x.col.setHex(b.color);
+      vivid(x.col.setHex(b.color));
       x.age = b.t;
       x.life = Math.min(1, b.t / b.life);
       x.seed = b.seed;
       x.lit = b.kind === 'torpedo' && b.t >= TORPEDO.launch;
+      x.hold = hold;
 
-      // its frame: +z the way it flies, then its own turning
-      const heading = Math.atan2(b.vx, b.vz);
+      // its frame: +z the way it flies (a stopped seeker: the way it'll go), then its own turning
+      const heading = hold >= 0 ? Math.atan2(b.leg!.dx, b.leg!.dz) : Math.atan2(b.vx, b.vz);
       this.q.setFromAxisAngle(Y, heading);
       if (sh.spin) {
         const [rate, how] = sh.spin;
@@ -492,21 +542,23 @@ export class BulletArt {
         mesh.count++;
       });
 
-      // the light about it
+      // a dark shadow behind it first, then the light about it
+      this.sprite(b.x, b.z, r * 3 * (sh.plate ?? 1), r * 3 * (sh.plate ?? 1), BACKING, cam, heading, this.backing);
       const dx = Math.sin(heading);
       const dz = Math.cos(heading);
       if (sh.halo) {
-        const d = r * sh.halo[0] * 2;
-        this.sprite(b.x, b.z, d, d, this.c.copy(x.col).multiplyScalar(sh.halo[1] + punch * 0.8), cam, heading);
+        // always reaching past the shadow plate, so there's a ring of colour outside the dark one
+        const d = r * Math.max(sh.halo[0], 2.1) * 2;
+        this.sprite(b.x, b.z, d, d, this.c.copy(x.col).multiplyScalar(Math.max(sh.halo[1], 0.4) + punch * 0.8), cam, heading);
       }
-      if (sh.trail) {
+      if (sh.trail && hold < 0) {
         const [len, wid, str] = sh.trail;
         const f = str * (0.85 + 0.15 * Math.sin(time * 41 + b.seed * 17));
         const back = r * len * 0.5;
         this.sprite(b.x - dx * back, b.z - dz * back, r * wid * 2, r * len * 1.1, this.c.copy(x.col).lerp(HOT, 0.4).multiplyScalar(f * 1.3), cam, heading, this.streaks);
         this.sprite(b.x - dx * back * 0.6, b.z - dz * back * 0.6, r * wid * 0.8, r * len * 0.7, this.c.copy(HOT).lerp(WHITE, 0.5).multiplyScalar(f * 1.1), cam, heading, this.streaks);
       }
-      for (let g = 1; g <= (sh.ghosts ?? 0); g++) {
+      for (let g = 1; g <= (hold < 0 ? sh.ghosts ?? 0 : 0); g++) {
         const back = r * 1.4 * g;
         const s = r * (1.3 - 0.2 * g);
         this.sprite(b.x - dx * back, b.z - dz * back, s, s * 2.4, this.c.copy(x.col).multiplyScalar(0.5 / g), cam, heading);
@@ -523,7 +575,7 @@ export class BulletArt {
         m.instanceMatrix.needsUpdate = true;
         m.instanceColor!.needsUpdate = true;
       }
-    for (const g of [this.glow, this.streaks]) {
+    for (const g of [this.glow, this.streaks, this.backing]) {
       g.instanceMatrix.needsUpdate = true;
       g.instanceColor!.needsUpdate = true;
     }
@@ -544,9 +596,20 @@ export class BulletArt {
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);
 const COS_TILT = Math.cos(TILT);
+const BACKING = new THREE.Color(0.02, 0.015, 0.035);
+const hsl = { h: 0, s: 0, l: 0 };
+
+/** An enemy's accent can be dark or dull; its fire never is: lifted to a bright, saturated colour. */
+function vivid(c: THREE.Color) {
+  c.getHSL(hsl);
+  return c.setHSL(hsl.h, Math.max(hsl.s, 0.65), Math.min(Math.max(hsl.l, 0.6), 0.75));
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 function shapeOf(b: Bullet) {
   if (b.kind === 'torpedo') return TORP;
+  if (b.kind === 'seeker') return SEEK;
   if (b.kind === 'spore') return FAMILY.bloom;
   const k = b.kind === 'needle' ? 1 : b.kind === 'big' ? 2 : b.kind === 'mine' ? 3 : 0;
   return FAMILY[b.look] + k;

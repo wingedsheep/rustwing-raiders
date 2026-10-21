@@ -1219,11 +1219,64 @@ def halo_mech():
     osc(body, clip, "rotation_euler", T, (0, 0.05, 1, 0.5), (1, 0.05, 1, 0))
 
 
+def heartpod_beast():
+    """A floating bloom ~4 across: five petals round a bulb, a glowing heart in the middle that beats,
+    root tendrils trailing (what it binds its friends with)."""
+    kind, clip, root = _root("heartpod", "beast", "beat")
+    T = 1.2
+
+    def thump(u):  # lub-dub, then rest
+        return math.exp(-((u - 0.08) / 0.05) ** 2) + 0.6 * math.exp(-((u - 0.3) / 0.05) ** 2)
+
+    b = Model(f"{kind}_body", seed=135)
+    b.ball(0.95, (0, 0, -0.1), A, subdiv=1, scale=(1, 1, 0.75), jitter=0.04)                   # the bulb
+    b.ball(0.9, (0, 0, -0.45), A.shade(0.8), subdiv=1, scale=(0.85, 0.85, 0.6))               # its underside
+    for k in range(5):  # sepals between the petals, dark, curling out under them
+        a = TAU * (k + 0.5) / 5 + math.pi / 2
+        c, s = math.cos(a), math.sin(a)
+        chain(b, [(c * 0.6, s * 0.6, 0.0), (c * 1.35, s * 1.35, -0.05), (c * 1.75, s * 1.75, 0.15)],
+              [0.2, 0.15, 0.03], A.shade(0.7), segs=5)
+    b.cyl(0.78, 0.16, (0, 0, 0.5), B.shade(0.75), segs=10)                                    # the lips round the heart
+    body = b.build(root)
+
+    petal = [(0, 0.32), (0, -0.32), (0.75, -0.55), (1.45, -0.42), (1.85, 0.0), (1.45, 0.42), (0.75, 0.55)]
+    vein = [(0.2, 0.1), (0.2, -0.1), (1.45, -0.06), (1.45, 0.06)]
+    for k in range(5):
+        a = TAU * k / 5 + math.pi / 2  # one petal straight ahead
+        p = Model(f"{kind}_petal_{k}", seed=136 + k)
+        flat(p, petal, 0.0, 0.1, B)
+        flat(p, vein, 0.07, 0.04, A)
+        p.ball(0.13, (1.25, 0.24, 0.07), C, subdiv=0, glow=True, scale=(1, 1, 0.5))       # spore spots
+        p.ball(0.1, (0.9, -0.3, 0.07), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
+        obj = p.build(body, loc=(math.cos(a) * 0.65, math.sin(a) * 0.65, 0.3), rot_z=a)
+        obj.rotation_euler[1] = -0.32  # cupped up
+        sample(obj, clip, "rotation_euler", T, lambda u: (0, -0.14 * thump(u), 0))      # they flinch on the beat
+
+    h = Model(f"{kind}_heart", seed=141)
+    h.ball(0.6, (0, 0, 0), C, subdiv=1, glow=True, scale=(1, 1, 0.8))
+    for (x, y) in ((0.28, 0.22), (-0.3, 0.12), (0.06, -0.32)):
+        h.ball(0.24, (x, y, 0.22), C, subdiv=0, glow=True)
+    heart = h.build(body, loc=(0, 0, 0.62))
+    sample(heart, clip, "scale", T, lambda u: (0.3 * thump(u),) * 3)
+
+    for k, (x, sw) in enumerate(((-0.45, 0.0), (0.0, 0.33), (0.45, 0.66))):  # roots trailing behind and below
+        t = Model(f"{kind}_root_{k}")
+        chain(t, [(0, 0, 0), (0, -0.7, -0.35), (x * 0.6, -1.5, -0.5), (x, -2.2, -0.45)], [0.17, 0.13, 0.09, 0.03],
+              A.shade(0.7), segs=5)
+        t.ball(0.14, (x, -2.2, -0.45), C, subdiv=0, glow=True)
+        obj = t.build(body, loc=(x * 0.8, -0.6, -0.4))
+        osc(obj, clip, "rotation_euler", T, (2, 0.22, 1, sw), (0, 0.1, 1, sw + 0.25))
+
+    marker(body, kind, "muzzle", (0, 0, 0.8))
+    osc(body, clip, "location", T, (2, 0.1, 1, 0))
+    osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.25), (1, 0.04, 1, 0))
+
+
 def build():
     for fn in (dart_mech, dart_beast, swarm_mech, swarm_beast, gunship_mech, gunship_beast, turret_mech, turret_beast,
                bomber_mech, bomber_beast, lancer_mech, lancer_beast, brute_mech, brute_beast, carrier_mech,
                carrier_beast, serpent_mech, serpent_beast, gunboat_mech, technical_mech, spindle_mech, manta_beast,
-               blimp_mech, halo_mech):
+               blimp_mech, halo_mech, heartpod_beast):
         fn()
     linearize()
     lift = float(os.environ.get("ENEMY_PREVIEW_LIFT", "0"))
