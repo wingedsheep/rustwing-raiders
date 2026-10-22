@@ -9,3 +9,6 @@ __pycache__/
 .env
 .env.*
 *.log
+
+# local secrets (ElevenLabs key)
+config.yaml
