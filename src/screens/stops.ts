@@ -2,26 +2,22 @@ import type { Game, Screen } from '../game/game';
 import { CARGO, FUEL_MAX, FUEL_PRICE, REPAIR, Run, crewHull, type ShopItem, type Snapshot } from '../sim/run';
 import { HULL_STEP } from '../sim/level';
 import type { ChartNode } from '../sim/chart';
-import type { Choice, Result, RunEvent } from '../sim/events';
-import type { Planet } from '../world/planets';
 import { partById } from '../game/parts';
 import { audio } from '../audio';
-import { input } from '../input';
 import { drawText, wrap } from '../ui/font';
-import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, VIEW, W, frame, hex } from '../ui/hud';
+import { CLASS_COLOR, CYAN, DIM, GOLD, GREEN, H, INK, RED, VIEW, W, frame, hex } from '../ui/hud';
 import { LIVERY } from '../view/ship-model';
-import { backdrop, button, heading, hullGauge, hints, TIER_COLOR } from '../ui/widgets';
+import { backdrop, heading, hullGauge, hints, TIER_COLOR } from '../ui/widgets';
 import { itemName, tierOf, type Item } from '../game/loot';
 import { bestFit, type Fit } from '../sim/fit';
 import { lootCard, TIER_WORD } from '../ui/loot-card';
 import { drawArt } from './art';
-import { minigame, type Minigame, type Pad } from './minigames';
 import { rng } from '../util';
 
 const TONE = { good: GREEN, bad: RED, info: CYAN };
 
 /** The crew's state, top right: scrap, fuel, hull, and what hangs over you. */
-function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
+export function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
   const lines = 2 + run.crew.length + (run.bounty ? 1 : 0) + (run.debt ? 1 : 0) + (run.policy ? 1 : 0);
   frame(ctx, x - 132, y, 132, 6 + lines * 10, 'rgba(18,12,24,0.86)');
   let ty = y + 4;
@@ -48,7 +44,7 @@ function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
 }
 
 /** Fills the whole window behind the safe area. */
-function surround(ctx: CanvasRenderingContext2D) {
+export function surround(ctx: CanvasRenderingContext2D) {
   backdrop(ctx, -VIEW.ox, -VIEW.oy, VIEW.w, VIEW.h);
 }
 
@@ -405,7 +401,7 @@ export class Dock implements Screen {
 }
 
 /** The dark band across the top with a scene's title and who's in it. */
-function titleBand(ctx: CanvasRenderingContext2D, title: string, sub: string) {
+export function titleBand(ctx: CanvasRenderingContext2D, title: string, sub: string) {
   const g = ctx.createLinearGradient(0, 0, 0, 48);
   g.addColorStop(0, 'rgba(10,7,16,0.92)');
   g.addColorStop(1, 'rgba(10,7,16,0)');
@@ -436,248 +432,4 @@ function choiceRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   drawText(ctx, label, x, y, locked ? '#5a4e68' : on ? GOLD : INK);
   if (extra) drawText(ctx, extra, x + w - 10, y, on ? CYAN : DIM, { align: 'right' });
   if (note) drawText(ctx, note, x, y + 10, locked ? '#7a3a44' : on ? '#c8bcd8' : DIM);
-}
-
-type Phase = 'choose' | 'ready' | 'play' | 'scored' | 'outcome';
-
-/**
- * Something out in the dark, Gazillionaire fashion: the scene painted big, who's in it and what
- * they say, then the choices with their costs and odds. A choice with a little game in it can be
- * played careful or bold (left/right); then the game; then what came of it, with every change to
- * your affairs spelled out.
- */
-export class EventScreen implements Screen {
-  private at = 0;
-  private bold = false;
-  private phase: Phase = 'choose';
-  private choices: Choice[];
-  private result: Result | null = null;
-  private before: Snapshot;
-  private changes: { text: string; tone: 'good' | 'bad' | 'info' }[] = [];
-  private mini: Minigame | null = null;
-  private t = 0;
-  private pt = 0;
-  private msg = '';
-  private msgT = 0;
-  private story: string;
-
-  constructor(
-    private game: Game,
-    private run: Run,
-    private ev: RunEvent,
-    private node: ChartNode,
-    private planet: Planet,
-    private onDone: (result: Result) => void,
-  ) {
-    this.choices = ev.choices.filter((c) => !c.if || c.if(run));
-    this.before = run.snapshot();
-    this.story = ev.text(run, { r: rng(node.seed), node, planet });
-    if (!run.seenEvents.includes(ev.id)) run.seenEvents.push(ev.id);
-    audio.music('map');
-    // ?mini: straight into this event's game (?bold for the bold one), for testing
-    const p = game.params;
-    if (p.has('mini')) {
-      const k = this.choices.findIndex((c) => c.game && (!p.get('mini') || c.game === p.get('mini')));
-      if (k >= 0) {
-        this.at = k;
-        this.bold = p.has('bold');
-        this.choose();
-      }
-    }
-  }
-
-  private pad(): Pad {
-    const out: Pad = { x: 0, y: 0, hold: false, press: false };
-    for (const d of this.game.menuDevices()) {
-      const i = input.intent(d);
-      if (Math.abs(i.x) > Math.abs(out.x)) out.x = i.x;
-      if (Math.abs(i.y) > Math.abs(out.y)) out.y = -i.y;
-      out.hold ||= i.fire;
-    }
-    out.hold ||= input.keyHeld('Enter');
-    out.press = this.game.menu().confirm;
-    return out;
-  }
-
-  private choose() {
-    const c = this.choices[this.at];
-    const why = c.locked?.(this.run);
-    if (why) {
-      this.msg = why;
-      this.msgT = 1.6;
-      audio.play('ui_error');
-      if (this.game.params.has('autorun')) this.at = (this.at + 1) % this.choices.length;
-      return;
-    }
-    if (c.game) {
-      this.mini = minigame(c.game, this.bold, this.node.seed ^ (this.bold ? 0x51 : 0x17));
-      this.phase = 'ready';
-      this.pt = 0;
-      audio.play('ui_select');
-      return;
-    }
-    this.finish(1);
-  }
-
-  private finish(score: number) {
-    const c = this.choices[this.at];
-    this.result = c.outcome(this.run, { r: rng(this.node.seed ^ 0xe7e7), score, bold: this.bold, node: this.node, planet: this.planet });
-    this.changes = this.run.changes(this.before);
-    this.phase = 'outcome';
-    this.pt = 0;
-    audio.play(this.result.fight ? 'boss_warning' : this.changes.some((x) => x.tone === 'bad') ? 'player_hit' : 'ui_select');
-  }
-
-  update(dt: number) {
-    this.t += dt;
-    this.pt += dt;
-    this.msgT -= dt;
-    if (this.phase === 'ready') {
-      this.game.menu();
-      if (this.pt > 1.6) {
-        this.phase = 'play';
-        this.pt = 0;
-      }
-      return;
-    }
-    if (this.phase === 'play') {
-      const m = this.mini!;
-      m.update(dt, this.pad());
-      if (m.result !== null) {
-        this.phase = 'scored';
-        this.pt = 0;
-        audio.play(m.result >= 0.55 ? 'level_clear' : m.result > 0 ? 'pickup_scrap' : 'player_hit');
-      }
-      return;
-    }
-    const m = this.game.menu();
-    if (this.phase === 'scored') {
-      // the game goes on ticking, idle, so its sparks settle
-      this.mini!.update(dt, { x: 0, y: 0, hold: false, press: false });
-      if (this.pt > 1.6 || (this.pt > 0.5 && m.confirm)) this.finish(this.mini!.result!);
-      return;
-    }
-    if (this.phase === 'outcome') {
-      if (m.confirm && this.pt > 0.3) {
-        audio.play('ui_select');
-        this.onDone(this.result!);
-      }
-      return;
-    }
-    const n = this.choices.length;
-    if (m.up) this.at = (this.at + n - 1) % n;
-    if (m.down) this.at = (this.at + 1) % n;
-    if (m.up || m.down) audio.play('ui_move');
-    if ((m.left || m.right || m.prev || m.next) && this.choices[this.at].game) {
-      this.bold = !this.bold;
-      audio.play('ui_move');
-    }
-    if (m.confirm) this.choose();
-  }
-
-  draw() {
-    const g = this.game;
-    g.clearGL();
-    const ctx = g.ui;
-    ctx.clearRect(0, 0, W, H);
-    surround(ctx);
-    const playing = this.phase === 'ready' || this.phase === 'play' || this.phase === 'scored';
-    drawArt(ctx, this.ev.art, 0, 0, W, H, playing ? 0.78 : 0);
-    if (playing) return this.drawGame(ctx);
-    titleBand(ctx, this.ev.title, this.ev.who);
-    status(ctx, this.run, W - 8, 8);
-    const py = 196;
-    panel(ctx, py);
-    const dev = g.devices[0] ?? 'keys';
-    if (this.phase === 'choose') {
-      let y = py + 10;
-      for (const l of wrap(this.story, 284)) {
-        drawText(ctx, l, 18, y, '#e8dcf0');
-        y += 10;
-      }
-      const rowH = this.choices.length > 3 ? 32 : 36;
-      this.choices.forEach((c, k) => {
-        const on = k === this.at;
-        const locked = c.locked?.(this.run) ?? null;
-        const note = locked ?? c.note(this.run, this.bold && on);
-        const tag = c.game ? (on ? (this.bold ? '< BOLD >' : '< CAREFUL >') : 'GAME') : '';
-        choiceRowWrapped(ctx, 322, py + 10 + k * rowH, 300, c.label, note, on, !!locked, tag, this.bold && on && !!c.game);
-      });
-      if (this.msgT > 0) drawText(ctx, this.msg, 472, H - 36, RED, { align: 'center' });
-      hints(ctx, dev, [['move', this.choices[this.at].game ? 'CHOOSE  < > CAREFUL OR BOLD' : 'CHOOSE'], ['confirm', 'DECIDE']], W / 2, H - 14, 'center');
-    } else {
-      const r = this.result!;
-      let y = py + 10;
-      if (this.mini) {
-        drawText(ctx, `${this.mini.title}: ${Math.round(this.mini.result! * 100)}%  ${this.bold ? 'BOLD' : 'CAREFUL'}`, 18, y, GOLD);
-        y += 14;
-      }
-      for (const l of wrap(r.text, 284)) {
-        drawText(ctx, l, 18, y, r.fight ? '#ffb0a0' : '#e8dcf0');
-        y += 10;
-      }
-      let cy = py + 10;
-      drawText(ctx, this.changes.length ? 'WHAT CHANGED' : 'NOTHING CHANGED', 322, cy, DIM);
-      cy += 14;
-      for (const c of this.changes.slice(0, 9)) {
-        drawText(ctx, c.text, 322, cy, TONE[c.tone]);
-        cy += 11;
-      }
-      if (r.fight) drawText(ctx, 'INCOMING!', 472, H - 40, RED, { scale: 2, align: 'center' });
-      hints(ctx, dev, [['confirm', r.fight ? 'FIGHT' : 'ON YOU GO']], W / 2, H - 14, 'center');
-    }
-  }
-
-  private drawGame(ctx: CanvasRenderingContext2D) {
-    const m = this.mini!;
-    const gx = 80;
-    const gy = 64;
-    const gw = 480;
-    const gh = 240;
-    drawText(ctx, m.title, W / 2, 10, GOLD, { scale: 2, align: 'center' });
-    drawText(ctx, `${this.ev.title}  ·  ${this.bold ? 'BOLD: HARDER, PAYS MORE' : 'CAREFUL'}`, W / 2, 28, this.bold ? '#ff8a7a' : DIM, { align: 'center' });
-    wrap(m.how, 470).forEach((l, k) => drawText(ctx, l, W / 2, 40 + k * 10, INK, { align: 'center' }));
-    frame(ctx, gx - 2, gy - 2, gw + 4, gh + 4, DARK, '#5a4e68');
-    ctx.save();
-    ctx.translate(gx, gy);
-    ctx.beginPath();
-    ctx.rect(0, 0, gw, gh);
-    ctx.clip();
-    m.draw(ctx, gw, gh, this.t);
-    ctx.restore();
-    drawText(ctx, m.status(), W / 2, gy + gh + 8, CYAN, { align: 'center' });
-    const dev = this.game.devices[0] ?? 'keys';
-    const btn = dev.startsWith('pad') ? button(dev, 'confirm') : dev === 'keys' ? 'SPACE' : button(dev, 'confirm');
-    drawText(ctx, `STICK, D-PAD OR ARROWS TO MOVE.  ${btn}: THE BUTTON`, W / 2, H - 14, DIM, { align: 'center' });
-    if (this.phase === 'ready') {
-      const n = 3 - Math.floor((this.pt / 1.6) * 3);
-      ctx.fillStyle = 'rgba(10,7,16,0.6)';
-      ctx.fillRect(gx, gy, gw, gh);
-      drawText(ctx, 'GET READY', W / 2, gy + gh / 2 - 26, INK, { scale: 2, align: 'center' });
-      drawText(ctx, `${Math.max(1, n)}`, W / 2, gy + gh / 2 - 4, GOLD, { scale: 4, align: 'center' });
-    }
-    if (this.phase === 'scored') {
-      const s = m.result!;
-      const word = s >= 0.85 ? 'SUPERB!' : s >= 0.55 ? 'WELL DONE' : s >= 0.25 ? 'NOT BAD' : s > 0 ? 'POOR' : 'FAILED';
-      ctx.fillStyle = 'rgba(10,7,16,0.7)';
-      ctx.fillRect(gx, gy + gh / 2 - 34, gw, 60);
-      drawText(ctx, word, W / 2, gy + gh / 2 - 26, s >= 0.55 ? GREEN : s >= 0.25 ? GOLD : RED, { scale: 3, align: 'center' });
-      drawText(ctx, `${Math.round(s * 100)}%`, W / 2, gy + gh / 2 + 4, INK, { scale: 2, align: 'center' });
-    }
-  }
-}
-
-/** A choice: label (and a tag on the right), and its note under it, two lines at most. */
-function choiceRowWrapped(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, label: string, note: string, on: boolean, locked: boolean, tag: string, bold: boolean) {
-  const lines = note ? wrap(note, w - 8).slice(0, 2) : [];
-  const h = 12 + lines.length * 9;
-  if (on) {
-    ctx.fillStyle = bold ? '#3a1a2a' : '#2c2240';
-    ctx.fillRect(x - 4, y - 3, w, h + 1);
-    ctx.fillStyle = bold ? RED : GOLD;
-    ctx.fillRect(x - 8, y - 2, 2, h - 1);
-  }
-  drawText(ctx, label, x, y, locked ? '#5a4e68' : on ? GOLD : INK);
-  if (tag) drawText(ctx, tag, x + w - 10, y, on ? (bold ? '#ff8a7a' : CYAN) : '#6a5e7a', { align: 'right' });
-  lines.forEach((l, k) => drawText(ctx, l, x, y + 10 + k * 9, locked ? '#c86a6a' : on ? '#c8bcd8' : DIM));
 }

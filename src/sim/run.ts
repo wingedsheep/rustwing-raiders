@@ -18,6 +18,7 @@ import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
 import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
 import type { Grafts } from '../game/grafts';
+import { remember } from './memory';
 import { IMPRINTS, UNBENDING_HULL, WAYS, imprint, newCore, type Core, type ImprintId } from '../game/core';
 
 /** Sites where there's a fight to fly. */
@@ -82,6 +83,16 @@ export interface ShopItem {
   sold: boolean;
 }
 
+/** Who you owe: Mama Ruzz (a tenth a jump) or the Ledger Clan (a twentieth, and lattice drones). */
+export type Lender = 'mama' | 'ledger';
+export const RATE: Record<Lender, number> = { mama: INTEREST, ledger: 0.05 };
+
+/** Who's riding with you (see sim/events.ts). */
+export const ABOARD: Record<string, string> = {
+  holly: '7-HOLLY RIDES WITH YOU',
+  wren: "THE WREN'S CORE IS IN YOUR HOLD",
+};
+
 /** A sealed crate to take somewhere. */
 export interface Contract {
   planet: string;
@@ -105,6 +116,12 @@ export interface Snapshot {
   rep: Record<string, number>;
   boom: string;
   owned: ImprintId[][];
+  aboard: string[];
+  easyJumps: number;
+  wardenEase: number;
+  tip: number;
+  lender: Lender;
+  due: string[];
 }
 
 export class Run {
@@ -146,6 +163,22 @@ export class Run {
   landing: ChartNode | null = null;
   /** Things to tell you when you're back on the chart. */
   notes: string[] = [];
+  /** Who holds the debt. */
+  lender: Lender = 'mama';
+  /** Who's riding with you ('holly', 'wren'). */
+  aboard: string[] = [];
+  /** Events that come to you at your next landing (Kaspar, sent by someone you crossed). */
+  due: string[] = [];
+  /** Long jumps that cost a hop's fuel, this sector (a reader told you which lanes sit right). */
+  easyJumps = 0;
+  /** How much easier the Warden's fight comes, this sector. */
+  wardenEase = 0;
+  /** The next fight pays this much more scrap (a tip about where the tithe barges unload). */
+  tip = 0;
+  /** What you did to whom this run (memory.ts keeps it between runs). */
+  deeds: Record<string, string[]> = {};
+  /** Hull leeches have had their go this sector. */
+  leeched = false;
 
   constructor(frames: string[], seed: number) {
     this.seed = seed;
@@ -174,10 +207,47 @@ export class Run {
     this.fuel = Math.min(FUEL_MAX, Math.max(this.fuel + 2, 6));
     if (this.policy) this.notes.push('YOUR LANTERN MUTUAL POLICY HAS RUN OUT');
     if (this.contract) this.notes.push(`THE CRATE FOR ${this.planetName(this.contract.planet)} IS LOST TO YOU`);
+    if (this.easyJumps) this.notes.push("SEFFA'S LANES ARE BEHIND YOU NOW");
     this.policy = 0;
     this.contract = null;
     this.boom = null;
     this.hunted = false;
+    this.leeched = false;
+    this.easyJumps = 0;
+    this.wardenEase = 0;
+    this.tip = 0;
+  }
+
+  /** Something you did to someone, remembered this run and the next. */
+  did(who: string, deed: string) {
+    (this.deeds[who] ??= []).push(deed);
+    remember(who, deed);
+  }
+
+  /** Whether you've done that to them this run. */
+  has(who: string, deed: string) {
+    return this.deeds[who]?.includes(deed) ?? false;
+  }
+
+  /** What a jump of `cost` fuel really costs (a long jump along a lane that sits right costs a hop). */
+  jumpCost(cost: number) {
+    return this.easyJumps > 0 && cost > 1 ? cost - 1 : cost;
+  }
+
+  /** The things hanging over you, a line each, with a colour. */
+  affairs(): [string, string][] {
+    const out: [string, string][] = [];
+    if (this.bounty) out.push([`BOUNTY ${this.bounty * 40}: KASPAR HUNTS`, '#ff5a4a']);
+    if (this.debt) out.push([this.lender === 'ledger' ? `OWE THE COUNT ${this.debt} (+5%/JUMP)` : `OWE MAMA ${this.debt} (+10%/JUMP)`, '#ff8a7a']);
+    if (this.contract) out.push([`CRATE TO ${this.planetName(this.contract.planet)}: ${this.contract.pay}`, '#ffd04a']);
+    if (this.policy) out.push([`INSURED: ${this.policy} A HULL`, '#8affb0']);
+    if (this.boom) out.push([`NEWS: ${this.boom.cls.toUpperCase()}S ×3 ON ${this.planetName(this.boom.planet)}`, '#8affe0']);
+    if (this.easyJumps) out.push([`LONG JUMPS COST 1 FUEL: ${this.easyJumps} LEFT`, '#d8c8ff']);
+    if (this.wardenEase) out.push(['YOU KNOW WHERE THE WARDEN IS WEAK', '#d8c8ff']);
+    if (this.tip) out.push([`A TIP: THE NEXT FIGHT PAYS +${Math.round(this.tip * 100)}%`, '#ffd04a']);
+    for (const a of this.aboard) out.push([ABOARD[a] ?? a, '#8affe0']);
+    for (const f of this.favours) out.push([FAVOURS[f]?.replace(' ONE', '') ?? f, '#b48aff']);
+    return out;
   }
 
   /** The danger of a site now: its own, and a pip more where the faction hates you. */
@@ -339,19 +409,22 @@ export class Run {
 
   /** Can you make a jump costing `cost` fuel? Out of fuel, you burn the hull for it, a step a cell (but not to nothing). */
   canJump(cost: number) {
+    cost = this.jumpCost(cost);
     const short = Math.max(0, cost - this.fuel);
     return short === 0 || this.crew.every((c) => c.hull > short * HULL_STEP);
   }
 
   /** Pays for a jump; the debt grows. */
   payJump(cost: number) {
+    if (this.jumpCost(cost) < cost) this.easyJumps--;
+    cost = this.jumpCost(cost);
     const short = Math.max(0, cost - this.fuel);
     this.fuel = Math.max(0, this.fuel - cost);
     if (short) {
       for (const c of this.crew) c.hull = Math.max(1, c.hull - short * HULL_STEP);
       this.notes.push(`OUT OF FUEL: BURNED ${short * HULL_STEP} HULL TO MAKE THE JUMP`);
     }
-    if (this.debt) this.debt = Math.ceil(this.debt * (1 + INTEREST));
+    if (this.debt) this.debt = Math.ceil(this.debt * (1 + RATE[this.lender]));
   }
 
   /** Landed on a planet: a crate for it is delivered. */
@@ -400,6 +473,12 @@ export class Run {
       rep: { ...this.rep },
       boom: this.boom ? `${this.boom.planet}:${this.boom.cls}` : '',
       owned: this.crew.map((c) => [...c.core.owned]),
+      aboard: [...this.aboard],
+      easyJumps: this.easyJumps,
+      wardenEase: this.wardenEase,
+      tip: this.tip,
+      lender: this.lender,
+      due: [...this.due],
     };
   }
 
@@ -421,7 +500,16 @@ export class Run {
       for (const it of was) out.push({ text: `${this.crew.length > 1 ? `P${i + 1} ` : ''}- ${itemName(it)}`, tone: 'bad' });
     });
     if (this.bounty !== s.bounty) out.push({ text: this.bounty ? `BOUNTY ${this.bounty * 40} ON YOU` : 'NO BOUNTY ON YOU', tone: this.bounty > s.bounty ? 'bad' : 'good' });
-    if (this.debt !== s.debt) out.push({ text: this.debt ? `YOU OWE MAMA ${this.debt}` : 'MAMA RUZZ IS PAID', tone: this.debt > s.debt ? 'bad' : 'good' });
+    const owe = (l: Lender) => (l === 'ledger' ? 'THE COUNT' : 'MAMA');
+    if (this.debt !== s.debt || this.lender !== s.lender)
+      out.push({ text: this.debt ? `YOU OWE ${owe(this.lender)} ${this.debt}` : `${owe(s.lender)} IS PAID`, tone: this.debt > s.debt ? 'bad' : this.debt < s.debt ? 'good' : 'info' });
+    for (const a of this.aboard) if (!s.aboard.includes(a)) out.push({ text: ABOARD[a] ?? a, tone: 'info' });
+    for (const a of s.aboard) if (!this.aboard.includes(a)) out.push({ text: a === 'wren' ? 'THE WREN IS GONE FROM YOUR HOLD' : '7-HOLLY HAS LEFT YOU', tone: 'bad' });
+    if (this.easyJumps > s.easyJumps) out.push({ text: `${this.easyJumps} LONG JUMPS AT A HOP'S FUEL`, tone: 'good' });
+    if (this.wardenEase > s.wardenEase) out.push({ text: 'THE WARDEN WILL FIGHT WEAKER', tone: 'good' });
+    if (this.wardenEase < s.wardenEase) out.push({ text: 'THE WARDEN WILL FIGHT HARDER', tone: 'bad' });
+    if (this.tip > s.tip) out.push({ text: `THE NEXT FIGHT PAYS +${Math.round(this.tip * 100)}%`, tone: 'good' });
+    if (this.due.length > s.due.length) out.push({ text: 'SOMEONE IS COMING FOR YOU', tone: 'bad' });
     if (this.policy !== s.policy) out.push({ text: `INSURED: ${this.policy} A HULL`, tone: 'good' });
     const sb = (this.chart.setback - s.setback) / SWEEP_SPEED;
     if (Math.abs(sb) > 0.05) out.push({ text: sb > 0 ? `SWEEP HELD BACK ${sb.toFixed(1)} WATCHES` : `SWEEP ${(-sb).toFixed(1)} WATCHES CLOSER`, tone: sb > 0 ? 'good' : 'bad' });

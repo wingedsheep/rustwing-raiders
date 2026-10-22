@@ -90,7 +90,7 @@ Minds that grew in Engine cores from the crews they lived with. A few hundred in
 
 ## Creatures
 
-- **Umora** (lane-whales). Vast, slow, gentle. They swim the lanes without gates, both ways, every season, and so keep the lanes they use level. They calve in the plankton haze over Vesh's lagoon (the sky-whales there are calves) and come back to Vesh to die: the Bone Archipelago. (Proposed: replaces the style guide's "purrgil", which is a Star Wars name.)
+- **Umora** (lane-whales). Vast, slow, gentle. They swim the lanes without gates, both ways, every season, and so keep the lanes they use level. They calve in the plankton haze over Vesh's lagoon (the sky-whales there are calves) and come back to Vesh to die: the Bone Archipelago.
 - **Hull leeches.** Leathery lane-parasites. They used to feed on the umora, and were rare. Forced gates run hot, and so do the ships that use them: since the Kindling there are a great many more leeches.
 - **The giants of Oru-Tal.** Sauropods, plesiosaurs, pterosaurs, thunderhides: seeded by the Tonkva from a dozen worlds into a preserve, wild for a thousand years. Great Mother Vask is the queen of the pterosaurs.
 - **The bloom.** Not a people, not quite. The Tonkva's growing-mould, a thousand years without instructions, on Mirefall. It learns. The Choir of Mirefall is what it learnt from a crashed freighter.

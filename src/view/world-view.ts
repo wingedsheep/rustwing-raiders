@@ -5,7 +5,7 @@ import type { Biome } from '../world/planets';
 import { lookOf, PATTERNS } from '../world/looks';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
-import { enliven, weather, NOISE_GLSL, WASH } from '../render/alive';
+import { enliven, weather, NOISE_GLSL, WASH, SEE } from '../render/alive';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
 import type { Fx } from './fx';
@@ -72,7 +72,8 @@ const PATTERN_GLSL = /* glsl */ `
   uniform vec4 uPat[${SEGS}];
   uniform vec3 uPatCol[${SEGS}];
   uniform vec4 uPat2[${SEGS}];
-  varying vec2 vLook;
+  uniform float uTime;
+  varying vec4 vLook;
   // nearest and second-nearest of a scatter of points, and the nearest's own random number
   vec3 gVor(vec2 p) {
     vec2 i = floor(p);
@@ -156,13 +157,59 @@ const PATTERN_GLSL = /* glsl */ `
   }
 `;
 
+/** How far round (in cells) a canyon's ground looks for the edge of its rock. */
+const REACH = 5;
+/** Where the rock turns solid: the flight line, less the ship's margin (see Terrain.solid). */
+const SOLID = FLIGHT_Y - 0.6;
+
+/**
+ * A canyon's rock, per pixel (vLook.z: how much canyon; w: how far to the rock, see toRock). Where
+ * it turns solid is drawn on the floor as a hard edge of light hugging the walls and pillars, so the
+ * way through reads at a glance; near a ship it runs hot and pulses, and spills its light out over
+ * the floor and up the rock. Over the flight line the rock falls back into a cool shade, deeper the
+ * higher it goes: the floor is the lit stage, the walls' tops out of play.
+ */
+const CANYON_GLSL = /* glsl */ `
+  if (vLook.z > 0.0) {
+    float y = vAliveW.y;
+    float sd = vLook.w;
+    float over = smoothstep(${SOLID.toFixed(2)}, ${(SOLID + 2.5).toFixed(2)}, y);
+    float high = smoothstep(${(SOLID + 1).toFixed(2)}, ${(SOLID + 24).toFixed(2)}, y);
+    vec3 shade = diffuseColor.rgb * vec3(0.42, 0.44, 0.58);
+    shade = mix(shade, vec3(dot(shade, vec3(0.3, 0.55, 0.15))), 0.35);
+    diffuseColor.rgb = mix(diffuseColor.rgb, shade, clamp(0.35 * over + 0.65 * high, 0.0, 1.0) * vLook.z);
+    // how near a ship (uSee's strength 1 is a ship, a foe's less)
+    float near = 0.0;
+    for (int i = 0; i < ${SEE}; i++) {
+      vec4 k = uSee[i];
+      if (k.w < 0.99) continue;
+      near = max(near, 1.0 - smoothstep(3.0, 12.0, length(vAliveW.xz - k.xy)));
+    }
+    float pulse = 0.7 + 0.3 * sin(uTime * 9.0);
+    float aa = max(fwidth(sd), 1e-3);
+    // the edge: a band out from the rock over the floor (only out: drawn with depth, the rock over
+    // the line stretches far over the ground it stands on), a dark rim just outside it so it holds
+    // on any ground
+    float wide = 0.5 + near * 0.3;
+    float edge = smoothstep(-aa, 0.0, sd) * (1.0 - smoothstep(wide, wide + aa, sd));
+    float rim = smoothstep(wide, wide + aa, sd) * (1.0 - smoothstep(wide + 0.25, wide + 0.25 + aa, sd));
+    float spill = step(0.0, sd) * (1.0 - smoothstep(0.0, 2.5 + near * 1.5, sd));
+    float halo = step(sd, 0.0) * step(${SOLID.toFixed(2)}, y) * (1.0 - smoothstep(0.0, 1.5 + near * 2.5, y - ${SOLID.toFixed(2)}));
+    vec3 lit = mix(vec3(1.0, 0.84, 0.56), vec3(1.0, 0.28, 0.1), near);
+    float k = vLook.z;
+    diffuseColor.rgb *= 1.0 - rim * 0.4 * k;
+    diffuseColor.rgb = mix(diffuseColor.rgb, lit, edge * 0.5 * k);
+    totalEmissiveRadiance += lit * k * (edge * (0.32 + near * 0.8 * pulse) + spill * spill * near * 0.3 * pulse + halo * near * 0.5 * pulse);
+  }
+`;
+
 /** The ground: its colours per vertex, its patterns per pixel. */
 function groundMaterial() {
   const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRADIENT });
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, patterns);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 aLook;\nvarying vec2 vLook;')
+      .replace('#include <common>', '#include <common>\nattribute vec4 aLook;\nvarying vec4 vLook;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLook = aLook;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${PATTERN_GLSL}`).replace(
       '#include <color_fragment>',
@@ -176,14 +223,18 @@ function groundMaterial() {
           float m = gPattern(vAliveW.xz, int(pat.x + 0.5), pat.y, sh) * vLook.y;
           m *= 1.0 - pat2.x * (1.0 - smoothstep(0.38, 0.62, aFbm(vAliveW.xz * 0.025 + float(seg) * 7.0)));
           m *= 1.0 - smoothstep(pat2.y, pat2.y + 1.0, vAliveW.y);
+          // (and faded off a canyon's walls: the eye stays on the floor)
+          m *= 1.0 - vLook.z * smoothstep(${FLIGHT_Y.toFixed(1)}, ${(FLIGHT_Y + 8).toFixed(1)}, vAliveW.y) * 0.85;
           diffuseColor.rgb *= mix(1.0, sh, vLook.y);
           diffuseColor.rgb = mix(diffuseColor.rgb, uPatCol[seg], m * pat.z);
           totalEmissiveRadiance += uPatCol[seg] * m * pat.w;
         }
-      }`,
+      }
+      ${CANYON_GLSL}`,
     );
   };
-  return enliven(mat, { grain: 0.11 });
+  // (drawn with depth, so a canyon's walls tower over you; never thinned, as nothing of it hangs over the floor)
+  return enliven(mat, { grain: 0.11, see: true, hole: false });
 }
 const groundMat = groundMaterial();
 
@@ -504,8 +555,6 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
     const layer = Math.floor(h * 0.9 + noise2(x * 0.05, z * 0.05) * 2) % 3;
     out.lerp(tmpC.setHex(layer === 0 ? b.cliff : g[Math.min(3, 1 + layer)]), 0.7);
   }
-  // down in a canyon it's darker, the walls' tops in the full sun: the drop shows from straight above
-  if (b.shape === 'canyon') out.multiplyScalar(1 - 0.32 * (1 - clamp(h / (top * 1.9), 0, 1)));
   switch (b.id) {
     case 'fernwood':
     case 'tundra':
@@ -552,19 +601,22 @@ function groundGeometry(t: Terrain, z0: number) {
   const X0 = -X1;
   const nx = Math.round((X1 - X0) / STEP);
   const nz = Math.ceil(CHUNK / STEP);
-  // heights with a one-cell border all round, for the normals
-  const W = nx + 3;
-  const Hh = new Float32Array(W * (nz + 3));
-  for (let j = -1; j <= nz + 1; j++)
-    for (let i = -1; i <= nx + 1; i++) Hh[(j + 1) * W + i + 1] = t.height(X0 + i * STEP, z0 - j * STEP);
-  const at = (i: number, j: number) => Hh[(j + 1) * W + i + 1];
+  // heights with a border all round, for the normals (and down a canyon, how far to its rock)
+  const canyon = Math.max(t.canyonAt(z0), t.canyonAt(z0 - CHUNK)) > 0;
+  const B = canyon ? REACH : 1;
+  const W = nx + 1 + 2 * B;
+  const Hh = new Float32Array(W * (nz + 1 + 2 * B));
+  for (let j = -B; j <= nz + B; j++)
+    for (let i = -B; i <= nx + B; i++) Hh[(j + B) * W + i + B] = t.height(X0 + i * STEP, z0 - j * STEP);
+  const at = (i: number, j: number) => Hh[(j + B) * W + i + B];
+  const rock = canyon ? toRock(at, nx, nz) : null;
   const verts = (nx + 1) * (nz + 1);
   const pos = new Float32Array(verts * 3);
   const nor = new Float32Array(verts * 3);
   const col = new Float32Array(verts * 3);
   // which segment's pattern, and how much of it: none right where two biomes meet, so the
   // switch from one to the next falls where neither shows
-  const look = new Float32Array(verts * 2);
+  const look = new Float32Array(verts * 4);
   const c = new THREE.Color();
   const tmp = new THREE.Color();
   const n = new THREE.Vector3();
@@ -595,8 +647,11 @@ function groundGeometry(t: Terrain, z0: number) {
       col[k] = c.r;
       col[k + 1] = c.g;
       col[k + 2] = c.b;
-      look[(k / 3) * 2] = Math.min(SEGS - 1, bl.t < 0.5 ? bl.a : bl.b);
-      look[(k / 3) * 2 + 1] = bl.a === bl.b ? 1 : clamp(Math.abs(bl.t - 0.5) * 2.4 - 0.1, 0, 1);
+      const v = (k / 3) * 4;
+      look[v] = Math.min(SEGS - 1, bl.t < 0.5 ? bl.a : bl.b);
+      look[v + 1] = bl.a === bl.b ? 1 : clamp(Math.abs(bl.t - 0.5) * 2.4 - 0.1, 0, 1);
+      look[v + 2] = canyon ? t.canyonAt(z) : 0;
+      look[v + 3] = rock ? rock(i, j, h) : REACH * STEP;
       k += 3;
       // grass, on the cells this vertex starts
       const green = i < nx && j < nz && steep < 0.12 && h > water + 0.45 ? grassy(c) : 0;
@@ -630,10 +685,46 @@ function groundGeometry(t: Terrain, z0: number) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setAttribute('aLook', new THREE.BufferAttribute(look, 2));
+  g.setAttribute('aLook', new THREE.BufferAttribute(look, 4));
   g.setIndex(idx);
   g.computeBoundingSphere();
   return { geo: g, grass: spots.length ? grassMesh(spots) : null };
+}
+
+/**
+ * How far across the ground each cell is from where the rock turns solid, in world units: + out on
+ * the open floor, - in the rock, REACH cells at most. The edge is found where the height crosses
+ * the line between two neighbouring cells (to a fraction of a cell); each cell takes the nearest of
+ * those, looked for only in the rows round it.
+ */
+function toRock(at: (i: number, j: number) => number, nx: number, nz: number) {
+  const rows: number[][] = Array.from({ length: nz + 1 + 2 * REACH }, () => []);
+  const add = (i: number, j: number) => rows[Math.round(j) + REACH]?.push(i, j);
+  for (let j = -REACH; j <= nz + REACH; j++)
+    for (let i = -REACH; i <= nx + REACH; i++) {
+      const a = at(i, j);
+      if (i < nx + REACH) {
+        const r = at(i + 1, j);
+        if (a > SOLID !== r > SOLID) add(i + (SOLID - a) / (r - a), j);
+      }
+      if (j < nz + REACH) {
+        const d = at(i, j + 1);
+        if (a > SOLID !== d > SOLID) add(i, j + (SOLID - a) / (d - a));
+      }
+    }
+  return (i: number, j: number, h: number) => {
+    let best = REACH * REACH;
+    for (let r = j; r <= j + 2 * REACH; r++) {
+      const row = rows[r];
+      if (!row) continue;
+      for (let k = 0; k < row.length; k += 2) {
+        const dx = row[k] - i;
+        const dz = row[k + 1] - j;
+        best = Math.min(best, dx * dx + dz * dz);
+      }
+    }
+    return (h > SOLID ? -STEP : STEP) * Math.sqrt(best);
+  };
 }
 
 /** One blade: a slim triangle, darker at the root; swaying from the root up. */

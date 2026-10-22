@@ -39,7 +39,7 @@ export type Skin = [number, number, number];
 
 const PLANETS = ['orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder'];
 /** (set_<planet>: each planet's set pieces, see world/looks.ts) */
-const MODULES = ['props_a', 'props_b', 'creatures', 'enemies', 'ships', 'bosses', ...PLANETS.map((p) => `set_${p}`)];
+const MODULES = ['props_a', 'props_b', 'creatures', 'enemies', 'ships', 'bosses', 'boarding', ...PLANETS.map((p) => `set_${p}`)];
 
 class Library {
   private templates = new Map<string, Template[]>();

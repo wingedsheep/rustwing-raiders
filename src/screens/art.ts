@@ -7,6 +7,8 @@
 const NAMES = [
   'derelict', 'distress', 'signal', 'crash', 'pod', 'relay', 'dock', 'salvage',
   'loan', 'dice', 'customs', 'insurance', 'minefield', 'ghost', 'refugees', 'tanker', 'gazette', 'hunter',
+  'teahouse', 'twins', 'tobbo', 'skree', 'squit', 'holly', 'ferrule', 'choir', 'runaway', 'leeches', 'calf',
+  'census', 'ledger', 'vaelmira', 'ashes',
 ];
 
 const images = new Map<string, HTMLImageElement>();
@@ -19,6 +21,13 @@ export function preloadArt() {
     img.src = `${import.meta.env.BASE_URL}art/events/${n}.png`;
     images.set(n, img);
   }
+}
+
+/** A scene's image, once it has loaded (for drawing a part of it). */
+export function artImage(name: string): HTMLImageElement | null {
+  preloadArt();
+  const img = images.get(name);
+  return img && img.complete && img.naturalWidth ? img : null;
 }
 
 /** Draws a scene to cover a rectangle (cropping, not stretching), dimmed by `dim` (0..1). */

@@ -39,7 +39,7 @@ OUT = HERE.parent.parent / "public" / "models"
 META = HERE.parent.parent / "src" / "generated"
 PLANETS = ["orutal", "halcyon", "kessra", "mirefall", "glacis", "ashgrave", "vesh", "cinder"]
 # set pieces, a module a planet: set_<planet>.py
-MODULES = ["props_a", "props_b", "creatures", "enemies", "ships", "bosses", *(f"set_{p}" for p in PLANETS)]
+MODULES = ["props_a", "props_b", "creatures", "enemies", "ships", "bosses", "boarding", *(f"set_{p}" for p in PLANETS)]
 
 
 def args():

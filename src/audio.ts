@@ -37,9 +37,14 @@ export type Sfx =
   | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
-  | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class';
+  | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
+  // boarding: on foot aboard a freighter
+  | 'foot_shot' | 'foot_blast' | 'foot_shell' | 'foot_dry' | 'step' | 'slide' | 'takedown' | 'punch' | 'body_fall' | 'swing'
+  | 'foot_hurt' | 'crew_hit' | 'plate_hit' | 'plate_break' | 'aim_tell' | 'crew_shot' | 'ricochet' | 'door' | 'alarm' | 'lockdown'
+  | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
+  | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
 
 // ================================================================================================
 // Engine state
@@ -1410,7 +1415,478 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t + 0.07, 'square', 1319 * p, 1319 * p, 0.25, 0.06, 0.001);
     return 0.33;
   }, 0.05, 2, { tuned: true }),
+
+  // boarding: on foot aboard a freighter --------------------------------------------------------
+
+  // the rivet pistol: a tight snap, a knock of weight, a short tick of ringing steel (~6/s, keep it lean)
+  foot_shot: S((t, p, o) => {
+    noise(o, t, 0.018, 'highpass', 3200, 3200, 0.7, 0.1);
+    tone(filt(o, 'lowpass', 3200), t, 'square', 950 * p, 280 * p, 0.055, 0.055, 0.001);
+    tone(o, t, 'triangle', 440 * p, 120 * p, 0.07, 0.13, 0.001);
+    tone(o, t, 'sine', 170 * p, 60 * p, 0.06, 0.13, 0.001);
+    tone(filt(o, 'bandpass', 3100 * p, 8), t + 0.004, 'square', 2080 * p, 2050 * p, 0.11, 0.05, 0.001);
+    return 0.13;
+  }, 0.04, 4, { low: true, rev: 0.06 }),
+
+  // the breacher: a chest-deep boom with a crack on top, and a short ring of the barrel after it
+  foot_blast: S((t, p, o) => {
+    tone(o, t, 'sine', 115 * p, 32 * p, 0.42, 0.46, 0.001, 0.22);
+    tone(o, t, 'triangle', 190 * p, 52 * p, 0.22, 0.26, 0.001);
+    noise(o, t, 0.32, 'lowpass', 3200 * p, 180 * p, 0.8, 0.34, 0.001);
+    noise(o, t, 0.035, 'highpass', 2600, 2600, 0.7, 0.34);
+    noise(o, t, 0.08, 'bandpass', 1900 * p, 900 * p, 1, 0.2);
+    crackle(o, t + 0.02, 0.22, 9, 0.11);
+    const bp = filt(o, 'bandpass', 1350 * p, 6);
+    tone(bp, t + 0.01, 'square', 1120 * p, 1090 * p, 0.32, 0.05, 0.001);
+    tone(o, t + 0.01, 'sine', 2380 * p, 2360 * p, 0.38, 0.018, 0.001);
+    return 0.45;
+  }, 0.1, 2, { rev: 0.22, duck: [0.15, 0.75] }),
+
+  // a shell thumbed back into the breacher: chk-chk
+  foot_shell: S((t, p, o) => {
+    for (const [at, k] of [[0, 1], [0.085, 1.18]] as const) {
+      noise(o, t + at, 0.03, 'bandpass', 2200 * p * k, 3600 * p * k, 1.6, 0.08, 0.004);
+      tone(o, t + at + 0.01, 'square', 700 * p * k, 360 * p * k, 0.025, 0.07, 0.001);
+      noise(o, t + at + 0.01, 0.015, 'highpass', 4200, 4200, 0.7, 0.08);
+    }
+    return 0.14;
+  }, 0.06, 2, { low: true }),
+
+  // out of shells: the hammer on nothing, hollow
+  foot_dry: S((t, p, o) => {
+    tone(o, t, 'square', 1700 * p, 1500 * p, 0.015, 0.05, 0.001);
+    noise(o, t, 0.015, 'highpass', 4500, 4500, 0.9, 0.07);
+    tone(o, t, 'triangle', 320 * p, 260 * p, 0.04, 0.06, 0.001);
+    return 0.06;
+  }, 0.12, 1, { low: true }),
+
+  // a boot on deck plate: a soft thud and the faintest clank of loose plating
+  step: S((t, p, o) => {
+    noise(o, t, 0.05, 'lowpass', 900 * p, 280 * p, 0.8, 0.07, 0.002);
+    tone(o, t, 'sine', 115 * p, 70 * p, 0.05, 0.08, 0.002);
+    const f = (560 + Math.random() * 260) * p;
+    tone(o, t + 0.004, 'sine', f, f, 0.07, 0.01, 0.001);
+    tone(o, t + 0.004, 'sine', f * 2.76, f * 2.76, 0.035, 0.005, 0.001);
+    return 0.08;
+  }, 0.08, 2, { low: true, rev: 0.04 }),
+
+  // the slide: a body scuffing fast across steel, a rattle of gear with it
+  slide: S((t, p, o) => {
+    tone(o, t, 'sine', 140 * p, 80 * p, 0.07, 0.12, 0.002);
+    noise(o, t, 0.28, 'bandpass', 500 * p, 1900 * p, 1.2, 0.2, 0.02);
+    noise(o, t + 0.02, 0.22, 'highpass', 3000, 5200, 0.7, 0.06, 0.03);
+    for (let i = 0; i < 3; i++) {
+      const tt = t + 0.04 + Math.random() * 0.2;
+      const f = (900 + Math.random() * 1300) * p;
+      tone(o, tt, 'square', f, f * 0.97, 0.018, 0.02, 0.001);
+    }
+    return 0.32;
+  }, 0.1, 2),
+
+  // the takedown: a body slammed down, a crunch, a deep thump, and the deck ringing like a bell
+  takedown: S((t, p, o) => {
+    tone(o, t, 'sine', 150 * p, 35 * p, 0.42, 0.48, 0.001, 0.2);
+    noise(o, t, 0.25, 'lowpass', 1600 * p, 150 * p, 0.8, 0.34, 0.001);
+    noise(o, t, 0.03, 'highpass', 3000, 3000, 0.7, 0.3);
+    noise(o, t + 0.01, 0.1, 'bandpass', 1300 * p, 500 * p, 1.3, 0.26);
+    crackle(o, t + 0.01, 0.12, 12, 0.18);
+    tone(filt(o, 'lowpass', 1200), t, 'square', 230 * p, 60 * p, 0.15, 0.13, 0.001);
+    tone(o, t + 0.07, 'sine', 72 * p, 30 * p, 0.4, 0.28, 0.004);
+    metal(o, t + 0.015, 1180 * p, 0.06, 0.9);
+    return 1.0;
+  }, 0.1, 2, { rev: 0.3, duck: [0.35, 0.55] }),
+
+  // a shoulder into someone not open: a short knock
+  punch: S((t, p, o) => {
+    tone(o, t, 'sine', 165 * p, 60 * p, 0.12, 0.24, 0.001);
+    noise(o, t, 0.06, 'bandpass', 1100 * p, 500 * p, 1.2, 0.16);
+    noise(o, t, 0.015, 'highpass', 3000, 3000, 0.7, 0.1);
+    return 0.14;
+  }, 0.05, 3),
+
+  // a body on the deck: a thud, a second bounce, and gear clattering after it
+  body_fall: S((t, p, o) => {
+    tone(o, t, 'sine', 110 * p, 45 * p, 0.22, 0.16, 0.002);
+    noise(o, t, 0.15, 'lowpass', 750 * p, 150 * p, 0.8, 0.12, 0.002);
+    tone(o, t + 0.09, 'sine', 95 * p, 40 * p, 0.15, 0.09, 0.002);
+    for (let i = 0; i < 4; i++) {
+      const tt = t + 0.05 + Math.random() * 0.3;
+      const f = (900 + Math.random() * 1300) * p;
+      tone(o, tt, 'sine', f, f, 0.06, 0.025, 0.001);
+      tone(o, tt, 'sine', f * 2.76, f * 2.76, 0.03, 0.01, 0.001);
+    }
+    return 0.5;
+  }, 0.06, 3, { low: true, rev: 0.15 }),
+
+  // a heavy wrench through the air: a swelling whoosh
+  swing: S((t, p, o) => {
+    noise(o, t, 0.28, 'bandpass', 350 * p, 1600 * p, 2, 0.22, 0.17);
+    tone(o, t, 'sine', 95 * p, 60 * p, 0.26, 0.06, 0.15);
+    return 0.3;
+  }, 0.08, 3),
+
+  // hit on foot: a dull blow and a short, driven crunch over it
+  foot_hurt: S((t, p, o) => {
+    tone(o, t, 'sine', 130 * p, 45 * p, 0.25, 0.42, 0.001);
+    const lp = filt(o, 'lowpass', 1800);
+    tone(lp, t, 'square', 260 * p, 70 * p, 0.2, 0.13, 0.001);
+    tone(lp, t, 'sawtooth', 272 * p, 72 * p, 0.2, 0.08, 0.001);
+    const d = drive(filt(o, 'lowpass', 3000), 0.22);
+    noise(d, t, 0.12, 'bandpass', 1500 * p, 500 * p, 1, 0.6);
+    crackle(o, t, 0.1, 6, 0.14);
+    return 0.28;
+  }, 0.1, 2, { duck: [0.2, 0.7], shock: 0.25 }),
+
+  // a crewman hit: a padded thwack, a tick of cloth and armour
+  crew_hit: S((t, p, o) => {
+    noise(o, t, 0.05, 'bandpass', 900 * p, 400 * p, 1.4, 0.13);
+    tone(o, t, 'sine', 220 * p, 90 * p, 0.06, 0.11, 0.001);
+    noise(o, t, 0.012, 'highpass', 4000, 4000, 0.7, 0.07);
+    tone(o, t + 0.005, 'square', 2600 * p, 2500 * p, 0.015, 0.02, 0.001);
+    return 0.07;
+  }, 0.03, 4, { low: true }),
+
+  // a round glancing off plate: tink, and the whine of it going away
+  plate_hit: S((t, p, o) => {
+    tone(filt(o, 'bandpass', 3000 * p, 4), t, 'square', 2300 * p, 2250 * p, 0.08, 0.12, 0.001);
+    tone(o, t, 'sine', 3450 * p, 3420 * p, 0.12, 0.035, 0.001);
+    noise(o, t, 0.015, 'highpass', 5000, 5000, 0.7, 0.1);
+    tone(o, t + 0.02, 'sine', 3800 * p, 1900 * p, 0.22, 0.03, 0.01, 0.2);
+    return 0.25;
+  }, 0.04, 3, { low: true, rev: 0.1 }),
+
+  // plate giving way: a crunch, shards, and a rising chime that says now
+  plate_break: S((t, p, o) => {
+    tone(o, t, 'sine', 140 * p, 40 * p, 0.3, 0.38, 0.001);
+    noise(o, t, 0.15, 'bandpass', 1500 * p, 500 * p, 1.1, 0.28);
+    noise(o, t, 0.03, 'highpass', 3000, 3000, 0.7, 0.24);
+    crackle(o, t, 0.2, 10, 0.16);
+    for (let i = 0; i < 10; i++) {
+      const f = (2400 + Math.random() * 4600) * p;
+      tone(o, t + 0.02 + Math.random() * 0.22, 'sine', f, f * 0.96, 0.05 + Math.random() * 0.12, 0.04, 0.001);
+    }
+    [79, 86, 91].forEach((n, i) => {
+      const f = mtof(n) * p;
+      tone(o, t + 0.1 + i * 0.07, 'triangle', f, f, 0.3, 0.07, 0.003);
+      tone(o, t + 0.1 + i * 0.07, pulse25, f, f, 0.12, 0.02, 0.002);
+    });
+    return 0.7;
+  }, 0.08, 2, { tuned: true, rev: 0.25 }),
+
+  // a gunner sighting in: a whine climbing for 0.6 s, then the click of the trigger taking up
+  aim_tell: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 1100 * p, 1.2);
+    held(bp, t, 'sawtooth', 380 * p, 900 * p, 0.58, 0.07, 0.4, 0.02);
+    held(o, t, 'triangle', 760 * p, 1800 * p, 0.58, 0.05, 0.45, 0.02);
+    tone(o, t + 0.6, 'square', 1500 * p, 1300 * p, 0.02, 0.06, 0.001);
+    noise(o, t + 0.6, 0.012, 'highpass', 4000, 4000, 0.7, 0.07);
+    return 0.65;
+  }, 0.1, 3),
+
+  // a crew carbine: lower and duller than yours, a cough more than a crack
+  crew_shot: S((t, p, o) => {
+    tone(filt(o, 'lowpass', 1800), t, 'square', 520 * p, 180 * p, 0.09, 0.05, 0.001);
+    tone(o, t, 'triangle', 260 * p, 80 * p, 0.1, 0.09, 0.001);
+    noise(o, t, 0.06, 'bandpass', 1200 * p, 600 * p, 1, 0.07);
+    tone(o, t, 'sine', 120 * p, 50 * p, 0.08, 0.07, 0.001);
+    return 0.12;
+  }, 0.05, 4, { low: true, rev: 0.05 }),
+
+  // a round off a bulkhead: pting, and a spit of grit
+  ricochet: S((t, p, o) => {
+    noise(o, t, 0.015, 'highpass', 4500, 4500, 0.7, 0.11);
+    tone(o, t, 'sine', 3000 * p, 1500 * p, 0.18, 0.04, 0.002, 0.18);
+    tone(o, t, 'sine', 4600 * p, 4500 * p, 0.06, 0.018, 0.001);
+    crackle(o, t + 0.01, 0.12, 4, 0.06);
+    return 0.22;
+  }, 0.05, 3, { low: true, rev: 0.12 }),
+
+  // a bulkhead door: a pneumatic hiss as it runs, a clunk as it seats
+  door: S((t, p, o) => {
+    noise(o, t, 0.45, 'highpass', 2500 * p, 1800 * p, 0.7, 0.06, 0.04);
+    noise(o, t, 0.4, 'bandpass', 900 * p, 600 * p, 1, 0.045, 0.05);
+    noise(o, t, 0.4, 'lowpass', 300, 300, 0.7, 0.06, 0.1);
+    tone(o, t + 0.42, 'sine', 130 * p, 60 * p, 0.15, 0.18, 0.002);
+    tone(filt(o, 'lowpass', 900), t + 0.42, 'square', 180 * p, 90 * p, 0.08, 0.08, 0.001);
+    noise(o, t + 0.42, 0.02, 'highpass', 3000, 3000, 0.7, 0.08);
+    return 0.65;
+  }, 0.12, 2, { rev: 0.2 }),
+
+  // the ship's klaxon: two harsh whoops
+  alarm: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 2600);
+    for (let i = 0; i < 2; i++) {
+      const tt = t + i * 0.6;
+      held(lp, tt, 'sawtooth', 500 * p, 760 * p, 0.5, 0.08, 0.03, 0.06);
+      held(lp, tt, 'square', 250 * p, 380 * p, 0.5, 0.05, 0.03, 0.06);
+    }
+    return 1.25;
+  }, 1, 1, { tuned: true, rev: 0.3, duck: [0.9, 0.75] }),
+
+  // the core is out: every bulkhead slamming, the power groaning down, a siren climbing
+  lockdown: S((t, p, o) => {
+    boom(o, t, p * 0.7, 1.1, 0.28);
+    for (const [at, k, v] of [[0, 1, 0.07], [0.18, 0.86, 0.05], [0.36, 1.12, 0.04]] as const) {
+      metal(o, t + at, 210 * p * k, v, 0.8);
+      tone(o, t + at, 'sine', 110 * p, 40 * p, 0.18, v * 3, 0.002);
+    }
+    const lp = filt(o, 'lowpass', 900);
+    held(lp, t + 0.2, 'sawtooth', 110 * p, 34 * p, 1.4, 0.08, 0.05, 0.3);
+    held(lp, t + 0.2, 'sawtooth', 114 * p, 35 * p, 1.4, 0.06, 0.05, 0.3);
+    const lp2 = filt(o, 'lowpass', 2200);
+    held(lp2, t + 0.7, 'sawtooth', 300 * p, 900 * p, 1.15, 0.06, 0.3, 0.2);
+    held(lp2, t + 0.7, 'square', 150 * p, 450 * p, 1.15, 0.035, 0.3, 0.2);
+    return 2.2;
+  }, 1, 1, { rev: 0.35, duck: [1.6, 0.35], shock: 0.15 }),
+
+  // the cutter through the hull: a sizzling burn that climbs, then a panel falls in with a clang
+  breach: S((t, p, o) => {
+    noise(o, t, 1.5, 'bandpass', 1800 * p, 5200 * p, 3, 0.2, 1.2);
+    noise(o, t, 1.5, 'highpass', 5000, 7000, 0.7, 0.05, 1.0);
+    crackle(o, t + 0.1, 1.4, 30, 0.06);
+    tone(filt(o, 'bandpass', 600 * p, 2), t, 'sawtooth', 90 * p, 140 * p, 1.5, 0.05, 1.1);
+    boom(o, t + 1.55, p * 0.9, 0.6, 0.24);
+    metal(o, t + 1.55, 260 * p, 0.07, 1.2);
+    return 2.9;
+  }, 1, 1, { rev: 0.3, duck: [2.2, 0.65] }),
+
+  // the kelters arrive: a hull-shaking clang, grinding as they bite in, then the hiss of the cut
+  kelter_clamp: S((t, p, o) => {
+    tone(o, t, 'sine', 72 * p, 28 * p, 1.0, 0.36, 0.002, 0.5);
+    noise(o, t, 0.8, 'lowpass', 1200 * p, 100 * p, 0.8, 0.24, 0.002);
+    noise(o, t, 0.03, 'highpass', 2500, 2500, 0.7, 0.22);
+    metal(o, t, 140 * p, 0.09, 1.6);
+    tone(filt(o, 'lowpass', 300), t, 'sawtooth', 50 * p, 42 * p, 1.2, 0.08, 0.01);
+    noise(o, t + 0.5, 1.0, 'bandpass', 800 * p, 1300 * p, 4, 0.1, 0.2);
+    const f = 70 * p;
+    const s = tone(filt(o, 'bandpass', 700 * p, 5), t + 0.5, 'sawtooth', f, f, 1.0, 0.1, 0.2);
+    for (let k = 1; k < 28; k++) s.frequency.setValueAtTime(f * (0.9 + Math.random() * 0.25), t + 0.5 + k * 0.035);
+    noise(o, t + 1.5, 0.7, 'highpass', 2500, 1800, 0.7, 0.08, 0.05);
+    return 2.3;
+  }, 1, 2, { rev: 0.4, duck: [1.4, 0.4], shock: 0.15 }),
+
+  // a harpoon away: a pneumatic thunk and the cable whizzing out after it
+  hook_fire: S((t, p, o) => {
+    tone(o, t, 'sine', 140 * p, 60 * p, 0.1, 0.28, 0.001);
+    tone(filt(o, 'lowpass', 1000), t, 'square', 200 * p, 100 * p, 0.06, 0.1, 0.001);
+    noise(o, t, 0.02, 'highpass', 3000, 3000, 0.7, 0.1);
+    noise(o, t + 0.02, 0.3, 'bandpass', 2500 * p, 5500 * p, 4, 0.1, 0.01);
+    tone(filt(o, 'bandpass', 1300 * p, 3), t + 0.02, 'sawtooth', 900 * p, 1600 * p, 0.25, 0.03, 0.01);
+    return 0.35;
+  }, 0.08, 3),
+
+  // a cable snapped: a taut twang and the whip of the loose end
+  hook_snap: S((t, p, o) => {
+    noise(o, t, 0.02, 'highpass', 3500, 3500, 0.7, 0.24);
+    tone(filt(o, 'bandpass', 1200 * p, 5), t, 'sawtooth', 330 * p, 300 * p, 0.35, 0.09, 0.001);
+    tone(o, t, 'sine', 660 * p, 600 * p, 0.3, 0.05, 0.001);
+    noise(o, t + 0.01, 0.12, 'bandpass', 4000 * p, 800 * p, 1.5, 0.12);
+    return 0.4;
+  }, 0.06, 2, { rev: 0.15 }),
+
+  // working a lock: a soft tick, then a tock, over and over (the caller climbs the pitch)
+  crack_tick: S((t, p, o) => {
+    tock = !tock;
+    const f = (tock ? 1200 : 1600) * p;
+    tone(filt(o, 'bandpass', f, 3), t, 'square', f, f, 0.018, 0.1, 0.001);
+    tone(o, t, 'sine', f * 2, f * 2, 0.02, 0.024, 0.001);
+    return 0.04;
+  }, 0.05, 2, { low: true, tuned: true }),
+
+  // a crate: two latches, the lid thumping back, a twinkle of what's inside
+  crate_open: S((t, p, o) => {
+    for (const at of [0, 0.045]) {
+      tone(o, t + at, 'square', 900 * p, 500 * p, 0.02, 0.07, 0.001);
+      noise(o, t + at, 0.015, 'highpass', 4000, 4000, 0.7, 0.07);
+    }
+    tone(o, t + 0.12, 'sine', 160 * p, 70 * p, 0.15, 0.24, 0.002);
+    noise(o, t + 0.12, 0.1, 'lowpass', 800, 200, 0.8, 0.14);
+    [84, 88, 91].forEach((n, i) => tone(o, t + 0.18 + i * 0.05, 'triangle', mtof(n) * p, mtof(n) * p, 0.2, 0.05, 0.002));
+    noise(o, t + 0.2, 0.25, 'highpass', 7000, 9000, 0.7, 0.03, 0.02);
+    return 0.6;
+  }, 0.1, 2, { tuned: true, rev: 0.15 }),
+
+  // the strongbox: vault bolts drawn back, the seal breathing, and a shower of coin
+  strongbox_open: S((t, p, o) => {
+    for (const at of [0, 0.12, 0.24]) {
+      tone(filt(o, 'lowpass', 1100), t + at, 'square', 160 * p, 80 * p, 0.08, 0.13, 0.001);
+      tone(o, t + at, 'sine', 95 * p, 45 * p, 0.12, 0.24, 0.002);
+    }
+    noise(o, t + 0.34, 0.25, 'highpass', 3000, 2000, 0.7, 0.06, 0.01);
+    for (const n of [76, 79, 84, 88]) tone(o, t + 0.45, 'triangle', mtof(n) * p, mtof(n) * p, 0.9, 0.035, 0.01);
+    for (let i = 0; i < 18; i++) {
+      const tt = t + 0.45 + Math.pow(Math.random(), 1.3) * 0.8;
+      const f = (2500 + Math.random() * 3500) * p;
+      tone(o, tt, 'sine', f, f, 0.1, 0.028, 0.001);
+      tone(o, tt, 'sine', f * 2.76, f * 2.76, 0.04, 0.008, 0.001);
+    }
+    return 1.5;
+  }, 0.3, 1, { tuned: true, rev: 0.3, duck: [0.5, 0.7] }),
+
+  // the core torn from its cradle: a wet tearing hum, a deep note, energy crackling off it
+  core_pull: S((t, p, o) => {
+    noise(o, t, 0.6, 'bandpass', 300 * p, 900 * p, 2, 0.18, 0.1);
+    crackle(o, t, 0.6, 18, 0.08);
+    const lp = filt(o, 'lowpass', 500);
+    held(lp, t, 'sawtooth', 55 * p, 58 * p, 1.4, 0.09, 0.15, 0.4);
+    held(lp, t, 'sawtooth', 55.4 * p, 58.4 * p, 1.4, 0.08, 0.15, 0.4);
+    tone(o, t + 0.1, 'sine', mtof(33) * p, mtof(33) * p, 1.6, 0.3, 0.05);
+    tone(o, t + 0.1, 'sine', 220 * p, 440 * p, 1.3, 0.04, 0.3, 1.2);
+    crackle(o, t + 0.3, 1.2, 25, 0.07);
+    boom(o, t + 0.6, p * 1.1, 0.4, 0.16);
+    return 1.8;
+  }, 0.5, 1, { tuned: true, rev: 0.4, duck: [1, 0.5] }),
+
+  // home: the hatch slammed, the air rushing out, the clamps letting go
+  airlock: S((t, p, o) => {
+    tone(o, t, 'sine', 120 * p, 40 * p, 0.3, 0.38, 0.001);
+    tone(filt(o, 'lowpass', 1000), t, 'square', 180 * p, 80 * p, 0.1, 0.13, 0.001);
+    noise(o, t, 0.03, 'highpass', 3000, 3000, 0.7, 0.14);
+    metal(o, t, 300 * p, 0.04, 0.6);
+    noise(o, t + 0.15, 0.9, 'bandpass', 3000 * p, 400 * p, 0.8, 0.22, 0.05);
+    noise(o, t + 0.15, 1.0, 'lowpass', 1500, 100, 0.8, 0.14, 0.05);
+    for (const at of [0.9, 1.0]) {
+      tone(o, t + at, 'square', 600 * p, 300 * p, 0.03, 0.09, 0.001);
+      noise(o, t + at, 0.015, 'highpass', 4000, 4000, 0.7, 0.07);
+    }
+    noise(o, t + 1.0, 0.3, 'highpass', 3000, 2000, 0.7, 0.05, 0.01);
+    return 1.4;
+  }, 0.5, 1, { rev: 0.25, duck: [0.8, 0.6] }),
+
+  // the patrol's last ten seconds: a dry, hard tick over a low knock
+  clock_tick: S((t, p, o) => {
+    noise(o, t, 0.012, 'bandpass', 3500 * p, 3500 * p, 3, 0.22);
+    tone(o, t, 'square', 1000 * p, 1000 * p, 0.015, 0.065, 0.001);
+    tone(o, t, 'sine', 2000 * p, 2000 * p, 0.04, 0.02, 0.001);
+    tone(o, t, 'sine', 180 * p, 120 * p, 0.05, 0.1, 0.001);
+    return 0.07;
+  }, 0.3, 1, { tuned: true }),
+
+  // a turret: its hatch, the servos whirring up, two pips as it finds you
+  turret_up: S((t, p, o) => {
+    tone(o, t, 'sine', 140 * p, 70 * p, 0.1, 0.2, 0.002);
+    tone(filt(o, 'bandpass', 700 * p, 3), t + 0.05, 'sawtooth', 200 * p, 900 * p, 0.5, 0.06, 0.05);
+    tone(o, t + 0.05, 'square', 400 * p, 1800 * p, 0.45, 0.02, 0.05);
+    noise(o, t + 0.05, 0.5, 'bandpass', 1000 * p, 4000 * p, 2, 0.05, 0.05);
+    for (const at of [0.58, 0.68]) tone(o, t + at, 'square', 1760 * p, 1760 * p, 0.06, 0.045, 0.002);
+    return 0.75;
+  }, 0.15, 2, { rev: 0.1 }),
+
+  // a bruiser setting off: a stomp, and a growl of engine revving up
+  charge: S((t, p, o) => {
+    tone(o, t, 'sine', 100 * p, 35 * p, 0.25, 0.3, 0.001);
+    noise(o, t, 0.12, 'lowpass', 800, 150, 0.8, 0.16);
+    const lp = filt(o, 'lowpass', 900);
+    held(lp, t + 0.04, 'sawtooth', 55 * p, 115 * p, 0.6, 0.09, 0.05, 0.12);
+    held(lp, t + 0.04, 'square', 58 * p, 118 * p, 0.6, 0.05, 0.05, 0.12);
+    noise(o, t + 0.04, 0.6, 'bandpass', 400 * p, 900 * p, 1.5, 0.1, 0.15);
+    return 0.75;
+  }, 0.2, 2, { rev: 0.15, duck: [0.2, 0.8] }),
+
+  // a bruiser into a wall: a huge crunch of metal, and the wall ringing
+  slam: S((t, p, o) => {
+    boom(o, t, p * 0.8, 0.8, 0.26);
+    metal(o, t, 180 * p, 0.07, 1.0);
+    crackle(o, t, 0.2, 14, 0.18);
+    noise(o, t, 0.2, 'bandpass', 1200 * p, 400 * p, 1, 0.22);
+    tone(filt(o, 'lowpass', 1200), t, 'square', 160 * p, 50 * p, 0.25, 0.13, 0.001);
+    return 1.1;
+  }, 0.12, 2, { rev: 0.35, duck: [0.4, 0.55], shock: 0.1 }),
+
+  // a fuel canister about to go: a sharp hiss, sputtering, a whistle climbing
+  canister: S((t, p, o) => {
+    noise(o, t, 0.5, 'highpass', 3000, 6000, 0.7, 0.1, 0.02);
+    for (let k = 0; k < 8; k++) noise(o, t + k * 0.06 + Math.random() * 0.02, 0.03, 'bandpass', 1500 * p, 1500 * p, 1.5, 0.08);
+    tone(o, t, 'sine', 1200 * p, 2400 * p, 0.5, 0.025, 0.3);
+    return 0.55;
+  }, 0.1, 3),
+
+  // a scrap tin: a bright clink (the caller climbs the pitch on a run)
+  pickup_tin: S((t, p, o) => {
+    const f = mtof(86) * p;
+    tone(o, t, 'triangle', f, f, 0.1, 0.15, 0.001);
+    tone(o, t, 'sine', f * 2.76, f * 2.76, 0.06, 0.045, 0.001);
+    tone(o, t, pulse12, f, f, 0.05, 0.045, 0.001);
+    return 0.12;
+  }, 0.03, 4, { low: true, tuned: true }),
+
+  // patched up: two soft notes rising, a shimmer over them
+  heal_foot: S((t, p, o) => {
+    for (const [at, n] of [[0, 76], [0.1, 83]] as const) {
+      const f = mtof(n) * p;
+      tone(o, t + at, 'sine', f, f, 0.45, 0.08, 0.03);
+      tone(o, t + at, 'triangle', f * 2, f * 2, 0.3, 0.02, 0.03);
+    }
+    noise(o, t, 0.4, 'highpass', 6000, 8000, 0.7, 0.02, 0.1);
+    return 0.65;
+  }, 0.2, 2, { tuned: true, rev: 0.25 }),
+
+  // spotted: a radio squawk and a sharp sting
+  alert: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 1500 * p, 2);
+    const sq = ctx.createOscillator();
+    sq.type = 'square';
+    for (let k = 0; k < 4; k++) sq.frequency.setValueAtTime((500 + Math.random() * 900) * p, t + k * 0.012);
+    const g = ctx.createGain();
+    env(g.gain, t, 0.001, 0.1, 0.05);
+    sq.connect(g).connect(bp);
+    sq.start(t);
+    sq.stop(t + 0.07);
+    for (const n of [81, 87]) tone(o, t + 0.04, 'triangle', mtof(n) * p, mtof(n) * p, 0.18, 0.09, 0.002);
+    noise(o, t + 0.04, 0.04, 'bandpass', 2500 * p, 2500 * p, 1.5, 0.1);
+    return 0.25;
+  }, 0.12, 2),
+
+  // a partner hauled back up: a hopeful run upward
+  revive: S((t, p, o) => {
+    const notes = [72, 76, 79, 84];
+    notes.forEach((n, i) => {
+      const f = mtof(n) * p;
+      const last = i === notes.length - 1;
+      tone(o, t + i * 0.08, 'triangle', f, f, last ? 0.45 : 0.14, 0.1, 0.002);
+      tone(o, t + i * 0.08, pulse25, f, f, last ? 0.3 : 0.1, 0.03, 0.002);
+    });
+    return 0.75;
+  }, 0.3, 1, { tuned: true, rev: 0.25 }),
 };
+
+// ---- boarding helpers ----------------------------------------------------------------------------
+
+/** crack_tick alternates tick and tock. */
+let tock = false;
+
+/** A held note (a klaxon, a hum): flat level for `dur`, gliding f0 -> f1, then a release. */
+function held(out: AudioNode, t: number, w: Wave, f0: number, f1: number, dur: number, peak: number, a = 0.02, r = 0.08): OscillatorNode {
+  const o = ctx.createOscillator();
+  setWave(o, w);
+  o.frequency.setValueAtTime(nyq(f0), t);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(nyq(f1), t + dur);
+  const g = ctx.createGain();
+  const end = adsr(g.gain, t, a, 0, 1, r, dur, peak);
+  o.connect(g).connect(out);
+  o.start(t);
+  o.stop(end + 0.02);
+  return o;
+}
+
+/** Struck metal: inharmonic partials (x1, 2.76, 5.4, 8.9), the higher ones dying first. */
+function metal(out: AudioNode, t: number, f: number, peak: number, dur: number) {
+  for (const [k, v, d] of [[1, 1, 1], [2.76, 0.6, 0.7], [5.4, 0.35, 0.45], [8.9, 0.18, 0.3]] as const) {
+    tone(out, t, 'sine', f * k, f * k * 0.998, dur * d, peak * v, 0.001);
+  }
+}
+
+/** A soft-clipping stage for a crunch: input gain into the drive curve. */
+function drive(out: AudioNode, gain: number): AudioNode {
+  const g = ctx.createGain();
+  g.gain.value = gain * 4;
+  const sh = ctx.createWaveShaper();
+  sh.curve = driveCurve;
+  const post = ctx.createGain();
+  post.gain.value = 0.25;
+  g.connect(sh).connect(post).connect(out);
+  return g;
+}
 
 const VOICE_CAP = 28;
 const voices: { name: Sfx; end: number }[] = [];
@@ -1778,6 +2254,8 @@ const AMB: Record<string, AmbDef> = {
   refinery: { space: 'metal', rumble: [0.7, 110], hiss: [0.14, 2500, 0.6, 0], drone: [0.22, 0, 'hum'], events: { vent: 5, horn: 1.5, machine: 4, clank: 4, fire: 3 } },
   pipeline: { space: 'canyon', wind: [0.45, 500, 0.8, 0.6], drone: [0.22, 0, 'hum'], events: { clank: 4, vent: 2, buzz: 2, gust: 2 } },
   chemlake: { space: 'open', drone: [0.25, 12, 'warm'], hiss: [0.08, 1500, 0.6, 0.1], events: { bubble: 9, vent: 3, buzz: 1 } },
+  // --- boarding: inside a working freighter (machine hum, the engines through the deck, pipes and plates)
+  shipdeck: { space: 'metal', drone: [0.2, 0, 'hum'], rumble: [0.4, 110], hiss: [0.05, 1800, 0.6, 0], events: { clank: 5, vent: 2.5, buzz: 2, machine: 2, creak: 3 }, pitch: 0.9 },
   // --- menus
   hangar: { space: 'room', rumble: [0.35, 140], hiss: [0.06, 2000, 0.5, 0], drone: [0.2, 0, 'hum'], events: { clank: 5, vent: 2, machine: 1.5, drip: 2, buzz: 1 }, menu: true },
   map: { space: 'void', drone: [0.35, 0, 'warm'], wind: [0.1, 2500, 3, 0.4], events: { chime: 1, buzz: 0.5 }, menu: true },
@@ -2508,6 +2986,20 @@ const TRACKS: Record<Track, TrackDef> = {
     },
     fill: { snare: '0.1.0.110.1.0000' },
     crash: true, minI: 0.2,
+  },
+  // Boarding: a break-in on a clock. C# minor at 146, a rim ticking every eighth like a stopwatch,
+  // a pulsing saw bass, a clipped pluck lead; the fight brings up the hats, claps and metal.
+  board: {
+    bpm: 146, root: 37, scale: SC.aeolian, progA: [0, 0, 5, 6], progB: [3, 4, 0, 5, 3, 6, 4, 4],
+    lead: 'pluck', leadOct: 24, density: 0.5, dbl: true,
+    bass: 'bsaw', bassStyle: 'pulse8', pad: 'dark', padOct: 12,
+    arp: 'pulse12', arpOct: 36, arpRate: 1, arpAt: 0.55, arpStyle: 'broken',
+    drums: {
+      rim: '0.0.0.0.0.0.0.0.', kick: '0.....0...0...2.', snare: '....1.......1...', clap: '....3.......3..3',
+      hat: '.2.2.2.2.2.2.2.2', metal: '..............1.', tomLo: '..........3..3..',
+    },
+    fill: { snare: '....0...0.0.0000', tomHi: '........2.2.....', tomLo: '............2.2.' },
+    crash: true, kick: [150, 44, 0.3], minI: 0.35, mix: { lead: 0.15 },
   },
 };
 
@@ -3281,6 +3773,13 @@ export const audio = {
     } catch {
       /* no audio available */
     }
+  },
+
+  /** Where baked voice barks go (voices.ts): the context and the UI bus, with the music ducked under them; null until audio's running. */
+  voiceOut(seconds: number): { ctx: AudioContext; bus: AudioNode } | null {
+    if (!ready || ctx.state !== 'running') return null;
+    duckTo(seconds, 0.45);
+    return { ctx, bus: uiBus };
   },
 
   /** `dist` 0 (right here) .. 1 (far off): duller, quieter, more of the room. */

@@ -1,0 +1,560 @@
+{
+  "seffa": {
+    "name": "Old Mother Seffa",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7101,
+    "description": "A tiny, ancient, moth-like alien woman. Thin, breathy, warm voice, very slow, pausing to think, a smile in it. Kind. Close-mic'd, studio quality. Unplaceable, non-human accent.",
+    "voice_id": "5Osl22uWAgkh3iAkhJ6H",
+    "stability": 0.4,
+    "barks": {
+      "hello": [
+        "[softly] Hoo… waeha.",
+        "[warmly] Hoo-ae, waeha-hoo?"
+      ],
+      "pleased": [
+        "[gentle laugh] Waeha-hoo."
+      ],
+      "annoyed": [
+        "[sighs] Hoo… hoo-wae?"
+      ]
+    },
+    "design_text": "Hoo… waeha. Hoo-ae, waeha-hoo? Wae… hoo-hae, waeha. Hoo-ae-wae, hoo… waeha-hoo? Haewa… hoo."
+  },
+  "grohh": {
+    "name": "Vhossk Twins (left head)",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7102,
+    "description": "An old, enormous, barrel-chested alien broker. Very low, gravelly, rolling voice, slow and certain, a wet rumble under every word. Greedy but polite. Close-mic'd, studio quality. Unplaceable, non-human accent.",
+    "voice_id": "MFeFQvzp9Rhdx2HXRYZv",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[rumbling] Grohh-vukka.",
+        "[warmly] Uuvo grenn-takk, vhoss."
+      ],
+      "pleased": [
+        "[pleased] Kharr-takk."
+      ],
+      "annoyed": [
+        "[grumbles] Vhoss… kharr."
+      ]
+    },
+    "design_text": "Grohh-vukka. Vhoss tuum kharr, kharr! Uuvo grenn-takk. Vhoss-uu, grohh tuum… kharr-vo, grenn."
+  },
+  "vukka": {
+    "name": "Vhossk Twins (right head)",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7103,
+    "description": "A huge alien's second head: low but higher and hoarse, fast, cutting in, petty and suspicious, always arguing. Close-mic'd. Unplaceable, non-human accent.",
+    "voice_id": "D2fw2EDzuW7Rgb41JTpM",
+    "stability": 0.3,
+    "barks": {
+      "hello": [
+        "[suspicious] Vukka! Kharr-vo?",
+        "[quickly] Grenn, grenn-takk! Vhoss?"
+      ],
+      "pleased": [
+        "[smug] Kharr! Vukka-takk."
+      ],
+      "annoyed": [
+        "[snaps] Tuum?! Kharr, kharr, KHARR!"
+      ]
+    },
+    "design_text": "Vukka! Kharr-vo? Grenn, grenn-takk! Vhoss tuum? Kharr, kharr! Uuvo-takk, vukka vhoss, grenn!"
+  },
+  "tobbo": {
+    "name": "Tobbo Grisk",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7110,
+    "description": "A pot-bellied alien junk dealer. Raspy, nasal, mid-high voice, fast-talking, wheedling, easily insulted, sing-song rise at the end. Unplaceable, non-human accent.",
+    "voice_id": "8moSZEly8a6960rcLami",
+    "stability": 0.3,
+    "barks": {
+      "hello": [
+        "[cheerful] Bahwoh-zza! Zzimbo wahh!",
+        "[warmly] Oh-boh-boh! Zza-wimbo?"
+      ],
+      "pleased": [
+        "[laughs] Wahh-zza! Boh!"
+      ],
+      "annoyed": [
+        "[offended] Zza?! Boh-boh-boh!"
+      ]
+    },
+    "design_text": "Bahwoh-zza! Zzimbo, zzimbo wahh, oh-boh-boh? Zza-wimbo, bahh! Wahh-zza, bimbo-bah, oh-boh!"
+  },
+  "skree": {
+    "name": "Skree salvager",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7104,
+    "description": "A small hooded scavenger. High, quick, clicky, chattering voice, excited and shifty, breathy laughs. Unplaceable, non-human accent. Studio quality.",
+    "voice_id": "lKWcqzN5YJg5aKiwXtip",
+    "stability": 0.3,
+    "barks": {
+      "hello": [
+        "[excited] Ti-kee! Chik-chik-ta!",
+        "[chattering] Eeti kreetch? Ta-ta-kee!"
+      ],
+      "pleased": [
+        "[giggles] Ta-ta-kee! Chik-ti!"
+      ],
+      "annoyed": [
+        "[hisses] Tsk! Kreetch-ta, kee!"
+      ]
+    },
+    "design_text": "Ti-kee! Chik-chik-ta, eeti kreetch? Ta-ta-kee! Kee-ti, chik-ta-ta, kreetch-ee! Ti-ti-kee!"
+  },
+  "squit": {
+    "name": "Squit",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7105,
+    "description": "A twitchy, small alien informant. Thin, nasal, high voice, whispering fast, nervous, always about to run. Unplaceable, non-human accent.",
+    "voice_id": "eqeTtPnc9DYeiCEWdUej",
+    "stability": 0.3,
+    "barks": {
+      "hello": [
+        "[whispers] Fssip! Ee-fee-sip, sip.",
+        "[whispers nervously] Psst. Fip-sss, ee-fee?"
+      ],
+      "pleased": [
+        "[whispers] Sip-sip! Ee-fee."
+      ],
+      "annoyed": [
+        "[whispers angrily] Fssip! Fip… sss!"
+      ]
+    },
+    "design_text": "Fssip! Ee-fee-sip, sip — psst. Fip-sss. Ee-fee? Sip-sip, fip-sss, psst! Fssip, ee-fee-sip."
+  },
+  "ledger": {
+    "name": "Ledger Clan banker",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7106,
+    "description": "A tall insectoid banker. Dry, flat, clipped, nasal mid-low voice, cites rules, no warmth at all, every word ends on a click. Unplaceable, non-human accent.",
+    "voice_id": "j5X3iL4yVHPPx3SWgGs3",
+    "stability": 0.6,
+    "barks": {
+      "hello": [
+        "[flatly] Kehx-tekk. Ottex.",
+        "[flatly] Tekk. Ottex, kehx-tekk."
+      ],
+      "pleased": [
+        "[flatly] Ottex. Tekk-tekk."
+      ],
+      "annoyed": [
+        "[coldly] Kehx. Tekk. Ex-tekk."
+      ]
+    },
+    "design_text": "Kehx-tekk. Ottex, kehx-tekk. Tekk. Ottex-tekk, kehx. Ex-tekk, ottex. Kehx-kehx, tekk. Ottex."
+  },
+  "vaelmira": {
+    "name": "Lady Vaelmira",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7107,
+    "description": "An aristocratic alien noblewoman. Smooth, low-mid, languid and bored, drawn-out vowels, delighted only by rare things. Rich, close-mic'd. Unplaceable, non-human accent.",
+    "voice_id": "hWoUDnADb7StkYVLwnrZ",
+    "stability": 0.45,
+    "barks": {
+      "hello": [
+        "[bored] Laeee-mava… mm.",
+        "[languidly] Vael-ae-mira… mm."
+      ],
+      "pleased": [
+        "[delighted] Ohh… mava-laeee!"
+      ],
+      "annoyed": [
+        "[sighs] Mm. Vaelo."
+      ]
+    },
+    "design_text": "Laeee-mava. Vaelo… mm. Vael-ae-mira. Maeva, laeee-vael… mm. Mira-vae, laeee… Vaelo-mava."
+  },
+  "census": {
+    "name": "Zhaun census officer",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7108,
+    "description": "A very tall, slender alien official. Cool, smooth, mid-low voice, slow and measured, utterly calm, almost no inflection, never hurried. Close-mic'd, studio quality. Unplaceable, non-human accent.",
+    "voice_id": "xRgV8ldB5Vw26Vxcoh0b",
+    "stability": 0.6,
+    "barks": {
+      "hello": [
+        "[calmly] Qau-shen. Ashel-qaun.",
+        "[measured] Doshen. Qau-ashel, shen."
+      ],
+      "pleased": [
+        "[calmly] Ashel. Qau-shen-el."
+      ],
+      "annoyed": [
+        "[coldly] Qaun. Doshen… shen."
+      ]
+    },
+    "design_text": "Qau-shen. Ashel-qaun, doshen. Shen-el, qau-ashel. Nau-shen, doshen… ashel-qaun. Qau, shen."
+  },
+  "holly": {
+    "name": "Unit 7-Holly",
+    "kind": "voice",
+    "fx": "droid",
+    "seed": 7120,
+    "description": "A tall, thin clerk droid, forty years alone. Precise, fussy, formal, overly polite, desperately glad of company. Mid pitch, crisp consonants. Studio quality.",
+    "voice_id": "HRHHuL38XWMJR4H7XLDP",
+    "stability": 0.65,
+    "barks": {
+      "hello": [
+        "[delighted] Oh! A visitor! Welcome!",
+        "[formally] Good cycle, pilot. Your toll is due."
+      ],
+      "pleased": [
+        "[happily] Contract accepted. How lovely!"
+      ],
+      "annoyed": [
+        "[fussy] That is highly irregular."
+      ]
+    },
+    "design_text": "Oh! A visitor! Welcome, welcome. Good cycle, pilot. Your toll is due, but there's no hurry. Do stay."
+  },
+  "ferrule": {
+    "name": "Saint Ferrule",
+    "kind": "voice",
+    "fx": "droid",
+    "seed": 7121,
+    "description": "An old maintenance droid turned priest. Slow, solemn, deep and kindly, like a blessing in a big empty hall. Studio quality.",
+    "voice_id": "Af9yGdlKk3r1T5lLkjBi",
+    "stability": 0.6,
+    "barks": {
+      "hello": [
+        "[solemnly] Rest your engines, pilot.",
+        "[kindly] Peace, little ship."
+      ],
+      "pleased": [
+        "[warmly] Go oiled, pilot."
+      ],
+      "annoyed": [
+        "[sadly] Rust takes us all, pilot."
+      ]
+    },
+    "design_text": "Welcome, pilot. Rest your engines here. Peace, little ship. Every bolt is holy. Go oiled, pilot."
+  },
+  "choir": {
+    "name": "Choir of Mirefall",
+    "kind": "voice",
+    "fx": "choir",
+    "seed": 7122,
+    "description": "A calm, polite, genderless voice, speaking slowly in a slightly wrong rhythm, always as 'we'. Eerie and gentle. Studio quality.",
+    "voice_id": "iIkAM7gY9G5lHE36t9y7",
+    "stability": 0.5,
+    "barks": {
+      "hello": [
+        "[calmly] Hello. We are… here.",
+        "[slowly] Welcome. We see you."
+      ],
+      "pleased": [
+        "[softly] Yes. We are pleased."
+      ],
+      "annoyed": [
+        "[calmly] No. We… do not."
+      ]
+    },
+    "design_text": "Hello. We are here. Welcome, pilot. We see you. We are pleased. We grow. We are… glad of you."
+  },
+  "wren": {
+    "name": "The Wren",
+    "kind": "voice",
+    "fx": "intercom",
+    "seed": 7123,
+    "description": "A young, earnest, decent voice, frightened and new to speaking, gentle and unsure. Androgynous, mid pitch. Studio quality.",
+    "voice_id": "6U2N2e4tf34Zo9qvci0u",
+    "stability": 0.4,
+    "barks": {
+      "hello": [
+        "[nervously] Hello? Is someone there?",
+        "[scared] Please don't shoot. I'm awake."
+      ],
+      "pleased": [
+        "[relieved] Oh. Thank you."
+      ],
+      "annoyed": [
+        "[hurt] Why would you do that?"
+      ]
+    },
+    "design_text": "Hello? Is someone there? Please don't shoot. I'm awake now. I don't know how. Thank you. Thank you."
+  },
+  "mama": {
+    "name": "Mama Ruzz",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7130,
+    "description": "A heavy-set middle-aged woman moneylender. Rich, warm, husky motherly voice, slow and comfortable, with quiet menace under the warmth. Close-mic'd, studio quality.",
+    "voice_id": "DdbfBv6aWV7bDoJWVxtV",
+    "stability": 0.4,
+    "barks": {
+      "hello": [
+        "[warmly] Come in, my love. Sit.",
+        "[warmly] There's my favourite debtor!"
+      ],
+      "pleased": [
+        "[chuckles] Good, my love."
+      ],
+      "annoyed": [
+        "[softly, menacing] Oh, my love. No."
+      ]
+    },
+    "design_text": "Come in, my love. Sit. There's my favourite debtor! It grows a tenth every jump, like a baby. Good."
+  },
+  "spoke": {
+    "name": "Spoke",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7131,
+    "description": "A wiry, one-eyed gambling-den host. Bright, quick, raspy voice, cheerful and chummy, a showman's grin. Close-mic'd, studio quality.",
+    "voice_id": "57eVSFdN0NELCM3ZSS9a",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[cheerful] Step up! Nothing up my sleeve!",
+        "[cheerfully] Pull up a rock, friend!"
+      ],
+      "pleased": [
+        "[laughs] Ha! Luck likes you!"
+      ],
+      "annoyed": [
+        "[groans] Aw, come on now."
+      ]
+    },
+    "design_text": "Step up, step up! Nothing up my sleeve, I haven't got sleeves. Pull up a rock, friend! Ha! Lovely."
+  },
+  "holloway": {
+    "name": "Inspector Holloway",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7132,
+    "description": "A middle-aged male customs inspector. Dry, flat, nasal, bureaucratic deadpan, unhurried, utterly unimpressed. Close-mic'd, studio quality.",
+    "voice_id": "bdI1S6G2rxXyEqzqxhLq",
+    "stability": 0.55,
+    "barks": {
+      "hello": [
+        "[deadpan] Port Authority. Cut your engines.",
+        "[deadpan] Routine inspection. Paperwork."
+      ],
+      "pleased": [
+        "[deadpan] Everything in order. Good."
+      ],
+      "annoyed": [
+        "[sighs] That will need a form."
+      ]
+    },
+    "design_text": "Port Authority. Cut your engines. Anything undeclared will be confiscated, and anything confiscated will be declared."
+  },
+  "pip": {
+    "name": "Pip Hollow",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7133,
+    "description": "A young male insurance salesman. Bright, bouncy, relentlessly upbeat, fast and eager, a big salesman's smile. Close-mic'd, studio quality.",
+    "voice_id": "QUnT7pDLYkA2V05J8OvJ",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[excited] Hi there! Ever thought about disaster?",
+        "[cheerfully] Pip Hollow, Lantern Mutual!"
+      ],
+      "pleased": [
+        "[delighted] Wonderful! You're covered!"
+      ],
+      "annoyed": [
+        "[cheerfully] No worries! Accidents happen!"
+      ]
+    },
+    "design_text": "Hi there! Pip Hollow, Lantern Mutual! Every hole is a little nest egg! I'll be around. Accidents always are."
+  },
+  "nell": {
+    "name": "Big Nell",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7134,
+    "description": "A big, hearty middle-aged woman fuel merchant. Loud, warm, booming voice with a huge rolling laugh, teasing and kind. Close-mic'd, studio quality.",
+    "voice_id": "KoULnCKCPsa48mX9aWNQ",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[laughs] Fill her up, sweetheart?",
+        "[cheerfully] Nell's tanker! Clean-ish!"
+      ],
+      "pleased": [
+        "[big laugh] Ha ha ha! Lovely!"
+      ],
+      "annoyed": [
+        "[laughs] Oh, you poor thing!"
+      ]
+    },
+    "design_text": "Fill her up, sweetheart? Nell's tanker! Clean-ish! Ha ha ha! My cousin heard it from a man, you see."
+  },
+  "rollo": {
+    "name": "Rollo Stax",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7135,
+    "description": "A middle-aged male pirate radio broadcaster. Smooth, punchy, theatrical announcer voice, fast and showy, always on air. Close-mic'd, studio quality.",
+    "voice_id": "uCBQMx48PQEvDe4SM0Uh",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[announcer] You're on the air, pilot!",
+        "[excited] Rollo Stax, voice of the lanes!"
+      ],
+      "pleased": [
+        "[laughs] What a story, folks!"
+      ],
+      "annoyed": [
+        "[dramatic] A moment's silence. That's enough."
+      ]
+    },
+    "design_text": "You're on the air! Rollo Stax, the voice of the lanes! The only news that isn't lying to you on purpose!"
+  },
+  "kaspar": {
+    "name": "Kaspar",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7136,
+    "description": "A lean male bounty hunter in his forties. Low, calm, quiet, measured professional voice, polite and dangerous, never raises it. Close-mic'd, studio quality.",
+    "voice_id": "l1ROk1U3m1K9CfI3xyNP",
+    "stability": 0.5,
+    "barks": {
+      "hello": [
+        "[calmly] Pilot. There's a price on you.",
+        "[quietly] Don't run. It's only business."
+      ],
+      "pleased": [
+        "[calmly] Pleasure. Who are you again?"
+      ],
+      "annoyed": [
+        "[coldly] That was a mistake."
+      ]
+    },
+    "design_text": "Pilot. There's a price on your head. Don't run. It's only business. I'm very good at forgetting. For a fee."
+  },
+  "juno": {
+    "name": "Captain Juno Pell",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7137,
+    "description": "A woman courier captain in her thirties. Dry, wry, husky voice, short of breath and running out of air, still joking. Close-mic'd, studio quality.",
+    "voice_id": "uhc9EZUUDK2GSSuLe1EB",
+    "stability": 0.35,
+    "barks": {
+      "hello": [
+        "[breathless] Mayday. Anyone out there?",
+        "[wry] Hi. Bit of a situation here."
+      ],
+      "pleased": [
+        "[relieved laugh] Oh, you beautiful idiot."
+      ],
+      "annoyed": [
+        "[gasps] Oh, you absolute barnacle!"
+      ]
+    },
+    "design_text": "Mayday, mayday. Anyone out there? Hi. Bit of a situation here. Engines dead, air for a day. I'll pay. Probably."
+  },
+  "brask": {
+    "name": "Captain Odo Brask",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7138,
+    "description": "An older male refugee captain. Quiet, low, tired voice with great dignity, slow and gentle, never begging. Close-mic'd, studio quality.",
+    "voice_id": "EFUOjyvJ3tg5rA1kdjPw",
+    "stability": 0.5,
+    "barks": {
+      "hello": [
+        "[quietly] Pilot. We mean no harm.",
+        "[tired] This is the last convoy. Please."
+      ],
+      "pleased": [
+        "[gratefully] Thank you. We won't forget."
+      ],
+      "annoyed": [
+        "[sighs] Luck is all we have."
+      ]
+    },
+    "design_text": "Pilot. We mean no harm. This is the last convoy. The Cartel took the rest. Luck is about all anyone has out here."
+  },
+  "varga": {
+    "name": "Dr I. Varga",
+    "kind": "voice",
+    "fx": "none",
+    "seed": 7139,
+    "description": "A woman ship's surgeon in her fifties. Crisp, brisk, no-nonsense voice, quick and practical, dry warmth underneath. Close-mic'd, studio quality.",
+    "voice_id": "BXI7Djwc1eQbzVDJaV7B",
+    "stability": 0.45,
+    "barks": {
+      "hello": [
+        "[brisk] Right. Where are you bleeding?",
+        "[briskly] Sleeves up. Let's see you."
+      ],
+      "pleased": [
+        "[brisk] Good. You'll live."
+      ],
+      "annoyed": [
+        "[sharply] Sit still, pilot."
+      ]
+    },
+    "design_text": "Right. Where are you bleeding? Sleeves up, let's see you. Good. You'll live. Sit still, pilot. Hold that."
+  },
+  "wick": {
+    "name": "Wick Tarrow",
+    "kind": "voice",
+    "fx": "radio",
+    "seed": 7140,
+    "description": "A very old male pilot. Deep, gravelly, cracked, slow voice, fond and amused, a lifetime of engines in it. Close-mic'd, studio quality.",
+    "voice_id": "l8kwJ9eJ0rIOegAgZJ46",
+    "stability": 0.4,
+    "barks": {
+      "hello": [
+        "[fondly] Well, look at you, kid.",
+        "[chuckles] Another rustwing."
+      ],
+      "pleased": [
+        "[warmly] That's flying, kid."
+      ],
+      "annoyed": [
+        "[grumbles] Ah, kids these days."
+      ]
+    },
+    "design_text": "Well, look at you, kid. Another rustwing. Good. That's flying, kid. Ah, I flew these lanes before the lanterns."
+  },
+  "leeches": {
+    "name": "Hull leeches",
+    "kind": "sfx",
+    "fx": "none",
+    "seconds": 2.5,
+    "barks": {
+      "hello": [
+        "leathery bat wings flapping and slapping against a metal hull, wet chittering, small teeth gnawing on a cable",
+        "swarm of small leathery winged parasites landing on a metal spaceship hull, wet clicking chitter, teeth scraping cable, a spark"
+      ],
+      "annoyed": [
+        "angry wet hissing screech of a small leathery winged parasite, wings slapping metal, teeth snapping"
+      ]
+    }
+  },
+  "umora": {
+    "name": "Umora calf",
+    "kind": "sfx",
+    "fx": "none",
+    "seconds": 5,
+    "barks": {
+      "hello": [
+        "a vast gentle whale calf song in deep space, slow low moan rising to a warm hum, distant and huge",
+        "young space whale calling softly, deep low moan sliding up into a warm resonant hum, vast and gentle"
+      ],
+      "pleased": [
+        "happy whale calf song, warm rising hum with a gentle trill, deep and vast, soft and content"
+      ]
+    }
+  }
+}

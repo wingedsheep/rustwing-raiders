@@ -12,4 +12,4 @@ No one faction: the wild fight alongside the planet's own wherever a biome has c
 - **Bounties:** [Loot Runner](../enemies/loot-runner.md), [Iron Crate](../enemies/iron-crate.md).
 - **Elite names:** SCARBACK, GREYMAW, OLD MOTHER, THE WIDOW, SPLITHORN, HOLLOWEYE.
 
-Ideas: [hull leeches](../npcs/hull-leeches.md) and [the Purrgil of Vesh](../npcs/purrgil-of-vesh.md) (style guide); helping the pirates harvest a whale would earn a wild-faction grudge, which would need the wild to have a mood.
+Ideas: [hull leeches](../npcs/hull-leeches.md) and [the umora](../npcs/the-umora.md); helping the pirates harvest a whale would earn a wild-faction grudge, which would need the wild to have a mood.

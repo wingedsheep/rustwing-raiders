@@ -22,4 +22,4 @@ Reef Glider (dart), Reef Eel (serpent), Shrimp Kite (swarm), Pirate Junk (gunshi
 ## Ideas
 
 - [ ] Trade good: **whale oil**.
-- [ ] Home of [the Purrgil of Vesh](../npcs/purrgil-of-vesh.md), the whales the pirates hunt.
+- [ ] Home of [the umora](../npcs/the-umora.md), the lane-whales the pirates hunt.

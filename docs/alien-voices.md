@@ -12,7 +12,7 @@ Everything else in `src/audio.ts` is synthesized at runtime. Voices are the exce
 |---|---|---|
 | **Speech** (the lines) | `eleven_v4` | The newest and most expressive model (out since late September 2026). It follows audio tags such as `[growls]`, `[whispers]` and `[laughs]` more reliably than v3, and keeps a voice steadier across takes. Up to 10,000 characters per call. |
 | **Voice design** (making the voices) | `eleven_ttv_v3` | The newest voice-design model. Unlike `eleven_multilingual_ttv_v2`, it can take **reference audio**, which we need for the creature-shop trick in §4. |
-| **Creature noises** (no words) | `eleven_text_to_sound_v3` | For the things that don't talk: hull leeches, the purrgil, a creature's bark on a tell. |
+| **Creature noises** (no words) | `eleven_text_to_sound_v3` | For the things that don't talk: hull leeches, the umora, a creature's bark on a tell. |
 
 Not for us: `eleven_v4_turbo` and `eleven_v3_conversational` are the real-time models. They are built for live agents, and our clips are baked once. `eleven_v3` is the previous generation, our fallback if a designed voice sounds worse on v4 (one guide says designed voices can lose a little polish there, so compare both).
 
@@ -23,7 +23,7 @@ Not for us: `eleven_v4_turbo` and `eleven_v3_conversational` are the real-time m
 ## 2. Two kinds of sound
 
 1. **People who talk** (the Vhossk Twins, Tobbo Grisk, 7-Holly, ...). A **designed voice** speaks **gibberish written in that species' sound-set** (§5), with audio tags for the acting. Sent to `eleven_v4`.
-2. **Creatures that don't** (hull leeches, the purrgil, faction beasts). A **sound-effect prompt** to `eleven_text_to_sound_v3`. Voice design is built for voices that speak, so it can't make a whale song or a wet chitter.
+2. **Creatures that don't** (hull leeches, the umora, faction beasts). A **sound-effect prompt** to `eleven_text_to_sound_v3`. Voice design is built for voices that speak, so it can't make a whale song or a wet chitter.
 
 When in doubt, pick (1) when it haggles and (2) when it bites.
 
@@ -140,49 +140,51 @@ For the **Choir**, render each bark once and layer three copies in the browser, 
 
 ```
 config.yaml                     # elevenlabs.apiKey — gitignored, never commit it
-tools/voices/cast.yaml          # per character: description, seed, voice_id, stability, barks
-tools/voices/voices.py          # design | save | render | sfx
+tools/voices/cast.json          # per character: name, kind, fx, seed, description, voice_id, stability, barks
+tools/voices/voices.py          # design | save | render | sfx | finish | manifest
+tools/voices/previews/          # design previews (gitignored)
 public/audio/voices/<who>/<bark>_<take>.mp3
+public/audio/voices/index.json  # the manifest the game reads: { who: { fx, barks: { hello, pleased, annoyed } } }
 ```
 
-`tools/voices/voices.py` (Python, like `tools/models/`), with four commands:
+Every character in `src/sim/cast.ts` has a voice (the human cast too; the Twins are two, `grohh` and `vukka`; the umora calf and the leeches are sound effects). Three barks each: **hello** when the event opens, **pleased** or **annoyed** when its outcome lands.
 
-- `design <who>`: calls `/text-to-voice/design`, writes the previews to `tools/voices/previews/<who>/` (gitignored), and prints their ids. You listen and pick.
-- `save <who> <generated_voice_id>`: calls `/text-to-voice` and writes the `voice_id` back into `cast.yaml`.
-- `render [<who>]`: for each bark and take, `POST /v1/text-to-speech/<voice_id>?output_format=mp3_44100_128` with `{ "model_id": "eleven_v4", "text": "…", "voice_settings": { "stability": …, "similarity_boost": 0.75 } }`, and writes the file. It skips files that exist, so rerunning only fills gaps (`--force` to redo).
-- `sfx <who>`: `POST /v1/sound-generation` with `{ "model_id": "eleven_text_to_sound_v3", "text": "…", "duration_seconds": … , "prompt_influence": 0.5 }`.
+`tools/voices/voices.py` (Python, like `tools/models/`):
 
-An entry in `cast.yaml`:
+- `design <who>`: calls `/text-to-voice/design` with the description and a `design_text` in the character's tongue, writes previews to `tools/voices/previews/<who>/`.
+- `save <who> [<generated_voice_id>]`: calls `/text-to-voice` and writes the `voice_id` back into `cast.json` (the first usable preview by default).
+- `render [<who>] [--force]`: each bark and take through `eleven_v4` text-to-speech. Skips files that exist.
+- `sfx [<who>] [--force]`: creature barks through `eleven_text_to_sound_v3`.
+- `finish [<who>]`: the ffmpeg pass again from the raw downloads: trimmed, long pauses capped, sped up to fit 2.5 s (at most ×1.15), mono 44.1 kHz, about −18 LUFS, mp3 96 kbps.
+- `manifest`: rewrites `index.json`.
 
-```yaml
-tobbo:
-  kind: voice
-  seed: 7110
-  description: >-
-    A pot-bellied alien junk dealer. Raspy, nasal, mid-high voice, fast-talking,
-    wheedling, easily insulted, sing-song rise at the end. Unplaceable non-human accent.
-  voice_id: null        # filled by `save`
-  stability: 0.3
-  barks:
-    hello:   ["[cheerful] Bahwoh-zza! Zzimbo, zzimbo wahh!", "[warmly] Oh-boh-boh! Zza-wimbo?"]
-    pleased: ["[laughs] Wahh-zza, wahh-zza!", "[delighted] Bimbo-bah! Oh-boh!"]
-    annoyed: ["[scoffs] Bahh. Zzimbo… [sighs] wahh.", "[offended] Zza?! Boh-boh-boh!"]
-    angry:   ["[shouting] ZZA! Bahwoh-zza-BAH!", "[growls] Wohh… zzimbo. Bah!"]
-    bye:     ["[cheerful] Wahh-boh!", "[muttering] Zza, zza… boh."]
+An entry in `cast.json`:
+
+```json
+"seffa": {
+  "name": "Old Mother Seffa", "kind": "voice", "fx": "none", "seed": 7101,
+  "description": "A tiny, ancient, moth-like alien woman. Thin, breathy, warm voice, very slow…",
+  "voice_id": "…", "stability": 0.4,
+  "barks": {
+    "hello":   ["[softly] Hoo… waeha.", "[warmly] Hoo-ae, waeha-hoo?"],
+    "pleased": ["[gentle laugh] Waeha-hoo."],
+    "annoyed": ["[sighs] Hoo… hoo-wae?"]
+  }
+}
 ```
 
-The game plays a bark through `audio.ts` on the `sfxBus` (so mute and volume apply), keyed by the event's `who` in `src/sim/events.ts`. That ties to the human cast too, if we voice them later.
+`src/voices.ts` plays them: it fetches the manifest and a character's clips when their event opens, plays a bark under the subtitled text (never the same take twice running), ducks the music while it speaks, and cuts the bark off when you choose.
 
 ---
 
 ## 8. Post-processing in the browser
 
-The clips stay clean, and the strangeness that is cheap to do live happens in Web Audio:
+The clips stay clean, and the strangeness that is cheap to do live happens in Web Audio (`fx` in the manifest, applied in `src/voices.ts`):
 
-- **Droids** (7-Holly, Saint Ferrule): a ring modulator (a 40–70 Hz sine multiplying the signal) plus a bandpass, so they sound like a speaker grille.
-- **Pitch**: `playbackRate` 1.1–1.25 for Skree and Squit. It shifts speed too, and that suits them.
-- **Layers**: Tobbo's wing buzz and the Ledger Clan's abacus clicks are synth sounds `audio.ts` can already make, played under the bark.
-- **Space**: the Choir and the purrgil go through the long reverb send.
+- **droid** (7-Holly, Saint Ferrule): ring modulation at 74 Hz, half wet, through a narrow speaker band.
+- **intercom** (the Wren): a band and a little grit, with a squelch of static at the start.
+- **radio** (the humans who hail you over comms: Holloway, Nell, Rollo, Kaspar, Juno, Brask, Wick): narrower and grittier.
+- **choir** (the Tamsin Lowe): three copies, a few cents and a breath apart: one voice saying "we".
 
 ---
 

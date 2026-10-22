@@ -1,0 +1,651 @@
+import type { Game, Screen } from '../game/game';
+import type { Run, Snapshot } from '../sim/run';
+import type { ChartNode } from '../sim/chart';
+import type { Beat, Choice, Result, RunEvent, Scene } from '../sim/events';
+import type { Planet } from '../world/planets';
+import type { Item } from '../game/loot';
+import { castOf, type CastMember } from '../sim/cast';
+import { meet, timesMet } from '../sim/memory';
+import { audio } from '../audio';
+import { bark, hush, preloadVoice, type Bark } from '../voices';
+import { input } from '../input';
+import { drawText, wrap } from '../ui/font';
+import { CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame } from '../ui/hud';
+import { button, hints } from '../ui/widgets';
+import { chipRows, TONE_INK } from '../ui/chips';
+import { lootCard } from '../ui/loot-card';
+import { bestFit } from '../sim/fit';
+import { drawArt } from './art';
+import { status, surround } from './stops';
+import { minigame, type Minigame, type Pad } from './minigames';
+import { glow } from './minigames/common';
+import { hashStr, rng, smooth } from '../util';
+
+type Phase = 'talk' | 'choose' | 'roll' | 'ready' | 'play' | 'scored' | 'outcome';
+
+const TONE = { good: GREEN, bad: RED, info: CYAN };
+/** The narrator's ink, when nobody's talking. */
+const NARRATOR = '#e8dcf0';
+/** Letters a second for the narrator. */
+const NARRATOR_PACE = 85;
+const COL_X = 334;
+const COL_W = 294;
+const ROLL_TIME = 2.1;
+
+/**
+ * Something out in the dark, Gazillionaire fashion. The scene is painted big; who's in it gets a
+ * name plate in their colour and says their piece in their own voice (a bark, voices.ts), the
+ * words arriving at their own pace. Then the choices come in, each with what it costs and pays as
+ * chips, a part shown as a card where one's on offer. A gamble is rolled in front of you, the
+ * needle sweeping over the odds; a little game is played careful or bold. Then what came of it:
+ * their answer, and every change to your affairs, tallied in a line at a time. Some answers lead
+ * to a second beat, and you choose again.
+ */
+export class EventScreen implements Screen {
+  private at = 0;
+  private bold = false;
+  private phase: Phase = 'talk';
+  private choices: Choice[] = [];
+  private result: Result | null = null;
+  private readonly before: Snapshot;
+  private changes: { text: string; tone: 'good' | 'bad' | 'info' }[] = [];
+  private mini: Minigame | null = null;
+  private t = 0;
+  /** Time in this phase. */
+  private pt = 0;
+  private msg = '';
+  private msgT = 0;
+  private shakeT = 0;
+  /** Who's talking now, and what they're saying. */
+  private who: string;
+  private text: string;
+  private lines: string[] = [];
+  private readonly scene: Scene;
+  private beats = 0;
+  private roll = { odds: 0.5, won: true, final: 0.5, last: 0 };
+  /** Changes shown so far in the outcome's tally. */
+  private shown = 0;
+  private fits = new Map<Item, ReturnType<typeof bestFit>>();
+
+  constructor(
+    private game: Game,
+    private run: Run,
+    private ev: RunEvent,
+    private node: ChartNode,
+    private planet: Planet,
+    private onDone: (result: Result) => void,
+  ) {
+    this.before = run.snapshot();
+    this.who = ev.who;
+    const again = ev.who ? timesMet(ev.who) : 0;
+    this.scene = { node, planet, again };
+    this.text = ev.text(run, this.scene);
+    if (ev.who) meet(ev.who);
+    this.setChoices(ev.choices);
+    if (!run.seenEvents.includes(ev.id)) run.seenEvents.push(ev.id);
+    this.say(this.text);
+    audio.music('map');
+    if (this.cast?.voice) {
+      preloadVoice(this.cast.voice);
+      if (ev.who === 'twins') preloadVoice('vukka');
+    }
+    this.speak('hello');
+    // ?mini: straight into this event's game (?bold for the bold one), for testing
+    const p = game.params;
+    if (p.has('mini')) {
+      const k = this.choices.findIndex((c) => c.game && (!p.get('mini') || c.game === p.get('mini')));
+      if (k >= 0) {
+        this.at = k;
+        this.bold = p.has('bold') || !!this.choices[k].boldOnly;
+        this.choose();
+      }
+    }
+  }
+
+  private get cast(): CastMember | null {
+    return castOf(this.who);
+  }
+
+  private setChoices(cs: Choice[]) {
+    this.choices = cs.filter((c) => !c.if || c.if(this.run, this.scene));
+    // start on the first one you can take
+    this.at = Math.max(0, this.choices.findIndex((c) => !c.locked?.(this.run, this.scene)));
+    this.bold = !!this.choices[this.at]?.boldOnly;
+  }
+
+  private say(text: string) {
+    this.text = text;
+    this.lines = wrap(text, 294);
+    this.pt = 0;
+  }
+
+  private speak(kind: Bark) {
+    const v = this.cast?.voice;
+    if (!v) return;
+    void bark(v, kind);
+    // the Twins are two people: the other head always has something to add
+    if (this.who === 'twins' && kind === 'hello') setTimeout(() => void bark('vukka', 'hello'), 1500);
+  }
+
+  /** Letters of the current text shown so far. */
+  private get typed() {
+    const pace = this.cast?.pace ?? NARRATOR_PACE;
+    return Math.floor(this.pt * pace);
+  }
+
+  private get doneTyping() {
+    return this.typed >= this.text.length;
+  }
+
+  private pad(): Pad {
+    const out: Pad = { x: 0, y: 0, hold: false, press: false };
+    for (const d of this.game.menuDevices()) {
+      const i = input.intent(d);
+      if (Math.abs(i.x) > Math.abs(out.x)) out.x = i.x;
+      if (Math.abs(i.y) > Math.abs(out.y)) out.y = -i.y;
+      out.hold ||= i.fire;
+    }
+    out.hold ||= input.keyHeld('Enter');
+    out.press = this.game.menu().confirm;
+    return out;
+  }
+
+  private choose() {
+    const c = this.choices[this.at];
+    const why = c.locked?.(this.run, this.scene);
+    if (why) {
+      this.msg = why;
+      this.msgT = 1.6;
+      this.shakeT = 0.3;
+      audio.play('ui_error');
+      if (this.game.params.has('autorun')) this.at = (this.at + 1) % this.choices.length;
+      return;
+    }
+    hush();
+    if (c.game) {
+      const setup = c.setup?.(this.run, this.bold, this.scene);
+      this.mini = minigame(c.game, this.bold, this.node.seed ^ (this.bold ? 0x51 : 0x17) ^ (this.beats * 0x101), setup);
+      this.phase = 'ready';
+      this.pt = 0;
+      audio.play('ui_select');
+      return;
+    }
+    if (c.odds) {
+      const odds = c.odds(this.run, this.scene);
+      const r = rng(this.node.seed ^ 0x0dd5 ^ hashStr(c.label) ^ (this.beats * 977));
+      const won = r() < odds;
+      // where the needle comes to rest: inside the green if it went your way, the red if not
+      const final = won ? r() * odds * 0.9 + odds * 0.05 : odds + (1 - odds) * (0.05 + r() * 0.9);
+      this.roll = { odds, won, final, last: 0.5 };
+      this.phase = 'roll';
+      this.pt = 0;
+      audio.play('ui_select');
+      return;
+    }
+    this.finish(1, true);
+  }
+
+  private finish(score: number, won: boolean) {
+    const c = this.choices[this.at];
+    this.result = c.outcome(this.run, {
+      ...this.scene,
+      r: rng(this.node.seed ^ 0xe7e7 ^ (this.beats * 31)),
+      score,
+      bold: this.bold,
+      won,
+      value: this.mini?.value ?? null,
+    });
+    this.changes = this.run.changes(this.before);
+    this.shown = 0;
+    this.phase = 'outcome';
+    this.say(this.result.text);
+    if (this.result.mood) this.speak(this.result.mood);
+    audio.play(this.result.fight ? 'boss_warning' : 'ui_select');
+  }
+
+  private next(beat: Beat) {
+    this.beats++;
+    if (beat.who !== undefined && beat.who !== this.who) {
+      this.who = beat.who;
+      if (this.cast?.voice) preloadVoice(this.cast.voice);
+      this.speak('hello');
+    }
+    this.result = null;
+    this.mini = null;
+    this.setChoices(beat.choices);
+    this.say(beat.text);
+    this.phase = 'talk';
+  }
+
+  update(dt: number) {
+    this.t += dt;
+    this.pt += dt;
+    this.msgT -= dt;
+    this.shakeT -= dt;
+    if (this.phase === 'ready') {
+      this.game.menu();
+      if (this.pt > 1.6) {
+        this.phase = 'play';
+        this.pt = 0;
+      }
+      return;
+    }
+    if (this.phase === 'play') {
+      const m = this.mini!;
+      m.update(dt, this.pad());
+      if (m.result !== null) {
+        this.phase = 'scored';
+        this.pt = 0;
+        audio.play(m.result >= 0.55 ? 'level_clear' : m.result > 0 ? 'pickup_scrap' : 'player_hit');
+      }
+      return;
+    }
+    const m = this.game.menu();
+    if (this.phase === 'scored') {
+      // the game goes on ticking, idle, so its sparks settle
+      this.mini!.update(dt, { x: 0, y: 0, hold: false, press: false });
+      if (this.pt > 1.6 || (this.pt > 0.5 && m.confirm)) this.finish(this.mini!.result!, true);
+      return;
+    }
+    if (this.phase === 'roll') {
+      const pos = this.needle();
+      // a tick each time the needle crosses from one side of the odds to the other
+      if (pos < this.roll.odds !== this.roll.last < this.roll.odds) audio.play('ui_move', { pitch: 0.8 + pos * 0.6 });
+      this.roll.last = pos;
+      if (this.pt >= ROLL_TIME + 0.7 || (this.pt > ROLL_TIME && m.confirm)) this.finish(1, this.roll.won);
+      else if (this.pt >= ROLL_TIME && this.pt - dt < ROLL_TIME) audio.play(this.roll.won ? 'level_clear' : 'player_hit');
+      return;
+    }
+    if (this.phase === 'talk') {
+      if (m.confirm || this.doneTyping) {
+        this.phase = 'choose';
+        this.pt = 0;
+      }
+      return;
+    }
+    if (this.phase === 'outcome') {
+      // the tally, a line at a time
+      const due = Math.min(this.changes.length, Math.floor(Math.max(0, this.pt - 0.35) / 0.16));
+      while (this.shown < due) {
+        const c = this.changes[this.shown++];
+        audio.play(c.tone === 'good' ? 'pickup_scrap' : c.tone === 'bad' ? 'ui_back' : 'ui_move', { vol: 0.7 });
+      }
+      if (m.confirm) {
+        if (!this.doneTyping || this.shown < this.changes.length) {
+          this.pt = 99;
+          this.shown = this.changes.length;
+          return;
+        }
+        audio.play('ui_select');
+        hush();
+        const r = this.result!;
+        if (r.then && !r.fight) return this.next(r.then);
+        this.onDone(r);
+      }
+      return;
+    }
+    // choosing
+    const n = this.choices.length;
+    if (m.up) this.at = (this.at + n - 1) % n;
+    if (m.down) this.at = (this.at + 1) % n;
+    if (m.up || m.down) {
+      audio.play('ui_move');
+      this.bold = !!this.choices[this.at].boldOnly;
+    }
+    const c = this.choices[this.at];
+    if ((m.left || m.right || m.prev || m.next) && c.game && !c.boldOnly) {
+      this.bold = !this.bold;
+      audio.play(this.bold ? 'risk_up' : 'ui_move');
+    }
+    if (m.confirm) this.choose();
+  }
+
+  /** Where the roll's needle is, 0..1 along the bar. */
+  private needle() {
+    const u = Math.min(1, this.pt / ROLL_TIME);
+    const amp = (1 - smooth(u)) * 0.62;
+    const p = this.roll.final + amp * Math.sin(this.pt * 13 + 1.3) + amp * 0.4 * Math.sin(this.pt * 29);
+    return Math.max(0.005, Math.min(0.995, p));
+  }
+
+  // ----------------------------------------------------------------------------------------------
+  // Drawing
+  // ----------------------------------------------------------------------------------------------
+
+  draw() {
+    const g = this.game;
+    g.clearGL();
+    const ctx = g.ui;
+    ctx.clearRect(0, 0, W, H);
+    surround(ctx);
+    const playing = this.phase === 'ready' || this.phase === 'play' || this.phase === 'scored';
+    this.backdrop(ctx, playing);
+    if (playing) return this.drawGame(ctx);
+    this.heading(ctx);
+    status(ctx, this.run, W - 8, 8);
+    const dev = g.devices[0] ?? 'keys';
+    this.dialogue(ctx);
+    if (this.phase === 'talk') {
+      hints(ctx, dev, [['confirm', 'GO ON']], W / 2, H - 12, 'center');
+    } else if (this.phase === 'choose') {
+      this.drawChoices(ctx);
+      const c = this.choices[this.at];
+      hints(ctx, dev, [['move', c.game && !c.boldOnly ? 'CHOOSE, CAREFUL OR BOLD' : 'CHOOSE'], ['confirm', 'DECIDE']], W / 2, H - 12, 'center');
+    } else if (this.phase === 'roll') {
+      this.drawRoll(ctx);
+    } else if (this.phase === 'outcome') {
+      this.drawOutcome(ctx);
+      const r = this.result!;
+      hints(ctx, dev, [['confirm', r.fight ? 'FIGHT' : r.then ? 'GO ON' : 'ON YOU GO']], W / 2, H - 12, 'center');
+    }
+  }
+
+  /** The painting, settling in as the scene opens; darker at the foot, where the words go. */
+  private backdrop(ctx: CanvasRenderingContext2D, playing: boolean) {
+    const k = smooth(Math.min(1, this.t / 1.1));
+    if (k < 1) {
+      const s = 1.05 - 0.05 * k;
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      drawArt(ctx, this.ev.art, (W - W * s) / 2, (H - H * s) / 2, W * s, H * s);
+      ctx.restore();
+    } else drawArt(ctx, this.ev.art, 0, 0, W, H);
+    if (playing) {
+      ctx.fillStyle = 'rgba(10,7,16,0.78)';
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+    const gr = ctx.createLinearGradient(0, 150, 0, H);
+    gr.addColorStop(0, 'rgba(10,7,16,0)');
+    gr.addColorStop(0.45, 'rgba(10,7,16,0.72)');
+    gr.addColorStop(1, 'rgba(10,7,16,0.94)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 150, W, H - 150);
+    const top = ctx.createLinearGradient(0, 0, 0, 56);
+    top.addColorStop(0, 'rgba(10,7,16,0.85)');
+    top.addColorStop(1, 'rgba(10,7,16,0)');
+    ctx.fillStyle = top;
+    ctx.fillRect(0, 0, W, 56);
+    // the first moment: out of black
+    if (this.t < 0.6) {
+      ctx.fillStyle = `rgba(6,4,10,${1 - this.t / 0.6})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  /** Where it is, what it is, how dangerous. */
+  private heading(ctx: CanvasRenderingContext2D) {
+    const where = this.node.planet ? `ON ${this.planet.name}` : `DEEP SPACE, NEAR ${this.planet.name}`;
+    const x = 14;
+    drawText(ctx, where, x, 9, DIM);
+    const dx = x + where.length * 6 + 8;
+    for (let k = 0; k < 3; k++) drawText(ctx, '◆', dx + k * 7, 9, k < this.ev.danger ? (this.ev.danger >= 2 ? RED : GOLD) : '#3a2e48');
+    drawText(ctx, this.ev.title, x, 20, INK, { scale: 2 });
+  }
+
+  /** The speaker's plate and their words; returns the top of the box. */
+  private dialogue(ctx: CanvasRenderingContext2D) {
+    const cast = this.cast;
+    const ink = cast?.color ?? NARRATOR;
+    const x = 12;
+    const w = 314;
+    const textH = Math.max(3, this.lines.length) * 10;
+    const bottom = H - 26;
+    const top = bottom - textH - 16;
+    // the box
+    ctx.fillStyle = 'rgba(14,10,22,0.88)';
+    ctx.fillRect(x, top, w, bottom - top);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(x, top, w, 1);
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x, top, 2, bottom - top);
+    ctx.globalAlpha = 1;
+    // the plate
+    if (cast) {
+      const nw = cast.name.length * 6 + 14;
+      ctx.fillStyle = DARK;
+      ctx.fillRect(x - 1, top - 14, nw + 2, 15);
+      ctx.fillStyle = ink;
+      ctx.fillRect(x, top - 13, nw, 13);
+      drawText(ctx, cast.name, x + 7, top - 10, DARK, { shadow: false });
+      drawText(ctx, cast.role, x + nw + 6, top - 10, ink);
+      if (this.scene.again && this.beats === 0) {
+        // beside the role if there's room, else just above the plate
+        const fits = x + nw + 6 + cast.role.length * 6 + 8 + 60 <= x + w;
+        if (fits) drawText(ctx, 'MET BEFORE', x + w - 4, top - 10, DIM, { align: 'right' });
+        else drawText(ctx, 'MET BEFORE', x + 1, top - 24, DIM);
+      }
+      // a pulse on the plate while they speak
+      if ((this.phase === 'talk' || this.phase === 'outcome') && !this.doneTyping) glow(ctx, x + nw - 4, top - 7, 10, ink, 0.25 + 0.15 * Math.sin(this.t * 20));
+    }
+    // the words, arriving
+    const typing = this.phase === 'talk' || this.phase === 'outcome';
+    let left = typing ? this.typed : 1e9;
+    let y = top + 8;
+    const col = this.phase === 'outcome' && this.result?.fight ? '#ffb0a0' : cast ? INK : NARRATOR;
+    for (const l of this.lines) {
+      if (left <= 0) break;
+      const s = l.slice(0, left);
+      drawText(ctx, s, x + 10, y, col);
+      left -= l.length + 1;
+      y += 10;
+    }
+    // a caret while there's more coming
+    if (typing && !this.doneTyping && Math.floor(this.t * 4) % 2) {
+      ctx.fillStyle = ink;
+      ctx.fillRect(x + w - 10, bottom - 8, 4, 4);
+    }
+    return top;
+  }
+
+  private cardHeight(c: Choice, on: boolean) {
+    let h = 13;
+    const chips = c.chips?.(this.run, this.bold && on, this.scene) ?? [];
+    const locked = c.locked?.(this.run, this.scene);
+    if (chips.length || locked) h += chipRows(null, locked ? [{ icon: 'risk', text: locked, tone: 'bad' }] : chips, 0, 0, COL_W - 16) + 3;
+    if (on) {
+      const note = c.note?.(this.run, this.bold, this.scene);
+      if (note) h += wrap(note, COL_W - 16).slice(0, 2).length * 9 + 2;
+      if (c.game) h += 14;
+      if (c.odds) h += 7;
+    }
+    return h + 4;
+  }
+
+  private drawChoices(ctx: CanvasRenderingContext2D) {
+    const hs = this.choices.map((c, k) => this.cardHeight(c, k === this.at));
+    const total = hs.reduce((a, b) => a + b + 3, -3);
+    const bottom = H - 26;
+    let y = Math.max(70, bottom - total);
+    const sel = this.choices[this.at];
+    // a part on offer, as a card above the choices
+    const it = sel.item?.(this.run, this.scene, this.bold) ?? null;
+    if (it && y - 82 > 72) {
+      const ch = Math.min(124, y - 82);
+      const cy = y - ch - 8;
+      let fit = this.fits.get(it);
+      if (!fit) this.fits.set(it, (fit = bestFit(this.run.crew[0].build, it)));
+      lootCard(ctx, it, this.run.crew[0].build, W - 8 - 184, cy, 184, ch, { t: this.t, fit, terse: true });
+    }
+    this.choices.forEach((c, k) => {
+      const on = k === this.at;
+      // in from the right, one after another
+      const a = smooth(Math.min(1, Math.max(0, (this.pt - k * 0.06) / 0.22)));
+      const x = COL_X + Math.round((1 - a) * 24) + (on && this.shakeT > 0 ? Math.round(Math.sin(this.shakeT * 60) * 2) : 0);
+      ctx.globalAlpha = a;
+      this.card(ctx, c, x, y, hs[k], on);
+      ctx.globalAlpha = 1;
+      y += hs[k] + 3;
+    });
+    if (this.msgT > 0) drawText(ctx, this.msg, COL_X + COL_W / 2, 62, RED, { align: 'center' });
+  }
+
+  private card(ctx: CanvasRenderingContext2D, c: Choice, x: number, y: number, h: number, on: boolean) {
+    const locked = c.locked?.(this.run, this.scene) ?? null;
+    const bold = this.bold && on && !!c.game;
+    const accent = bold ? '#ff6a5a' : GOLD;
+    ctx.fillStyle = on ? (bold ? 'rgba(58,22,34,0.94)' : 'rgba(40,30,58,0.94)') : 'rgba(16,12,24,0.82)';
+    ctx.fillRect(x, y, COL_W, h);
+    if (on) {
+      ctx.fillStyle = accent;
+      ctx.fillRect(x, y, 2, h);
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x, y, COL_W, 1);
+      ctx.globalAlpha = 1;
+      glow(ctx, x, y + h / 2, 22, accent, 0.18);
+    }
+    const lx = x + 8;
+    let ly = y + 4;
+    drawText(ctx, c.label, lx, ly, locked ? '#6a5e78' : on ? accent : INK);
+    // what kind of choice it is, on the right
+    const tag = c.game ? (on ? '' : 'GAME') : c.odds ? `${Math.round(c.odds(this.run, this.scene) * 100)}%` : '';
+    if (tag) drawText(ctx, tag, x + COL_W - 6, ly, c.odds ? TONE_INK.risk : '#6a5e7a', { align: 'right' });
+    ly += 12;
+    const chips = c.chips?.(this.run, bold, this.scene) ?? [];
+    if (locked || chips.length) ly += chipRows(ctx, locked ? [{ icon: 'risk', text: locked, tone: 'bad' }] : chips, lx, ly, COL_W - 16, !on && !locked) + 3;
+    if (!on) return;
+    if (c.odds) {
+      // the odds as a bar: green for yours, red for theirs
+      const odds = c.odds(this.run, this.scene);
+      const bw = COL_W - 16;
+      ctx.fillStyle = '#3a1a22';
+      ctx.fillRect(lx, ly, bw, 3);
+      ctx.fillStyle = GREEN;
+      ctx.fillRect(lx, ly, Math.round(bw * odds), 3);
+      ly += 7;
+    }
+    const note = c.note?.(this.run, this.bold, this.scene);
+    if (note) {
+      for (const l of wrap(note, COL_W - 16).slice(0, 2)) {
+        drawText(ctx, l, lx, ly, '#a898b8');
+        ly += 9;
+      }
+      ly += 2;
+    }
+    if (c.game) {
+      // careful | bold, a switch
+      const sw = 66;
+      const sx = lx;
+      const opts = c.boldOnly ? (['BOLD'] as const) : (['CAREFUL', 'BOLD'] as const);
+      opts.forEach((o, k) => {
+        const act = (o === 'BOLD') === this.bold;
+        const bx = sx + k * (sw + 2);
+        ctx.fillStyle = act ? (o === 'BOLD' ? '#ff6a5a' : CYAN) : 'rgba(255,255,255,0.06)';
+        ctx.fillRect(bx, ly, sw, 11);
+        drawText(ctx, o, bx + sw / 2, ly + 2, act ? DARK : DIM, { align: 'center', shadow: false });
+      });
+      drawText(ctx, this.bold ? 'HARDER, PAYS MORE' : 'SAFER', sx + opts.length * (sw + 2) + 4, ly + 2, this.bold ? '#ff9a8a' : DIM);
+    }
+  }
+
+  /** The gamble, in front of you: the odds as a bar, a needle sweeping over it, settling. */
+  private drawRoll(ctx: CanvasRenderingContext2D) {
+    const c = this.choices[this.at];
+    const pw = 340;
+    const ph = 84;
+    const px = (W - pw) / 2;
+    const py = 118;
+    const settled = this.pt >= ROLL_TIME;
+    ctx.fillStyle = 'rgba(10,7,16,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    frame(ctx, px, py, pw, ph, 'rgba(18,12,26,0.96)', settled ? (this.roll.won ? GREEN : RED) : '#5a4e68');
+    drawText(ctx, c.label, W / 2, py + 8, GOLD, { align: 'center' });
+    const bx = px + 20;
+    const bw = pw - 40;
+    const by = py + 30;
+    const gw = Math.round(bw * this.roll.odds);
+    ctx.fillStyle = '#1c4a30';
+    ctx.fillRect(bx, by, gw, 14);
+    ctx.fillStyle = '#4a1a24';
+    ctx.fillRect(bx + gw, by, bw - gw, 14);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(bx, by, bw, 1);
+    drawText(ctx, `${Math.round(this.roll.odds * 100)}%`, bx + 4, by + 4, GREEN, { shadow: false });
+    drawText(ctx, `${Math.round((1 - this.roll.odds) * 100)}%`, bx + bw - 4, by + 4, '#ff8a7a', { align: 'right', shadow: false });
+    // the needle
+    const nx = Math.round(bx + this.needle() * bw);
+    const ncol = settled ? (this.roll.won ? GREEN : RED) : INK;
+    glow(ctx, nx, by + 7, settled ? 26 : 14, ncol, settled ? 0.6 : 0.35);
+    ctx.fillStyle = DARK;
+    ctx.fillRect(nx - 2, by - 5, 5, 24);
+    ctx.fillStyle = ncol;
+    ctx.fillRect(nx - 1, by - 4, 3, 22);
+    if (settled) {
+      const word = this.roll.won ? 'IT GOES YOUR WAY' : "IT DOESN'T";
+      const pop = 1 + Math.max(0, 0.25 - (this.pt - ROLL_TIME)) * 2;
+      drawText(ctx, word, W / 2, by + 26, this.roll.won ? GREEN : RED, { align: 'center', scale: pop > 1.2 ? 2 : 2 });
+    } else drawText(ctx, '...', W / 2, by + 26, DIM, { align: 'center', scale: 2 });
+  }
+
+  /** What changed, tallied in a line at a time; and a warning if it's come to a fight. */
+  private drawOutcome(ctx: CanvasRenderingContext2D) {
+    const r = this.result!;
+    const lines = this.changes.slice(0, this.shown);
+    const h = 22 + Math.max(1, this.changes.length) * 11 + (r.fight ? 30 : 0);
+    const x = COL_X;
+    const y = Math.max(70, H - 26 - h);
+    ctx.fillStyle = 'rgba(14,10,22,0.9)';
+    ctx.fillRect(x, y, COL_W, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(x, y, COL_W, 1);
+    let ty = y + 7;
+    if (this.mini) {
+      drawText(ctx, `${this.mini.title}: ${Math.round(this.mini.result! * 100)}%  ${this.bold ? 'BOLD' : 'CAREFUL'}`, x + 8, ty, GOLD);
+    } else drawText(ctx, this.changes.length ? 'WHAT CHANGED' : 'NOTHING CHANGED', x + 8, ty, DIM);
+    ty += 14;
+    lines.forEach((c, k) => {
+      const fresh = this.shown === k + 1 && this.pt - 0.35 - k * 0.16 < 0.25;
+      const col = TONE[c.tone];
+      ctx.fillStyle = col;
+      ctx.fillRect(x + 8, ty + 2, 3, 3);
+      if (fresh) glow(ctx, x + 10, ty + 3, 16, col, 0.4);
+      drawText(ctx, c.text, x + 16 + (fresh ? 2 : 0), ty, col);
+      ty += 11;
+    });
+    if (r.fight) {
+      const pulse = 0.6 + 0.4 * Math.sin(this.t * 8);
+      ctx.globalAlpha = pulse;
+      drawText(ctx, 'INCOMING!', x + COL_W / 2, y + h - 24, RED, { scale: 2, align: 'center' });
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  private drawGame(ctx: CanvasRenderingContext2D) {
+    const m = this.mini!;
+    const gx = 80;
+    const gy = 64;
+    const gw = 480;
+    const gh = 240;
+    drawText(ctx, m.title, W / 2, 10, GOLD, { scale: 2, align: 'center' });
+    drawText(ctx, `${this.ev.title}  ·  ${this.bold ? 'BOLD: HARDER, PAYS MORE' : 'CAREFUL'}`, W / 2, 28, this.bold ? '#ff8a7a' : DIM, { align: 'center' });
+    wrap(m.how, 470).forEach((l, k) => drawText(ctx, l, W / 2, 40 + k * 10, INK, { align: 'center' }));
+    frame(ctx, gx - 2, gy - 2, gw + 4, gh + 4, DARK, '#5a4e68');
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.beginPath();
+    ctx.rect(0, 0, gw, gh);
+    ctx.clip();
+    m.draw(ctx, gw, gh, this.t);
+    ctx.restore();
+    drawText(ctx, m.status(), W / 2, gy + gh + 8, CYAN, { align: 'center' });
+    const dev = this.game.devices[0] ?? 'keys';
+    const btn = dev === 'keys' ? 'SPACE' : button(dev, 'confirm');
+    drawText(ctx, `STICK, D-PAD OR ARROWS TO MOVE.  ${btn}: THE BUTTON`, W / 2, H - 14, DIM, { align: 'center' });
+    if (this.phase === 'ready') {
+      const n = 3 - Math.floor((this.pt / 1.6) * 3);
+      ctx.fillStyle = 'rgba(10,7,16,0.6)';
+      ctx.fillRect(gx, gy, gw, gh);
+      drawText(ctx, 'GET READY', W / 2, gy + gh / 2 - 26, INK, { scale: 2, align: 'center' });
+      drawText(ctx, `${Math.max(1, n)}`, W / 2, gy + gh / 2 - 4, GOLD, { scale: 4, align: 'center' });
+    }
+    if (this.phase === 'scored') {
+      const s = m.result!;
+      const word = s >= 0.85 ? 'SUPERB!' : s >= 0.55 ? 'WELL DONE' : s >= 0.25 ? 'NOT BAD' : s > 0 ? 'POOR' : 'FAILED';
+      ctx.fillStyle = 'rgba(10,7,16,0.7)';
+      ctx.fillRect(gx, gy + gh / 2 - 34, gw, 60);
+      drawText(ctx, word, W / 2, gy + gh / 2 - 26, s >= 0.55 ? GREEN : s >= 0.25 ? GOLD : RED, { scale: 3, align: 'center' });
+      drawText(ctx, `${Math.round(s * 100)}%`, W / 2, gy + gh / 2 + 4, INK, { scale: 2, align: 'center' });
+    }
+  }
+}

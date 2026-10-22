@@ -118,6 +118,13 @@ async function boot() {
         ),
       );
       flow.toHangar(game, () => flow.toChart(game));
+    } else if (screen === 'heist' || screen === 'board') {
+      // &screen=heist: arriving at a heist (the choice); &screen=board: straight aboard (&bounty=N: the kelters sooner)
+      const n = node('heist');
+      n.kind = 'heist';
+      n.planet ??= run.chart.bossPlanet;
+      if (screen === 'board') flow.board(game, n);
+      else flow.land(game, n);
     } else if (screen && ['shop', 'event', 'dock'].includes(screen)) {
       run.scrap = 140;
       const n = node(screen === 'shop' ? 'salvage' : screen);

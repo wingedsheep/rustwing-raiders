@@ -9,8 +9,13 @@ const SFX: Sfx[] = [
   'special_bomb', 'special_phase', 'special_emp', 'special_overdrive', 'special_ready',
   'laser_charge', 'laser_fire', 'lightning', 'geyser', 'crash', 'warp', 'boss_warning', 'level_clear',
   'ui_move', 'ui_select', 'ui_back', 'ui_error', 'ui_place', 'ui_buy',
+  // boarding
+  'foot_shot', 'foot_blast', 'foot_shell', 'foot_dry', 'step', 'slide', 'takedown', 'punch', 'body_fall', 'swing',
+  'foot_hurt', 'crew_hit', 'plate_hit', 'plate_break', 'aim_tell', 'crew_shot', 'ricochet', 'door', 'alarm', 'lockdown',
+  'breach', 'kelter_clamp', 'hook_fire', 'hook_snap', 'crack_tick', 'crate_open', 'strongbox_open', 'core_pull', 'airlock',
+  'clock_tick', 'turret_up', 'charge', 'slam', 'canister', 'pickup_tin', 'heal_foot', 'alert', 'revive',
 ];
-const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder'];
+const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
 const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

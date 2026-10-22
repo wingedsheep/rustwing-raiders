@@ -28,6 +28,8 @@ export interface FlightResult {
   convoy?: { delivered: number; home: boolean[]; paid: number; roles: Role[] };
   /** A heist: what became of each strongbox (each caught one is a card at the results), and was the runner taken down. */
   heist?: { fate: PodFate[]; downed: boolean; paid: number };
+  /** The results' title, if not the planet's (a boarding names how it went). */
+  title?: string;
   /** Elites taken down and finished: each one a wreck to salvage at the results. */
   wrecks: Wreck[];
   /** What the fight fed each pilot's core, and imprints gone for good (a policy paid out). */

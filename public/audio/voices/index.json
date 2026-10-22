@@ -1,0 +1,386 @@
+{
+  "seffa": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "grohh": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "vukka": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "tobbo": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "skree": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "squit": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "ledger": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "vaelmira": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "census": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "holly": {
+    "fx": "droid",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "ferrule": {
+    "fx": "droid",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "choir": {
+    "fx": "choir",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "wren": {
+    "fx": "intercom",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "mama": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "spoke": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "holloway": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "pip": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "nell": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "rollo": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "kaspar": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "juno": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "brask": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "varga": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "wick": {
+    "fx": "radio",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "leeches": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "annoyed": [
+        "annoyed_1.mp3"
+      ]
+    }
+  },
+  "umora": {
+    "fx": "none",
+    "barks": {
+      "hello": [
+        "hello_1.mp3",
+        "hello_2.mp3"
+      ],
+      "pleased": [
+        "pleased_1.mp3"
+      ]
+    }
+  }
+}

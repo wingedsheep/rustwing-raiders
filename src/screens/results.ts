@@ -230,7 +230,7 @@ export class Results implements Screen {
     ctx.clearRect(0, 0, W, 360);
     backdrop(ctx);
     const boss = this.spec.mode === 'boss';
-    heading(ctx, boss ? 'WARDEN DOWN' : `${this.spec.planet.name.toUpperCase()} CLEAR`, `+${this.res.scrap} SCRAP   ${this.res.score} POINTS   ${this.run.scrap} SCRAP IN THE TIN`, boss ? GOLD : INK);
+    heading(ctx, boss ? 'WARDEN DOWN' : (this.res.title ?? `${this.spec.planet.name.toUpperCase()} CLEAR`), `+${this.res.scrap} SCRAP   ${this.res.score} POINTS   ${this.run.scrap} SCRAP IN THE TIN`, boss ? GOLD : INK);
     // the rank, stamped in the corner, and what earned it
     const r = this.res.report;
     if (r?.rank) {
@@ -369,7 +369,7 @@ export class Results implements Screen {
     else haulerIcon(ctx, 0, 0, HAULER, true);
     ctx.restore();
     drawText(ctx, 'LOST', cx, cy - 12, RED, { scale: 3, align: 'center' });
-    const why = fate === 'jumped' ? ['IT JUMPED', 'WITH THE RUNNER'] : fate ? ['IT FELL', 'PAST YOU'] : ['IT WENT DOWN', 'WITH ITS HAULER'];
+    const why = fate === 'jumped' ? ['IT JUMPED', 'WITH THE RUNNER'] : fate === 'aboard' ? ['LEFT ABOARD', 'HER HOLD'] : fate ? ['IT FELL', 'PAST YOU'] : ['IT WENT DOWN', 'WITH ITS HAULER'];
     drawText(ctx, why[0], cx, cy + 16, DIM, { align: 'center' });
     drawText(ctx, why[1], cx, cy + 26, DIM, { align: 'center' });
     ctx.globalAlpha = 1;

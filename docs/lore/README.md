@@ -62,5 +62,5 @@ And in the hulls of all their ships, the **cores**: grown Tonkva machine-hearts 
 ## Known seams
 
 - **The chart shuffles planets between systems** every run. Treat a run's systems as the route the crew flies, not as geography: the lore never says which star a planet circles.
-- **Proposed names to change** (style guide cast): the **purrgil** are Star Wars' name, so they become the [umora](peoples.md#creatures); **Lady Vey** clashes with Lana Vey, so she becomes [Lady Vaelmira](peoples.md#the-vaelo). Nothing in the game uses either yet.
+- **Names in use** (style guide cast): the lane-whales are the [umora](peoples.md#creatures), and the collector on the yacht is [Lady Vaelmira](peoples.md#the-vaelo).
 - **Halcyon, Mirefall, Glacis, Ashgrave and Cinder Orchard** are human names on purpose: the cant names what humans settled or renamed. Each has an older name in [languages](languages.md#places).

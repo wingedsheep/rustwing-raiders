@@ -29,6 +29,8 @@ export interface Minigame {
   readonly how: string;
   /** 0..1 once it's over; null while it goes on. */
   result: number | null;
+  /** A number the game settled on, if it settles on one (the price Tobbo took). */
+  value?: number | null;
   /** How it's going, a few words. */
   status(): string;
   update(dt: number, pad: Pad): void;

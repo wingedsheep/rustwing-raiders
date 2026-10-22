@@ -12,3 +12,6 @@ __pycache__/
 
 # local secrets (ElevenLabs key)
 config.yaml
+
+# voice previews (generated, large)
+tools/voices/previews/

@@ -9,14 +9,18 @@
 
 import type { Game } from './game';
 import { Flight, type FlightResult } from '../screens/flight';
+import { BoardingScreen } from '../screens/boarding';
+import { BoardChoice } from '../screens/board-choice';
+import type { BoardResult, BoardSpec } from '../sim/boarding';
 import { ChartScreen } from '../screens/chart';
 import { Results } from '../screens/results';
 import { WreckScreen } from '../screens/wreck';
 import { Hangar } from '../screens/hangar';
-import { Shop, Dock, EventScreen } from '../screens/stops';
+import { Shop, Dock } from '../screens/stops';
+import { EventScreen } from '../screens/event';
 import { Ending } from '../screens/ending';
 import { CoreScreen } from '../screens/core';
-import { forget, kitOf, learn } from './core';
+import { forget, kitOf, learn, type Fed } from './core';
 import { PRICE_HARDER } from '../sim/mind';
 import { crewHull, DANGER_HARDER, DANGER_PAY, levelSpec, Run, SECTORS } from '../sim/run';
 import { EVENTS, eventById, type Result, type RunEvent } from '../sim/events';
@@ -61,8 +65,31 @@ export function land(game: Game, node: ChartNode) {
   run.stops++;
   run.landing = node;
   run.deliver(node);
-  // Mama's boys wait at the gate for anyone who owes her
-  if (node.kind === 'gate' && run.debt > 0) return meet(game, node, eventById('collect'), () => arrive(game, node));
+  // whoever owes you a visit (someone you crossed sent them)
+  const due = node.kind !== 'gate' ? run.due.shift() : undefined;
+  if (due) {
+    if (due === 'hunter') run.hunted = true;
+    if (due !== 'hunter' || run.bounty > 0) return meet(game, node, eventById(due), () => arrive(game, node));
+  }
+  // the Wren's people pay her debt: at the gate, the Talkwa settle what you owe
+  if (node.kind === 'gate' && run.aboard.includes('wren')) {
+    run.aboard.splice(run.aboard.indexOf('wren'), 1);
+    run.mood('Talkwa', 1);
+    if (run.debt) {
+      run.notes.push(`THE TALKWA PAY YOUR DEBT OF ${run.debt}, AND TAKE THE WREN HOME. OWED AND OWING`);
+      run.debt = 0;
+    } else {
+      run.scrap += 100;
+      run.notes.push('THE TALKWA TAKE THE WREN HOME, AND LEAVE 100 SCRAP IN HER PLACE. OWED AND OWING');
+    }
+  }
+  // the kelters wait at the gate for anyone who owes: Mama's boys, or the Count's drones
+  if (node.kind === 'gate' && run.debt > 0) return meet(game, node, eventById(run.lender === 'ledger' ? 'drones' : 'collect'), () => arrive(game, node));
+  // hull leeches, out where the lanterns run hot, once a sector at most
+  if (!node.planet && node.kind !== 'gate' && !run.leeched && rng(node.seed ^ 0x1eec)() < 0.14) {
+    run.leeched = true;
+    return meet(game, node, eventById('leeches'), () => arrive(game, node));
+  }
   // Kaspar comes for a bounty, once a sector at most, more likely the bigger it is
   if (run.bounty > 0 && !run.hunted && node.kind !== 'gate' && rng(node.seed ^ 0x4a5)() < 0.18 + run.bounty * 0.14) {
     run.hunted = true;
@@ -77,10 +104,17 @@ function arrive(game: Game, node: ChartNode) {
   switch (node.kind) {
     case 'raid':
     case 'hunt':
-    case 'escort':
-    case 'heist': {
+    case 'escort': {
       const d = run.danger(node);
       fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[d], undefined, node);
+      return;
+    }
+    case 'heist': {
+      // run her down in the air, or clamp on and go aboard
+      const d = run.danger(node);
+      const planet = node.planet!;
+      const name = `${planet.faction.toUpperCase()} FREIGHTER`;
+      game.go(new BoardChoice(game, run, name, boardSpec(run, node), (aboard) => (aboard ? board(game, node) : fly(game, planet, 'heist', node.seed, DANGER_HARDER[d], undefined, node))));
       return;
     }
     case 'gate': {
@@ -90,6 +124,10 @@ function arrive(game: Game, node: ChartNode) {
         run.favours.splice(run.favours.indexOf('brask'), 1);
         harder = -0.25;
         run.notes.push("BRASK'S CONVOY DRAWS THE WARDEN'S FIRE");
+      }
+      if (run.wardenEase) {
+        harder -= run.wardenEase;
+        run.notes.push('YOU KNOW WHERE THE WARDEN IS WEAK');
       }
       fly(game, run.chart.bossPlanet, 'boss', node.seed, harder, undefined, node);
       return;
@@ -106,7 +144,8 @@ function arrive(game: Game, node: ChartNode) {
       const ev = (want && EVENTS.find((e) => e.id === want)) || (node.event ? eventById(node.event) : pick(rng(node.seed), EVENTS.filter((e) => e.where !== 'never')));
       node.known = true;
       if (want === 'hunter') run.bounty ||= 2;
-      if (want === 'collect') run.debt ||= 120;
+      if (want === 'collect' || want === 'drones') run.debt ||= 120;
+      if (want === 'drones') run.lender = 'ledger';
       meet(game, node, ev, () => toChart(game));
       return;
     }
@@ -210,6 +249,13 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         run.mood(node.planet.faction, -1);
         run.notes.push(`YOU TOOK THEIR RUNNER DOWN: ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
       }
+      // Squit's tip: the tithe barge was where he said
+      if (run.tip && node && node.kind !== 'gate' && res.scrap > 0) {
+        const extra = Math.round(res.scrap * run.tip);
+        res.scrap += extra;
+        run.tip = 0;
+        run.notes.push(`SQUIT'S TIP PAID: +${extra} SCRAP`);
+      }
       run.scrap += res.scrap;
       // the insurance pays for what got shot off
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
@@ -235,4 +281,94 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, core)) : core())));
     }, run.crew.map((c) => c.grafts), run.crew.map((c) => kitOf(c.core)), mode === 'boss' ? Math.min(2, run.sector) : 0),
   );
+}
+
+/** A boarding at a site: as hard as the run and the site, the kelters as quick as your price. */
+function boardSpec(run: Run, node: ChartNode): BoardSpec {
+  return { seed: node.seed ^ 0xb0a4d, hard: run.difficulty() + DANGER_HARDER[run.danger(node)], bounty: run.bounty, heroes: run.crew.length };
+}
+
+/**
+ * Boarding a freighter: on foot through her crew, then the results. Boarding at all puts a price
+ * on your head; what you carried out is the cards (a crate each), the strongbox's scrap and,
+ * if you pulled her core, the pick of the hold. Thrown out, you keep only the tins you pocketed;
+ * collected, the kelters take their price out of your scrap and your hull, and the bounty's paid.
+ */
+export function board(game: Game, node: ChartNode) {
+  const run = game.run!;
+  const planet = node.planet ?? run.chart.bossPlanet;
+  const spec = levelSpec(planet, 'heist', node.seed, run.difficulty() + DANGER_HARDER[run.danger(node)]);
+  const hull = run.crew.map((c) => c.hull);
+  const skin = planet.enemies.find((e) => e.kind === 'mech')?.colors ?? ([0x8a6a4a, 0x4a3a30, 0xffb04a] as [number, number, number]);
+  run.landing = node;
+  run.bounty++;
+  game.go(
+    new BoardingScreen(game, boardSpec(run, node), skin, (r: BoardResult) => {
+      run.levels++;
+      const res = boardResult(r, run.crew.map((c, i) => hull[i] - (r.outcome === 'escaped' ? 0 : r.outcome === 'downed' ? 2 : 3) * HULL_STEP).map((h) => Math.max(1, h)));
+      for (const s of res.stats) {
+        run.stats.kills += s.kills;
+        run.stats.hits += s.hits;
+      }
+      run.mood(planet.faction, -1);
+      run.notes.push(`YOU BOARDED THEIR FREIGHTER: ${planet.faction.toUpperCase()} WON'T FORGET IT`);
+      run.notes.push('PRICE ON YOU +1');
+      if (r.outcome === 'caught') {
+        const fine = Math.round(run.scrap * 0.4);
+        run.scrap -= fine;
+        run.bounty = 0;
+        run.notes.push(`THE KELTERS COLLECT: -${fine} SCRAP, AND THE PRICE IS PAID`);
+      }
+      // a danger site pays more for what you carried out
+      const d = run.danger(node);
+      if (DANGER_PAY[d] > 1 && res.scrap > 0) {
+        const extra = Math.round(res.scrap * (DANGER_PAY[d] - 1));
+        res.scrap += extra;
+        run.notes.push(`DANGER PAID: +${extra} SCRAP`);
+      }
+      run.scrap += res.scrap;
+      run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
+      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + (r.outcome === 'escaped' ? HULL_STEP : 0))));
+      const was = run.crew.map((c) => ({ ...c.core, life: { ...c.core.life } }));
+      const grows = run.crew.map((c, i) => learn(c.core, res.fed[i]));
+      const next = () => toChart(game);
+      const core = () => (grows.some((n) => n > 0) || run.crew.some((c) => c.core.growths > 0) ? game.go(new CoreScreen(game, run, res.fed, was, next)) : next());
+      game.go(new Results(game, run, res, spec, core));
+    }, run.crew[0].build.frame),
+  );
+}
+
+/** A boarding as the results read it: a heist's three cards, each a crate carried out (or left aboard). */
+function boardResult(r: BoardResult, hull: number[]): FlightResult {
+  const got = r.outcome === 'escaped';
+  const lines = [
+    got ? `CRATES CARRIED OUT ${r.crates.filter(Boolean).length}/3${r.strongbox ? `  STRONGBOX +${r.pay} SCRAP` : ''}` : r.outcome === 'caught' ? 'THE KELTERS COLLECTED YOU' : 'THROWN OUT THE LOCK',
+    `TINS +${r.tins} SCRAP${r.core ? '  HER CORE PULLED' : ''}${got && r.spare > 0 ? `  ${Math.floor(r.spare)}S TO SPARE` : ''}`,
+  ];
+  const fed = r.heroes.map((h): Fed => {
+    const out: Fed = { vein: { nerve: 0, steel: 0, grease: 0 }, lines: [] };
+    const add = (vein: Fed['lines'][number]['vein'], n: number, text: string) => {
+      if (n <= 0) return;
+      out.vein[vein] += n;
+      out.lines.push({ vein, text, n });
+    };
+    add('steel', Math.min(4, Math.ceil(h.takedowns / 2)), `${h.takedowns} TAKEDOWNS ON FOOT`);
+    add('nerve', Math.min(4, Math.ceil(h.perfects / 2)), `${h.perfects} PERFECT SLIDES`);
+    add('grease', got ? r.crates.filter(Boolean).length : 0, 'CRATES CRACKED');
+    return out;
+  });
+  return {
+    cleared: true,
+    scrap: r.tins + r.pay,
+    score: 0,
+    loot: r.heroes.map(() => []),
+    hull,
+    stats: r.heroes.map((h) => ({ hits: h.hits, grazes: h.perfects, kills: h.kills, crashes: 0 })),
+    report: { rank: null, lines },
+    title: got ? 'AWAY CLEAN' : r.outcome === 'caught' ? 'COLLECTED' : 'THROWN OUT',
+    heist: { fate: r.crates.map((c) => (c ? 'caught' : 'aboard')), downed: r.core, paid: r.pay },
+    wrecks: [],
+    fed,
+    spent: r.heroes.map(() => []),
+  };
 }

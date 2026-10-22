@@ -35,7 +35,7 @@ export const KIND: Record<NodeKind, { label: string; icon: string; color: string
   raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
   hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
   escort: { label: 'ESCORT', icon: 'escort', color: ESCORT, text: 'Fly cover for three haulers. Raiders will try to board them: shoot them off. Every hauler that gets home pays, and brings you a crate.' },
-  heist: { label: 'HEIST', icon: 'heist', color: HEIST, text: 'A loaded freighter running for a jump point. Shoot its strongboxes loose and catch them as they fall. Kill its engines to take it down.' },
+  heist: { label: 'HEIST', icon: 'heist', color: HEIST, text: 'A loaded freighter running for a jump point. Shoot its strongboxes loose and catch them as they fall, or clamp on and board her on foot.' },
   salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
   event: { label: 'UNKNOWN', icon: 'unknown', color: VIOLET, text: 'Something out in the dark. Could be anything. A rumour would tell you.' },
@@ -509,7 +509,7 @@ export class ChartScreen implements Screen {
       for (const o of this.options) {
         if (o === sel) continue;
         const q = this.screen(c.pos(o, t), 0.5);
-        dots(ctx, sp, q, c.cost(o) > 1 ? 'rgba(255,176,74,0.32)' : 'rgba(138,255,224,0.38)', 3, 0, 7, 9);
+        dots(ctx, sp, q, this.run.jumpCost(c.cost(o)) > 1 ? 'rgba(255,176,74,0.32)' : 'rgba(138,255,224,0.38)', 3, 0, 7, 9);
       }
 
     // the sites: what's out of reach first, dim; then what's in reach, bright
@@ -556,7 +556,7 @@ export class ChartScreen implements Screen {
     if (sel) {
       const now = this.screen(c.pos(sel, t), 0.5);
       const then = this.screen(c.pos(sel, t + 1), 0.5);
-      const cost = c.cost(sel);
+      const cost = this.run.jumpCost(c.cost(sel));
       const col = cost > 1 ? FUEL : CYAN;
       dots(ctx, sp, then, col, 4, Math.floor(-this.t * 14) & 3, 7, 6);
       if (Math.hypot(then.x - now.x, then.y - now.y) > 4) {
@@ -838,15 +838,9 @@ export class ChartScreen implements Screen {
 
   /** The things hanging over you, a line each. */
   private affairs(run: RunT): [string, string][] {
-    const out: [string, string][] = [];
-    if (run.bounty) out.push([`BOUNTY ${run.bounty * 40}: KASPAR HUNTS`, RED]);
-    if (run.debt) out.push([`OWE MAMA ${run.debt} (+10%/JUMP)`, '#ff8a7a']);
-    if (run.contract) out.push([`CRATE TO ${run.planetName(run.contract.planet)}: ${run.contract.pay}`, GOLD]);
-    if (run.policy) out.push([`INSURED: ${run.policy} A HULL`, GREEN]);
-    if (run.boom) out.push([`NEWS: ${run.boom.cls.toUpperCase()}S ×3 ON ${run.planetName(run.boom.planet)}`, CYAN]);
-    for (const f of run.favours) out.push([f === 'doctor' ? 'DR VARGA OWES YOU' : 'BRASK OWES YOU', VIOLET]);
-    return out;
+    return run.affairs();
   }
+
 
   /** A painted picture for a site without a fight (or one you can't see yet). */
   private art(ctx: CanvasRenderingContext2D, n: ChartNode, x: number, y: number, w: number, h: number) {
@@ -1015,7 +1009,7 @@ export class ChartScreen implements Screen {
     if (run.contract && n.planet?.id === run.contract.planet) row('CRATE', (x0) => drawText(ctx, `DELIVER: +${run.contract!.pay}`, x0, ty, GOLD));
 
     // the jump, at the foot of the card
-    const cost = c.cost(n);
+    const cost = this.run.jumpCost(c.cost(n));
     const short = cost - run.fuel;
     const after = (() => {
       for (let k2 = 1; k2 < 20; k2++) if (c.swept(n, c.time + 1 + k2)) return k2;
