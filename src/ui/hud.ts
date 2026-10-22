@@ -6,8 +6,8 @@ import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
 import { coreBadge } from './core-icon';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
-import { frameById, LOAD_CLASS, partById, type FrameDef, type Hardpoint, type PartClass } from '../game/parts';
-import { cellsOf, hardpointAt, socket } from '../sim/build';
+import { frameById, LOAD_CLASS, partById, type Hardpoint, type PartClass } from '../game/parts';
+import { cellsOf, socket } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
@@ -50,15 +50,8 @@ export const hullColor = (f: number, t: number) => (f > 0.5 ? HAULER : f > 0.2 ?
 
 export const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
-/**
- * An empty socket on a small grid: a plain one dark, a hardpoint in its button's colour (dim), so
- * you can see where each tool goes (the colours are VERB_COLOR's in ui/loot-card.ts).
- */
+/** Each button's hardpoints in its colour (the colours are VERB_COLOR's in ui/loot-card.ts). */
 export const HARDPOINT_COLOR: Record<Hardpoint, string> = { T: '#ff8a4a', H: '#ff5a78', A: '#ffd04a', S: '#8affb0' };
-export function socketFill(f: FrameDef, c: number, r: number, plain: string) {
-  const h = hardpointAt(f, c, r);
-  return h ? HARDPOINT_COLOR[h] : plain;
-}
 
 export const CLASS_COLOR: Record<PartClass, string> = {
   gun: '#ff8a4a',
@@ -134,10 +127,8 @@ export function schematic(ctx: CanvasRenderingContext2D, build: Player['build'],
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++) {
       if (!socket(f, c, r)) continue;
-      ctx.fillStyle = socketFill(f, c, r, '#2e2640');
-      ctx.globalAlpha = hardpointAt(f, c, r) ? 0.35 : 1;
+      ctx.fillStyle = '#2e2640';
       ctx.fillRect(x + c * cell, y + r * cell, cell - 1, cell - 1);
-      ctx.globalAlpha = 1;
     }
   for (const p of build.parts) {
     const def = partById(p.id);

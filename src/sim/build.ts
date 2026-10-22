@@ -111,26 +111,23 @@ export function cellsOf(p: Placement): [number, number][] {
   return cells.map(([c, r]) => [p.c + c - mc, p.r + r - mr]);
 }
 
-/** What's at a cell of the grid: '#' a fitting's socket, a hardpoint's letter, or '.' (also off the grid). */
+/** What's at a cell of the grid: '#' a socket, or '.' (also off the grid). */
 export const slotAt = (f: FrameDef, c: number, r: number) => (r >= 0 && r < f.grid.length && c >= 0 && c < f.grid[0].length ? f.grid[r][c] : '.');
 
 export const socket = (f: FrameDef, c: number, r: number) => slotAt(f, c, r) !== '.';
 
-/** Its hardpoint, if the cell is one. */
-export const hardpointAt = (f: FrameDef, c: number, r: number): Hardpoint | null => {
-  const ch = slotAt(f, c, r);
-  return ch === 'T' || ch === 'H' || ch === 'A' || ch === 'S' ? ch : null;
-};
+/** How many of a hardpoint's kind the ship has taken (leaving `ignore` out), and how many it has. */
+export function mountsUsed(b: Build, h: Hardpoint, ignore?: Placement) {
+  const used = b.parts.filter((q) => q !== ignore && hardpointOf(partById(q.id)) === h).length;
+  return { used, of: frameById(b.frame).mounts[h] ?? 0 };
+}
 
-/**
- * Whether a part's cells suit the hardpoints under them: a tool has one on its own hardpoint and
- * none on another's; a fitting sits on plain sockets only.
- */
-export function suits(f: FrameDef, p: Placement) {
-  const want = hardpointOf(partById(p.id));
-  const hps = cellsOf(p).map(([c, r]) => hardpointAt(f, c, r));
-  if (hps.some((h) => h && h !== want)) return false;
-  return !want || hps.includes(want);
+/** Whether the ship has a hardpoint free for this part (a fitting needs none). */
+export function mountFree(b: Build, p: Placement, ignore?: Placement) {
+  const h = hardpointOf(partById(p.id));
+  if (!h) return true;
+  const m = mountsUsed(b, h, ignore);
+  return m.used < m.of;
 }
 
 /** Ship-local position of a socket's middle. */
@@ -140,12 +137,17 @@ export function cellPos(f: FrameDef, c: number, r: number) {
   return { x: (c - (cols - 1) / 2) * CELL, z: (r - (rows - 1) / 2) * CELL };
 }
 
-/** Can this part go here (all on sockets that suit it, nothing in the way)? `ignore` is a placement to leave out (the one being moved). */
-export function fits(b: Build, p: Placement, ignore?: Placement) {
+/** Whether its cells are all free sockets (`ignore`: a placement to leave out, the one being moved). */
+export function room(b: Build, p: Placement, ignore?: Placement) {
   const f = frameById(b.frame);
   const taken = new Set<string>();
   for (const q of b.parts) if (q !== ignore) for (const [c, r] of cellsOf(q)) taken.add(`${c},${r}`);
-  return cellsOf(p).every(([c, r]) => socket(f, c, r) && !taken.has(`${c},${r}`)) && suits(f, p);
+  return cellsOf(p).every(([c, r]) => socket(f, c, r) && !taken.has(`${c},${r}`));
+}
+
+/** Can this part go here: on free sockets, with a hardpoint free if it's a tool? */
+export function fits(b: Build, p: Placement, ignore?: Placement) {
+  return room(b, p, ignore) && mountFree(b, p, ignore);
 }
 
 export function partAt(b: Build, c: number, r: number): Placement | undefined {

@@ -13,11 +13,11 @@
  * - MAIN guns fire while fire is held. HEAVY guns (rail, flak, seekers, mines, the lance) fire on
  *   their own button, a round a press, from a few rounds that reload one by one; a perfect dash
  *   reloads a round. Two triggers: a stream to hold, and blows to time.
- * - HARDPOINTS: a frame's grid has one socket for each button's tool. Guns go on a TRIGGER
- *   hardpoint, heavy guns on a HEAVY one, the aux on the AUX, the special on the SPECIAL; a tool
- *   needs one of its cells on its hardpoint (the rest can spill onto fittings' sockets). Everything
- *   else is a FITTING, on the plain sockets round them. So every button has one tool, and the
- *   puzzle is what fits round it. Frames differ in which hardpoints they have (see FRAMES).
+ * - HARDPOINTS: a frame has a few hardpoints for each button's tools (the Kestrel two TRIGGER, one
+ *   HEAVY, one AUX, one SPECIAL). Guns take a TRIGGER hardpoint, heavy guns a HEAVY one, the aux
+ *   and the special theirs. A hardpoint isn't a place: a tool goes on any socket, so long as the
+ *   frame has a hardpoint of its kind free. Everything else is a FITTING. Frames differ in how many
+ *   of each they have (see FRAMES). Every frame starts nearly empty: its own guns on an open deck.
  * - Some parts link: they need (or are better for) a certain part touching them, or a certain side
  *   facing something (a gun, or open air off the hull's edge). Linked, a part runs at 150%;
  *   missing something it needs, it does nothing.
@@ -373,18 +373,17 @@ export interface FrameDef {
   /** What only this frame does, and what its shape costs it (the frame card says both). */
   perk: { name: string; text: string };
   weak: string;
-  /**
-   * The socket grid, row 0 at the front: '.' none, '#' a socket for a fitting, and the
-   * hardpoints: 'T' trigger, 'H' heavy, 'A' aux, 'S' special (see HARDPOINTS).
-   */
+  /** The socket grid, row 0 at the front: '#' a socket, '.' none. */
   grid: string[];
+  /** How many tools of each button it takes (see HARDPOINTS); a button it hasn't, it can't use. */
+  mounts: Partial<Record<Hardpoint, number>>;
   hp: number;
   mass: number;
   /** Base thrust and agility. */
   thrust: number;
   grip: number;
   dash: number;
-  /** The load it carries before it counts as full (engines add to it: see LOAD). */
+  /** The load it carries before it counts as full (engines add to it: see LOAD). Its own engines are built in: thrust, mass and load. */
   load: number;
   /** Top speed against what its thrust alone would give (a racer is quicker than its engines say). */
   speed: number;
@@ -413,30 +412,33 @@ export const FRAMES: FrameDef[] = [
     name: 'Kestrel',
     text: 'A stripped-down racer, made of tinfoil.',
     perk: { name: 'SLIPSTREAM', text: 'Guns hit harder the faster you fly: +50% flat out. Its Burn comes back fastest.' },
-    weak: '60 HULL. FEW SOCKETS, LITTLE LOAD.',
-    grid: ['.T.', 'ATS', '#H#', '#.#'],
-    hp: 60, mass: 4, thrust: 15, grip: 1.25, dash: 1, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
-    start: [['rivet', 1, 0], ['rivet', 1, 1], ['thruster', 0, 3], ['thruster', 2, 3]],
+    weak: '60 HULL. LITTLE LOAD.',
+    grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
+    mounts: { T: 2, H: 1, A: 1, S: 1 },
+    hp: 60, mass: 5.6, thrust: 45, grip: 1.25, dash: 1, load: 9.4, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
+    start: [['rivet', 1, 1], ['rivet', 3, 1]],
   },
   {
     id: 'mule',
     name: 'Mule',
     text: 'A hauler with guns bolted on.',
-    perk: { name: 'IRONSIDES', text: 'Two heavy hardpoints, room for everything, and armour plate that soaks a hit, then grows back.' },
+    perk: { name: 'IRONSIDES', text: 'Two heavy hardpoints, the biggest deck, and armour plate that soaks a hit, then grows back.' },
     weak: 'MOVES LIKE A FRIDGE. NO SPECIAL.',
-    grid: ['#HTH#', '##A##', '.###.'],
-    hp: 100, mass: 7, thrust: 13, grip: 0.75, dash: 1, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
-    start: [['rivet', 2, 0], ['seeker', 1, 0], ['thruster', 2, 2]],
+    grid: ['#####', '#####', '#####', '.###.'],
+    mounts: { T: 1, H: 2, A: 1 },
+    hp: 100, mass: 7.8, thrust: 28, grip: 0.75, dash: 1, load: 12.7, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
+    start: [['seeker', 1, 0], ['rivet', 2, 0]],
   },
   {
     id: 'wasp',
     name: 'Wasp',
     text: 'Twin booms like a pod racer.',
     perk: { name: 'DARTER', text: 'Two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
-    weak: 'GUNS ONLY ON THE PRONGS. NO AUX.',
-    grid: ['T.T', '#.#', 'SH#', '###'],
-    hp: 80, mass: 4.5, thrust: 16, grip: 1.05, dash: 2, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
-    start: [['rivet', 0, 0], ['rivet', 2, 0], ['thruster', 1, 3]],
+    weak: 'NO AUX. THIN PRONGS: LITTLE TOUCHES THE NOSE GUNS.',
+    grid: ['.#.#.', '.#.#.', '#####', '#####', '..#..'],
+    mounts: { T: 2, H: 1, S: 1 },
+    hp: 80, mass: 5.3, thrust: 31, grip: 1.05, dash: 2, load: 9.2, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
+    start: [['rivet', 1, 0], ['rivet', 3, 0]],
   },
   {
     id: 'hammer',
@@ -444,9 +446,10 @@ export const FRAMES: FrameDef[] = [
     text: 'A wide armoured head and a slim tail.',
     perk: { name: 'BATTERING RAM', text: 'The dash rams: whatever you dash through takes a hard hit and can\'t hurt you.' },
     weak: 'STIFF IN A TURN. SLOW TO BURN.',
-    grid: ['#TT#', '#AS#', '.H#.', '.##.'],
-    hp: 80, mass: 6, thrust: 14, grip: 0.8, dash: 1, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
-    start: [['scatter', 1, 0], ['scatter', 2, 0], ['thruster', 1, 3], ['thruster', 2, 3]],
+    grid: ['######', '######', '..##..', '..##..'],
+    mounts: { T: 2, H: 1, A: 1, S: 1 },
+    hp: 80, mass: 7.6, thrust: 44, grip: 0.8, dash: 1, load: 11.9, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
+    start: [['scatter', 2, 0], ['scatter', 3, 0]],
   },
   {
     id: 'lattice',
@@ -454,13 +457,14 @@ export const FRAMES: FrameDef[] = [
     text: 'An open truss: sockets everywhere.',
     perk: { name: 'TUNED TRUSS', text: 'Links pay double: a linked part runs at 200%, one that needs its link at 133%.' },
     weak: 'FEW SOCKETS TOUCH.',
-    grid: ['#.H.#', '#.T.#', '#A#S#', '.#.#.'],
-    hp: 80, mass: 4.5, thrust: 15, grip: 1, dash: 1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
-    start: [['rivet', 2, 1], ['thruster', 1, 3], ['thruster', 3, 3]],
+    grid: ['#.#.#', '#.#.#', '#####', '#.#.#', '.#.#.'],
+    mounts: { T: 1, H: 1, A: 1, S: 1 },
+    hp: 80, mass: 6.1, thrust: 45, grip: 1, dash: 1, load: 11.4, speed: 1, burn: 0.12, core: 0.38, linked: 2,
+    start: [['rivet', 2, 1]],
   },
 ];
 
-/** A hardpoint: the socket for one button's tool. */
+/** A hardpoint: room for one of a button's tools, anywhere on the grid. */
 export type Hardpoint = 'T' | 'H' | 'A' | 'S';
 export const HARDPOINTS: Record<Hardpoint, { name: string; button: string }> = {
   T: { name: 'TRIGGER', button: 'FIRE' },
@@ -469,7 +473,7 @@ export const HARDPOINTS: Record<Hardpoint, { name: string; button: string }> = {
   S: { name: 'SPECIAL', button: 'SPECIAL' },
 };
 
-/** The hardpoint a part needs (a tool), or null: a fitting, on a plain socket. */
+/** The hardpoint a part takes (a tool), or null: a fitting. */
 export function hardpointOf(d: PartDef): Hardpoint | null {
   if (d.gun) return d.gun.heavy ? 'H' : 'T';
   if (d.aux) return 'A';
@@ -478,7 +482,7 @@ export function hardpointOf(d: PartDef): Hardpoint | null {
 }
 
 /** The hardpoints a frame has, in button order (one letter each, repeated if it has two). */
-export const hardpointsOf = (f: FrameDef) => (['T', 'H', 'A', 'S'] as Hardpoint[]).flatMap((h) => f.grid.join('').split('').filter((ch) => ch === h) as Hardpoint[]);
+export const hardpointsOf = (f: FrameDef) => (['T', 'H', 'A', 'S'] as Hardpoint[]).flatMap((h) => Array<Hardpoint>(f.mounts[h] ?? 0).fill(h));
 
 /** How strong a linked part runs on this frame (`need`: one that needs its link). */
 export const linkedStr = (f: FrameDef, need = false) => (need ? 1 + ((f.linked ?? STRENGTH.linked) - STRENGTH.linked) / 1.5 : f.linked ?? STRENGTH.linked);

@@ -44,8 +44,8 @@ async function boot() {
     const pads = input.padIds();
     if (pads.length) game.devices = coop ? [pads[0], pads[1] ?? 'keys'] : [pads[0]];
     const builds = (coop ? [0, 1] : [0]).map((i) => startBuild(frames[i] ?? frames[0]));
-    // &guns=rivet,mine;scatter: these guns on the ship's hardpoints, each on the next free one of its
-    // kind (trigger or heavy), in place of its own guns (per ship, split by ';'; what won't go is left off)
+    // &guns=rivet,mine;scatter: these guns on the ship, each on the first socket it fits with a hardpoint of its
+    // kind (trigger or heavy) free, in place of its own guns (per ship, split by ';'; what won't go is left off)
     q.get('guns')?.split(';').forEach((list, i) => {
       const b = builds[i];
       if (!b) return;

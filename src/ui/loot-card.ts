@@ -5,12 +5,12 @@
  * that changes. The results screen, the dealer and the hangar all use it.
  */
 
-import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED, socketFill } from './hud';
+import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED } from './hud';
 import { drawText, textWidth, wrap } from './font';
 import { partStats, TIER_BODY, TIER_COLOR, TIER_DARK } from './widgets';
 import { frameById, partById, verbOf, type PartDef, type Verb } from '../game/parts';
 import { AFFIX_COLOR, AFFIXES, itemDef, MODS, modValue, tierOf, TRAITS, type Item, type Tier } from '../game/loot';
-import { cellsOf, hardpointAt, socket, type Build } from '../sim/build';
+import { cellsOf, socket, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
 import { portraits } from '../view/portraits';
 
@@ -127,10 +127,8 @@ export function fitSchematic(ctx: CanvasRenderingContext2D, b: Build, fit: Fit, 
   for (let r = 0; r < f.grid.length; r++)
     for (let c = 0; c < f.grid[0].length; c++) {
       if (!socket(f, c, r)) continue;
-      ctx.fillStyle = socketFill(f, c, r, '#2a2238');
-      ctx.globalAlpha = hardpointAt(f, c, r) ? 0.35 : 1;
+      ctx.fillStyle = '#2a2238';
       ctx.fillRect(x + c * cell, y + r * cell, cell - 1, cell - 1);
-      ctx.globalAlpha = 1;
     }
   for (const p of b.parts) {
     const d = partById(p.id);

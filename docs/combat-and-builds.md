@@ -27,7 +27,7 @@ The plan for making combat more than dodge-and-shoot, and every run its own. Agr
 
 On top of these, in every fight: **Plating → Open → Takedown**, and healing with the **Weld**.
 
-Every run starts the same: one frame and its starter parts, a sleeping core with room for three, no grafts. What you end up with depends on the sector.
+Every run starts the same: one frame on an open deck with only its guns, a sleeping core with room for three, no grafts. What you end up with depends on the sector.
 
 ---
 
@@ -56,9 +56,11 @@ Every run starts the same: one frame and its starter parts, a sleeping core with
 
 ## 2. The ship
 
-- **Hardpoints.** Each frame has one hardpoint per active verb: TRIGGER, HEAVY, AUX, SPECIAL. Tools (guns, heavies, aux, specials) only go on hardpoints, so every button always has something on it.
-- **Fittings fill the rest of the grid**, 4–6 sockets: passives that only work on the hardpoint they touch. Where they sit is still the puzzle.
-- **Frames differ by hardpoint layout**: the Kestrel and Lattice one of each, the Mule two heavies and no special, the Wasp two triggers and no aux, the Hammer two triggers. Perks and weaknesses stay.
+- **An open deck.** A ship starts as a blank slate: a frame of 14–18 sockets with only its own guns on it. Its engines are built into the frame, so nothing else is spoken for.
+- **Hardpoints are counts, not places.** Each frame has a few hardpoints per button: TRIGGER, HEAVY, AUX, SPECIAL. A tool takes one of its button's hardpoints and goes on any socket. The frame says how many tools each button can have; where they go is up to you.
+- **Fittings fill the rest**: passives and boosters that work on what they touch. Where everything sits is the puzzle (guns fire the way they sit, boosters help what they touch, links want a side), and load says how much of it you can carry.
+- **Frames differ by deck and hardpoints**: Kestrel 14 sockets (2 trigger, 1 of each else), Wasp 15 (2 trigger, no aux), Hammerhead 16 (2 trigger, 1 of each else), Lattice 16 (1 of each), Mule 18 (2 heavies, no special). Perks and weaknesses stay.
+- **The hangar** shows the deck from straight above, the real ship under the grid. A part out of the hold lands in your hand at its best place; while you carry it every socket it fits is marked (a gun's mark is an arrow the way it would fire there), and pips along the bottom show each button's hardpoints, used and free.
 - **The pool shrinks from 65 parts to about 35**: ~10 trigger guns, ~6 heavies, ~5 aux, ~4 specials, ~5 dash mods, ~10 fittings. The passives you can't feel go (Capacitor, Hair Trigger, Throttle Link, Echo Relay and the like).
 - **Systems that go**: tag set bonuses (faction bonds replace them), power and brown-outs (load does that job), conduits, clashes. **Stay**: load, marks and reactions, edges, item tiers and affixes, legendary traits (the jackpot tier).
 - **The dealer lays out 3 parts**, one of them the planet's own line, plus repair and fuel. After a fight: 2–3 cards, or scrap them.

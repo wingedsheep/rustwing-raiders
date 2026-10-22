@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run, crewHull } from '../sim/run';
-import { cellsOf, fits, gunDir, hardpointAt, partAt, rotOf, socket, stats, suits, type Build, type Placement, type Stats } from '../sim/build';
-import { EDGES, frameById, hardpointOf, HARDPOINTS, hardpointsOf, linkedStr, LOAD_CLASS, partById, verbOf, type Hardpoint, type PartDef } from '../game/parts';
+import { cellsOf, fits, gunDir, mountFree, mountsUsed, partAt, room, rotOf, socket, stats, type Build, type Placement, type Stats } from '../sim/build';
+import { CELL, EDGES, frameById, hardpointOf, HARDPOINTS, linkedStr, LOAD_CLASS, partById, verbOf, type FrameDef, type Hardpoint, type PartDef } from '../game/parts';
+import { bestFit } from '../sim/fit';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -35,6 +36,10 @@ interface Bay {
   model: ShipModel | null;
   /** The turntable it sits over. */
   pad: THREE.Group | null;
+  /** Solo: the deck, the ship seen from straight above with the grid laid over it, and what it shows (a key). */
+  deck: Stage | null;
+  deckModel: ShipModel | null;
+  deckKey: string;
   /** What the last part placed did, played out one step at a time on the grid (t: seconds in). */
   fx: { t: number; steps: Step[] } | null;
   /** Where this player's bit of the screen starts. */
@@ -42,11 +47,14 @@ interface Bay {
 }
 
 const AREA_W = 312;
+/** Solo: the deck's window (the grid's cells, in texels), and the column down the right. */
+const DECK = { x: 14, y: 40, w: 312, h: 262, cell: 30 };
+const RIGHT = 338;
 const RULES = [
   'GUNS FIRE THE WAY THEY SIT: FRONT AND MIDDLE FORWARD, OUTER COLUMNS OUT AT AN ANGLE, THE BACK ROW BEHIND.',
   'HEAT GUNS BURN, ARC SHOCKS, EXPLOSIVE CRACKS. TWO MARKS ON ONE ENEMY REACT: MOUNT THEM APART, LAND THEM TOGETHER.',
-  'HARDPOINTS: GUNS ON TRIGGER, HEAVY GUNS ON HEAVY, THE AUX AND SPECIAL ON THEIRS. ONE CELL ON IT IS ENOUGH.',
-  'EVERYTHING ELSE IS A FITTING, ON THE PLAIN SOCKETS. BOOSTERS HELP THE GUNS THEY TOUCH.',
+  'HARDPOINTS SAY HOW MANY TOOLS EACH BUTTON TAKES. A TOOL GOES ON ANY SOCKET, IF ITS HARDPOINT IS FREE.',
+  'EVERYTHING ELSE IS A FITTING. BOOSTERS HELP THE GUNS THEY TOUCH.',
   'LINKED PARTS RUN AT 150% (200% ON A LATTICE). BACK-ROW ENGINES PUSH HARDER.',
   'EVERY GUN HAS AN EDGE: HOW IT WANTS FLYING. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
   'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT DASH RELOADS A ROUND.',
@@ -118,7 +126,6 @@ function dps(s: Stats) {
  */
 export class Hangar implements Screen {
   private bays: Bay[];
-  private big: Stage | null = null;
   private t = 0;
 
   constructor(
@@ -138,11 +145,19 @@ export class Hangar implements Screen {
       stage: new Stage(164, 104, 15, 50),
       model: null,
       pad: null,
+      deck: coop ? null : new Stage(DECK.w, DECK.h, DECK.cell / CELL, 0.01),
+      deckModel: null,
+      deckKey: '',
       fx: null,
       x: coop ? 6 + i * (AREA_W + 4) : 12,
     }));
-    if (!coop) this.big = new Stage(292, 188, 26, 50);
-    this.bays.forEach((bay, i) => (bay.pad = bayFloor((this.big ?? bay.stage).scene, LIVERY[i][2])));
+    this.bays.forEach((bay, i) => {
+      if (bay.deck) bayFloor(bay.deck.scene, LIVERY[i][2]).visible = false;
+      else bay.pad = bayFloor(bay.stage.scene, LIVERY[i][2]);
+      // start on a socket
+      const f = frameById(run.crew[i].build.frame);
+      bay.cur = this.nearest(f, Math.floor(f.grid[0].length / 2), 0) ?? bay.cur;
+    });
     this.bays.forEach((_, i) => this.remodel(i));
     audio.music('hangar');
   }
@@ -153,13 +168,74 @@ export class Hangar implements Screen {
 
   private remodel(i: number) {
     const bay = this.bays[i];
-    const stage = this.big ?? bay.stage;
+    if (bay.deck) return;
+    const stage = bay.stage;
     if (bay.model) {
       stage.scene.remove(bay.model.root);
       bay.model.dispose();
     }
     bay.model = new ShipModel(this.run.crew[i].build, LIVERY[i]);
     stage.scene.add(bay.model.root);
+  }
+
+  /** The deck shows the ship as it would be (the carried part where it would go): rebuilt when that changes. */
+  private redeck(bay: Bay, i: number, build: Build) {
+    if (!bay.deck) return;
+    const key = JSON.stringify(build.parts);
+    if (key === bay.deckKey && bay.deckModel) return;
+    bay.deckKey = key;
+    if (bay.deckModel) {
+      bay.deck.scene.remove(bay.deckModel.root);
+      bay.deckModel.dispose();
+    }
+    bay.deckModel = new ShipModel(build, LIVERY[i]);
+    bay.deck.scene.add(bay.deckModel.root);
+  }
+
+  /** The socket nearest a cell (any), for the cursor to land on. */
+  private nearest(f: FrameDef, c: number, r: number) {
+    let best: { c: number; r: number } | null = null;
+    let bd = Infinity;
+    for (let rr = 0; rr < f.grid.length; rr++)
+      for (let cc = 0; cc < f.grid[0].length; cc++) {
+        const d = Math.abs(cc - c) * 1.1 + Math.abs(rr - r);
+        if (socket(f, cc, rr) && d < bd) {
+          bd = d;
+          best = { c: cc, r: rr };
+        }
+      }
+    return best;
+  }
+
+  /**
+   * The cursor's next stop in a direction: the nearest socket that way (the straight line first),
+   * wrapping round to the far side. Carrying a part it steps a cell at a time, as a long part's
+   * corner can sit off the sockets.
+   */
+  private step(bay: Bay, f: FrameDef, dc: number, dr: number) {
+    const cols = f.grid[0].length;
+    const rows = f.grid.length;
+    const { c, r } = bay.cur;
+    if (bay.hand) {
+      bay.cur = { c: (c + dc + cols) % cols, r: (r + dr + rows) % rows };
+      return;
+    }
+    let best: { c: number; r: number } | null = null;
+    let bd = Infinity;
+    for (let rr = 0; rr < rows; rr++)
+      for (let cc = 0; cc < cols; cc++) {
+        if (!socket(f, cc, rr) || (cc === c && rr === r)) continue;
+        // how far along the way it goes (wrapped round), and how far off the line
+        const along = dc ? (((cc - c) * dc + cols) % cols) : (((rr - r) * dr + rows) % rows);
+        const off = dc ? Math.abs(rr - r) : Math.abs(cc - c);
+        if (along === 0) continue;
+        const d = along + off * 1.5;
+        if (d < bd) {
+          bd = d;
+          best = { c: cc, r: rr };
+        }
+      }
+    if (best) bay.cur = best;
   }
 
   private say(bay: Bay, msg: string) {
@@ -179,6 +255,7 @@ export class Hangar implements Screen {
         if (now !== was && now < bay.fx.steps.length) audio.play('ui_move', { vol: 0.4 + 0.1 * now });
         if (bay.fx.t > bay.fx.steps.length * STEP_T + 0.6) bay.fx = null;
       }
+      bay.deckModel?.update(dt);
       if (bay.model) {
         bay.model.root.rotation.y += dt * 0.6;
         bay.pad?.rotation.set(0, bay.model.root.rotation.y, 0);
@@ -208,12 +285,10 @@ export class Hangar implements Screen {
       }
       return;
     }
-    const cols = f.grid[0].length;
-    const rows = f.grid.length;
-    if (m.left) bay.cur.c = (bay.cur.c + cols - 1) % cols;
-    if (m.right) bay.cur.c = (bay.cur.c + 1) % cols;
-    if (m.up) bay.cur.r = (bay.cur.r + rows - 1) % rows;
-    if (m.down) bay.cur.r = (bay.cur.r + 1) % rows;
+    if (m.left) this.step(bay, f, -1, 0);
+    if (m.right) this.step(bay, f, 1, 0);
+    if (m.up) this.step(bay, f, 0, -1);
+    if (m.down) this.step(bay, f, 0, 1);
     if (m.left || m.right || m.up || m.down) audio.play('ui_move', { vol: 0.5 });
     if (crew.cargo.length) {
       if (m.prev) bay.sel = (bay.sel + crew.cargo.length - 1) % crew.cargo.length;
@@ -238,13 +313,24 @@ export class Hangar implements Screen {
           }
           bay.hand = { ...at };
           bay.from = at;
+          // held by its corner, so it stays where it was until moved
+          bay.cur = { c: at.c, r: at.r };
           audio.play('ui_select');
           this.remodel(i);
         } else if (crew.cargo.length) {
+          // out of the hold into your hand, at the best place for it: one more press bolts it on
           const it = crew.cargo.splice(bay.sel, 1)[0];
-          bay.hand = { ...it, c: bay.cur.c, r: bay.cur.r };
+          const best = bestFit(b, it).place;
+          if (best && fits(b, best)) {
+            bay.hand = { ...toItem(it), c: best.c, r: best.r, rot: rotOf(best) };
+            bay.cur = { c: best.c, r: best.r };
+          } else {
+            bay.hand = { ...toItem(it), c: bay.cur.c, r: bay.cur.r };
+            const why = this.blocked(b, bay.hand);
+            if (why) this.say(bay, why);
+          }
           bay.from = null;
-          this.drop(bay, i, true);
+          audio.play('ui_select');
         } else this.say(bay, 'THE HOLD IS EMPTY');
       }
     } else if (m.alt) {
@@ -280,18 +366,22 @@ export class Hangar implements Screen {
     }
   }
 
+  /** Why a part can't go on the ship at all, for want of a hardpoint ('' if it can). */
+  private blocked(b: Build, p: Placement) {
+    const h = hardpointOf(partById(p.id));
+    if (!h || mountFree(b, p)) return '';
+    const f = frameById(b.frame);
+    const m = mountsUsed(b, h);
+    const name = HARDPOINTS[h].name;
+    if (!m.of) return `THE ${f.name.toUpperCase()} HAS NO ${name} HARDPOINT`;
+    return m.of > 1 ? `ALL ${m.of} ${name} HARDPOINTS TAKEN: LIFT ONE` : `THE ${name} HARDPOINT IS TAKEN: LIFT IT`;
+  }
+
   /** Bolts the carried part on at the cursor, if it fits. */
-  private drop(bay: Bay, i: number, quiet = false) {
+  private drop(bay: Bay, i: number) {
     const b = this.run.crew[i].build;
     const p: Placement = { ...toItem(bay.hand!), c: bay.cur.c, r: bay.cur.r, rot: rotOf(bay.hand!) };
-    if (!fits(b, p)) {
-      if (!quiet) this.say(bay, "IT DOESN'T FIT THERE");
-      else audio.play('ui_select');
-      return;
-    }
-    const def = partById(p.id);
-    if (def.aux && b.parts.some((q) => partById(q.id).aux)) return this.say(bay, 'ONE AUX PER SHIP: LIFT THE OTHER');
-    if (def.special && b.parts.some((q) => partById(q.id).special)) return this.say(bay, 'ONE SPECIAL PER SHIP: LIFT THE OTHER');
+    if (!fits(b, p)) return this.say(bay, this.blocked(b, p) || "NO ROOM THERE");
     const before = stats(b);
     b.parts.push(p);
     bay.fx = { t: 0, steps: explain(b, p, before) };
@@ -330,24 +420,16 @@ export class Hangar implements Screen {
     drawText(ctx, 'HANGAR', W / 2, 6, INK, { scale: 2, align: 'center' });
     drawText(ctx, `SCRAP ${this.run.scrap}`, W - 10, 10, GOLD, { align: 'right' });
     drawText(ctx, `SECTOR ${this.run.sector + 1}`, 10, 10, DIM);
+    // the 3D goes under the UI canvas: each area cuts a window for it
     this.bays.forEach((bay, i) => this.area(ctx, bay, i));
-    if (this.big) {
-      // solo: the ship big on the right, what's linked under it, and the rules of the grid
-      const x = 336;
-      frame(ctx, x - 2, 30, 296, 192, '#0c0a14');
-      ctx.clearRect(x, 32, 292, 188);
-      const s = stats(this.run.crew[0].build);
-      drawText(ctx, s.frame.name.toUpperCase(), x + 4, 36, INK);
-      drawText(ctx, s.frame.perk.name, x + 4 + textWidth(s.frame.name.toUpperCase() + ' '), 36, GOLD);
-      this.linksPanel(ctx, this.bays[0], 0, x, 228, 292, 316);
-      this.graftStrip(ctx, 0, x + 4, 206);
+    if (this.bays[0].deck) {
+      // solo: what's linked, and the rules of the grid, down the right
+      this.linksPanel(ctx, this.bays[0], 0, 338, 292, 288, 356);
     }
-    // the 3D goes under the UI canvas: cut windows for it
     this.bays.forEach((bay) => {
-      if (!this.big) ctx.clearRect(bay.x + 146, 41, 164, 104);
+      if (bay.deck) bay.deck.render(g, DECK.x, DECK.y);
+      else bay.stage.render(g, bay.x + 146, 41);
     });
-    if (this.big) this.big.render(g, 336, 32);
-    else this.bays.forEach((bay) => bay.stage.render(g, bay.x + 146, 41));
   }
 
   /** The wreck grafts bolted on, along the bottom of the ship's window, and the bonds they wake. */
@@ -392,65 +474,155 @@ export class Hangar implements Screen {
     const s = stats(b);
     const x = bay.x;
     const col = hex(LIVERY[i][2]);
-    const coop = this.bays.length > 1;
+    const solo = !!bay.deck;
     const view = this.viewed(bay, b);
     // header
     drawText(ctx, `P${i + 1}`, x, 26, col, { scale: 1 });
-    drawText(ctx, f.name.toUpperCase(), x + 18, 26, INK);
-    hullGauge(ctx, crew.hull, crewHull(crew), x + 100, 26, 60);
-    // grid
-    frame(ctx, x, 40, 140, 106);
-    this.grid(ctx, bay, b, view, x + 70, 93);
-    // preview window frame (coop) or stats (solo)
-    if (coop) frame(ctx, x + 145, 40, 166, 106, '#0c0a14');
-    // what the move would do
+    const nw = drawText(ctx, f.name.toUpperCase(), x + 18, 26, INK);
+    if (solo) drawText(ctx, f.perk.name, x + 24 + nw, 26, GOLD);
+    hullGauge(ctx, crew.hull, crewHull(crew), solo ? DECK.x + DECK.w - 64 : x + 100, 26, 60);
+    // the deck (solo: the ship itself from above, the grid laid over it), or the grid beside a turntable
     const after = view.build !== b ? stats(view.build) : null;
-    if (coop) this.statsBox(ctx, s, after, x + 145, 152, 166);
-    else this.statsBox(ctx, s, after, x + 145, 40, 166);
-    // hold
-    frame(ctx, x, 152, 140, 84);
-    drawText(ctx, `HOLD ${crew.cargo.length}/${CARGO}`, x + 6, 156, DIM);
+    const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
+    if (solo) {
+      this.redeck(bay, i, view.build);
+      frame(ctx, DECK.x - 2, DECK.y - 2, DECK.w + 4, DECK.h + 4, '#0c0a14');
+      ctx.clearRect(DECK.x, DECK.y, DECK.w, DECK.h);
+      this.grid(ctx, bay, b, view, DECK.x + DECK.w / 2, DECK.y + DECK.h / 2, DECK.cell, true);
+      this.deckLabels(ctx, bay, b, view.build);
+      this.statsBox(ctx, s, after, RIGHT, 38, 290);
+      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, RIGHT, 128, 290, i);
+      else this.emptyCard(ctx, RIGHT, 128, 290);
+      this.hold(ctx, bay, i, RIGHT, 198, 290);
+    } else {
+      frame(ctx, x, 40, 140, 106);
+      const cell = Math.min(22, Math.floor(98 / f.grid.length), Math.floor(132 / f.grid[0].length));
+      this.grid(ctx, bay, b, view, x + 70, 93, cell, false);
+      frame(ctx, x + 145, 40, 166, 106, '#0c0a14');
+      ctx.clearRect(x + 146, 41, 164, 104);
+      this.statsBox(ctx, s, after, x + 145, 152, 166);
+      this.hold(ctx, bay, i, x, 152, 140);
+      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
+    }
+    // message, ready, hints
+    const hx = solo ? DECK.x + DECK.w / 2 : x + AREA_W / 2;
+    const hy = solo ? DECK.y + DECK.h + 8 : 324;
+    if (bay.msgT > 0) {
+      const my = solo ? DECK.y + DECK.h - 36 : 310;
+      const good = bay.msg.startsWith('HANDED') || bay.msg.endsWith('AGAIN');
+      const w = textWidth(bay.msg);
+      ctx.fillStyle = 'rgba(18,12,24,0.85)';
+      ctx.fillRect(Math.round(hx - w / 2) - 3, my - 2, w + 6, 11);
+      drawText(ctx, bay.msg, hx, my, good ? GREEN : RED, { align: 'center' });
+    }
+    const dev = this.dev(i);
+    if (bay.ready) {
+      frame(ctx, hx - 155, hy - 4, 310, 36, '#1a3020', '#3a6a40');
+      drawText(ctx, solo ? 'READY' : 'READY - WAITING FOR PARTNER', hx, hy + 2, GREEN, { align: 'center' });
+      hints(ctx, dev, [['back', 'NOT YET']], hx, hy + 16, 'center');
+    } else if (bay.hand) {
+      hints(ctx, dev, [['confirm', 'BOLT ON'], ['alt', 'TURN'], ['back', 'TO HOLD']], hx, hy, 'center');
+    } else {
+      const on = partAt(b, bay.cur.c, bay.cur.r);
+      hints(ctx, dev, [['confirm', on ? 'LIFT' : crew.cargo.length ? 'TAKE FROM HOLD' : 'LIFT'], ['prev', ''], ['next', 'PICK IN HOLD']], hx, hy, 'center');
+      hints(ctx, dev, solo ? [['back', 'DONE']] : [['alt', 'GIVE TO PARTNER'], ['back', 'DONE']], hx, hy + 16, 'center');
+    }
+  }
+
+  /** The hold: what you carry and haven't bolted on, the one you'd take next lit. */
+  private hold(ctx: CanvasRenderingContext2D, bay: Bay, i: number, x: number, y: number, w: number) {
+    const crew = this.run.crew[i];
+    frame(ctx, x, y, w, 84);
+    drawText(ctx, `HOLD ${crew.cargo.length}/${CARGO}`, x + 6, y + 4, DIM);
+    const room = Math.floor((w - 28) / 6);
     for (let k = 0; k < CARGO; k++) {
       const it = crew.cargo[k];
-      const y = 168 + k * 11;
+      const ry = y + 16 + k * 11;
       const on = it !== undefined && k === bay.sel && !bay.hand;
       if (on) {
         ctx.fillStyle = '#2c2240';
-        ctx.fillRect(x + 2, y - 2, 136, 11);
+        ctx.fillRect(x + 2, ry - 2, w - 4, 11);
       }
       if (it === undefined) {
-        drawText(ctx, '-', x + 8, y, '#3a2e48');
+        drawText(ctx, '-', x + 8, ry, '#3a2e48');
         continue;
       }
       const def = partById(it.id);
       const tier = tierOf(it);
-      shapeIcon(ctx, def, x + 6, y, 3);
+      shapeIcon(ctx, def, x + 6, ry, 3);
       // the name in its tier's colour (stock parts plain); a legendary's glints
       const name = itemName(it);
       const col = tier === 'common' ? '#d8cce8' : TIER_COLOR[tier];
       const glint = tier === 'legendary' && Math.floor(this.t * 3 + k) % 6 === 0;
-      drawText(ctx, name.length > 19 ? name.slice(0, 18) + '.' : name, x + 18, y, on ? (tier === 'common' ? GOLD : '#ffffff') : glint ? '#fff0c0' : col);
-      // its verb, as a coloured pip
-      ctx.fillStyle = VERB_COLOR[verbOf(def)];
-      ctx.fillRect(x + 133, y + 2, 3, 3);
+      drawText(ctx, name.length > room ? name.slice(0, room - 1) + '.' : name, x + 18, ry, on ? (tier === 'common' ? GOLD : '#ffffff') : glint ? '#fff0c0' : col);
+      // its verb, as a coloured pip (a word, with room)
+      const v = verbOf(def);
+      if (w > 200) drawText(ctx, v, x + w - 6, ry, VERB_COLOR[v], { align: 'right' });
+      else {
+        ctx.fillStyle = VERB_COLOR[v];
+        ctx.fillRect(x + w - 7, ry + 2, 3, 3);
+      }
     }
-    if (!coop) this.hardpointsBox(ctx, b, x + 145, 152, 166, 84);
-    // the part in focus: what it is, what it does, what it's linked to
-    const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
-    if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
-    // message, ready, hints
-    if (bay.msgT > 0) drawText(ctx, bay.msg, x + AREA_W / 2, 310, bay.msg.startsWith('HANDED') || bay.msg.endsWith('AGAIN') ? GREEN : RED, { align: 'center' });
-    const dev = this.dev(i);
-    if (bay.ready) {
-      frame(ctx, x, 318, AREA_W - 2, 36, '#1a3020', '#3a6a40');
-      drawText(ctx, coop ? 'READY - WAITING FOR PARTNER' : 'READY', x + AREA_W / 2, 324, GREEN, { align: 'center' });
-      hints(ctx, dev, [['back', 'NOT YET']], x + AREA_W / 2, 338, 'center');
-    } else if (bay.hand) {
-      hints(ctx, dev, [['confirm', 'PLACE'], ['alt', 'TURN'], ['back', 'TO HOLD']], x + AREA_W / 2, 324, 'center');
-    } else {
-      hints(ctx, dev, [['confirm', 'LIFT / FIT'], ['prev', ''], ['next', 'PICK FROM HOLD']], x + AREA_W / 2, 324, 'center');
-      hints(ctx, dev, coop ? [['alt', 'GIVE TO PARTNER'], ['back', 'DONE']] : [['back', 'DONE']], x + AREA_W / 2, 340, 'center');
+  }
+
+  /** Nothing in focus and nothing in the hold: say what the deck is for. */
+  private emptyCard(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
+    frame(ctx, x, y, w, 64, '#1c1526');
+    drawText(ctx, 'AN OPEN DECK', x + 6, y + 4, INK);
+    let ty = y + 16;
+    for (const l of wrap('PARTS FROM LOOT AND DEALERS LAND IN THE HOLD. BOLT THEM ON ANYWHERE: WHERE THEY SIT, AND WHAT THEY TOUCH, IS THE BUILD.', w - 12)) {
+      drawText(ctx, l, x + 6, ty, '#b8acc8');
+      ty += 9;
     }
+  }
+
+  /**
+   * Over the deck: how many sockets are open, which way is forward, the wreck grafts, and a pip
+   * for every hardpoint, filled when a tool is on it (the one a carried tool wants, lit).
+   */
+  private deckLabels(ctx: CanvasRenderingContext2D, bay: Bay, b: Build, shown: Build) {
+    const f = frameById(b.frame);
+    const all = f.grid.join('').split('').filter((ch) => ch === '#').length;
+    const used = shown.parts.reduce((n, p) => n + cellsOf(p).length, 0);
+    const x = DECK.x + 6;
+    const y = DECK.y + 5;
+    const w = drawText(ctx, `${all - used}`, x, y, all - used ? GREEN : GOLD, { shadow: DARK });
+    drawText(ctx, ` OF ${all} SOCKETS OPEN`, x + w, y, DIM, { shadow: DARK });
+    drawText(ctx, '↑ FRONT', DECK.x + DECK.w - 6, y, '#6a5e78', { align: 'right', shadow: DARK });
+    this.graftStrip(ctx, this.bays.indexOf(bay), x, y + 12);
+    // the hardpoints, along the bottom
+    const want = bay.hand ? hardpointOf(partById(bay.hand.id)) : null;
+    const blink = Math.floor(this.t * 4) % 2 === 0;
+    const kinds = ['T', 'H', 'A', 'S'] as Hardpoint[];
+    const sy = DECK.y + DECK.h - 16;
+    ctx.fillStyle = 'rgba(12,10,20,0.78)';
+    ctx.fillRect(DECK.x, sy - 4, DECK.w, 20);
+    const slot = DECK.w / 4;
+    kinds.forEach((k, n) => {
+      const cx = DECK.x + n * slot + 6;
+      const m = mountsUsed(shown, k);
+      const lit = want === k;
+      const full = lit && mountsUsed(b, k).used >= m.of;
+      const color = m.of ? HARDPOINT_COLOR[k] : '#4a3e58';
+      if (lit) {
+        ctx.strokeStyle = full && blink ? RED : color;
+        ctx.strokeRect(cx - 3.5, sy - 2.5, slot - 6, 15);
+      }
+      const tw = drawText(ctx, HARDPOINTS[k].name, cx, sy + 1, color);
+      if (!m.of) {
+        drawText(ctx, 'NONE', cx + tw + 4, sy + 1, '#4a3e58');
+        return;
+      }
+      for (let q = 0; q < m.of; q++) {
+        const px = cx + tw + 5 + q * 8;
+        ctx.fillStyle = color;
+        ctx.fillRect(px, sy, 6, 7);
+        if (q >= m.used) {
+          ctx.fillStyle = '#120e1a';
+          ctx.fillRect(px + 1, sy + 1, 4, 5);
+        }
+      }
+    });
   }
 
   /**
@@ -487,7 +659,7 @@ export class Hangar implements Screen {
     if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
     for (const l of wrap(def.text, tw).slice(0, it.trait || it.affix ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     const hp = hardpointOf(def);
-    lines.push([hp ? `ON THE ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING: PLAIN SOCKETS', hp ? HARDPOINT_COLOR[hp] : DIM]);
+    lines.push([hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT. ANY SOCKET` : 'A FITTING: ANY SOCKET', hp ? HARDPOINT_COLOR[hp] : DIM]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     const lp = linkedPct(this.run.crew[who].build.frame);
     if (pl) {
@@ -573,29 +745,68 @@ export class Hangar implements Screen {
       }
   }
 
-  private grid(ctx: CanvasRenderingContext2D, bay: Bay, b: Build, view: { build: Build; focus: Placement | null; lk: Links }, cx: number, cy: number) {
+  /**
+   * The grid. `over`: laid over the deck's 3D, so sockets are brackets and parts outlines (the
+   * models show through); else drawn flat, a block per part.
+   */
+  private grid(ctx: CanvasRenderingContext2D, bay: Bay, b: Build, view: { build: Build; focus: Placement | null; lk: Links }, cx: number, cy: number, cell: number, over: boolean) {
     const f = frameById(b.frame);
     const cols = f.grid[0].length;
     const rows = f.grid.length;
-    const cell = 22;
     const x0 = Math.round(cx - (cols * cell) / 2);
     const y0 = Math.round(cy - (rows * cell) / 2);
     const lk = view.lk;
     const blink = Math.floor(this.t * 4) % 2 === 0;
-    drawText(ctx, '↑', cx, y0 - 10, '#4a3e58', { align: 'center' });
+    if (!over) drawText(ctx, '↑', cx, y0 - 10, '#4a3e58', { align: 'center' });
+    const taken = new Set(view.build.parts.flatMap((p) => cellsOf(p).map(([c, r]) => `${c},${r}`)));
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {
         if (!socket(f, c, r)) continue;
-        // a hardpoint is rimmed in its button's colour, its letter in the well
-        const hp = hardpointAt(f, c, r);
-        ctx.fillStyle = hp ? HARDPOINT_COLOR[hp] : '#2e2640';
-        ctx.globalAlpha = hp ? 0.55 : 1;
-        ctx.fillRect(x0 + c * cell, y0 + r * cell, cell - 2, cell - 2);
-        ctx.globalAlpha = 1;
+        const sx = x0 + c * cell;
+        const sy = y0 + r * cell;
+        if (over) {
+          // an open socket: corner brackets over the deck plate (a taken one, nothing: its part shows)
+          if (taken.has(`${c},${r}`)) continue;
+          ctx.fillStyle = 'rgba(14,10,24,0.35)';
+          ctx.fillRect(sx + 2, sy + 2, cell - 6, cell - 6);
+          ctx.fillStyle = '#a898c0';
+          const k = 5;
+          for (const [ax, ay, dx, dy] of [[sx + 1, sy + 1, 1, 1], [sx + cell - 4, sy + 1, -1, 1], [sx + 1, sy + cell - 4, 1, -1], [sx + cell - 4, sy + cell - 4, -1, -1]]) {
+            ctx.fillRect(dx > 0 ? ax : ax - k + 1, ay, k, 1);
+            ctx.fillRect(ax, dy > 0 ? ay : ay - k + 1, 1, k);
+          }
+          continue;
+        }
+        ctx.fillStyle = '#2e2640';
+        ctx.fillRect(sx, sy, cell - 2, cell - 2);
         ctx.fillStyle = '#241c34';
-        ctx.fillRect(x0 + c * cell + 2, y0 + r * cell + 2, cell - 6, cell - 6);
-        if (hp) drawText(ctx, hp, x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, HARDPOINT_COLOR[hp], { align: 'center', shadow: false });
+        ctx.fillRect(sx + 2, sy + 2, cell - 6, cell - 6);
       }
+    // carrying a part: where it would go, at the way it's turned (a dot, or for a gun an arrow the way it would fire), and the best place of all
+    if (bay.hand) {
+      const best = bestFit(b, bay.hand).place;
+      const bestHere = best && rotOf(best) === rotOf(bay.hand) ? best : null;
+      const gun = !!partById(bay.hand.id).gun;
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++) {
+          const p: Placement = { ...bay.hand, c, r };
+          if (!fits(b, p)) continue;
+          const cs = cellsOf(p);
+          const mx = x0 + (cs.reduce((t, [cc]) => t + cc, 0) / cs.length) * cell + cell / 2 - 1;
+          const my = y0 + (cs.reduce((t, [, rr]) => t + rr, 0) / cs.length) * cell + cell / 2 - 1;
+          const top = bestHere && bestHere.c === c && bestHere.r === r;
+          ctx.fillStyle = top ? GOLD : '#8affb0';
+          ctx.globalAlpha = 0.55 + 0.25 * Math.sin(this.t * 5 + c + r);
+          if (gun) {
+            const d = gunDir(f, p);
+            for (let k = -3; k < 6; k++) ctx.fillRect(Math.round(mx + Math.sin(d) * k), Math.round(my - Math.cos(d) * k), 2, 2);
+            ctx.fillRect(Math.round(mx + Math.sin(d) * 5 - Math.cos(d) * 2), Math.round(my - Math.cos(d) * 5 - Math.sin(d) * 2), 2, 2);
+            ctx.fillRect(Math.round(mx + Math.sin(d) * 5 + Math.cos(d) * 2), Math.round(my - Math.cos(d) * 5 + Math.sin(d) * 2), 2, 2);
+          } else ctx.fillRect(Math.round(mx) - 1, Math.round(my) - 1, 3, 3);
+          ctx.globalAlpha = 1;
+          if (top && over) drawText(ctx, 'BEST', mx, my + cell / 2 - 9, GOLD, { align: 'center', shadow: DARK });
+        }
+    }
     const mid = (c: number) => c * cell + cell / 2 - 1;
     const drawPart = (p: Placement, alpha: number, bad = false) => {
       const def = partById(p.id);
@@ -603,15 +814,34 @@ export class Hangar implements Screen {
       // idle parts (missing what they need) are drawn dim
       ctx.globalAlpha = alpha * (pl && pl.str === 0 && !bad ? 0.45 : 1);
       const cells = cellsOf(p);
-      ctx.fillStyle = bad ? RED : CLASS_COLOR[def.cls];
-      for (const [c, r] of cells) {
-        ctx.fillRect(x0 + c * cell + 1, y0 + r * cell + 1, cell - 4, cell - 4);
-        // join the cells of a long part
-        if (cells.some(([c2, r2]) => c2 === c + 1 && r2 === r)) ctx.fillRect(x0 + c * cell + cell - 4, y0 + r * cell + 4, 4, cell - 10);
-        if (cells.some(([c2, r2]) => c2 === c && r2 === r + 1)) ctx.fillRect(x0 + c * cell + 4, y0 + r * cell + cell - 4, cell - 10, 4);
-      }
       const [c, r] = cells[0];
-      drawText(ctx, def.name.slice(0, 2), x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, DARK, { align: 'center', shadow: false });
+      if (over && !bad) {
+        // the model shows: rim its cells in its class colour, edges it shares with itself left open
+        ctx.fillStyle = CLASS_COLOR[def.cls];
+        const has = (cc: number, rr: number) => cells.some(([c2, r2]) => c2 === cc && r2 === rr);
+        for (const [cc, rr] of cells) {
+          const px = x0 + cc * cell;
+          const py = y0 + rr * cell;
+          if (!has(cc, rr - 1)) ctx.fillRect(px, py, cell - 2, 1);
+          if (!has(cc, rr + 1)) ctx.fillRect(px, py + cell - 3, cell - 2, 1);
+          if (!has(cc - 1, rr)) ctx.fillRect(px, py, 1, cell - 2);
+          if (!has(cc + 1, rr)) ctx.fillRect(px + cell - 3, py, 1, cell - 2);
+        }
+        if (pl && pl.str === 0) {
+          // idle: struck through
+          ctx.fillStyle = RED;
+          for (const [cc, rr] of cells) for (let k = 2; k < cell - 4; k++) ctx.fillRect(x0 + cc * cell + k, y0 + rr * cell + k, 1, 1);
+        }
+      } else {
+        ctx.fillStyle = bad ? RED : CLASS_COLOR[def.cls];
+        for (const [cc, rr] of cells) {
+          ctx.fillRect(x0 + cc * cell + 1, y0 + rr * cell + 1, cell - 4, cell - 4);
+          // join the cells of a long part
+          if (cells.some(([c2, r2]) => c2 === cc + 1 && r2 === rr)) ctx.fillRect(x0 + cc * cell + cell - 4, y0 + rr * cell + 4, 4, cell - 10);
+          if (cells.some(([c2, r2]) => c2 === cc && r2 === rr + 1)) ctx.fillRect(x0 + cc * cell + 4, y0 + rr * cell + cell - 4, cell - 10, 4);
+        }
+        drawText(ctx, def.name.slice(0, 2), x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, DARK, { align: 'center', shadow: false });
+      }
       // its tier: a corner pip; a legendary is ringed in moving gold
       const tier = tierOf(p);
       if (tier !== 'common' && !bad) {
@@ -750,18 +980,27 @@ export class Hangar implements Screen {
     if (bay.hand) {
       const p: Placement = { ...bay.hand, c: bay.cur.c, r: bay.cur.r };
       const ok = fits(b, p);
-      drawPart(focus && ok ? focus : p, 0.55 + 0.25 * Math.sin(this.t * 8), !ok);
-      // held where it can't go: say where it can
-      if (!ok && !suits(f, p)) {
-        const want = hardpointOf(partById(p.id));
-        const say = want ? `GOES ON A ${HARDPOINTS[want].name} HARDPOINT` : 'A FITTING: NOT ON A HARDPOINT';
-        drawText(ctx, say, cx, y0 + rows * cell + 4, want ? HARDPOINT_COLOR[want] : GOLD, { align: 'center' });
-      }
+      if (ok && over) {
+        // it's in the model already: a bright pulsing rim round it
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = 0.5 + 0.4 * Math.sin(this.t * 8);
+        for (const [c, r] of cellsOf(p)) ctx.strokeRect(x0 + c * cell + 0.5, y0 + r * cell + 0.5, cell - 3, cell - 3);
+        ctx.globalAlpha = 1;
+      } else drawPart(focus && ok ? focus : p, 0.55 + 0.25 * Math.sin(this.t * 8), !ok);
+      // held where it can't go for want of a hardpoint: say so
+      const why = !ok && room(b, p) ? this.blocked(b, p) : '';
+      if (why) drawText(ctx, why, cx, over ? y0 + rows * cell + 6 : y0 + rows * cell + 4, RED, { align: 'center', shadow: DARK });
     }
-    if (!bay.ready && Math.floor(this.t * 3) % 3 !== 0) {
-      ctx.strokeStyle = bay.hand ? INK : GOLD;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x0 + bay.cur.c * cell - 1.5, y0 + bay.cur.r * cell - 1.5, cell + 1, cell + 1);
+    if (!bay.ready) {
+      // the cursor: gold corners that breathe (white while carrying)
+      const o = Math.round(1 + Math.sin(this.t * 6));
+      const px = x0 + bay.cur.c * cell - 2 - o;
+      const py = y0 + bay.cur.r * cell - 2 - o;
+      const sz = cell + 1 + o * 2;
+      const k = Math.max(4, Math.round(cell / 4));
+      ctx.fillStyle = bay.hand ? '#ffffff' : GOLD;
+      for (const [ax, ay] of [[px, py], [px + sz - k, py], [px, py + sz - 2], [px + sz - k, py + sz - 2]]) ctx.fillRect(ax, ay, k, 2);
+      for (const [ax, ay] of [[px, py], [px + sz - 2, py], [px, py + sz - k], [px + sz - 2, py + sz - k]]) ctx.fillRect(ax, ay, 2, k);
     }
   }
 
@@ -779,9 +1018,11 @@ export class Hangar implements Screen {
       ['DPS', dps(s), after ? dps(after) : undefined, (n) => `${Math.round(n)}`],
       ['SPEED', s.speed, after?.speed, (n) => `${Math.round(n)}`],
     ];
+    const per = w > 200 ? 3 : 2;
+    const cw = w > 200 ? 96 : 84;
     cells.forEach(([label, now, then, fmt, lowerBetter], k) => {
-      const cx = x + 6 + (k % 2) * 84;
-      const ry = y + 38 + Math.floor(k / 2) * 11;
+      const cx = x + 6 + (k % per) * cw;
+      const ry = y + 38 + Math.floor(k / per) * 11;
       drawText(ctx, label, cx, ry, DIM);
       drawText(ctx, fmt(now), cx + 58, ry, INK, { align: 'right' });
       if (then !== undefined && fmt(then) !== fmt(now)) {
@@ -791,27 +1032,10 @@ export class Hangar implements Screen {
     });
   }
 
-  /** Each hardpoint the frame has, and the tool on it (or that it's empty: a button that does nothing). */
-  private hardpointsBox(ctx: CanvasRenderingContext2D, b: Build, x: number, y: number, w: number, h: number) {
-    frame(ctx, x, y, w, h);
-    drawText(ctx, 'HARDPOINTS', x + 6, y + 4, DIM);
-    const f = frameById(b.frame);
-    const kinds = [...new Set(hardpointsOf(f))];
-    kinds.forEach((k: Hardpoint, n) => {
-      const tools = b.parts.map((p) => partById(p.id)).filter((d) => hardpointOf(d) === k);
-      const ty = y + 16 + n * 11;
-      drawText(ctx, HARDPOINTS[k].name, x + 6, ty, HARDPOINT_COLOR[k]);
-      // two of a gun read as one line, ×2
-      const names = tools.map((d) => d.name.toUpperCase());
-      const say = tools.length ? [...new Set(names)].map((n) => { const k = names.filter((m) => m === n).length; return k > 1 ? `${n} ×${k}` : n; }).join(' + ') : 'EMPTY';
-      const room = Math.floor((w - 70) / 6);
-      drawText(ctx, say.length > room ? say.slice(0, room - 1) + '.' : say, x + w - 6, ty, tools.length ? INK : '#4a3e58', { align: 'right' });
-    });
-    const missing = (['T', 'H', 'A', 'S'] as Hardpoint[]).filter((k) => !kinds.includes(k));
-    if (missing.length) drawText(ctx, `NO ${missing.map((k) => HARDPOINTS[k].name).join(', ')}`, x + 6, y + 16 + kinds.length * 11, '#4a3e58');
-  }
-
   dispose() {
-    for (const b of this.bays) b.model?.dispose();
+    for (const b of this.bays) {
+      b.model?.dispose();
+      b.deckModel?.dispose();
+    }
   }
 }

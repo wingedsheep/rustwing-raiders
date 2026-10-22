@@ -73,7 +73,7 @@ export function partStats(def: PartDef): string[] {
   if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
   const hp = hardpointOf(def);
-  out.push(`LOAD ${num(def.mass)}  ${hp ? `ON THE ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING'}`);
+  out.push(`LOAD ${num(def.mass)}  ${hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING'}`);
   return out;
 }
 

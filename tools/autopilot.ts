@@ -107,40 +107,40 @@ const LOADOUTS: Record<string, (frame: string) => Build> = {
     ship('mule', [
       ['plate', 0, 0], ['seeker', 1, 0], ['rivet', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
       ['shield', 0, 1], ['plate', 1, 1], ['parry', 2, 1], ['sink', 3, 1], ['mirror', 4, 1],
-      ['thruster', 1, 2], ['thruster', 3, 2],
+      ['thruster', 2, 3],
     ]),
-  // (the lance lies across the heavy hardpoint; a rivet in the nose holds the trigger between rounds)
+  // (the lance lies across the middle; a rivet in the nose holds the trigger between rounds)
   speed: () =>
     ship('kestrel', [
-      ['rivet', 1, 0], ['flare', 0, 1], ['phasedrive', 2, 1], ['lance', 0, 2, 1], ['thruster', 0, 3], ['thruster', 2, 3],
+      ['rivet', 2, 0], ['flare', 1, 1], ['phasedrive', 3, 1], ['lance', 1, 2, 1],
     ]),
   assassin: () =>
     ship('wasp', [
-      ['scatter', 0, 0], ['scatter', 2, 0], ['ram', 0, 1], ['hone', 2, 1], ['bombbay', 0, 2], ['mine', 1, 2], ['lunge', 2, 2],
-      ['wake', 0, 3], ['thruster', 1, 3], ['thruster', 2, 3],
+      ['scatter', 1, 0], ['scatter', 3, 0], ['hone', 3, 1], ['ram', 0, 2], ['mine', 1, 2], ['bombbay', 2, 2], ['lunge', 3, 2],
+      ['wake', 0, 3], ['thruster', 2, 4],
     ]),
   turret: () =>
     ship('lattice', [
       ['plate', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['shield', 0, 1], ['sentry', 2, 1], ['mirror', 4, 1],
-      ['autoloader', 0, 2], ['flare', 1, 2], ['amp', 2, 2], ['overdrive', 3, 2], ['thruster', 1, 3], ['thruster', 3, 3],
+      ['autoloader', 0, 2], ['flare', 1, 2], ['amp', 2, 2], ['overdrive', 3, 2],
     ]),
   // marks and reactions: a torch that burns and a seeker that cracks off a Breacher Rack, a Catalyst to set them off
   alchemist: () =>
     ship('lattice', [
       ['flaw', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['incend', 0, 1], ['torch', 2, 1], ['shield', 4, 1],
-      ['catalyst', 0, 2], ['siphon', 1, 2], ['breach', 2, 2], ['emp', 3, 2], ['thruster', 3, 3],
+      ['catalyst', 0, 2], ['breach', 2, 2], ['emp', 3, 2], ['siphon', 4, 2],
     ]),
-  // a sensible mid-run ship: a gun on every hardpoint, boosters on them, armour, engines at the back
+  // a sensible mid-run ship: a tool on every hardpoint, boosters on them, armour, an engine at the back
   strong: () =>
     ship('mule', [
       ['plate', 0, 0], ['seeker', 1, 0], ['scatter', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
       ['shield', 0, 1], ['amp', 1, 1], ['flare', 2, 1], ['sink', 3, 1], ['vector', 4, 1],
-      ['thruster', 1, 2], ['thruster', 3, 2],
+      ['thruster', 2, 3],
     ]),
 };
 
 /**
- * A named loadout, or a bench: `gun:<id>` is the starter frame with only that gun on its hardpoint (a
+ * A named loadout, or a bench: `gun:<id>` is the starter frame with only that gun on it (a
  * second gun after a comma, `gun:rivet,rail`), to set the guns against each other.
  */
 function loadout(name: string, frame: string): Build {
@@ -152,7 +152,7 @@ function loadout(name: string, frame: string): Build {
   }
   const b = startBuild(frame);
   const guns = name.slice(4).split(',');
-  // each on the next free hardpoint of its kind (trigger or heavy)
+  // each on the first socket it fits, with a hardpoint of its kind free (trigger or heavy)
   b.parts = b.parts.filter((p) => partById(p.id).cls !== 'gun');
   const grid = frameById(b.frame).grid;
   for (const id of guns) {
