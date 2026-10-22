@@ -1129,6 +1129,11 @@ export class Level {
     return Math.abs(x) < HALF_W + margin && z > this.top - margin && z < this.bottom + margin;
   }
 
+  /** In view enough to be hit (its middle on the screen): nothing is shot down before it's seen. */
+  seen(e: Enemy) {
+    return this.onScreen(e.x, e.z);
+  }
+
   private updateGun(p: Player, k: number, firing: boolean) {
     const g = p.stats.guns[k];
     const sp = g.spec;
@@ -1256,7 +1261,7 @@ export class Level {
     }
     const hit: Enemy[] = [];
     for (const e of this.enemies) {
-      if (e.dead || e.shielded) continue;
+      if (e.dead || e.shielded || !this.seen(e)) continue;
       const ex = e.x - x;
       const ez = e.z - z;
       const along = ex * dx + ez * dz;
@@ -1538,7 +1543,7 @@ export class Level {
    * tick (no blow to make a fuss of).
    */
   damage(e: Enemy, dmg: number, owner: number, crit: boolean, from?: { x: number; z: number } | null, s?: Shot, dot = false, edge?: Edge, affix?: AffixId) {
-    if (e.dead || e.shielded) return;
+    if (e.dead || e.shielded || !this.seen(e)) return;
     const p = this.players[owner];
     const af = dot ? undefined : (s?.affix ?? affix);
     if (af === 'giantslayer' && (e.elite || e.boss || e.r >= GIANT_R)) dmg *= GIANT_DMG;
@@ -2211,7 +2216,8 @@ export class Level {
         for (const b of this.bullets) if (!b.dead && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1) this.cancel(b);
       }
       for (const e of this.enemies) {
-        if (e.dead) continue;
+        // (not yet on the screen, or gone off it: shots fly on by)
+        if (e.dead || !this.seen(e)) continue;
         if (e.shielded) {
           // a boss closed up behind its shield stops shots there (and they show on it); anything
           // else untouchable for now (rolling, coming on) lets them by

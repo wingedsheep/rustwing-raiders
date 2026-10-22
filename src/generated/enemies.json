@@ -1,4 +1,20 @@
 {
+ "enemy_armoured_thunderhide": {
+  "colliders": [],
+  "kind": "enemy_armoured_thunderhide",
+  "max": [
+   3.203,
+   1.127,
+   3.71
+  ],
+  "min": [
+   -3.203,
+   -0.963,
+   -3.061
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_blimp_mech": {
   "colliders": [],
   "kind": "enemy_blimp_mech",
@@ -48,6 +64,22 @@
   ],
   "variant": 0
  },
+ "enemy_bog_shellback": {
+  "colliders": [],
+  "kind": "enemy_bog_shellback",
+  "max": [
+   2.649,
+   1.284,
+   2.7
+  ],
+  "min": [
+   -2.649,
+   -0.95,
+   -3.214
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_bomber_beast": {
   "colliders": [],
   "kind": "enemy_bomber_beast",
@@ -76,6 +108,22 @@
    -2.876,
    -0.407,
    -1.7
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_brood_sac": {
+  "colliders": [],
+  "kind": "enemy_brood_sac",
+  "max": [
+   2.016,
+   1.29,
+   3.677
+  ],
+  "min": [
+   -2.016,
+   -1.309,
+   -3.761
   ],
   "mounts": [],
   "variant": 0
@@ -112,6 +160,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_burrower": {
+  "colliders": [],
+  "kind": "enemy_burrower",
+  "max": [
+   1.339,
+   1.612,
+   1.675
+  ],
+  "min": [
+   -1.206,
+   -0.736,
+   -2.145
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_carrier_beast": {
   "colliders": [],
   "kind": "enemy_carrier_beast",
@@ -144,6 +208,118 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_cartel_hauler": {
+  "colliders": [],
+  "kind": "enemy_cartel_hauler",
+  "max": [
+   2.052,
+   1.01,
+   2.488
+  ],
+  "min": [
+   -2.04,
+   -0.67,
+   -2.21
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_clam_battery": {
+  "colliders": [],
+  "kind": "enemy_clam_battery",
+  "max": [
+   1.317,
+   2.095,
+   1.146
+  ],
+  "min": [
+   -1.317,
+   -0.254,
+   -1.22
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_clan_rig": {
+  "colliders": [],
+  "kind": "enemy_clan_rig",
+  "max": [
+   2.337,
+   1.398,
+   2.251
+  ],
+  "min": [
+   -2.307,
+   -0.541,
+   -2.06
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_crab_dreadnought": {
+  "colliders": [],
+  "kind": "enemy_crab_dreadnought",
+  "max": [
+   3.205,
+   1.16,
+   1.603
+  ],
+  "min": [
+   -3.219,
+   -0.764,
+   -4.916
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_crop_duster": {
+  "colliders": [],
+  "kind": "enemy_crop_duster",
+  "max": [
+   2.372,
+   0.828,
+   2.15
+  ],
+  "min": [
+   -2.362,
+   -0.655,
+   -1.661
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_customs_tender": {
+  "colliders": [],
+  "kind": "enemy_customs_tender",
+  "max": [
+   1.774,
+   1.734,
+   4.295
+  ],
+  "min": [
+   -1.766,
+   -0.641,
+   -3.81
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_cutter_rig": {
+  "colliders": [],
+  "kind": "enemy_cutter_rig",
+  "max": [
+   0.95,
+   0.47,
+   1.66
+  ],
+  "min": [
+   -0.95,
+   -0.3,
+   -1.43
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_dart_beast": {
   "colliders": [],
   "kind": "enemy_dart_beast",
@@ -172,6 +348,191 @@
    -1.134,
    -0.175,
    -1.15
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_depth_charger": {
+  "colliders": [],
+  "kind": "enemy_depth_charger",
+  "max": [
+   2.402,
+   0.831,
+   1.95
+  ],
+  "min": [
+   -2.398,
+   -0.691,
+   -1.703
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_drone_tender": {
+  "colliders": [],
+  "kind": "enemy_drone_tender",
+  "max": [
+   2.515,
+   1.218,
+   3.93
+  ],
+  "min": [
+   -2.508,
+   -0.587,
+   -3.5
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_dune_mortar": {
+  "colliders": [],
+  "kind": "enemy_dune_mortar",
+  "max": [
+   1.196,
+   1.547,
+   1.36
+  ],
+  "min": [
+   -1.171,
+   0.0,
+   -1.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_engine_eye": {
+  "colliders": [],
+  "kind": "enemy_engine_eye",
+  "max": [
+   1.267,
+   1.935,
+   1.253
+  ],
+  "min": [
+   -1.501,
+   -0.117,
+   -1.39
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_engine_hive": {
+  "colliders": [],
+  "kind": "enemy_engine_hive",
+  "max": [
+   3.136,
+   0.855,
+   4.338
+  ],
+  "min": [
+   -3.136,
+   -0.747,
+   -3.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_flakker": {
+  "colliders": [],
+  "kind": "enemy_flakker",
+  "max": [
+   1.221,
+   1.655,
+   1.201
+  ],
+  "min": [
+   -1.231,
+   0.0,
+   -1.436
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_frost_wisp": {
+  "colliders": [],
+  "kind": "enemy_frost_wisp",
+  "max": [
+   1.264,
+   0.622,
+   1.17
+  ],
+  "min": [
+   -1.124,
+   -0.324,
+   -1.22
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_gatekeeper": {
+  "colliders": [],
+  "kind": "enemy_gatekeeper",
+  "max": [
+   1.155,
+   3.57,
+   1.155
+  ],
+  "min": [
+   -1.155,
+   0.0,
+   -1.822
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     3.0,
+     -1.55
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
+ "enemy_glass_lancer": {
+  "colliders": [],
+  "kind": "enemy_glass_lancer",
+  "max": [
+   1.562,
+   0.977,
+   1.51
+  ],
+  "min": [
+   -1.56,
+   -0.513,
+   -1.881
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_glass_sniper": {
+  "colliders": [],
+  "kind": "enemy_glass_sniper",
+  "max": [
+   0.88,
+   0.516,
+   1.26
+  ],
+  "min": [
+   -0.874,
+   -0.541,
+   -2.229
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_glowmoth": {
+  "colliders": [],
+  "kind": "enemy_glowmoth",
+  "max": [
+   0.939,
+   0.224,
+   0.743
+  ],
+  "min": [
+   -0.879,
+   -0.16,
+   -0.84
   ],
   "mounts": [],
   "variant": 0
@@ -289,6 +650,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_hail_layer": {
+  "colliders": [],
+  "kind": "enemy_hail_layer",
+  "max": [
+   2.299,
+   0.704,
+   1.0
+  ],
+  "min": [
+   -2.303,
+   -0.633,
+   -1.15
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_halo_mech": {
   "colliders": [],
   "kind": "enemy_halo_mech",
@@ -314,6 +691,22 @@
   ],
   "variant": 0
  },
+ "enemy_harbour_lancer": {
+  "colliders": [],
+  "kind": "enemy_harbour_lancer",
+  "max": [
+   1.449,
+   0.784,
+   2.027
+  ],
+  "min": [
+   -1.438,
+   -0.343,
+   -1.99
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_heartpod_beast": {
   "colliders": [],
   "kind": "enemy_heartpod_beast",
@@ -326,6 +719,150 @@
    -2.468,
    -1.333,
    -2.38
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_hesk_skiff": {
+  "colliders": [],
+  "kind": "enemy_hesk_skiff",
+  "max": [
+   1.139,
+   0.755,
+   1.735
+  ],
+  "min": [
+   -1.072,
+   -0.429,
+   -1.288
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_hesk_trawler": {
+  "colliders": [],
+  "kind": "enemy_hesk_trawler",
+  "max": [
+   2.163,
+   1.443,
+   2.568
+  ],
+  "min": [
+   -2.133,
+   -0.684,
+   -2.3
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_hive_needle": {
+  "colliders": [],
+  "kind": "enemy_hive_needle",
+  "max": [
+   1.107,
+   0.327,
+   1.22
+  ],
+  "min": [
+   -1.087,
+   -0.261,
+   -1.18
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_hookjaw": {
+  "colliders": [],
+  "kind": "enemy_hookjaw",
+  "max": [
+   2.157,
+   1.058,
+   2.408
+  ],
+  "min": [
+   -2.133,
+   -0.464,
+   -2.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_iron_crate": {
+  "colliders": [],
+  "kind": "enemy_iron_crate",
+  "max": [
+   2.01,
+   1.193,
+   1.951
+  ],
+  "min": [
+   -2.004,
+   -0.699,
+   -1.991
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_jade_wyrm_body": {
+  "colliders": [],
+  "kind": "enemy_jade_wyrm_body",
+  "max": [
+   1.193,
+   0.7,
+   1.1
+  ],
+  "min": [
+   -1.193,
+   -0.594,
+   -1.04
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_jade_wyrm_head": {
+  "colliders": [],
+  "kind": "enemy_jade_wyrm_head",
+  "max": [
+   1.062,
+   0.658,
+   1.127
+  ],
+  "min": [
+   -1.067,
+   -0.557,
+   -1.208
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_jade_wyrm_tail": {
+  "colliders": [],
+  "kind": "enemy_jade_wyrm_tail",
+  "max": [
+   0.968,
+   0.56,
+   1.301
+  ],
+  "min": [
+   -0.804,
+   -0.56,
+   -1.203
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_junk_flak": {
+  "colliders": [],
+  "kind": "enemy_junk_flak",
+  "max": [
+   1.4,
+   1.31,
+   1.225
+  ],
+  "min": [
+   -1.35,
+   0.0,
+   -1.93
   ],
   "mounts": [],
   "variant": 0
@@ -362,6 +899,38 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_lantern_jelly": {
+  "colliders": [],
+  "kind": "enemy_lantern_jelly",
+  "max": [
+   0.634,
+   0.433,
+   0.862
+  ],
+  "min": [
+   -0.63,
+   -0.386,
+   -0.535
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_loot_runner": {
+  "colliders": [],
+  "kind": "enemy_loot_runner",
+  "max": [
+   2.23,
+   1.178,
+   2.743
+  ],
+  "min": [
+   -2.207,
+   -0.722,
+   -1.55
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_manta_beast": {
   "colliders": [],
   "kind": "enemy_manta_beast",
@@ -385,6 +954,456 @@
     "type": "muzzle"
    }
   ],
+  "variant": 0
+ },
+ "enemy_mire_eel_body": {
+  "colliders": [],
+  "kind": "enemy_mire_eel_body",
+  "max": [
+   0.9,
+   0.79,
+   1.08
+  ],
+  "min": [
+   -0.9,
+   -0.66,
+   -1.08
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_mire_eel_head": {
+  "colliders": [],
+  "kind": "enemy_mire_eel_head",
+  "max": [
+   0.92,
+   1.071,
+   1.055
+  ],
+  "min": [
+   -0.92,
+   -0.56,
+   -1.203
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_mire_eel_tail": {
+  "colliders": [],
+  "kind": "enemy_mire_eel_tail",
+  "max": [
+   0.757,
+   0.58,
+   1.455
+  ],
+  "min": [
+   -0.701,
+   -0.58,
+   -1.115
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_orchard_sentry": {
+  "colliders": [],
+  "kind": "enemy_orchard_sentry",
+  "max": [
+   1.1,
+   1.985,
+   1.1
+  ],
+  "min": [
+   -1.1,
+   0.0,
+   -1.37
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_patrol_cutter": {
+  "colliders": [],
+  "kind": "enemy_patrol_cutter",
+  "max": [
+   1.169,
+   0.587,
+   1.63
+  ],
+  "min": [
+   -1.163,
+   -0.488,
+   -1.327
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_pirate_ace": {
+  "colliders": [],
+  "kind": "enemy_pirate_ace",
+  "max": [
+   1.258,
+   0.58,
+   1.534
+  ],
+  "min": [
+   -1.144,
+   -0.153,
+   -1.165
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_pirate_junk": {
+  "colliders": [],
+  "kind": "enemy_pirate_junk",
+  "max": [
+   1.748,
+   1.904,
+   2.668
+  ],
+  "min": [
+   -1.58,
+   -0.671,
+   -2.11
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_prism": {
+  "colliders": [],
+  "kind": "enemy_prism",
+  "max": [
+   1.69,
+   1.114,
+   1.647
+  ],
+  "min": [
+   -1.69,
+   -0.577,
+   -1.605
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     -0.162,
+     -1.255
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
+ "enemy_pterosaur": {
+  "colliders": [],
+  "kind": "enemy_pterosaur",
+  "max": [
+   0.906,
+   0.356,
+   0.62
+  ],
+  "min": [
+   -0.906,
+   -0.2,
+   -0.859
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_puffball": {
+  "colliders": [],
+  "kind": "enemy_puffball",
+  "max": [
+   0.719,
+   0.725,
+   0.619
+  ],
+  "min": [
+   -0.719,
+   -0.39,
+   -0.749
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_pylon_warden": {
+  "colliders": [],
+  "kind": "enemy_pylon_warden",
+  "max": [
+   0.926,
+   0.618,
+   1.87
+  ],
+  "min": [
+   -0.917,
+   -0.338,
+   -1.636
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_ramjack": {
+  "colliders": [],
+  "kind": "enemy_ramjack",
+  "max": [
+   1.02,
+   0.389,
+   1.863
+  ],
+  "min": [
+   -1.02,
+   -0.31,
+   -1.38
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_rattler": {
+  "colliders": [],
+  "kind": "enemy_rattler",
+  "max": [
+   1.253,
+   0.518,
+   1.395
+  ],
+  "min": [
+   -0.896,
+   -0.201,
+   -1.042
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_reef_eel_body": {
+  "colliders": [],
+  "kind": "enemy_reef_eel_body",
+  "max": [
+   0.86,
+   0.72,
+   1.0
+  ],
+  "min": [
+   -0.86,
+   -0.634,
+   -1.008
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_reef_eel_head": {
+  "colliders": [],
+  "kind": "enemy_reef_eel_head",
+  "max": [
+   0.973,
+   0.72,
+   1.05
+  ],
+  "min": [
+   -0.868,
+   -0.767,
+   -1.43
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_reef_eel_tail": {
+  "colliders": [],
+  "kind": "enemy_reef_eel_tail",
+  "max": [
+   0.914,
+   0.72,
+   1.599
+  ],
+  "min": [
+   -0.973,
+   -0.634,
+   -1.096
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_reef_glider": {
+  "colliders": [],
+  "kind": "enemy_reef_glider",
+  "max": [
+   1.322,
+   0.547,
+   1.48
+  ],
+  "min": [
+   -1.311,
+   -0.198,
+   -1.12
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_revived_titan_torso": {
+  "colliders": [],
+  "kind": "enemy_revived_titan_torso",
+  "max": [
+   3.292,
+   1.593,
+   3.394
+  ],
+  "min": [
+   -3.156,
+   -0.958,
+   -3.08
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_rook": {
+  "colliders": [],
+  "kind": "enemy_rook",
+  "max": [
+   3.165,
+   1.047,
+   4.173
+  ],
+  "min": [
+   -3.161,
+   -0.797,
+   -3.4
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.003,
+     0.2,
+     -3.3
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
+ "enemy_rust_worm_body": {
+  "colliders": [],
+  "kind": "enemy_rust_worm_body",
+  "max": [
+   0.92,
+   1.02,
+   1.0
+  ],
+  "min": [
+   -0.92,
+   -0.8,
+   -1.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_rust_worm_head": {
+  "colliders": [],
+  "kind": "enemy_rust_worm_head",
+  "max": [
+   1.008,
+   0.875,
+   1.047
+  ],
+  "min": [
+   -1.008,
+   -0.699,
+   -1.613
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_rust_worm_tail": {
+  "colliders": [],
+  "kind": "enemy_rust_worm_tail",
+  "max": [
+   0.91,
+   0.918,
+   1.654
+  ],
+  "min": [
+   -0.828,
+   -0.72,
+   -1.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_sand_skimmer": {
+  "colliders": [],
+  "kind": "enemy_sand_skimmer",
+  "max": [
+   0.939,
+   1.044,
+   1.57
+  ],
+  "min": [
+   -0.835,
+   -0.395,
+   -1.155
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_scarab_bomber": {
+  "colliders": [],
+  "kind": "enemy_scarab_bomber",
+  "max": [
+   2.395,
+   0.792,
+   2.32
+  ],
+  "min": [
+   -2.395,
+   -0.56,
+   -1.62
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_scav_kite": {
+  "colliders": [],
+  "kind": "enemy_scav_kite",
+  "max": [
+   1.217,
+   0.342,
+   1.45
+  ],
+  "min": [
+   -1.135,
+   -0.614,
+   -1.34
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_scrap_hauler": {
+  "colliders": [],
+  "kind": "enemy_scrap_hauler",
+  "max": [
+   2.429,
+   0.953,
+   2.88
+  ],
+  "min": [
+   -2.423,
+   -0.923,
+   -1.92
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_security_drone": {
+  "colliders": [],
+  "kind": "enemy_security_drone",
+  "max": [
+   1.203,
+   0.494,
+   1.58
+  ],
+  "min": [
+   -1.08,
+   -0.271,
+   -1.136
+  ],
+  "mounts": [],
   "variant": 0
  },
  "enemy_serpent_body_beast": {
@@ -483,6 +1502,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_shrimp_kite": {
+  "colliders": [],
+  "kind": "enemy_shrimp_kite",
+  "max": [
+   0.754,
+   0.286,
+   0.823
+  ],
+  "min": [
+   -0.754,
+   -0.271,
+   -0.734
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_spindle_mech": {
   "colliders": [],
   "kind": "enemy_spindle_mech",
@@ -532,6 +1567,63 @@
   ],
   "variant": 0
  },
+ "enemy_spitter": {
+  "colliders": [],
+  "kind": "enemy_spitter",
+  "max": [
+   1.511,
+   1.612,
+   1.397
+  ],
+  "min": [
+   -1.511,
+   -0.046,
+   -1.559
+  ],
+  "mounts": [
+   {
+    "p": [
+     0.0,
+     1.05,
+     -1.35
+    ],
+    "type": "muzzle"
+   }
+  ],
+  "variant": 0
+ },
+ "enemy_spitter_pod": {
+  "colliders": [],
+  "kind": "enemy_spitter_pod",
+  "max": [
+   1.109,
+   1.855,
+   1.235
+  ],
+  "min": [
+   -1.146,
+   -0.322,
+   -1.235
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_strongbox": {
+  "colliders": [],
+  "kind": "enemy_strongbox",
+  "max": [
+   3.03,
+   1.31,
+   3.057
+  ],
+  "min": [
+   -3.03,
+   -1.467,
+   -3.062
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_swarm_beast": {
   "colliders": [],
   "kind": "enemy_swarm_beast",
@@ -564,6 +1656,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_swooper": {
+  "colliders": [],
+  "kind": "enemy_swooper",
+  "max": [
+   1.206,
+   0.266,
+   0.772
+  ],
+  "min": [
+   -1.206,
+   -0.24,
+   -0.773
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_technical_mech": {
   "colliders": [],
   "kind": "enemy_technical_mech",
@@ -587,6 +1695,38 @@
     "type": "muzzle"
    }
   ],
+  "variant": 0
+ },
+ "enemy_toll_barge": {
+  "colliders": [],
+  "kind": "enemy_toll_barge",
+  "max": [
+   1.818,
+   1.364,
+   2.359
+  ],
+  "min": [
+   -1.801,
+   -0.495,
+   -1.91
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_torpedo_rig": {
+  "colliders": [],
+  "kind": "enemy_torpedo_rig",
+  "max": [
+   2.293,
+   1.251,
+   2.463
+  ],
+  "min": [
+   -2.279,
+   -0.482,
+   -1.5
+  ],
+  "mounts": [],
   "variant": 0
  },
  "enemy_turret_beast": {
@@ -619,6 +1759,111 @@
    -1.58
   ],
   "mounts": [],
+  "variant": 0
+ },
+ "enemy_tusk_battery": {
+  "colliders": [],
+  "kind": "enemy_tusk_battery",
+  "max": [
+   1.35,
+   1.23,
+   1.357
+  ],
+  "min": [
+   -1.286,
+   0.0,
+   -1.56
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_tusked_bull": {
+  "colliders": [],
+  "kind": "enemy_tusked_bull",
+  "max": [
+   2.21,
+   1.78,
+   2.733
+  ],
+  "min": [
+   -2.21,
+   -1.365,
+   -4.08
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_vantorr_interceptor": {
+  "colliders": [],
+  "kind": "enemy_vantorr_interceptor",
+  "max": [
+   2.185,
+   0.874,
+   2.259
+  ],
+  "min": [
+   -2.039,
+   -0.444,
+   -2.11
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_warden": {
+  "colliders": [],
+  "kind": "enemy_warden",
+  "max": [
+   2.366,
+   0.78,
+   2.887
+  ],
+  "min": [
+   -2.286,
+   -0.51,
+   -2.23
+  ],
+  "mounts": [
+   {
+    "p": [
+     2.041,
+     -0.05,
+     -1.574
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     1.096,
+     -0.05,
+     -2.076
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     0.04,
+     -0.05,
+     -2.25
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     -1.016,
+     -0.05,
+     -2.076
+    ],
+    "type": "muzzle"
+   },
+   {
+    "p": [
+     -1.961,
+     -0.05,
+     -1.574
+    ],
+    "type": "muzzle"
+   }
+  ],
   "variant": 0
  }
 }

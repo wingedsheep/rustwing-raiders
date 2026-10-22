@@ -8,6 +8,7 @@ import type { Biome, EnemySkin, Planet } from '../world/planets';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
 import { HAULER_SKINS, LIVERY, ShipModel } from './ship-model';
+import { cloneEnemy } from './enemy-model';
 import { Stage } from './stage';
 import { RUNNER } from '../sim/heist';
 import { clamp, noise2, pick, rng, type Rng } from '../util';
@@ -102,7 +103,7 @@ export class EncounterPreview {
   }
 
   private enemy(skin: EnemySkin, x: number, y: number, z: number, scale: number, elite: boolean) {
-    const inst = library.clone(`enemy_${skin.archetype}_${skin.kind}`, 0, skin.colors, true) ?? library.clone(`enemy_${skin.archetype}_mech`, 0, skin.colors, true);
+    const inst = cloneEnemy(skin, skin.archetype, skin.archetype === 'serpent' ? 'head' : undefined);
     const obj = inst?.obj ?? part(GEO.oct, toon(skin.colors[0]), [0, 0, 0], [1.6, 0.7, 1.6]);
     if (inst) this.insts.push(inst);
     obj.position.set(x, y, z);

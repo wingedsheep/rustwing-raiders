@@ -12,9 +12,26 @@ import * as THREE from 'three';
  *
  * After wingedsheep's PixelRenderer (src/island/scene/pixel-renderer.ts).
  */
+/**
+ * Meshes on this layer (foes) get a crisp texel of dark round their silhouette wherever they stand
+ * in front of something, so they read on any ground: a mask pass draws their depth alone, and the
+ * post pass rings it.
+ */
+export const OUTLINE_LAYER = 3;
+
+/** Puts everything under `obj` on the outline layer (and keeps it on the others). */
+export function outlined(obj: THREE.Object3D) {
+  obj.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && !o.userData.xray) o.layers.enable(OUTLINE_LAYER);
+  });
+}
+
 export class PixelRenderer {
   readonly target: THREE.WebGLRenderTarget;
   private readonly graded: THREE.WebGLRenderTarget;
+  private readonly mask: THREE.WebGLRenderTarget;
+  private readonly maskMat: THREE.ShaderMaterial;
+  private readonly clear = new THREE.Color();
   private readonly bloomA: THREE.WebGLRenderTarget;
   private readonly bloomB: THREE.WebGLRenderTarget;
   private readonly post: THREE.ShaderMaterial;
@@ -31,6 +48,13 @@ export class PixelRenderer {
     const opts = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.HalfFloatType };
     this.target = new THREE.WebGLRenderTarget(1, 1, { ...opts, depthTexture: new THREE.DepthTexture(1, 1, THREE.UnsignedIntType) });
     this.graded = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    // (depth wants all the bits it can get: a full float where the GPU can draw one)
+    const float = renderer.extensions.has('EXT_color_buffer_float');
+    this.mask = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: float ? THREE.FloatType : THREE.HalfFloatType });
+    this.maskMat = new THREE.ShaderMaterial({
+      vertexShader: /* glsl */ `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `void main() { gl_FragColor = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0); }`,
+    });
     const lin = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, type: THREE.HalfFloatType };
     this.bloomA = new THREE.WebGLRenderTarget(1, 1, lin);
     this.bloomB = new THREE.WebGLRenderTarget(1, 1, lin);
@@ -82,10 +106,13 @@ export class PixelRenderer {
         tColor: { value: this.target.texture },
         tDepth: { value: this.target.depthTexture },
         tBloom: { value: this.bloomA.texture },
+        tMask: { value: this.mask.texture },
         uNear: { value: 1 },
         uFar: { value: 400 },
         uOutline: { value: new THREE.Color(0x1a1424) },
         uOutlineStrength: { value: 0.55 },
+        uFoeEdge: { value: new THREE.Color(0x0c0812) },
+        uFoeEdgeStrength: { value: 0.85 },
         uGrade: { value: new THREE.Vector3(1.1, 1.05, 1.0) }, // saturation, contrast, brightness
         uShade: { value: new THREE.Color(0.55, 0.6, 0.85) },
         uLight: { value: new THREE.Color(1.0, 0.95, 0.85) },
@@ -109,10 +136,13 @@ export class PixelRenderer {
         uniform sampler2D tColor;
         uniform sampler2D tDepth;
         uniform sampler2D tBloom;
+        uniform sampler2D tMask;
         uniform float uNear;
         uniform float uFar;
         uniform vec3 uOutline;
         uniform float uOutlineStrength;
+        uniform vec3 uFoeEdge;
+        uniform float uFoeEdgeStrength;
         uniform vec3 uGrade;
         uniform vec3 uShade;
         uniform vec3 uLight;
@@ -133,10 +163,28 @@ export class PixelRenderer {
 
         ivec2 size;
 
-        float viewZ(ivec2 p) {
-          float d = texelFetch(tDepth, clamp(p, ivec2(0), size - 1), 0).r;
+        float linear(float d) {
           if (uPersp > 0.5) return uNear * uFar / (uFar - d * (uFar - uNear));
           return uNear + d * (uFar - uNear);
+        }
+        float viewZ(ivec2 p) { return linear(texelFetch(tDepth, clamp(p, ivec2(0), size - 1), 0).r); }
+        // how far off the nearest foe at p is (1: none there)
+        float foeZ(ivec2 p) { return texelFetch(tMask, clamp(p, ivec2(0), size - 1), 0).r; }
+
+        // a texel of dark round each foe, where a neighbour shows the foe and this texel shows
+        // something well behind it (not where the foe is hidden, or stands on what's beside it)
+        float foeEdge(ivec2 p, float z) {
+          float m = foeZ(p);
+          if (m < 1.0 && linear(m) <= z + 0.3) return 0.0;
+          float ring = 0.0;
+          for (int k = 0; k < 4; k++) {
+            ivec2 q = p + ivec2(k == 0 ? 1 : k == 1 ? -1 : 0, k == 2 ? 1 : k == 3 ? -1 : 0);
+            float mq = foeZ(q);
+            if (mq >= 1.0) continue;
+            float fz = linear(mq);
+            if (fz <= viewZ(q) + 0.3 && z - fz > 0.6) ring = 1.0;
+          }
+          return ring;
         }
         vec3 at(ivec2 p) { return texelFetch(tColor, clamp(p, ivec2(0), size - 1), 0).rgb; }
 
@@ -193,6 +241,12 @@ export class PixelRenderer {
           // (in perspective the gaps grow with distance: judged against how far off it is)
           float edge = (uPersp > 0.5 ? smoothstep(0.9, 2.2, dz / max(1.0, z * 0.06)) : smoothstep(0.9, 2.2, dz)) * (sky ? 0.0 : 1.0);
           col = mix(col, col * uOutline * 2.4, edge * uOutlineStrength);
+          if (uFoeEdgeStrength > 0.0) {
+            // dark against light ground; on dark ground a lit rim instead, which is what reads there
+            float gl = dot(col, vec3(0.299, 0.587, 0.114));
+            vec3 rim = mix(uFoeEdge, col * 1.6 + vec3(0.2, 0.19, 0.24), smoothstep(0.16, 0.08, gl));
+            col = mix(col, rim, foeEdge(p, z) * uFoeEdgeStrength);
+          }
 
           // bloom: what glows lights the air around it
           col += texture2D(tBloom, vUv).rgb * uBloom;
@@ -330,6 +384,7 @@ export class PixelRenderer {
     r.setRenderTarget(this.target);
     r.clear();
     r.render(scene, camera);
+    this.drawMask(scene, camera);
     // bloom: the bright bits, halved and blurred twice each way
     this.pass(this.bright, this.bloomA);
     const blur = this.blur.uniforms;
@@ -351,6 +406,29 @@ export class PixelRenderer {
     }
   }
 
+  /** The foes' depth alone (cleared to 1 where there are none), for their outline. */
+  private drawMask(scene: THREE.Scene, camera: THREE.Camera) {
+    const r = this.renderer;
+    const layers = camera.layers.mask;
+    const bg = scene.background;
+    const shadows = r.shadowMap.autoUpdate;
+    const alpha = r.getClearAlpha();
+    r.getClearColor(this.clear);
+    camera.layers.set(OUTLINE_LAYER);
+    scene.background = null;
+    scene.overrideMaterial = this.maskMat;
+    r.shadowMap.autoUpdate = false; // (the shadows were drawn for this frame already)
+    r.setClearColor(0xffffff, 1);
+    r.setRenderTarget(this.mask);
+    r.clear();
+    r.render(scene, camera);
+    r.setClearColor(this.clear, alpha);
+    r.shadowMap.autoUpdate = shadows;
+    scene.overrideMaterial = null;
+    scene.background = bg;
+    camera.layers.mask = layers;
+  }
+
   /** Sizes the targets for a picture fw × fh texels (with a texel of margin all round); returns the target's size. */
   private size(fw: number, fh: number) {
     const tw = Math.ceil(fw) + 2;
@@ -358,6 +436,7 @@ export class PixelRenderer {
     if (this.target.width !== tw || this.target.height !== th) {
       this.target.setSize(tw, th);
       this.graded.setSize(tw, th);
+      this.mask.setSize(tw, th);
       const bw = Math.max(1, Math.ceil(tw / 2));
       const bh = Math.max(1, Math.ceil(th / 2));
       this.bloomA.setSize(bw, bh);

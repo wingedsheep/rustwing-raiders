@@ -14,125 +14,25 @@ carry a `part` extra and are named `<kind>_<part>[_<n>]`:
     part=bay      the carrier's launch bay
 The serpent comes in three templates per family (head, body, tail), each `seg_length` long, joints
 at y = ±seg_length / 2, for the runtime to chain.
+
+Every named enemy (a planet's roster in planets.ts, a faction's foes in factions.ts) also has a model
+of its own, `enemy_<its name as a slug>` (serpents `_head`, `_body`, `_tail`), made in a module a
+group: enemies_<planet>.py for the rosters, enemies_scrap.py and enemies_order.py for the foes. The
+runtime wears that first (src/view/enemy-model.ts) and falls back on the archetype models here.
+Previews of one group: ENEMIES_ONLY=enemies_vesh ENEMY_PREVIEW_PAINT=1 [ENEMY_PREVIEW_GROUND=#hex]
+[ENEMY_PREVIEW_LIFT=3] (painted in each model's own colours, on that ground).
 """
+
 from __future__ import annotations
 
+import importlib
 import math
 import os
 
-from kit import Model, Skin, group
+from kit import Model, group
 from creatures_util import TAU, chain, flat, limb, linearize, osc, sample
-
-# stand-in colours (the runtime repaints the slots): warm hull, slate trim, hot accent
-A = Skin("a", "#d6b277")
-B = Skin("b", "#3f4a63")
-C = Skin("c", "#ff5a3a")
-DARK = "#1b1a20"      # intakes, nozzles, gun bores, pupils
-GLASS = "#24323e"     # canopies
-
-CLIPS: dict[str, str] = {}
-
-
-# --- helpers ---------------------------------------------------------------------------------
-
-def _root(arch: str, fam: str, clip: str, **props):
-    kind = f"enemy_{arch}_{fam}"
-    CLIPS[kind] = f"{kind}_{clip}_idle"
-    return kind, CLIPS[kind], group(kind, kind=kind, archetype=arch, family=fam, **props)
-
-
-def hull(m: Model, outline, z0, z1, color, inset=0.7, glow=False):
-    """A slab whose top is the outline shrunk towards its centre: chunky sloped sides."""
-    cx = sum(p[0] for p in outline) / len(outline)
-    cy = sum(p[1] for p in outline) / len(outline)
-    top = [(cx + (x - cx) * inset, cy + (y - cy) * (0.5 + inset / 2)) for x, y in outline]
-    return m.slab(outline, z0, z1, color, top=top, glow=glow)
-
-
-def mirror(pts):
-    """The -x twin of a +x outline (still counter-clockwise)."""
-    return [(-x, y) for x, y in reversed(pts)]
-
-
-def both(pts):
-    return [pts, mirror(pts)]
-
-
-def tube(m: Model, r, y0, y1, x, z, color, segs=8, r_end=None, glow=False):
-    """A cylinder lying along y from y0 to y1."""
-    if y1 >= y0:
-        return m.cyl(r, y1 - y0, (x, y0, z), color, segs=segs, r_top=r_end, rot=(-math.pi / 2, 0, 0), glow=glow)
-    return m.cyl(r, y0 - y1, (x, y0, z), color, segs=segs, r_top=r_end, rot=(math.pi / 2, 0, 0), glow=glow)
-
-
-def fin(m: Model, pts_yz, x, thick, color, glow=False):
-    """An upright fin: a profile in (y, z) given its thickness along x."""
-    return m.prism(pts_yz, thick, (x, 0, 0), color, rot=(0, 0, math.pi / 2), glow=glow)
-
-
-def marker(parent, kind, part, loc, n=None):
-    name = f"{kind}_{part}" + ("" if n is None else f"_{n}")
-    return group(name, loc, parent=parent, part=part)
-
-
-def spin(obj, clip, T, turns, axis=2, phase=0.0):
-    """Whole turns about one axis over the loop (sampled every frame so the slerp can't go astray)."""
-    def f(u):
-        v = [0.0, 0.0, 0.0]
-        v[axis] = TAU * (turns * u + phase)
-        return v
-    sample(obj, clip, "rotation_euler", T, f, step=1)
-
-
-def pulse(obj, clip, T, amp=0.25, harm=1, phase=0.0, axes=(0, 1, 2)):
-    osc(obj, clip, "scale", T, *[(ax, amp, harm, phase) for ax in axes])
-
-
-def flame(parent, name, loc, r, length, clip, T, phase=0.0, k=2):
-    """A glowing exhaust cone pointing back (-y), flickering."""
-    f = Model(name)
-    f.cyl(r, length, (0, 0, 0), C, segs=6, r_top=0.0, rot=(math.pi / 2, 0, 0), glow=True)
-    obj = f.build(parent, loc=loc)
-    osc(obj, clip, "scale", T, (1, 0.3, k, phase), (0, 0.12, k + 1, phase + 0.2), (2, 0.12, k + 1, phase + 0.2))
-    return obj
-
-
-def rotor(parent, name, loc, r, blades, clip, T, turns, color=A, hub=B):
-    m = Model(name)
-    for k in range(blades):
-        a = math.pi * 2 * k / blades
-        m.box((r * 2 if blades == 2 else r, 0.14 + r * 0.08, 0.04),
-              ((0 if blades == 2 else math.cos(a) * r / 2), (0 if blades == 2 else math.sin(a) * r / 2), 0),
-              color, rot=(0.12, 0, a))
-        if blades == 2:
-            break
-    m.cyl(0.1 + r * 0.08, 0.1, (0, 0, -0.03), hub, segs=6)
-    obj = m.build(parent, loc=loc)
-    spin(obj, clip, T, turns)
-    return obj
-
-
-def wing_pair(parent, name, at, outline, thick, color, clip, T, amp, harm=1, phase=0.0, dihedral=0.0,
-              extra=None):
-    """Two flat wings hinged at (±x, y, z), flapping about y. `outline` is the +x wing about its hinge."""
-    out = []
-    for s in (1, -1):
-        w = Model(f"{name}_{'r' if s > 0 else 'l'}")
-        flat(w, outline if s > 0 else mirror(outline), 0, thick, color)
-        if extra:
-            extra(w, s)
-        obj = w.build(parent, loc=(s * at[0], at[1], at[2]))
-        obj.rotation_euler[1] = -s * dihedral
-        osc(obj, clip, "rotation_euler", T, (1, s * amp, harm, phase))
-        out.append(obj)
-    return out
-
-
-def eyes(m: Model, x, y, z, r, color=C, pupil=True):
-    for s in (1, -1):
-        m.ball(r, (s * x, y, z), color, subdiv=1, glow=True)
-        if pupil:
-            m.box((r * 0.5, r * 0.4, r * 1.2), (s * x, y + r * 0.85, z), DARK)
+from enemies_lib import (A, B, C, DARK, FOAM, GLASS, _root, both, eyes, fin, flame, hull, marker, mirror, mount,
+                         paint_previews, pulse, rotor, spin, tube, wing_pair)
 
 
 # --- dart: quick fighter, ~2.2 ------------------------------------------------------------------
@@ -850,14 +750,6 @@ def serpent_beast():
 
 # --- mission foes: river gunboat, desert technical, lattice pylon, sky manta, airship, ring drone ------
 
-FOAM = "#eef4f2"
-
-
-def mount(parent, kind, part, loc, n=None):
-    """A marker that also lands in src/generated/enemies.json's mounts (type = part), for the sim."""
-    obj = marker(parent, kind, part, loc, n)
-    obj["mount"] = part
-    return obj
 
 
 def gunboat_mech():
@@ -1272,16 +1164,30 @@ def heartpod_beast():
     osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.25), (1, 0.04, 1, 0))
 
 
+# each named enemy's own model, a module a group (a planet's roster, or a faction's foes)
+GROUPS = ["enemies_orutal", "enemies_halcyon", "enemies_kessra", "enemies_mirefall", "enemies_glacis",
+          "enemies_ashgrave", "enemies_vesh", "enemies_cinder", "enemies_scrap", "enemies_order"]
+
+
 def build():
-    for fn in (dart_mech, dart_beast, swarm_mech, swarm_beast, gunship_mech, gunship_beast, turret_mech, turret_beast,
-               bomber_mech, bomber_beast, lancer_mech, lancer_beast, brute_mech, brute_beast, carrier_mech,
-               carrier_beast, serpent_mech, serpent_beast, gunboat_mech, technical_mech, spindle_mech, manta_beast,
-               blimp_mech, halo_mech, heartpod_beast):
-        fn()
+    # ENEMIES_ONLY=enemies_orutal[,base]: just those groups (base: the archetype models), for previews
+    only = [g for g in os.environ.get("ENEMIES_ONLY", "").split(",") if g]
+    if not only or "base" in only:
+        for fn in (dart_mech, dart_beast, swarm_mech, swarm_beast, gunship_mech, gunship_beast, turret_mech,
+                   turret_beast, bomber_mech, bomber_beast, lancer_mech, lancer_beast, brute_mech, brute_beast,
+                   carrier_mech, carrier_beast, serpent_mech, serpent_beast, gunboat_mech, technical_mech,
+                   spindle_mech, manta_beast, blimp_mech, halo_mech, heartpod_beast):
+            fn()
+    here = os.path.dirname(os.path.abspath(__file__))
+    for g in GROUPS:
+        if (not only or g in only) and os.path.exists(os.path.join(here, f"{g}.py")):
+            importlib.import_module(g).build()
     linearize()
     lift = float(os.environ.get("ENEMY_PREVIEW_LIFT", "0"))
     if lift:  # previews only: raise the fliers off the preview's ground plane
         _lift(lift)
+    if os.environ.get("ENEMY_PREVIEW_PAINT"):
+        paint_previews()
 
 
 GROUND = ("enemy_turret", "enemy_gunboat", "enemy_technical", "enemy_spindle")   # stand on z = 0 (water: the waterline)
@@ -1291,7 +1197,7 @@ def _lift(dz):
     import bpy
     import kit
     for root in [o for o in bpy.data.objects if o.parent is None and "kind" in o]:
-        if root["kind"].startswith(GROUND):
+        if root.get("ground") or root["kind"].startswith(GROUND):
             continue
         for ch in root.children:
             ch.location.z += dz

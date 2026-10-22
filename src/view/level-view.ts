@@ -14,13 +14,14 @@ import { Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
 import { TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
+import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
 import { audio } from '../audio';
 import type { Biome } from '../world/planets';
 import type { Read } from '../sim/boss';
 import { clamp, damp, lerp } from '../util';
-import type { PixelRenderer } from '../render/pixel';
+import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
@@ -1951,16 +1952,14 @@ export class LevelView {
   private makeEnemy(e: Enemy): EnemyView {
     // a runner's part: the heist view draws it, on the runner
     if (e.d.qp !== undefined) return { inst: null, obj: new THREE.Group(), head: null, ring: null, seen: true, boss: false, ground: false, skin: e.skin.colors, punch: 0, knock: 0, part: true };
-    const fam = e.skin.kind;
     const foe = (FOES as Record<string, { model: string; scale: number } | undefined>)[e.arch];
-    let kind = foe ? `enemy_${foe.model}_${fam}` : `enemy_${e.arch}_${fam}`;
-    if (e.arch === 'serpent') {
+    let inst: Instance | null;
+    if (e.boss) inst = library.clone(`boss_${this.lv.spec.planet.id}`, 0, e.skin.colors, true) ?? cloneEnemy(e.skin, e.arch);
+    else if (e.arch === 'serpent') {
       const head = e.d.leader === undefined;
       const tail = !head && !this.lv.enemies.some((o) => o.d.leader === e.d.leader && (o.d.index ?? 0) > (e.d.index ?? 0));
-      kind = `enemy_serpent_${head ? 'head' : tail ? 'tail' : 'body'}_${fam}`;
-    }
-    if (e.boss) kind = `boss_${this.lv.spec.planet.id}`;
-    const inst = library.clone(kind, 0, e.skin.colors, true) ?? library.clone(`enemy_${e.arch}_mech`, 0, e.skin.colors, true);
+      inst = cloneEnemy(e.skin, 'serpent', head ? 'head' : tail ? 'tail' : 'body');
+    } else inst = cloneEnemy(e.skin, foe?.model ?? e.arch);
     let obj: THREE.Object3D;
     if (inst) obj = inst.obj;
     else {
@@ -1974,6 +1973,7 @@ export class LevelView {
     });
     if (e.arch !== 'turret' && e.arch !== 'spindle' && e.arch !== 'technical' && e.arch !== 'gunboat') head = null;
     obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
+    outlined(obj);
     xray(obj, new THREE.Color(e.skin.colors[0]).lerp(FOE_XRAY, 0.5).getHex(), 0.55);
     this.scene.add(obj);
     let ring: THREE.Mesh | null = null;
