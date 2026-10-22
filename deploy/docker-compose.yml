@@ -2,7 +2,7 @@
 # IMAGE_REPO, IMAGE_TAG and APP_DOMAIN come from the .env the deploy workflow writes next to this file.
 services:
   game:
-    image: ${IMAGE_REPO}/game:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO}/site:${IMAGE_TAG:-latest}
     restart: always
     networks:
       - traefik-wingedsheep

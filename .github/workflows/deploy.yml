@@ -41,8 +41,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ steps.names.outputs.image_repo }}/game:latest
-            ${{ steps.names.outputs.image_repo }}/game:${{ github.sha }}
+            ${{ steps.names.outputs.image_repo }}/site:latest
+            ${{ steps.names.outputs.image_repo }}/site:${{ github.sha }}
           build-args: GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -86,7 +86,7 @@ jobs:
             # every deploy leaves a SHA-tagged image that prune -f never touches, so drop this
             # game's old ones (never the running one) before pulling; the server is shared
             keep=$(docker inspect --format '{{.Image}}' "$(docker compose ps -q game)" 2>/dev/null || true)
-            docker images -q --no-trunc "${{ needs.build.outputs.image_repo }}/game" | sort -u | grep -vxF "${keep:-none}" | xargs -r docker rmi -f || true
+            docker images -q --no-trunc "${{ needs.build.outputs.image_repo }}/site" | sort -u | grep -vxF "${keep:-none}" | xargs -r docker rmi -f || true
             df -h / | tail -1
             docker compose pull
             docker compose up -d --remove-orphans
