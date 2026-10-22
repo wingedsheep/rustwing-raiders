@@ -40,10 +40,14 @@ async function boot() {
     let seed = Number(q.get('seed') ?? 1);
     const frames = (q.get('frame') ?? 'kestrel').split(',');
     const coop = q.has('coop');
-    game.devices = coop ? ['keys-left', 'keys-right'] : ['keys'];
+    // (&autopilot=2: the pilot flies P2, so P1 has the whole keyboard)
+    game.devices = coop ? (q.get('autopilot') === '2' ? ['keys', 'keys-right'] : ['keys-left', 'keys-right']) : ['keys'];
     const pads = input.padIds();
     if (pads.length) game.devices = coop ? [pads[0], pads[1] ?? 'keys'] : [pads[0]];
     const builds = (coop ? [0, 1] : [0]).map((i) => startBuild(frames[i] ?? frames[0]));
+    // &builds=<JSON Build[]>: whole ships, parts, tiers and all (the wave lab's), in place of the frames' own
+    const given = q.get('builds');
+    if (given) (JSON.parse(given) as Build[]).forEach((b, i) => i < builds.length && (builds[i] = b));
     // &guns=rivet,mine;scatter: these guns on the ship, each on the first socket it fits with a hardpoint of its
     // kind (trigger or heavy) free, in place of its own guns (per ship, split by ';'; what won't go is left off)
     q.get('guns')?.split(';').forEach((list, i) => {
@@ -78,7 +82,8 @@ async function boot() {
             console.log(`[tour] ${r.cleared ? 'cleared' : 'FAILED'} rank ${r.report.rank}  ${r.report.lines.join('  ')}`);
             if (++at % (planets.length * modes.length) === 0) seed++;
           }
-          fly();
+          // &hold: stay on the level's end (the wave lab reads how it went, and flies it again itself)
+          if (!q.has('hold')) fly();
         }),
       );
     };

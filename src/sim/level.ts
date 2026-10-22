@@ -3318,7 +3318,7 @@ function sweep<T extends { dead: boolean }>(xs: T[]) {
   xs.length = j;
 }
 
-const HP: Record<Archetype | 'boss', number> = {
+export const HP: Record<Archetype | 'boss', number> = {
   dart: 10,
   swarm: 3,
   gunship: 60,

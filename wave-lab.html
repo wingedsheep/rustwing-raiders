@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rustwing Wave Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/lab/lab.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="mark"><span class="mark-ship">Rustwing</span> Wave Lab</div>
+      <div class="stage" id="stage"></div>
+      <nav class="tabs" id="tabs" role="tablist"></nav>
+    </header>
+    <main class="lab" id="lab">
+      <aside class="composer" id="composer" aria-label="Waves"></aside>
+      <section class="view" id="view"></section>
+    </main>
+    <div class="tip" id="tip" role="tooltip" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/lab/main.ts"></script>
+  </body>
+</html>

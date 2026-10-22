@@ -26,10 +26,37 @@ interface Beat {
   /** Distance flown when it happens. */
   at: number;
   run: () => void;
+  /** The level's own business (a boss, an escort's boarders): kept when the lab scripts the waves. */
+  keep?: boolean;
 }
+
+/** A wave as the wave lab writes it: a kind (an archetype or a foe), at a distance flown, `n` groups of it at once. */
+export interface ScriptWave {
+  kind: Archetype | Foe;
+  elite: boolean;
+  at: number;
+  n: number;
+}
+
+/** `[elite:]kind[@at][xN]`, comma-separated (as &waves= in the browser): `ramjack@40,elite:warden@90x2`. */
+export function parseWaves(s: string): ScriptWave[] {
+  return s
+    .split(',')
+    .filter(Boolean)
+    .map((w, k) => {
+      const m = /^(elite:)?([a-z]+)(?:@(\d+(?:\.\d+)?))?(?:x(\d+))?$/.exec(w.trim());
+      if (!m) return null;
+      return { kind: m[2] as Archetype | Foe, elite: !!m[1], at: m[3] ? Number(m[3]) : 25 + k * 40, n: m[4] ? Math.max(1, Number(m[4])) : 1 };
+    })
+    .filter((w): w is ScriptWave => !!w);
+}
+
+export const formatWaves = (ws: ScriptWave[]) => ws.map((w) => `${w.elite ? 'elite:' : ''}${w.kind}@${Math.round(w.at)}${w.n > 1 ? `x${w.n}` : ''}`).join(',');
 
 export class Director {
   private beats: Beat[] = [];
+  /** What it planned, as waves (for the wave lab to start from): the waves and elites, not bounties or convoys. */
+  readonly planned: ScriptWave[] = [];
   private r: Rng;
   private hazardT = 4;
   bossSpawned = false;
@@ -122,6 +149,7 @@ export class Director {
       const archs = roster.map((s) => s.archetype).filter((a) => a === 'gunship' || a === 'brute' || a === 'lancer');
       const who = pick(r, [...foes, ...foes, ...archs]);
       if (!who) continue;
+      this.planned.push({ kind: who, elite: true, at: f * L, n: 1 });
       this.beats.push({ at: f * L, run: () => (isFoe(who) ? this.spawnFoe(who, true) : this.spawnArch(who, true)) });
     }
     // bounties: something worth chasing, briefly, before it gets away
@@ -136,14 +164,14 @@ export class Director {
     }
     // a hot crate, now and then once the run's under way: a great part, if you'll fly for it
     if ((mode === 'raid' || mode === 'hunt') && d >= HOT_FROM && r() < (mode === 'hunt' ? 0.6 : 0.4)) this.beats.push({ at: (0.15 + r() * 0.25) * L, run: () => lv.hotCrate() });
-    if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss() });
+    if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss(), keep: true });
     // an escort: raiders come to board the haulers, more of them as it goes on
     if (mode === 'escort') {
       const runs = 5 + (d > 0.8 ? 1 : 0);
       for (let k = 0; k < runs; k++) {
         const f = 0.1 + (k / runs) * 0.82 + r() * 0.04;
         const n = 2 + (r() < 0.2 + d * 0.3 + f * 0.3 ? 1 : 0);
-        this.beats.push({ at: f * L, run: () => lv.convoy?.board(boarderSkin(lv), n) });
+        this.beats.push({ at: f * L, run: () => lv.convoy?.board(boarderSkin(lv), n), keep: true });
       }
     }
     this.beats.sort((a, b) => a.at - b.at);
@@ -163,7 +191,21 @@ export class Director {
     this.beats.sort((a, b) => a.at - b.at);
   }
 
+  /**
+   * The wave lab (`&waves=`): these waves and nothing else of the level's own (no waves, elites,
+   * bounties or crates; an escort's boarders and a boss still come). Each is one wave for the tally.
+   */
+  script(waves: ScriptWave[]) {
+    this.beats = this.beats.filter((b) => b.keep);
+    for (const w of waves) {
+      const spawn = () => (isFoe(w.kind) ? this.spawnFoe(w.kind, w.elite) : this.spawnArch(w.kind, w.elite));
+      this.beats.push({ at: w.at, run: () => { for (let k = 0; k < w.n; k++) spawn(); } });
+    }
+    this.beats.sort((a, b) => a.at - b.at);
+  }
+
   private wave(at: number, arch: Archetype | Foe) {
+    this.planned.push({ kind: arch, elite: false, at, n: 1 });
     this.beats.push({ at, run: () => (isFoe(arch) ? this.spawnFoe(arch, false) : this.spawnArch(arch, false)) });
   }
 

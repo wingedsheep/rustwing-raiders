@@ -40,6 +40,12 @@ tour query="":
     url="http://localhost:5190/?tour&{{query}}"
     if curl -s -o /dev/null http://localhost:5190; then open "$url"; else npx vite --open "/?tour&{{query}}"; fi
 
+# the wave lab: compose waves, fly them in the game, bench them against every ship (solo and co-op), check every enemy's model
+lab:
+    #!/usr/bin/env bash
+    url="http://localhost:5190/wave-lab.html"
+    if curl -s -o /dev/null http://localhost:5190; then open "$url"; else npx vite --open /wave-lab.html; fi
+
 # typecheck
 check:
     npx tsc --noEmit

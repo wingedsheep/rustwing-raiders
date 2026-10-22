@@ -1,6 +1,7 @@
 import type { Game, Screen } from '../game/game';
 import type { Role } from '../sim/convoy';
 import { Level, type LevelSpec } from '../sim/level';
+import { parseWaves } from '../sim/director';
 import { DT, type Intent } from '../sim/types';
 import { LevelView } from '../view/level-view';
 import { Hud } from '../ui/hud';
@@ -49,7 +50,11 @@ export class Flight implements Screen {
   private acc = 0;
   private paused = false;
   private pilots: PilotState[] | null;
+  /** Only this player is the pilot's (the rest are flown by hand), or -1: all of them. */
+  private only = -1;
   private done = false;
+  /** How fast the sim runs against the clock (the wave lab's speed control; 0 holds it still). */
+  rate = 1;
 
   constructor(
     private game: Game,
@@ -104,10 +109,16 @@ export class Flight implements Screen {
     // &foes=gunboat,elite:ramjack: the level's waves are these, one after another
     const only = game.params.get('foes');
     if (only) this.lv.director.only(only.split(','));
+    // &waves=ramjack@40,elite:warden@90x2: these waves and no others (the wave lab's; see parseWaves)
+    const waves = game.params.get('waves');
+    if (waves !== null) this.lv.director.script(parseWaves(waves));
     this.view = new LevelView(this.lv);
+    // (&autopilot=2: only P2 is the pilot's, P1 is yours: a bot partner)
+    const auto = game.params.get('autopilot');
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
+    if (auto === '2') this.only = 1;
     audio.music(spec.planet.id as Track);
-    Object.assign(window, { level: this.lv, view: this.view });
+    Object.assign(window, { level: this.lv, view: this.view, flight: this, audio });
   }
 
   update(dt: number) {
@@ -126,21 +137,21 @@ export class Flight implements Screen {
       return;
     }
     const v = this.view;
-    this.acc += dt * v.slowmo;
+    this.acc += dt * v.slowmo * this.rate;
     let steps = 0;
-    while (this.acc >= DT && steps < 4) {
+    while (this.acc >= DT && steps < 4 * Math.max(1, Math.ceil(this.rate))) {
       this.acc -= DT;
       steps++;
       if (v.hitstop > 0) {
         v.hitstop--;
         continue;
       }
-      const intents: Intent[] = this.lv.players.map((p, i) => (this.pilots ? pilot(this.lv, p, this.pilots[i]) : input.intent(this.game.devices[i] ?? 'keys')));
+      const intents: Intent[] = this.lv.players.map((p, i) => (this.pilots && (this.only < 0 || this.only === i) ? pilot(this.lv, p, this.pilots[i]) : input.intent(this.game.devices[i] ?? 'keys')));
       this.lv.step(intents);
       v.handle(this.lv.events);
       this.lv.events.length = 0;
     }
-    v.update(dt * v.slowmo);
+    v.update(dt * v.slowmo * Math.min(this.rate, 1));
     const lv = this.lv;
     if (!this.done && ((lv.state === 'clear' && lv.ending > 4) || (lv.state === 'failed' && lv.ending > 3.5))) this.finish(lv.state === 'clear');
   }
