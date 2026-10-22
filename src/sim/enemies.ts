@@ -88,6 +88,14 @@ export interface EnemyData {
   /** Fliers: how far across it's swung out of its way round an obstacle, and where it last asked to go (see foes.ts veer). */
   veer?: number;
   vin?: number;
+  /** Mantas: their pace (eased), how far along their line and their wave they are, how far they've been knocked off it, and where they were left. */
+  pace?: number;
+  glide?: number;
+  wave?: number;
+  ox?: number;
+  oz?: number;
+  ex?: number;
+  es?: number;
 }
 
 export function enemyRadius(arch: Enemy['arch']) {

@@ -1129,12 +1129,20 @@ export function updateFoe(lv: Level, e: Enemy): void {
     case 'manta': {
       // a sky manta glides across the top in a long wave, sowing thorns that hang in its wake
       // and then burst up and down; now and then it rears and flings a fan of them at you
+      // (it flies its line step by step, so a hit or a rear only slows it: it never jumps along it)
       const dir = d.dir ?? 1;
-      const u = e.t * 6.5 * slow;
-      const x = -dir * (HALF_W + 7) + dir * u;
-      const z = (d.hz ?? -15) + Math.sin(e.t * 0.9 + (d.phase ?? 0)) * 5;
-      if (e.state === 'windup') moveTo(lv, e, lerp(e.x, x, 0.02), lerp(s, z, 0.02));
-      else moveTo(lv, e, x, z);
+      d.pace = lerp(d.pace ?? 1, e.state === 'windup' ? 0.25 : slow, Math.min(1, 4 * DT));
+      d.glide = (d.glide ?? 0) + 6.5 * d.pace * DT;
+      d.wave = (d.wave ?? d.phase ?? 0) + 0.9 * d.pace * DT;
+      const x = -dir * (HALF_W + 7) + dir * d.glide;
+      const z = (d.hz ?? -15) + Math.sin(d.wave) * 5;
+      // knocked off its line, it glides back onto it rather than snapping
+      const back = 1 - Math.min(1, 2.5 * DT);
+      d.ox = ((d.ox ?? 0) + (d.ex === undefined ? 0 : e.x - d.ex)) * back;
+      d.oz = ((d.oz ?? 0) + (d.es === undefined ? 0 : s - d.es)) * back;
+      moveTo(lv, e, x + d.ox, z + d.oz);
+      d.ex = e.x;
+      d.es = sz(lv, e);
       if (Math.abs(e.x) > HALF_W + 9 && e.t > 3) {
         lv.escape(e);
         break;
