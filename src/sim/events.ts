@@ -79,7 +79,7 @@ const part = (r: Rng, rarity: Rarity, cls?: PartClass): Item => {
   const xs = cls ? LOOT[rarity].filter((p) => p.cls === cls) : [];
   return rollItem(r, pick(r, xs.length ? xs : LOOT[rarity]).id, rarity);
 };
-const ofClass = (r: Rng, cls: PartClass) => pick(r, PARTS.filter((p) => p.cls === cls && !p.duo)).id;
+const ofClass = (r: Rng, cls: PartClass) => pick(r, PARTS.filter((p) => p.cls === cls)).id;
 const name = (it: Item) => itemName(it);
 const lacks = (n: number) => (run: Run) => (run.scrap < n ? `NEEDS ${n} SCRAP` : null);
 /** Tiers of a game's result, worst to best. */
@@ -354,7 +354,7 @@ export const EVENTS: RunEvent[] = [
         label: 'STRIP IT',
         note: () => 'A TECH PART EACH',
         outcome: (run, p) => {
-          run.give(() => pick(p.r, ['reactor', 'capacitor', 'targeter', 'amp']));
+          run.give(() => pick(p.r, ['amp', 'flaw', 'hone', 'autoloader']));
           return { text: 'Good parts in these relays. The Syndicate does buy the best.' };
         },
       },

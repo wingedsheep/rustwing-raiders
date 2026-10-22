@@ -330,7 +330,6 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       const x = p.x + dx * DASH_SPEED * t;
       const z = p.z + dz * DASH_SPEED * t - scroll * t;
       if (lv.terrain.solid(x, z, 1.4) || [...lv.terrain.colliders(x, z, 3)].some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 1.3) ** 2)) way += 5;
-      if (p.stats.mod.shroud) continue;
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.4;
         if ((b.x + b.vx * t - x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) way += 2;

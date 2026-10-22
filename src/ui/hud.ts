@@ -4,8 +4,8 @@ import { poiseOf, READ_LINE, sigName } from '../sim/boss';
 import { FOES, type Foe } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
-import { frameById, LOAD_CLASS, partById, type PartClass } from '../game/parts';
-import { cellsOf } from '../sim/build';
+import { frameById, LOAD_CLASS, partById, type FrameDef, type Hardpoint, type PartClass } from '../game/parts';
+import { cellsOf, hardpointAt, socket } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
@@ -48,10 +48,19 @@ export const hullColor = (f: number, t: number) => (f > 0.5 ? HAULER : f > 0.2 ?
 
 export const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
+/**
+ * An empty socket on a small grid: a plain one dark, a hardpoint in its button's colour (dim), so
+ * you can see where each tool goes (the colours are VERB_COLOR's in ui/loot-card.ts).
+ */
+export const HARDPOINT_COLOR: Record<Hardpoint, string> = { T: '#ff8a4a', H: '#ff5a78', A: '#ffd04a', S: '#8affb0' };
+export function socketFill(f: FrameDef, c: number, r: number, plain: string) {
+  const h = hardpointAt(f, c, r);
+  return h ? HARDPOINT_COLOR[h] : plain;
+}
+
 export const CLASS_COLOR: Record<PartClass, string> = {
   gun: '#ff8a4a',
   engine: '#6ad0ff',
-  power: '#ffe04a',
   defense: '#a0a8b8',
   booster: '#d08aff',
   special: '#8affb0',
@@ -122,9 +131,11 @@ export function schematic(ctx: CanvasRenderingContext2D, build: Player['build'],
   const cols = f.grid[0].length;
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++) {
-      if (f.grid[r][c] !== '#') continue;
-      ctx.fillStyle = '#2e2640';
+      if (!socket(f, c, r)) continue;
+      ctx.fillStyle = socketFill(f, c, r, '#2e2640');
+      ctx.globalAlpha = hardpointAt(f, c, r) ? 0.35 : 1;
       ctx.fillRect(x + c * cell, y + r * cell, cell - 1, cell - 1);
+      ctx.globalAlpha = 1;
     }
   for (const p of build.parts) {
     const def = partById(p.id);
@@ -436,7 +447,7 @@ export class Hud {
    * ready and unused; until the heavy button's first press, its name blinks beside them.
    */
   private rounds(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, y: number) {
-    const guns = p.stats.guns.map((g, k) => ({ g, k })).filter(({ g }) => g.heavy && !g.drone);
+    const guns = p.stats.guns.map((g, k) => ({ g, k })).filter(({ g }) => g.heavy);
     if (!guns.length) return;
     const total = guns.reduce((t, { g }) => t + g.heavy, 0);
     const width = total * 4 + (guns.length - 1) * 3 - 1;

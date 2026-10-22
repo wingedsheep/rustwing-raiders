@@ -97,7 +97,6 @@ function dots(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x
 const REWARD: Record<Reward, [string, string]> = {
   gun: ['GUNS', CLASS_COLOR.gun],
   engine: ['ENGINES', CLASS_COLOR.engine],
-  power: ['POWER', CLASS_COLOR.power],
   defense: ['DEFENCE', CLASS_COLOR.defense],
   booster: ['BOOSTERS', CLASS_COLOR.booster],
   special: ['SPECIALS', CLASS_COLOR.special],

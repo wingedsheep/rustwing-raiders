@@ -77,7 +77,7 @@ export class Results implements Screen {
       for (const it of res.loot[i] ?? []) (run.stow(i, it) ? salvaged : scrapped).push(it);
       const options = run.lootChoice(spec.seed * 31 + i * 7 + run.levels, rich, spec.mode === 'boss');
       // ?legendary: for testing, the first card is one
-      if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : 'prismatic' };
+      if (game.params.has('legendary')) options[0] = { ...options[0], tier: 'legendary', trait: partById(options[0].id).gun ? 'twin' : undefined };
       // the prize hauler's crate is a tier better than it would have been (rare at the least)
       res.convoy?.roles.forEach((role, k) => {
         if (role !== 'prize' || !options[k]) return;

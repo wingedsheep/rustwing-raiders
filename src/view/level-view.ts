@@ -775,13 +775,6 @@ export class LevelView {
           this.shove(0, 1, 0.5);
           audio.play('ram', { pan: e.x / HALF_W });
           break;
-        case 'crit':
-          if (e.on) {
-            const p = lv.players[e.id];
-            this.fx.ring(p.x, FLIGHT_Y, p.z, 3.5, 0.25, true, 0xff6a8a);
-            this.pop('CRITS!', p.x, p.z - 3, '#ff8aa8');
-          }
-          break;
         case 'decoy':
           if (e.kind === 'flare') audio.play('flare', { pan: e.x / HALF_W });
           break;
@@ -1775,9 +1768,7 @@ export class LevelView {
       }
       // a dash-strike: the guns flare white as they fire out of the dash
       if (p.strike > 0 && p.firing && !p.down)
-        for (const g of p.stats.guns) if (!g.drone && Math.random() < 0.5) this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.8, z: p.z + g.z - 0.6, size: 1.1, grow: 0.3, life: 0.05, color: STRIKE_GLOW, carried: true });
-      // a crit window: the guns run hot pink
-      if (p.crit > 0 && Math.random() < 0.4) this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 1, 0xff6a8a, 6, 0.2, 0.2);
+        for (const g of p.stats.guns) if (Math.random() < 0.5) this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.8, z: p.z + g.z - 0.6, size: 1.1, grow: 0.3, life: 0.05, color: STRIKE_GLOW, carried: true });
       // the dash's slip: a ghost left where it started, which is where fire has to land for a perfect
       if (p.slip > 0) this.fx.add({ x: p.slipX, y: FLIGHT_Y + 0.5, z: lv.scroll + p.slipZ, size: 2.2, grow: 0.6, life: 0.06, color: this.c.setHex(LIVERY[i][2]).multiplyScalar(0.8), carried: true });
       // trail

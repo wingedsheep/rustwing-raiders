@@ -58,7 +58,7 @@ Every run starts the same: one frame and its starter parts, three empty hooks, n
 
 - **Hardpoints.** Each frame has one hardpoint per active verb: TRIGGER, HEAVY, AUX, SPECIAL. Tools (guns, heavies, aux, specials) only go on hardpoints, so every button always has something on it.
 - **Fittings fill the rest of the grid**, 4–6 sockets: passives that only work on the hardpoint they touch. Where they sit is still the puzzle.
-- **Frames differ by hardpoint layout**: the Mule two heavies and no special, the Kestrel two triggers, the Wasp a second dash in place of the aux. Perks and weaknesses stay.
+- **Frames differ by hardpoint layout**: the Kestrel and Lattice one of each, the Mule two heavies and no special, the Wasp two triggers and no aux, the Hammer two triggers. Perks and weaknesses stay.
 - **The pool shrinks from 65 parts to about 35**: ~10 trigger guns, ~6 heavies, ~5 aux, ~4 specials, ~5 dash mods, ~10 fittings. The passives you can't feel go (Capacitor, Hair Trigger, Throttle Link, Echo Relay and the like).
 - **Systems that go**: tag set bonuses (faction bonds replace them), power and brown-outs (load does that job), conduits, clashes. **Stay**: load, marks and reactions, edges, item tiers and affixes, legendary traits (the jackpot tier).
 - **The dealer lays out 3 parts**, one of them the planet's own line, plus repair and fuel. After a fight: 2–3 cards, or scrap them.

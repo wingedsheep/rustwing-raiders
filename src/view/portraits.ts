@@ -74,7 +74,7 @@ class Portraits {
     const body = new THREE.Group();
     pivot.add(body);
     // its socket tiles, rimmed in its class colour, and the part on them
-    const rim = flat(def.conduit ? 0x7a7090 : CLASS_COLOR[def.cls]);
+    const rim = flat(CLASS_COLOR[def.cls]);
     const deck = toon(0x3a3446);
     for (const [c, r] of def.shape) {
       const x = c * CELL;

@@ -3,7 +3,7 @@
  * device, hearts, the hatched backdrop.
  */
 
-import { EDGES, LOAD, LOAD_CLASS, partById, type PartDef, type Rarity } from '../game/parts';
+import { EDGES, HARDPOINTS, LOAD, LOAD_CLASS, hardpointOf, partById, type PartDef, type Rarity } from '../game/parts';
 import type { Stats } from '../sim/build';
 import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
@@ -55,16 +55,12 @@ export function partStats(def: PartDef): string[] {
   if (def.hullPct) out.push(`HULL +${Math.round(def.hullPct * 100)}%`);
   if (def.armor) out.push(`ARMOUR ${def.armor}: EVERY HIT -${def.armor}`);
   if (def.shield) out.push(`SHIELD +${def.shield}`);
-  if (def.magnet) out.push(`MAGNET +${def.magnet}`);
-  if (def.graze) out.push(`GRAZE +${def.graze}`);
   if (def.boost) {
     const b = def.boost;
     const bits = [
       b.damage && `DMG +${Math.round(b.damage * 100)}%`,
       b.rate && !b.rounds && `RATE +${Math.round(b.rate * 100)}%`,
       b.cool && 'COOLER',
-      b.homing && 'HOMING',
-      b.burst && 'BURST',
       b.mark && `MARK ${b.mark.toUpperCase()}`,
       b.flaw && 'CRIT MARKED',
       b.hone && 'EDGES ×3',
@@ -72,13 +68,12 @@ export function partStats(def: PartDef): string[] {
     ].filter(Boolean);
     out.push(`TOUCHING GUNS: ${bits.join(' ')}`);
   }
-  if (def.drone) out.push('A DRONE COPIES A GUN');
   if (def.special) out.push(`SPECIAL: ${def.special.toUpperCase()}`);
   if (def.aux) out.push(`AUX: ${def.aux.toUpperCase()}`);
-  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.refill ? ' REFILL' : ''}${def.mod.shroud ? ' UNTOUCHABLE' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
-  if (def.conduit) out.push('CONDUIT: RELAYS LINKS');
+  if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
-  out.push(`LOAD ${num(def.mass)}  ${def.power < 0 ? `POWER +${num(-def.power)}` : def.power > 0 ? `DRAW ${num(def.power)}` : 'NO POWER'}`);
+  const hp = hardpointOf(def);
+  out.push(`LOAD ${num(def.mass)}  ${hp ? `ON THE ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING'}`);
   return out;
 }
 

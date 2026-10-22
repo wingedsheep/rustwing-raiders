@@ -188,7 +188,7 @@ export class TraitsView {
       if (p.down || p.frenzy <= 0) continue;
       const k = p.frenzy / 6;
       p.stats.guns.forEach((g) => {
-        if (!g.frenzied || g.drone || Math.random() > 0.15 + k * 0.6) return;
+        if (!g.frenzied || Math.random() > 0.15 + k * 0.6) return;
         this.fx.add({
           x: p.x + g.x + (Math.random() - 0.5) * 0.4, y: FLIGHT_Y + 0.7, z: p.z + g.z,
           vx: (Math.random() - 0.5) * 4, vz: 4 + Math.random() * 6, vy: 2,

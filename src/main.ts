@@ -2,7 +2,8 @@ import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
 import { levelSpec } from './sim/run';
-import { cellsOf, startBuild, type Build, type Placement } from './sim/build';
+import { cellsOf, fits, startBuild, type Build, type Placement } from './sim/build';
+import { frameById, partById, PARTS } from './game/parts';
 import type { TraitId } from './game/loot';
 import { PLANETS } from './world/planets';
 import type { Mode } from './sim/level';
@@ -42,12 +43,18 @@ async function boot() {
     const pads = input.padIds();
     if (pads.length) game.devices = coop ? [pads[0], pads[1] ?? 'keys'] : [pads[0]];
     const builds = (coop ? [0, 1] : [0]).map((i) => startBuild(frames[i] ?? frames[0]));
-    // &guns=rivet,rail;flak,mine: these guns across the front row (per ship, split by ';')
+    // &guns=rivet,mine;scatter: these guns on the ship's hardpoints, each on the next free one of its
+    // kind (trigger or heavy), in place of its own guns (per ship, split by ';'; what won't go is left off)
     q.get('guns')?.split(';').forEach((list, i) => {
       const b = builds[i];
       if (!b) return;
-      b.parts = b.parts.filter((p) => p.r > 0);
-      list.split(',').forEach((id, c) => b.parts.push({ id, c, r: 0 }));
+      b.parts = b.parts.filter((p) => !partById(p.id).gun);
+      const f = frameById(b.frame);
+      for (const id of list.split(',')) {
+        if (!PARTS.some((d) => d.id === id)) continue;
+        const spot = f.grid.flatMap((row, r) => [...row].flatMap((_, c) => [0, 1, 2, 3].map((rot) => ({ id, c, r, rot })))).find((p) => fits(b, p));
+        if (spot) b.parts.push(spot);
+      }
     });
     builds.forEach(fitParts);
     let at = 0;
@@ -144,6 +151,7 @@ function fitParts(b: Build) {
   if (!want) return;
   for (const s of want.split(',')) {
     const [id, c, r, trait] = s.split('.');
+    if (!PARTS.some((d) => d.id === id)) continue;
     const add: Placement = { id, c: Number(c), r: Number(r) };
     if (trait) Object.assign(add, { tier: 'legendary', trait: trait as TraitId });
     const taken = new Set(cellsOf(add).map(([cc, rr]) => `${cc},${rr}`));

@@ -45,7 +45,7 @@ const PPU = 9;
 const SWAP_T = 0.24;
 const LAUNCH_T = 1.15;
 
-const sockets = (f: FrameDef) => f.grid.join('').split('#').length - 1;
+const sockets = (f: FrameDef) => f.grid.join('').replace(/\./g, '').length;
 const firepower = (b: Build) => b.parts.reduce((s, p) => {
   const g = partById(p.id).gun;
   return s + (g ? g.damage * g.count * g.rate : 0);

@@ -19,13 +19,13 @@
  * top of that. itemDef() turns an item into the PartDef the build sees, numbers and all.
  */
 
-import { partById, type PartDef, type Tag } from './parts';
+import { partById, type PartDef } from './parts';
 import { pick, shuffle, weighted, type Rng } from '../util';
 
 export type Tier = 'common' | 'rare' | 'epic' | 'legendary';
 export const TIERS: Tier[] = ['common', 'rare', 'epic', 'legendary'];
 
-export type ModKind = 'dmg' | 'rate' | 'cool' | 'thrust' | 'potent' | 'charge' | 'swift' | 'light' | 'frugal' | 'output' | 'plated';
+export type ModKind = 'dmg' | 'rate' | 'cool' | 'thrust' | 'potent' | 'charge' | 'swift' | 'light' | 'plated';
 
 export interface Mod {
   k: ModKind;
@@ -34,7 +34,7 @@ export interface Mod {
 }
 
 export type TraitId =
-  | 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'prismatic' | 'volatile' | 'splitting'
+  | 'twin' | 'colossal' | 'wireless' | 'keystone' | 'overclock' | 'volatile' | 'splitting'
   | 'sentinel' | 'boomerang' | 'frenzied' | 'thunderous' | 'vengeful' | 'ravenous';
 
 export type AffixId =
@@ -57,7 +57,7 @@ interface ModSpec {
   /** The range it rolls in. */
   lo: number;
   hi: number;
-  /** Whole steps (power, hull). */
+  /** Whole steps. */
   whole?: boolean;
   fits: (d: PartDef) => boolean;
   /** The line on a card, from the rolled value. */
@@ -76,15 +76,13 @@ export const MODS: Record<ModKind, ModSpec> = {
   potent: { lo: 0.15, hi: 0.35, fits: (d) => scales(d), text: (v) => `+${pc(v)}% STRENGTH`, short: (v) => `+${pc(v)}% STR` },
   charge: { lo: 0.15, hi: 0.35, fits: (d) => !!d.special, text: (v) => `+${pc(v)}% SPECIAL CHARGE`, short: (v) => `+${pc(v)}% CHARGE` },
   swift: { lo: 0.1, hi: 0.25, fits: (d) => d.cls === 'engine', text: (v) => `-${pc(v)}% DASH RECOVERY`, short: (v) => `-${pc(v)}% DASH CD` },
-  light: { lo: 0.25, hi: 0.6, fits: (d) => d.mass >= 0.4 && !d.conduit, text: (v) => `-${pc(v)}% MASS`, short: (v) => `-${pc(v)}% MASS` },
-  frugal: { lo: 1, hi: 2, whole: true, fits: (d) => d.power > 0, text: (v) => `-${v} POWER DRAW`, short: (v) => `-${v} DRAW` },
-  output: { lo: 1, hi: 3, whole: true, fits: (d) => d.power < 0, text: (v) => `+${v} POWER`, short: (v) => `+${v} POWER` },
+  light: { lo: 0.25, hi: 0.6, fits: (d) => d.mass >= 0.4, text: (v) => `-${pc(v)}% MASS`, short: (v) => `-${pc(v)}% MASS` },
   plated: { lo: 0.1, hi: 0.25, fits: (d) => d.cls === 'defense' || d.tags.includes('armor'), text: (v) => `+${pc(v)}% HULL`, short: (v) => `+${pc(v)}% HULL` },
 };
 
 /** Parts whose effect runs at a strength (boosters, passives, dash mods, the aux). */
 function scales(d: PartDef) {
-  return !!(d.boost || d.passive || (d.mod && !d.mod.refill) || d.aux);
+  return !!(d.boost || d.passive || d.mod || d.aux);
 }
 
 /** A gun that fires things that fly (not a beam, not lightning). */
@@ -110,10 +108,10 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
   wireless: {
     name: 'WIRELESS',
     text: 'Counts as touching every part on the ship.',
-    fits: (d) => !!(d.boost || d.drone || (d.link && !d.link.side && !d.link.want.open)),
+    fits: (d) => !!(d.boost || (d.link && !d.link.side && !d.link.want.open)),
   },
   keystone: { name: 'KEYSTONE', text: 'Always linked, wherever it sits: it runs as linked (150%) anywhere.', fits: (d) => !!d.link },
-  overclock: { name: 'OVERCLOCKED', text: 'Runs at double strength, and draws double power.', fits: (d) => scales(d) || d.power < 0 },
+  overclock: { name: 'OVERCLOCKED', text: 'Runs at double strength, and weighs double.', fits: (d) => scales(d) },
   volatile: { name: 'VOLATILE', text: 'What it kills passes its marks on: the two nearest enemies catch them.', fits: (d) => projectile(d) },
   splitting: { name: 'SPLITTING', text: 'Every shot splits in two when it first hits, and the halves fly on.', fits: (d) => projectile(d) && (d.gun?.count ?? 1) <= 2 },
   sentinel: { name: 'SENTINEL', text: 'Every dash leaves a copy of it behind: a turret that fires at the nearest enemy for 3 s.', fits: (d) => !!d.gun && d.gun.shot !== 'beam' && !d.gun.auto },
@@ -122,7 +120,6 @@ export const TRAITS: Record<TraitId, TraitSpec> = {
   thunderous: { name: 'THUNDEROUS', text: 'Every dash ends in a thunderclap: what’s near is shocked and thrown back. Twice as hard on a perfect.', fits: (d) => d.cls === 'engine' },
   vengeful: { name: 'VENGEFUL', text: 'A hit on you sets off a nova: bullets round you are wiped and shrapnel flies out, harder the lower your hull.', fits: (d) => d.cls === 'defense' && !!(d.hp || d.shield) },
   ravenous: { name: 'RAVENOUS', text: 'Kills feed it: each one charges it a tenth. Keep killing and it never runs dry.', fits: (d) => !!d.special },
-  prismatic: { name: 'PRISMATIC', text: 'Counts as one of every tag towards set bonuses. Clashes with nothing new.', fits: (d) => !d.conduit },
 };
 
 export interface AffixSpec {
@@ -156,9 +153,9 @@ export const AFFIXES: Record<AffixId, AffixSpec> = {
   secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you a sliver of hull.', fits: (d) => d.cls === 'defense' },
   barbed: { name: 'BARBED', text: 'Whatever rams you, or you ram, takes a hard hit and reels.', fits: (d) => d.cls === 'defense' && !d.aux },
   reactive: { name: 'REACTIVE', text: 'Losing a shield lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
-  // boosters and power: on the guns they touch
-  hotwired: { name: 'HOT-WIRED', text: 'Touching guns’ shots pierce one more.', fits: (d) => (d.cls === 'booster' || d.cls === 'power') && !d.conduit && !d.special },
-  primed: { name: 'PRIMED', text: 'After a perfect dash, touching guns hit +60% for 3 s.', fits: (d) => (d.cls === 'booster' || d.cls === 'power') && !d.conduit && !d.special },
+  // boosters: on the guns they touch
+  hotwired: { name: 'HOT-WIRED', text: 'Touching guns’ shots pierce one more.', fits: (d) => d.cls === 'booster' },
+  primed: { name: 'PRIMED', text: 'After a perfect dash, touching guns hit +60% for 3 s.', fits: (d) => d.cls === 'booster' },
   // specials
   surging: { name: 'SURGING', text: 'The special also reloads every heavy and cools every gun.', fits: (d) => !!d.special },
   lingering: { name: 'LINGERING', text: 'Nothing can touch you for 1.5 s after the special.', fits: (d) => !!d.special },
@@ -193,10 +190,9 @@ const AFFIX_CHANCE: Record<Tier, number> = { common: 0, rare: 0.45, epic: 1, leg
 /** Affixes that fit a part. */
 export const affixesFor = (d: PartDef) => (Object.keys(AFFIXES) as AffixId[]).filter((a) => AFFIXES[a].fits(d));
 
-/** Rolls an item of a part at a tier (as near as the part allows: conduit is only ever stock). */
+/** Rolls an item of a part at a tier (as near as the part allows). */
 export function rollItem(r: Rng, id: string, tier: Tier): Item {
   const d = partById(id);
-  if (d.conduit) return { id };
   const kinds = shuffle(r, (Object.keys(MODS) as ModKind[]).filter((k) => MODS[k].fits(d)));
   const it: Item = { id, tier };
   // rolls lean high on the better tiers
@@ -210,9 +206,8 @@ export function rollItem(r: Rng, id: string, tier: Tier): Item {
   if (affix) it.affix = affix;
   if (tier === 'legendary') {
     const traits = (Object.keys(TRAITS) as TraitId[]).filter((t) => TRAITS[t].fits(d));
-    // prismatic fits everything: only when nothing better does, or now and then
-    const best = traits.filter((t) => t !== 'prismatic');
-    it.trait = best.length && r() < 0.8 ? pick(r, best) : 'prismatic';
+    if (traits.length) it.trait = pick(r, traits);
+    else it.tier = 'epic';
   }
   if (!it.mods && !it.affix && tier !== 'legendary' && tier !== 'common') it.tier = 'common';
   return it;
@@ -227,11 +222,6 @@ export function rollTier(r: Rng, d: number, rich = false, danger = 1): Tier {
     ['epic', (7 + d * 6 + (danger - 1) * 3) * k],
     ['legendary', (1.2 + d * 1.6) * k * k],
   ] as [Tier, number][]);
-}
-
-/** Tags a part counts as, for set bonuses (a prismatic part counts as all of them). */
-export function tagsOf(it: Item, all: Tag[]): Tag[] {
-  return it.trait === 'prismatic' ? all : partById(it.id).tags;
 }
 
 /** What an item does to a part's numbers, beyond the trait's rules (see links.ts and build.ts). */
@@ -283,12 +273,6 @@ export function itemDef(it: Item): ItemDef {
       case 'light':
         d.mass *= 1 - v;
         break;
-      case 'frugal':
-        d.power = Math.max(0, d.power - v);
-        break;
-      case 'output':
-        d.power -= v;
-        break;
       case 'plated':
         d.hullPct = (d.hullPct ?? 0) + v;
         break;
@@ -302,7 +286,7 @@ export function itemDef(it: Item): ItemDef {
   }
   if (it.trait === 'overclock') {
     d.potency *= 2;
-    if (d.power > 0) d.power *= 2;
+    d.mass *= 2;
   }
   cache.set(it, d);
   return d;

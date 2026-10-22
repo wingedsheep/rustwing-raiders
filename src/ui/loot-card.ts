@@ -5,12 +5,12 @@
  * that changes. The results screen, the dealer and the hangar all use it.
  */
 
-import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED } from './hud';
+import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED, socketFill } from './hud';
 import { drawText, textWidth, wrap } from './font';
 import { partStats, TIER_BODY, TIER_COLOR, TIER_DARK } from './widgets';
 import { frameById, partById, verbOf, type PartDef, type Verb } from '../game/parts';
 import { AFFIX_COLOR, AFFIXES, itemDef, MODS, modValue, tierOf, TRAITS, type Item, type Tier } from '../game/loot';
-import { cellsOf, type Build } from '../sim/build';
+import { cellsOf, hardpointAt, socket, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
 import { portraits } from '../view/portraits';
 
@@ -47,7 +47,7 @@ export function bigShape(ctx: CanvasRenderingContext2D, def: PartDef, cx: number
   const cell = Math.min(11, Math.floor(box / Math.max(cols, rows)));
   const x0 = Math.round(cx - (cols * cell) / 2);
   const y0 = Math.round(cy - (rows * cell) / 2);
-  const col = def.conduit ? '#7a7090' : CLASS_COLOR[def.cls];
+  const col = CLASS_COLOR[def.cls];
   for (const [c, r] of def.shape) {
     const x = x0 + c * cell;
     const y = y0 + r * cell;
@@ -88,7 +88,7 @@ function smallShape(ctx: CanvasRenderingContext2D, def: PartDef, x1: number, y1:
   const y0 = y1 - rows * cell;
   ctx.fillStyle = 'rgba(18,12,24,0.8)';
   ctx.fillRect(x0 - 2, y0 - 2, cols * cell + 3, rows * cell + 3);
-  ctx.fillStyle = def.conduit ? '#7a7090' : CLASS_COLOR[def.cls];
+  ctx.fillStyle = CLASS_COLOR[def.cls];
   for (const [c, r] of def.shape) ctx.fillRect(x0 + c * cell, y0 + r * cell, cell - 1, cell - 1);
 }
 
@@ -126,14 +126,16 @@ export function fitSchematic(ctx: CanvasRenderingContext2D, b: Build, fit: Fit, 
   const f = frameById(b.frame);
   for (let r = 0; r < f.grid.length; r++)
     for (let c = 0; c < f.grid[0].length; c++) {
-      if (f.grid[r][c] !== '#') continue;
-      ctx.fillStyle = '#2a2238';
+      if (!socket(f, c, r)) continue;
+      ctx.fillStyle = socketFill(f, c, r, '#2a2238');
+      ctx.globalAlpha = hardpointAt(f, c, r) ? 0.35 : 1;
       ctx.fillRect(x + c * cell, y + r * cell, cell - 1, cell - 1);
+      ctx.globalAlpha = 1;
     }
   for (const p of b.parts) {
     const d = partById(p.id);
     const out = p === fit.swap;
-    ctx.fillStyle = out ? RED : d.conduit ? '#4a4060' : CLASS_COLOR[d.cls];
+    ctx.fillStyle = out ? RED : CLASS_COLOR[d.cls];
     ctx.globalAlpha = out ? (Math.floor(t * 4) % 2 ? 0.9 : 0.4) : 0.5;
     for (const [c, r] of cellsOf(p)) ctx.fillRect(x + c * cell + 1, y + r * cell + 1, cell - 3, cell - 3);
     ctx.globalAlpha = 1;
@@ -236,8 +238,8 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
     drawText(ctx, l, nx, ny, INK);
     ny += 9;
   }
-  const tags = it.trait === 'prismatic' ? 'EVERY TAG' : base.tags.join(' ').toUpperCase() || 'NO TAGS';
-  drawText(ctx, tags.length * 6 > nw ? tags.slice(0, Math.floor(nw / 6)) : tags, nx, ny + 3, it.trait === 'prismatic' ? GOLD : '#a890d0');
+  const tags = base.tags.join(' ').toUpperCase() || 'NO TAGS';
+  drawText(ctx, tags.length * 6 > nw ? tags.slice(0, Math.floor(nw / 6)) : tags, nx, ny + 3, '#a890d0');
   let ty = y + box + 24;
 
   // the foot: what it would do on the ship
@@ -337,7 +339,7 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
 }
 
 function footHeight(f: Fit) {
-  const rows = Math.min(4, f.deltas.length + (f.state ? 1 : 0) + (f.wakes.length ? 1 : 0));
+  const rows = Math.min(4, f.deltas.length + (f.state ? 1 : 0));
   return Math.max(48, 16 + rows * 9 + 4);
 }
 
@@ -365,7 +367,6 @@ function foot(ctx: CanvasRenderingContext2D, f: Fit, b: Build, x: number, y: num
   const room = Math.floor((h - 17) / 9);
   const items: [string, string, string?, boolean?][] = [];
   for (const d of f.deltas) items.push([d.label, d.from ? `${d.from}→${d.to}` : d.to, d.good ? GREEN : RED]);
-  if (f.wakes.length) items.splice(1, 0, ['WAKES', f.wakes[0], GOLD]);
   if (f.state) items.splice(Math.min(2, items.length), 0, ['', f.state.text, f.state.good ? GREEN : '#ff9a8a', true]);
   if (!items.length) items.push(['', 'NO CHANGE TO SPEAK OF', DIM, true]);
   const avail = x + w - 6 - dx;

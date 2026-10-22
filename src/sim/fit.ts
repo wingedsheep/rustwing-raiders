@@ -4,7 +4,7 @@
  * the dealer's stall show this, so a choice is between ships, not between names.
  */
 
-import { EDGES, frameById, LOAD_CLASS, partById, TAG_BONUS, type Tag } from '../game/parts';
+import { EDGES, frameById, LOAD_CLASS, partById } from '../game/parts';
 import { itemName, type Item } from '../game/loot';
 import { fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
 import { links } from './links';
@@ -27,23 +27,19 @@ export interface Fit {
   after: Stats;
   /** The changes worth saying, most important first. */
   deltas: Delta[];
-  /** How it would run there: 'LINKED', 'NEEDS A GUN TOUCHING', 'CLASH', ''. */
+  /** How it would run there: 'LINKED', 'NEEDS A GUN TOUCHING', ''. */
   state: { text: string; good: boolean } | null;
-  /** Set bonuses it would wake. */
-  wakes: string[];
 }
 
 export function dps(s: Stats) {
   return s.guns.reduce((t, g) => t + g.spec.damage * (g.spec.shot === 'beam' ? 1 : g.spec.count) * g.spec.rate, 0);
 }
 
-/** A rough worth of a ship, to rank placements by: firepower, toughness, speed, links, power. */
+/** A rough worth of a ship, to rank placements by: firepower, toughness, speed, links. */
 function worth(b: Build, s: Stats) {
   const lk = links(b);
   let v = dps(s) / 8 + s.hp * 0.06 + s.armor * 0.5 + s.shield * 1.4 + s.speed * 0.12 + s.dashes * 0.8;
-  v += Object.values(s.bonus).reduce((t, n) => t + (n ?? 0) * 1.5, 0);
-  for (const pl of lk.parts) v += pl.def.conduit ? 0 : pl.str >= 1 ? (pl.str - 1) * 2 : -(1 - pl.str) * 3;
-  if (s.brown < 1) v -= (1 - s.brown) * 12;
+  for (const pl of lk.parts) v += pl.str >= 1 ? (pl.str - 1) * 2 : -(1 - pl.str) * 3;
   // how it flies: a nimble ship is worth a part or two, an overloaded one costs as much
   v += s.loadClass === 'nimble' ? 4 : s.loadClass === 'overloaded' ? -6 : 0;
   // guns that fire behind are worth less (mines are meant to)
@@ -74,19 +70,10 @@ function spots(b: Build, it: Item): Placement[] {
   return out;
 }
 
-/** One aux, one special: placing a second is no good. */
-function allowed(b: Build, it: Item) {
-  const d = partById(it.id);
-  if (d.aux && b.parts.some((q) => partById(q.id).aux)) return false;
-  if (d.special && b.parts.some((q) => partById(q.id).special)) return false;
-  return true;
-}
-
 export function bestFit(b: Build, it: Item): Fit {
   const before = stats(b);
   let best: { place: Placement; swap: Placement | null; build: Build; v: number } | null = null;
   const tryOn = (bb: Build, swap: Placement | null) => {
-    if (!allowed(bb, it)) return;
     for (const p of spots(bb, it)) {
       const nb = { frame: bb.frame, parts: [...bb.parts, p] };
       const v = worth(nb, stats(nb));
@@ -94,16 +81,12 @@ export function bestFit(b: Build, it: Item): Fit {
     }
   };
   tryOn(b, null);
-  // no room (or it's a second aux or special): what would it best replace?
-  if (!best)
-    for (const q of b.parts) {
-      if (partById(q.id).conduit) continue;
-      tryOn({ frame: b.frame, parts: b.parts.filter((x) => x !== q) }, q);
-    }
-  if (!best) return { place: null, swap: null, build: b, before, after: before, deltas: [], state: null, wakes: [] };
+  // no room (its hardpoint taken, or no socket free): what would it best replace?
+  if (!best) for (const q of b.parts) tryOn({ frame: b.frame, parts: b.parts.filter((x) => x !== q) }, q);
+  if (!best) return { place: null, swap: null, build: b, before, after: before, deltas: [], state: null };
   const found = best as { place: Placement; swap: Placement | null; build: Build; v: number };
   const after = stats(found.build);
-  return { place: found.place, swap: found.swap, build: found.build, before, after, deltas: deltas(before, after), state: state(found.build, found.place), wakes: wakes(before, after) };
+  return { place: found.place, swap: found.swap, build: found.build, before, after, deltas: deltas(before, after), state: state(found.build, found.place) };
 }
 
 function deltas(a: Stats, b: Stats): Delta[] {
@@ -123,7 +106,6 @@ function deltas(a: Stats, b: Stats): Delta[] {
     out.push({ label: 'LOAD', from: LOAD_CLASS[a.loadClass].name, to: LOAD_CLASS[b.loadClass].name, good: order.indexOf(b.loadClass) < order.indexOf(a.loadClass), w: 14 });
   } else row('LOAD', a.load, b.load, (n) => n.toFixed(1), 0.8, true);
   row('SPEED', a.speed, b.speed, (n) => n.toFixed(1), 3);
-  row('POWER', a.powerOut - a.powerDraw, b.powerOut - b.powerDraw, (n) => `${n >= 0 ? '+' : ''}${Math.round(n)}`, 1.5);
   row('DASH CD', a.dashCooldown, b.dashCooldown, (n) => `${n.toFixed(2)}S`, 2, true);
   row('CHARGE', a.specialRate, b.specialRate, (n) => `×${n.toFixed(2)}`, 2);
   // a new verb for a button: just what it is (or what it was, gone)
@@ -132,7 +114,7 @@ function deltas(a: Stats, b: Stats): Delta[] {
     out.push({ label, from: x && y ? x.toUpperCase() : '', to: (y ?? `NO ${label}`).toUpperCase(), good: !!y, w: 9 });
   };
   verb('AUX', a.aux, b.aux);
-  const heavy = (s: Stats) => s.guns.some((g) => g.heavy && !g.drone) || null;
+  const heavy = (s: Stats) => s.guns.some((g) => g.heavy) || null;
   if (!heavy(a) && heavy(b)) out.push({ label: 'HEAVY', from: '', to: 'ON ITS OWN BUTTON', good: true, w: 9 });
   verb('SPECIAL', a.special, b.special);
   // the marks the guns leave, and the reactions they can set off between them
@@ -146,15 +128,7 @@ function deltas(a: Stats, b: Stats): Delta[] {
   const eb = [...new Set(b.guns.map((g) => g.spec.edge))].filter((e) => !ea.has(e));
   if (eb.length) out.push({ label: 'EDGE', from: '', to: eb.map((e) => EDGES[e].name).join(' '), good: true, w: 10 });
   if (!a.mod.detonate !== !b.mod.detonate) verb('DASH', a.mod.detonate ? 'detonates marks' : null, b.mod.detonate ? 'detonates marks' : null);
-  // power gone negative is always worth saying
-  for (const d of out) if (d.label === 'POWER' && Number(d.to) < 0) d.w = 99;
   return out.sort((x, y) => y.w - x.w);
-}
-
-function wakes(a: Stats, b: Stats) {
-  const out: string[] = [];
-  for (const t of Object.keys(TAG_BONUS) as Tag[]) if ((b.bonus[t] ?? 0) > (a.bonus[t] ?? 0)) out.push(`${TAG_BONUS[t].name.toUpperCase()}${b.bonus[t] === 2 ? ' II' : ''}`);
-  return out;
 }
 
 function state(b: Build, p: Placement): Fit['state'] {
@@ -163,7 +137,6 @@ function state(b: Build, p: Placement): Fit['state'] {
   const d = pl.def;
   if (pl.idle) return { text: pl.idle, good: false };
   if (d.link && !pl.link?.ok) return { text: `${d.link.need ? 'NEEDS' : 'WANTS'} ${d.link.text}`, good: false };
-  if (pl.clashes.some((c) => !c.fused)) return { text: `CLASHES: RUNS AT ${Math.round(pl.str * 100)}%`, good: false };
   if (pl.str > 1.001) return { text: `RUNS AT ${Math.round(pl.str * 100)}%`, good: true };
   if (d.link && pl.link?.ok) return { text: 'LINKED', good: true };
   return null;

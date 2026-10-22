@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run } from '../sim/run';
-import { cellsOf, fits, gunDir, partAt, rotOf, stats, type Build, type Placement, type Stats } from '../sim/build';
-import { EDGES, frameById, linkedStr, LOAD_CLASS, partById, TAG_BONUS, verbOf, type PartDef, type Tag } from '../game/parts';
+import { cellsOf, fits, gunDir, hardpointAt, partAt, rotOf, socket, stats, suits, type Build, type Placement, type Stats } from '../sim/build';
+import { EDGES, frameById, hardpointOf, HARDPOINTS, hardpointsOf, linkedStr, LOAD_CLASS, partById, verbOf, type Hardpoint, type PartDef } from '../game/parts';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { clamp } from '../util';
-import { CLASS_COLOR, CYAN, DARK, DIM, EDGE, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
+import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, H, HARDPOINT_COLOR, INK, RED, W, frame, hex } from '../ui/hud';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
@@ -42,15 +42,15 @@ const AREA_W = 312;
 const RULES = [
   'GUNS FIRE THE WAY THEY SIT: FRONT AND MIDDLE FORWARD, OUTER COLUMNS OUT AT AN ANGLE, THE BACK ROW BEHIND.',
   'HEAT GUNS BURN, ARC SHOCKS, EXPLOSIVE CRACKS. TWO MARKS ON ONE ENEMY REACT: MOUNT THEM APART, LAND THEM TOGETHER.',
-  'BOOSTERS HELP THE GUNS THEY TOUCH. CONDUIT RELAYS: WHAT TOUCHES ONE RUN OF IT TOUCHES.',
-  'LINKED PARTS RUN AT 150% (200% ON A LATTICE). ARC OR EXPLOSIVE TOUCHING HEAT CLASH: BOTH AT 50%.',
-  'BACK-ROW ENGINES PUSH HARDER. 3 OF A TAG WAKE ITS SET BONUS, 5 MAKE IT STRONGER.',
-  'EVERY GUN HAS AN EDGE: WHEN IT CRITS. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
+  'HARDPOINTS: GUNS ON TRIGGER, HEAVY GUNS ON HEAVY, THE AUX AND SPECIAL ON THEIRS. ONE CELL ON IT IS ENOUGH.',
+  'EVERYTHING ELSE IS A FITTING, ON THE PLAIN SOCKETS. BOOSTERS HELP THE GUNS THEY TOUCH.',
+  'LINKED PARTS RUN AT 150% (200% ON A LATTICE). BACK-ROW ENGINES PUSH HARDER.',
+  'EVERY GUN HAS AN EDGE: HOW IT WANTS FLYING. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
   'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT DASH RELOADS A ROUND.',
   'EVERY PART IS LOAD. LIGHT IS NIMBLE (+1 DASH, EASIER PERFECTS); PAST FULL IS OVERLOADED. ENGINES CARRY MORE.',
 ];
 
-const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', drone: CYAN, link: GREEN, clash: RED, fuse: GOLD };
+const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', link: GREEN };
 
 /** One beat of the placement replay: a cell to light, and what it means. */
 interface Step {
@@ -65,12 +65,12 @@ const STEP_T = 0.45;
 function boostText(d: PartDef, str: number) {
   const b = d.boost!;
   const pc = (n: number) => `+${Math.round(n * str * 100)}%`;
-  return [b.damage && `${pc(b.damage)} DMG`, b.rounds && `+${b.rounds} ROUND`, b.rate && !b.rounds && `${pc(b.rate)} RATE`, b.cool && 'COOLER', b.homing && 'HOMING', b.burst && 'BURST'].filter(Boolean).join(' ');
+  return [b.damage && `${pc(b.damage)} DMG`, b.rounds && `+${b.rounds} ROUND`, b.rate && !b.rounds && `${pc(b.rate)} RATE`, b.cool && 'COOLER'].filter(Boolean).join(' ');
 }
 
 /**
  * What placing `p` did, step by step: each link it made (with its number), what it needs and
- * hasn't got, clashes, set bonuses it woke, and the damage it adds up to.
+ * hasn't got, the load it tips, and the damage it adds up to.
  */
 /** What a linked part runs at on this frame, as the hangar says it ('150%'). */
 const linkedPct = (frame: string) => `${Math.round(linkedStr(frameById(frame)) * 100)}%`;
@@ -87,14 +87,12 @@ function explain(b: Build, p: Placement, before: Stats): Step[] {
     const [c, r] = cellsOf(q)[0];
     const by = lk.of(e.a)!;
     const text =
-      e.kind === 'boost' ? boostText(by.def, by.str) : e.kind === 'drone' ? 'DRONE COPY' : e.kind === 'link' ? (by.def.link?.need ? 'LINKED: ON' : `LINKED: ${linkedPct(b.frame)}`) : e.kind === 'fuse' ? 'FUSED: 125%' : 'CLASH: 50%';
+      e.kind === 'boost' ? boostText(by.def, by.str) : by.def.link?.need ? 'LINKED: ON' : `LINKED: ${linkedPct(b.frame)}`;
     out.push({ c, r, text: `${partById(q.id).name.split(' ')[0]} ${text}`, color: EDGE_COLOR[e.kind] });
   }
   const def = partById(p.id);
   if (pl.idle) out.push({ c: pc, r: pr, text: pl.idle, color: RED });
   else if (pl.link && !pl.link.ok && def.link) out.push({ c: pl.link.c, r: pl.link.r, text: `${def.link.need ? 'NEEDS' : 'WANTS'} ${def.link.text}`, color: def.link.need ? RED : GOLD });
-  for (const t of Object.keys(TAG_BONUS) as Tag[])
-    if ((after.bonus[t] ?? 0) > (before.bonus[t] ?? 0)) out.push({ c: pc, r: pr, text: `${TAG_BONUS[t].name} ONLINE`, color: GOLD });
   if (after.loadClass !== before.loadClass) {
     const lc = LOAD_CLASS[after.loadClass];
     const lost = before.loadClass === 'nimble' ? 'NIMBLE LOST: -1 DASH' : `${lc.name}: ${lc.text}`;
@@ -414,7 +412,7 @@ export class Hangar implements Screen {
       ctx.fillStyle = VERB_COLOR[verbOf(def)];
       ctx.fillRect(x + 133, y + 2, 3, 3);
     }
-    if (!coop) this.tagsBox(ctx, s, after, x + 145, 152, 166, 84);
+    if (!coop) this.hardpointsBox(ctx, b, x + 145, 152, 166, 84);
     // the part in focus: what it is, what it does, what it's linked to
     const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
     if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
@@ -466,7 +464,8 @@ export class Hangar implements Screen {
     if (it.affix) for (const l of wrap(`✦ ${AFFIXES[it.affix].name}: ${AFFIXES[it.affix].text}`, tw).slice(0, 2)) lines.push([l, AFFIX_COLOR]);
     if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
     for (const l of wrap(def.text, tw).slice(0, it.trait || it.affix ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
-    if (def.duo) lines.push([`DUO PART: ${def.duo[0]} + ${def.duo[1]}`, CYAN]);
+    const hp = hardpointOf(def);
+    lines.push([hp ? `ON THE ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING: PLAIN SOCKETS', hp ? HARDPOINT_COLOR[hp] : DIM]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     const lp = linkedPct(this.run.crew[who].build.frame);
     if (pl) {
@@ -478,9 +477,8 @@ export class Hangar implements Screen {
         const who = ok ? pl.partners.map((q) => partById(q.id).name).join(', ') || def.link.text : def.link.text;
         lines.push([`${how} ${who}`.slice(0, 50), ok ? GREEN : def.link.need ? RED : GOLD]);
       }
-      for (const c of pl.clashes) lines.push([`${c.fused ? 'FUSED' : `CLASH (${c.name})`} WITH ${partById(c.q.id).name}: ${c.fused ? '125%' : '50%'}`.slice(0, 50), c.fused ? GOLD : RED]);
       // what it does for its neighbours, and they for it
-      const mine = view!.lk.edges.filter((e) => e.kind !== 'clash' && e.kind !== 'link' && (e.a === pl.p || e.b === pl.p));
+      const mine = view!.lk.edges.filter((e) => e.kind === 'boost' && (e.a === pl.p || e.b === pl.p));
       if (mine.length) {
         const other = mine.map((e) => partById((e.a === pl.p ? e.b : e.a).id).name);
         const giving = mine.some((e) => e.a === pl.p);
@@ -516,9 +514,6 @@ export class Hangar implements Screen {
       else if (pl.def.link && !pl.link?.ok && pl.def.link.need) lines.push([`${pl.def.name}: NEEDS ${pl.def.link.text}`, RED]);
       else if (pl.def.link && pl.link?.ok && !pl.def.link.need) lines.push([`${pl.def.name}: LINKED, ${linkedPct(b.frame)}`, GREEN]);
     }
-    for (const e of lk.edges) if (e.kind === 'clash' || e.kind === 'fuse') lines.push([`${e.kind === 'fuse' ? 'FUSED' : 'CLASH'}: ${partById(e.a.id).name} + ${partById(e.b.id).name}`, e.kind === 'fuse' ? GOLD : RED]);
-    const relays = lk.edges.filter((e) => e.via.length && e.kind !== 'clash').length;
-    if (relays) lines.push([`CONDUIT RELAYS ${relays} LINK${relays > 1 ? 'S' : ''}`, CYAN]);
     let ty = y;
     // the marks the guns leave, as icons, and what they set off together
     const st = stats(build);
@@ -533,7 +528,7 @@ export class Hangar implements Screen {
       ty += 12;
     }
     // the guns' edges: how this ship wants to be flown (and whether they pull it two ways)
-    const edges = [...new Set(st.guns.filter((g) => !g.drone).map((g) => g.spec.edge))];
+    const edges = [...new Set(st.guns.map((g) => g.spec.edge))];
     if (edges.length) {
       drawText(ctx, `EDGES ${edges.map((e) => EDGES[e].name).join(' + ')}`.slice(0, 48), x, ty, '#ffa8d8');
       ty += 9;
@@ -568,11 +563,16 @@ export class Hangar implements Screen {
     drawText(ctx, '↑', cx, y0 - 10, '#4a3e58', { align: 'center' });
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {
-        if (f.grid[r][c] !== '#') continue;
-        ctx.fillStyle = '#2e2640';
+        if (!socket(f, c, r)) continue;
+        // a hardpoint is rimmed in its button's colour, its letter in the well
+        const hp = hardpointAt(f, c, r);
+        ctx.fillStyle = hp ? HARDPOINT_COLOR[hp] : '#2e2640';
+        ctx.globalAlpha = hp ? 0.55 : 1;
         ctx.fillRect(x0 + c * cell, y0 + r * cell, cell - 2, cell - 2);
+        ctx.globalAlpha = 1;
         ctx.fillStyle = '#241c34';
         ctx.fillRect(x0 + c * cell + 2, y0 + r * cell + 2, cell - 6, cell - 6);
+        if (hp) drawText(ctx, hp, x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, HARDPOINT_COLOR[hp], { align: 'center', shadow: false });
       }
     const mid = (c: number) => c * cell + cell / 2 - 1;
     const drawPart = (p: Placement, alpha: number, bad = false) => {
@@ -581,16 +581,15 @@ export class Hangar implements Screen {
       // idle parts (missing what they need) are drawn dim
       ctx.globalAlpha = alpha * (pl && pl.str === 0 && !bad ? 0.45 : 1);
       const cells = cellsOf(p);
-      ctx.fillStyle = bad ? RED : def.conduit ? '#5a5070' : CLASS_COLOR[def.cls];
+      ctx.fillStyle = bad ? RED : CLASS_COLOR[def.cls];
       for (const [c, r] of cells) {
-        const inset = def.conduit ? 6 : 1;
-        ctx.fillRect(x0 + c * cell + inset, y0 + r * cell + inset, cell - 2 - inset * 2, cell - 2 - inset * 2);
+        ctx.fillRect(x0 + c * cell + 1, y0 + r * cell + 1, cell - 4, cell - 4);
         // join the cells of a long part
-        if (cells.some(([c2, r2]) => c2 === c + 1 && r2 === r)) ctx.fillRect(x0 + c * cell + cell - 4, y0 + r * cell + (def.conduit ? 8 : 4), 4, def.conduit ? 4 : cell - 10);
-        if (cells.some(([c2, r2]) => c2 === c && r2 === r + 1)) ctx.fillRect(x0 + c * cell + (def.conduit ? 8 : 4), y0 + r * cell + cell - 4, def.conduit ? 4 : cell - 10, 4);
+        if (cells.some(([c2, r2]) => c2 === c + 1 && r2 === r)) ctx.fillRect(x0 + c * cell + cell - 4, y0 + r * cell + 4, 4, cell - 10);
+        if (cells.some(([c2, r2]) => c2 === c && r2 === r + 1)) ctx.fillRect(x0 + c * cell + 4, y0 + r * cell + cell - 4, cell - 10, 4);
       }
       const [c, r] = cells[0];
-      if (!def.conduit) drawText(ctx, def.name.slice(0, 2), x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, DARK, { align: 'center', shadow: false });
+      drawText(ctx, def.name.slice(0, 2), x0 + c * cell + cell / 2 - 1, y0 + r * cell + 7, DARK, { align: 'center', shadow: false });
       // its tier: a corner pip; a legendary is ringed in moving gold
       const tier = tierOf(p);
       if (tier !== 'common' && !bad) {
@@ -668,11 +667,10 @@ export class Hangar implements Screen {
       ctx.globalAlpha = 1;
     };
     for (const p of b.parts) drawPart(p, 1);
-    // what works with what: a mark on the edge they share, or lit dots along the conduit between
+    // what works with what: a mark on the edge they share, or a dotted line for a wireless link
     const focus = view.focus;
     for (const e of lk.edges) {
       const on = !focus || e.a === focus || e.b === focus;
-      if (e.kind === 'clash' && !blink && on) continue;
       ctx.globalAlpha = on ? 1 : 0.35;
       for (const [c, r, c2, r2] of e.edges) {
         const mx = Math.round(x0 + mid((c + c2) / 2));
@@ -683,7 +681,7 @@ export class Hangar implements Screen {
         ctx.fillRect(mx - 2, my - 2, 4, 4);
       }
       // a wireless link has no edge to show: a dotted line, part to part
-      if (!e.edges.length && !e.via.length) {
+      if (!e.edges.length) {
         const ca = cellsOf(e.a);
         const cb = cellsOf(e.b);
         const ax = x0 + mid(ca.reduce((s2, [c]) => s2 + c, 0) / ca.length);
@@ -698,10 +696,6 @@ export class Hangar implements Screen {
           ctx.fillRect(Math.round(ax + (bx - ax) * f) - 1, Math.round(ay + (by - ay) * f) - 1, 2, 2);
         }
       }
-      ctx.fillStyle = EDGE_COLOR[e.kind];
-      if (on && focus)
-        for (const q of e.via)
-          for (const [c, r] of cellsOf(q)) ctx.fillRect(x0 + mid(c) - 1, y0 + mid(r) - 1, 3, 3);
       ctx.globalAlpha = 1;
     }
     // the last placement, played out: one link at a time, its cell lit and its number over the grid
@@ -722,7 +716,7 @@ export class Hangar implements Screen {
         drawText(ctx, st.text, tx, ty, st.color, { align: 'center' });
       }
     }
-    // the part in focus: outline what it would work with (green), what it clashes with (red)
+    // the part in focus: outline what it works with
     if (focus) {
       for (const e of lk.edges) {
         if (e.a !== focus && e.b !== focus) continue;
@@ -735,6 +729,12 @@ export class Hangar implements Screen {
       const p: Placement = { ...bay.hand, c: bay.cur.c, r: bay.cur.r };
       const ok = fits(b, p);
       drawPart(focus && ok ? focus : p, 0.55 + 0.25 * Math.sin(this.t * 8), !ok);
+      // held where it can't go: say where it can
+      if (!ok && !suits(f, p)) {
+        const want = hardpointOf(partById(p.id));
+        const say = want ? `GOES ON A ${HARDPOINTS[want].name} HARDPOINT` : 'A FITTING: NOT ON A HARDPOINT';
+        drawText(ctx, say, cx, y0 + rows * cell + 4, want ? HARDPOINT_COLOR[want] : GOLD, { align: 'center' });
+      }
     }
     if (!bay.ready && Math.floor(this.t * 3) % 3 !== 0) {
       ctx.strokeStyle = bay.hand ? INK : GOLD;
@@ -753,7 +753,7 @@ export class Hangar implements Screen {
       ['SHIELD', s.shield, after?.shield, (n) => `${n}`],
       ['ARMOUR', s.armor, after?.armor, (n) => `${n}`],
       ['DASHES', s.dashes, after?.dashes, (n) => `${n}`],
-      ['POWER', s.powerOut - s.powerDraw, after ? after.powerOut - after.powerDraw : undefined, (n) => `${n >= 0 ? '+' : ''}${Math.round(n)}`],
+      ['GUNS', s.guns.length, after?.guns.length, (n) => `${n}`],
       ['DPS', dps(s), after ? dps(after) : undefined, (n) => `${Math.round(n)}`],
       ['SPEED', s.speed, after?.speed, (n) => `${Math.round(n)}`],
     ];
@@ -761,29 +761,32 @@ export class Hangar implements Screen {
       const cx = x + 6 + (k % 2) * 84;
       const ry = y + 38 + Math.floor(k / 2) * 11;
       drawText(ctx, label, cx, ry, DIM);
-      const warn = label === 'POWER' && now < 0;
-      drawText(ctx, fmt(now), cx + 58, ry, warn ? RED : INK, { align: 'right' });
+      drawText(ctx, fmt(now), cx + 58, ry, INK, { align: 'right' });
       if (then !== undefined && fmt(then) !== fmt(now)) {
         const better = lowerBetter ? then < now : then > now;
         drawText(ctx, `→${fmt(then)}`, cx + 60, ry, better ? GREEN : RED);
       }
     });
-    if (s.brown < 1) drawText(ctx, 'BROWNOUT: GUNS SLOWED', x + w - 6, y + 72, RED, { align: 'right' });
   }
 
-  private tagsBox(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, x: number, y: number, w: number, h: number) {
+  /** Each hardpoint the frame has, and the tool on it (or that it's empty: a button that does nothing). */
+  private hardpointsBox(ctx: CanvasRenderingContext2D, b: Build, x: number, y: number, w: number, h: number) {
     frame(ctx, x, y, w, h);
-    drawText(ctx, 'TAGS', x + 6, y + 4, DIM);
-    const tags = (Object.keys(s.tags) as Tag[]).filter((t) => s.tags[t] > 0 || (after?.tags[t] ?? 0) > 0);
-    tags.slice(0, 6).forEach((t, k) => {
-      const n = s.tags[t];
-      const lvl = s.bonus[t];
-      const ty = y + 16 + k * 11;
-      drawText(ctx, `${t.toUpperCase()} ${n}`, x + 6, ty, lvl === 2 ? GOLD : lvl ? '#c8b0ff' : '#8a8098');
-      if (after && after.tags[t] !== n) drawText(ctx, `→${after.tags[t]}`, x + 72, ty, after.tags[t] > n ? GREEN : RED);
-      if (lvl) drawText(ctx, TAG_BONUS[t].name, x + w - 6, ty, lvl === 2 ? GOLD : CYAN, { align: 'right' });
+    drawText(ctx, 'HARDPOINTS', x + 6, y + 4, DIM);
+    const f = frameById(b.frame);
+    const kinds = [...new Set(hardpointsOf(f))];
+    kinds.forEach((k: Hardpoint, n) => {
+      const tools = b.parts.map((p) => partById(p.id)).filter((d) => hardpointOf(d) === k);
+      const ty = y + 16 + n * 11;
+      drawText(ctx, HARDPOINTS[k].name, x + 6, ty, HARDPOINT_COLOR[k]);
+      // two of a gun read as one line, ×2
+      const names = tools.map((d) => d.name.toUpperCase());
+      const say = tools.length ? [...new Set(names)].map((n) => { const k = names.filter((m) => m === n).length; return k > 1 ? `${n} ×${k}` : n; }).join(' + ') : 'EMPTY';
+      const room = Math.floor((w - 70) / 6);
+      drawText(ctx, say.length > room ? say.slice(0, room - 1) + '.' : say, x + w - 6, ty, tools.length ? INK : '#4a3e58', { align: 'right' });
     });
-    if (!tags.length) drawText(ctx, 'NONE', x + 6, y + 16, '#4a3e58');
+    const missing = (['T', 'H', 'A', 'S'] as Hardpoint[]).filter((k) => !kinds.includes(k));
+    if (missing.length) drawText(ctx, `NO ${missing.map((k) => HARDPOINTS[k].name).join(', ')}`, x + 6, y + 16 + kinds.length * 11, '#4a3e58');
   }
 
   dispose() {

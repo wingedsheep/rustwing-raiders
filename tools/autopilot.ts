@@ -23,8 +23,8 @@ import { cpus } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { Level, type Mode } from '../src/sim/level';
 import { levelSpec } from '../src/sim/run';
-import { startBuild, type Build } from '../src/sim/build';
-import { partById } from '../src/game/parts';
+import { fits, startBuild, type Build } from '../src/sim/build';
+import { frameById, partById } from '../src/game/parts';
 import { newPilot, pilot } from '../src/sim/pilot';
 import { PLANETS } from '../src/world/planets';
 
@@ -91,62 +91,61 @@ const LOADOUTS: Record<string, (frame: string) => Build> = {
   // the archetypes (see the builds design doc): a parry tank, a speed demon, a dash assassin, a turret ship
   parry: () =>
     ship('mule', [
-      ['rivet', 0, 0], ['torch', 1, 0], ['scatter', 2, 0], ['rivet', 3, 0], ['plate', 4, 0],
-      ['shield', 0, 1], ['exchanger', 1, 1], ['parry', 2, 1], ['skin', 3, 1], ['mirror', 4, 1],
-      ['reactor', 1, 2], ['thruster', 3, 2],
+      ['plate', 0, 0], ['seeker', 1, 0], ['rivet', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
+      ['shield', 0, 1], ['plate', 1, 1], ['parry', 2, 1], ['sink', 3, 1], ['mirror', 4, 1],
+      ['thruster', 1, 2], ['thruster', 3, 2],
     ]),
-  // (the lance is a heavy: a rivet in the nose to hold the trigger on between its rounds)
+  // (the lance lies across the heavy hardpoint; a rivet in the nose holds the trigger between rounds)
   speed: () =>
     ship('kestrel', [
-      ['rivet', 1, 0], ['lance', 0, 1], ['skin', 1, 1], ['gambler', 2, 1], ['shield', 1, 2], ['throttle', 2, 2], ['thruster', 2, 3],
+      ['rivet', 1, 0], ['flare', 0, 1], ['phasedrive', 2, 1], ['lance', 0, 2, 1], ['thruster', 0, 3], ['thruster', 2, 3],
     ]),
   assassin: () =>
     ship('wasp', [
-      ['scatter', 0, 0], ['scatter', 2, 0], ['trigger', 0, 1], ['flare', 2, 1], ['salvage', 0, 2], ['ram', 1, 2], ['spring', 2, 2],
+      ['scatter', 0, 0], ['scatter', 2, 0], ['ram', 0, 1], ['hone', 2, 1], ['bombbay', 0, 2], ['mine', 1, 2], ['lunge', 2, 2],
       ['wake', 0, 3], ['thruster', 1, 3], ['thruster', 2, 3],
     ]),
   turret: () =>
     ship('lattice', [
-      ['rivet', 0, 0], ['rivet', 2, 0], ['rivet', 4, 0], ['conduit', 0, 1], ['conduit', 2, 1], ['conduit', 4, 1],
-      ['conduit', 0, 2], ['amp', 1, 2], ['conduit', 2, 2], ['drone', 3, 2], ['conduit', 4, 2], ['reactor', 1, 3], ['sentry', 3, 3],
+      ['plate', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['shield', 0, 1], ['sentry', 2, 1], ['mirror', 4, 1],
+      ['autoloader', 0, 2], ['flare', 1, 2], ['amp', 2, 2], ['overdrive', 3, 2], ['thruster', 1, 3], ['thruster', 3, 3],
     ]),
-  // marks and reactions: every gun given a second mark so it reacts on its own (an arc coil that
-  // cracks, a seeker pod that burns), a Flaw Finder on the torch, a Catalyst to set the rest off
+  // marks and reactions: a torch that burns and a seeker that cracks off a Breacher Rack, a Catalyst to set them off
   alchemist: () =>
     ship('lattice', [
-      ['torch', 0, 0], ['arc', 2, 0], ['seeker', 4, 0], ['flaw', 0, 1], ['breach', 2, 1], ['incend', 4, 1],
-      ['reactor', 0, 2], ['conduit', 1, 2], ['catalyst', 2, 2], ['conduit', 3, 2], ['reactor', 4, 2], ['thruster', 1, 3], ['thruster', 3, 3],
+      ['flaw', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['incend', 0, 1], ['torch', 2, 1], ['shield', 4, 1],
+      ['catalyst', 0, 2], ['siphon', 1, 2], ['breach', 2, 2], ['emp', 3, 2], ['thruster', 3, 3],
     ]),
-  // a sensible mid-run ship: two forward guns with an amp, armour, engines at the back
-  strong: () => ({
-    frame: 'mule',
-    parts: [
-      { id: 'rivet', c: 0, r: 0 },
-      { id: 'scatter', c: 1, r: 0 },
-      { id: 'amp', c: 2, r: 0 },
-      { id: 'scatter', c: 3, r: 0 },
-      { id: 'rivet', c: 4, r: 0 },
-      { id: 'plate', c: 1, r: 1 },
-      { id: 'reactor', c: 2, r: 1 },
-      { id: 'plate', c: 3, r: 1 },
-      { id: 'thruster', c: 1, r: 2 },
-      { id: 'bombbay', c: 2, r: 2 },
-      { id: 'thruster', c: 3, r: 2 },
-    ],
-  }),
+  // a sensible mid-run ship: a gun on every hardpoint, boosters on them, armour, engines at the back
+  strong: () =>
+    ship('mule', [
+      ['plate', 0, 0], ['seeker', 1, 0], ['scatter', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
+      ['shield', 0, 1], ['amp', 1, 1], ['flare', 2, 1], ['sink', 3, 1], ['vector', 4, 1],
+      ['thruster', 1, 2], ['thruster', 3, 2],
+    ]),
 };
 
 /**
- * A named loadout, or a bench: `gun:<id>` is the starter frame with only that gun up front (a
+ * A named loadout, or a bench: `gun:<id>` is the starter frame with only that gun on its hardpoint (a
  * second gun after a comma, `gun:rivet,rail`), to set the guns against each other.
  */
 function loadout(name: string, frame: string): Build {
-  if (!name.startsWith('gun:')) return LOADOUTS[name](frame);
+  if (!name.startsWith('gun:')) {
+    // a hand-built ship that wouldn't go together in the hangar benches nothing real: say so
+    const b = LOADOUTS[name](frame);
+    for (const p of b.parts) if (!fits(b, p, p)) throw new Error(`${name}: ${p.id} at ${p.c},${p.r} doesn't fit the ${b.frame}`);
+    return b;
+  }
   const b = startBuild(frame);
   const guns = name.slice(4).split(',');
-  const fronts = b.parts.filter((p) => partById(p.id).cls === 'gun');
+  // each on the next free hardpoint of its kind (trigger or heavy)
   b.parts = b.parts.filter((p) => partById(p.id).cls !== 'gun');
-  fronts.forEach((p, i) => guns[i] && b.parts.push({ id: guns[i], c: p.c, r: p.r }));
+  const grid = frameById(b.frame).grid;
+  for (const id of guns) {
+    const spot = grid.flatMap((row, r) => [...row].flatMap((_, c) => [0, 1, 2, 3].map((rot) => ({ id, c, r, rot })))).find((p) => fits(b, p));
+    if (!spot) throw new Error(`gun:${id} has no free hardpoint on the ${b.frame}`);
+    b.parts.push(spot);
+  }
   return b;
 }
 
@@ -177,7 +176,7 @@ function fly(job: Job): Result {
       if (e.type === 'bossWarning') log.push(`${at} boss: ${e.name}`);
       if (e.type === 'bossPhase') log.push(`${at} boss phase ${e.phase + 1}`);
       if (e.type === 'bossRead') log.push(`${at} boss reads: ${e.read}`);
-      if (e.type === 'takedown') log.push(`${at} P${e.id + 1} TAKEDOWN${e.heal ? ' +kit' : ''}${e.kill ? ' (kill)' : ''}`);
+      if (e.type === 'takedown') log.push(`${at} P${e.id + 1} TAKEDOWN${e.big ? ' (big)' : ''}${e.kill ? ' (kill)' : ''}`);
       if (e.type === 'biome') log.push(`${at} biome: ${spec.biomes[e.index]?.name}`);
       if (e.type === 'reaction') log.push(`${at} ${e.kind.toUpperCase()}`);
       if (e.type === 'detonate') log.push(`${at} DETONATE`);

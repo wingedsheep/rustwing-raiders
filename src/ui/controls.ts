@@ -30,8 +30,8 @@ export function controlsCard(ctx: CanvasRenderingContext2D, dev: DeviceId, p: Pl
     for (const id of ids) seen.set(id, (seen.get(id) ?? 0) + 1);
     return [...seen].map(([id, n]) => `${partById(id).name.toUpperCase()}${n > 1 ? ` ×${n}` : ''}`).join(', ');
   };
-  const main = s.guns.filter((g) => !g.drone && !g.spec.heavy).map((g) => g.part.id);
-  const heavy = s.guns.filter((g) => !g.drone && g.spec.heavy).map((g) => g.part.id);
+  const main = s.guns.filter((g) => !g.spec.heavy).map((g) => g.part.id);
+  const heavy = s.guns.filter((g) => g.spec.heavy).map((g) => g.part.id);
   const mods = p.build.parts.map((q) => partById(q.id)).filter((d) => d.mod).map((d) => d.id);
   const rows: [FlightAction, string, string, Verb | null][] = [
     ['move', 'MOVE', '', null],

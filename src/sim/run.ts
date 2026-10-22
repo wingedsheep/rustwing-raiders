@@ -11,7 +11,7 @@
 
 import { PLANETS, type Planet } from '../world/planets';
 import { HULL_STEP, type LevelSpec, type Mode } from './level';
-import { LOOT, duosOpen, startBuild, stats, type Build } from './build';
+import { LOOT, startBuild, stats, type Build } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
@@ -42,6 +42,8 @@ export interface Crew {
 }
 
 export const CARGO = 6;
+/** Parts a dealer lays out. */
+export const SHOP_PARTS = 3;
 export const SECTORS = 3;
 
 export const PRICE: Record<Rarity, number> = { common: 30, rare: 60, epic: 110 };
@@ -205,21 +207,13 @@ export class Run {
       const from = leaning.length && out.size < 2 && r() < 0.8 ? leaning : LOOT[rarity];
       out.add(pick(r, from).id);
     }
-    // a duo the crew has earned (two of each of its tags aboard) can turn up in place of the third
-    const duos = this.duos();
-    const ids = duos.length && r() < 0.35 ? [...[...out].slice(0, 2), pick(r, duos)] : [...out];
-    const items = ids.map((id) => rollItem(r, id, rollTier(r, d, rich, danger)));
+    const items = [...out].map((id) => rollItem(r, id, rollTier(r, d, rich, danger)));
     // the Warden always leaves something worth building round
     if (boss && !items.some((it) => it.tier === 'legendary')) {
       const k = Math.floor(r() * items.length);
-      items[k] = rollItem(r, items[k].id === 'conduit' || items[k].id === 'elbow' ? pick(r, LOOT.epic).id : items[k].id, 'legendary');
+      items[k] = rollItem(r, items[k].id, 'legendary');
     }
     return items;
-  }
-
-  /** Duo parts any ship of the crew has opened up. */
-  duos(): string[] {
-    return [...new Set(this.crew.flatMap((c) => duosOpen(c.build, c.cargo).map((d) => d.id)))];
   }
 
   /** A dealer's market: what it sells cheap, what it pays over the odds for. */
@@ -234,12 +228,10 @@ export class Run {
   shopStock(n: ChartNode): ShopItem[] {
     const r = rng(n.seed);
     const m = this.market(n);
-    // half the stall is the planet's own line, cheap
-    const own = m.sells ? shuffle(r, PARTS.filter((p) => p.cls === m.sells && !p.duo).map((p) => p.id)).slice(0, 3) : [];
-    const rest = shuffle(r, PARTS.filter((p) => !p.duo).map((p) => p.id).filter((id) => !own.includes(id))).slice(0, 6 - own.length);
-    // a duo the crew has earned sits at the end of the stall
-    const duo = this.duos();
-    if (duo.length) rest.push(pick(r, duo));
+    // three parts: one of the planet's own line, cheap, and two of anything (a ship only has
+    // so much room, so each one gets looked at)
+    const own = m.sells ? shuffle(r, PARTS.filter((p) => p.cls === m.sells).map((p) => p.id)).slice(0, 1) : [];
+    const rest = shuffle(r, PARTS.map((p) => p.id).filter((id) => !own.includes(id))).slice(0, SHOP_PARTS - own.length);
     // dealers stock the odd tuned part, rarely anything finer
     return [...own, ...rest].map((id) => {
       const def = partById(id);
