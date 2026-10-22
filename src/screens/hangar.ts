@@ -318,9 +318,11 @@ export class Hangar implements Screen {
           audio.play('ui_select');
           this.remodel(i);
         } else if (crew.cargo.length) {
-          // out of the hold into your hand, at the best place for it: one more press bolts it on
+          // out of the hold into your hand: on the socket you're at if it fits there (any way
+          // round), else at the best place for it. One more press bolts it on
           const it = crew.cargo.splice(bay.sel, 1)[0];
-          const best = bestFit(b, it).place;
+          const here = [0, 1, 2, 3].map((rot) => ({ ...toItem(it), c: bay.cur.c, r: bay.cur.r, rot })).find((p) => fits(b, p));
+          const best = here ?? bestFit(b, it).place;
           if (best && fits(b, best)) {
             bay.hand = { ...toItem(it), c: best.c, r: best.r, rot: rotOf(best) };
             bay.cur = { c: best.c, r: best.r };
@@ -484,6 +486,7 @@ export class Hangar implements Screen {
     // the deck (solo: the ship itself from above, the grid laid over it), or the grid beside a turntable
     const after = view.build !== b ? stats(view.build) : null;
     const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
+    const where = bay.hand ? 'hand' : view.focus ? 'ship' : 'hold';
     if (solo) {
       this.redeck(bay, i, view.build);
       frame(ctx, DECK.x - 2, DECK.y - 2, DECK.w + 4, DECK.h + 4, '#0c0a14');
@@ -491,7 +494,7 @@ export class Hangar implements Screen {
       this.grid(ctx, bay, b, view, DECK.x + DECK.w / 2, DECK.y + DECK.h / 2, DECK.cell, true);
       this.deckLabels(ctx, bay, b, view.build);
       this.statsBox(ctx, s, after, RIGHT, 38, 290);
-      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, RIGHT, 128, 290, i);
+      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, RIGHT, 128, 290, i, where);
       else this.emptyCard(ctx, RIGHT, 128, 290);
       this.hold(ctx, bay, i, RIGHT, 198, 290);
     } else {
@@ -502,7 +505,7 @@ export class Hangar implements Screen {
       ctx.clearRect(x + 146, 41, 164, 104);
       this.statsBox(ctx, s, after, x + 145, 152, 166);
       this.hold(ctx, bay, i, x, 152, 140);
-      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i);
+      if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i, where);
     }
     // message, ready, hints
     const hx = solo ? DECK.x + DECK.w / 2 : x + AREA_W / 2;
@@ -629,7 +632,7 @@ export class Hangar implements Screen {
    * A part: name, verb, what it does, and (on the grid, or about to be) what it's linked to, what
    * it clashes with and how strong that leaves it.
    */
-  private focusCard(ctx: CanvasRenderingContext2D, it: Item, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number, who: number) {
+  private focusCard(ctx: CanvasRenderingContext2D, it: Item, view: { focus: Placement | null; lk: Links } | null, x: number, y: number, w: number, who: number, where: 'hand' | 'ship' | 'hold') {
     const def = itemDef(it);
     const tier = tierOf(it);
     frame(ctx, x, y, w, 64, '#1c1526', tier === 'common' ? undefined : TIER_COLOR[tier]);
@@ -652,7 +655,10 @@ export class Hangar implements Screen {
       ctx.fillRect(x + w - pw - 4, y + 13, 1, pw + 1);
     }
     const tw = shown ? w - pw - 14 : w - 12;
-    const lines: [string, string][] = [];
+    // first, where it is: bolted on, in your hand, or still in the hold (not on the socket you're at)
+    const lines: [string, string][] = [
+      where === 'ship' ? ['ON YOUR SHIP', GREEN] : where === 'hand' ? ['IN YOUR HAND: NOT BOLTED ON YET', '#ffffff'] : ['IN THE HOLD: TAKE IT TO BOLT IT ON', GOLD],
+    ];
     // what was rolled for it, then a legendary's rule, then what it is
     if (it.mods?.length) lines.push([it.mods.map((m) => MODS[m.k].short(modValue(m))).join('   '), '#e8e0f0']);
     if (it.affix) for (const l of wrap(`✦ ${AFFIXES[it.affix].name}: ${AFFIXES[it.affix].text}`, tw).slice(0, 2)) lines.push([l, AFFIX_COLOR]);
@@ -765,16 +771,23 @@ export class Hangar implements Screen {
         const sx = x0 + c * cell;
         const sy = y0 + r * cell;
         if (over) {
-          // an open socket: corner brackets over the deck plate (a taken one, nothing: its part shows)
+          // an open socket: a dark, empty well over the deck plate with a dashed rim and a faint
+          // plus (so the hull's hatches never read as parts); a taken one shows its part
           if (taken.has(`${c},${r}`)) continue;
-          ctx.fillStyle = 'rgba(14,10,24,0.35)';
-          ctx.fillRect(sx + 2, sy + 2, cell - 6, cell - 6);
-          ctx.fillStyle = '#a898c0';
-          const k = 5;
-          for (const [ax, ay, dx, dy] of [[sx + 1, sy + 1, 1, 1], [sx + cell - 4, sy + 1, -1, 1], [sx + 1, sy + cell - 4, 1, -1], [sx + cell - 4, sy + cell - 4, -1, -1]]) {
-            ctx.fillRect(dx > 0 ? ax : ax - k + 1, ay, k, 1);
-            ctx.fillRect(ax, dy > 0 ? ay : ay - k + 1, 1, k);
+          ctx.fillStyle = 'rgba(10,7,18,0.78)';
+          ctx.fillRect(sx + 1, sy + 1, cell - 4, cell - 4);
+          ctx.fillStyle = '#5e5274';
+          for (let k = 1; k < cell - 3; k += 4) {
+            ctx.fillRect(sx + k, sy + 1, 2, 1);
+            ctx.fillRect(sx + k, sy + cell - 4, 2, 1);
+            ctx.fillRect(sx + 1, sy + k, 1, 2);
+            ctx.fillRect(sx + cell - 4, sy + k, 1, 2);
           }
+          const mx = sx + Math.floor(cell / 2) - 1;
+          const my = sy + Math.floor(cell / 2) - 1;
+          ctx.fillStyle = '#3e3450';
+          ctx.fillRect(mx - 3, my, 7, 1);
+          ctx.fillRect(mx, my - 3, 1, 7);
           continue;
         }
         ctx.fillStyle = '#2e2640';
@@ -816,16 +829,21 @@ export class Hangar implements Screen {
       const cells = cellsOf(p);
       const [c, r] = cells[0];
       if (over && !bad) {
-        // the model shows: rim its cells in its class colour, edges it shares with itself left open
-        ctx.fillStyle = CLASS_COLOR[def.cls];
+        // the model shows: a wash of its class colour and a solid rim round its cells (edges it
+        // shares with itself left open), so a fitted socket never looks like an open one
         const has = (cc: number, rr: number) => cells.some(([c2, r2]) => c2 === cc && r2 === rr);
+        const a0 = ctx.globalAlpha;
+        ctx.fillStyle = CLASS_COLOR[def.cls];
+        ctx.globalAlpha = a0 * 0.16;
+        for (const [cc, rr] of cells) ctx.fillRect(x0 + cc * cell, y0 + rr * cell, cell - 2, cell - 2);
+        ctx.globalAlpha = a0;
         for (const [cc, rr] of cells) {
           const px = x0 + cc * cell;
           const py = y0 + rr * cell;
-          if (!has(cc, rr - 1)) ctx.fillRect(px, py, cell - 2, 1);
-          if (!has(cc, rr + 1)) ctx.fillRect(px, py + cell - 3, cell - 2, 1);
-          if (!has(cc - 1, rr)) ctx.fillRect(px, py, 1, cell - 2);
-          if (!has(cc + 1, rr)) ctx.fillRect(px + cell - 3, py, 1, cell - 2);
+          if (!has(cc, rr - 1)) ctx.fillRect(px, py, cell - 2, 2);
+          if (!has(cc, rr + 1)) ctx.fillRect(px, py + cell - 4, cell - 2, 2);
+          if (!has(cc - 1, rr)) ctx.fillRect(px, py, 2, cell - 2);
+          if (!has(cc + 1, rr)) ctx.fillRect(px + cell - 4, py, 2, cell - 2);
         }
         if (pl && pl.str === 0) {
           // idle: struck through
@@ -1001,6 +1019,17 @@ export class Hangar implements Screen {
       ctx.fillStyle = bay.hand ? '#ffffff' : GOLD;
       for (const [ax, ay] of [[px, py], [px + sz - k, py], [px, py + sz - 2], [px + sz - k, py + sz - 2]]) ctx.fillRect(ax, ay, k, 2);
       for (const [ax, ay] of [[px, py], [px + sz - 2, py], [px, py + sz - k], [px + sz - 2, py + sz - k]]) ctx.fillRect(ax, ay, 2, k);
+      // on the deck, say what's under it: the part, or that the socket is empty
+      if (over && !bay.hand) {
+        const on = partAt(b, bay.cur.c, bay.cur.r);
+        const text = on ? itemName(on) : 'EMPTY SOCKET';
+        const w = textWidth(text);
+        const tx = clamp(x0 + bay.cur.c * cell + cell / 2, DECK.x + w / 2 + 4, DECK.x + DECK.w - w / 2 - 4);
+        const ty = y0 + bay.cur.r * cell + cell + 3;
+        ctx.fillStyle = 'rgba(12,8,20,0.9)';
+        ctx.fillRect(Math.round(tx - w / 2) - 3, ty - 2, w + 6, 11);
+        drawText(ctx, text, tx, ty, on ? CLASS_COLOR[partById(on.id).cls] : '#a898c0', { align: 'center' });
+      }
     }
   }
 
