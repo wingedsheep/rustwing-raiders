@@ -12,20 +12,22 @@ import { clamp, damp } from '../util';
  *    there; the rest loop. Cross-faded, so a boss without them just idles. A boss can idle
  *    differently in each phase (`boss_<planet>_p<phase>`: the Engine stirring, awake; else its idle).
  *  - Facing: on a charge, a rake or a sky dive it turns to face where it's going (its aim while it
- *    winds up) and banks into the turn.
+ *    winds up) and banks into the turn; on a sky dive or a broadside it goes side-on.
  *  - Shedding: a part tagged `shed` (a glTF extra) breaks off as that phase starts.
  */
 
-/** Moves it turns to face. */
-const TURNS = new Set(['charge', 'rake', 'skydive']);
-/** Moves it turns its gaze along (part of the way: a fortress doesn't spin round). */
-const LOOKS: Record<string, number> = { scan: 0.35 };
+/** Moves it turns to face (a sky dive and a broadside: side-on, along the way it'll go). */
+const TURNS = new Set(['charge', 'rake', 'skydive', 'broadside']);
+const SIDE_ON = new Set(['skydive', 'broadside']);
+/** Moves it turns its gaze along (part of the way: a fortress doesn't spin round; Istra brings her bow round on you). */
+const LOOKS: Record<string, number> = { scan: 0.35, irons: 0.6 };
 const FADE = 0.18;
 
 /** What it says when it sheds, by planet and phase. */
 const SHED_LINE: Record<string, string[]> = {
   orutal: ['', 'THE CAGE CRACKS', 'SHE BREAKS FREE'],
   glacis: ['', 'THE ICE BREAKS', 'IT IS AWAKE'],
+  vesh: ['', 'RUN OUT THE GUNS', 'THE CREW ABANDONS HER'],
 };
 
 export interface Shed {
@@ -77,8 +79,8 @@ export class BossPose {
     let want = 0;
     if (move && TURNS.has(move) && (state === 'windup' || state === 'attack')) {
       const fast = Math.hypot(vx, vz) > 10;
-      if (state === 'attack' && fast) want = Math.atan2(vx, vz);
-      else if (move === 'skydive') want = b.dir * (Math.PI / 2);
+      if (state === 'attack' && fast && !SIDE_ON.has(move)) want = Math.atan2(vx, vz);
+      else if (SIDE_ON.has(move)) want = b.dir * (Math.PI / 2);
       else want = e.aim;
     } else if (move && LOOKS[move] && (state === 'windup' || state === 'attack')) want = e.aim * LOOKS[move];
     const da = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));

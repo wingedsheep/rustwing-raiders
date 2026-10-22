@@ -26,8 +26,8 @@
  * learnt; after that it reads, and strings moves together (a short breath between, a long one after).
  */
 
-import type { Enemy, Level } from './level';
-import { DT, HALF_H, HALF_W } from './types';
+import type { Bullet, Enemy, Level } from './level';
+import { DT, FLIGHT_Y, HALF_H, HALF_W } from './types';
 import { metaOf } from './meta';
 import { clamp, hashStr, lerp, rng, shuffle, smooth } from '../util';
 import { go, over, release, type AttackKind, type Tele } from './combat';
@@ -54,6 +54,9 @@ export type BossMove =
   | 'calve'
   | 'count'
   | 'grasp'
+  | 'irons'
+  | 'breach'
+  | 'broadside'
   // the signatures: one each
   | 'skydive'
   | 'crane'
@@ -129,6 +132,12 @@ export interface BossState {
   bare: number;
   /** How slowly it moves, by phase and in its last stand (see TEMPO). */
   tempo: number[];
+  /** Under the sea, out of reach (Istra's breach). */
+  under: boolean;
+  /** What it has thrown that comes back to it, and when it turns (Istra's tide). */
+  tide: { o: Bullet | Strike; at: number; back: boolean }[];
+  /** When the tide last turned (it says so once a turn, not once a bubble). */
+  tideT: number;
 }
 
 /** What it notices about how you fly. */
@@ -154,6 +163,15 @@ const READ_OWN: Record<string, Partial<Record<Read, string>>> = {
     close: 'LOGS: INSIDE TOLERANCE',
     dash: 'LOGS: UNWITNESSED CROSSINGS',
   },
+  // Istra plays to her Court: everything you do is part of the show
+  vesh: {
+    back: 'CALLS YOU IN, LITTLE FISH',
+    still: 'SAYS: A SITTING WHALE',
+    side: 'SAYS: HUGGING THE REEF',
+    boost: 'THERE SHE BLOWS!',
+    close: 'SAYS: BOLD. SHE LIKES BOLD',
+    dash: 'SAYS: SHOW-OFF',
+  },
 };
 
 /** What a boss says it read, under its bar. */
@@ -174,6 +192,9 @@ const ANSWERS: Record<BossMove, Read[]> = {
   calve: ['still', 'back'],
   count: ['side', 'still'],
   grasp: ['side', 'still'],
+  irons: ['back', 'side'],
+  breach: ['still', 'back'],
+  broadside: ['side', 'close'],
   slam: ['close', 'still'],
   sweep: ['side', 'still'],
   gate: ['side', 'back'],
@@ -198,9 +219,9 @@ const READ_SAY = 0.55;
 /** How often it strings another move on, by phase (none in the first: it's learnt in order). */
 const COMBO = [0, 0.35, 0.6];
 
-type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost';
+type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost' | 'tide';
 
-const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2 };
+const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2, tide: 4.4 };
 
 /** Bosses lean on patterns that suit them. */
 const FAVOURITES: Record<string, Pattern[]> = {
@@ -242,6 +263,9 @@ const OWN: Record<string, BossMove[][]> = {
   // The Engine: half asleep, it scans, crosses and sheds its ice; stirring, it starts to count and
   // calls its menders; awake, the ice is gone (no calving), its arms are free and it grasps
   glacis: [['scan', 'calve'], ['scan', 'count', 'summon', 'calve'], ['scan', 'count', 'grasp']],
+  // Istra hunts you as she'd hunt a whale: irons, her breath, a breach; drawing blood makes it a
+  // sea fight (broadsides, her captains called in); with her crew gone, everything comes back
+  vesh: [['irons', 'breach'], ['irons', 'broadside', 'summon', 'breach'], ['irons', 'broadside', 'breach']],
 };
 
 /**
@@ -250,6 +274,9 @@ const OWN: Record<string, BossMove[][]> = {
  */
 const FILLER: Record<string, Pattern[][]> = {
   glacis: [['frost'], ['lasers', 'rings'], ['spiral', 'walls']],
+  // Istra's crew on the deck guns, then the cannon; and when they've gone, only the sea she
+  // breathes out and in
+  vesh: [['curves', 'fans'], ['splitters', 'fans'], ['tide']],
 };
 
 /**
@@ -263,7 +290,7 @@ const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85] };
 const BARE: Record<string, number> = { orutal: 2 };
 
 /** The beat of a boss's theme (its rings and wing beats land on it). */
-const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120 };
+const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120, vesh: 60 / 126 };
 
 const KIND: Record<BossMove, AttackKind> = {
   charge: 'charge',
@@ -275,6 +302,9 @@ const KIND: Record<BossMove, AttackKind> = {
   calve: 'shell',
   count: 'beam',
   grasp: 'slam',
+  irons: 'harpoon',
+  breach: 'slam',
+  broadside: 'sweep',
   slam: 'slam',
   sweep: 'sweep',
   gate: 'gate',
@@ -313,6 +343,7 @@ export const MOVE_NAME: Partial<Record<BossMove, string>> = {
   breath: 'DEEP BREATH',
   repossess: 'REPOSSESSION',
   count: 'THE COUNT',
+  broadside: 'BROADSIDE',
 };
 
 /** Damage that breaks its poise (a share of its hull), and how fast poise comes back. */
@@ -325,14 +356,15 @@ const LAST = 0.08;
  * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
  * teach something, so each needs time: half again as long.
  */
-const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4 };
+const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4 };
 export const bossHull = (planet: string) => HULL[planet] ?? 1;
 
 /** Who comes when it calls. */
 const HELP: Record<string, [Foe, number]> = {
   orutal: ['swooper', 2],
   ashgrave: ['ramjack', 2],
-  vesh: ['rattler', 2],
+  // Istra's captains: whalers, with irons of their own
+  vesh: ['hookjaw', 2],
   halcyon: ['warden', 2],
   glacis: ['prism', 2],
   kessra: ['rattler', 2],
@@ -405,6 +437,9 @@ export function makeBoss(planet: string): BossState {
     comboed: false,
     bare: BARE[planet] ?? 9,
     tempo: TEMPO[planet] ?? [1, 1, 1, 1],
+    under: false,
+    tide: [],
+    tideT: -99,
   };
 }
 
@@ -528,6 +563,7 @@ export function updateBoss(lv: Level, e: Enemy) {
     b.shieldT = 1.6;
     b.move = null;
     dropBall(b);
+    b.tide.length = 0;
     if (e.grab >= 0) release(lv, e, false);
     go(lv, e, 'idle');
     lv.chase = false;
@@ -550,6 +586,12 @@ export function updateBoss(lv: Level, e: Enemy) {
 
   if (b.move) runMove(lv, e, b);
   else home(lv, e, b);
+  // up from under the sea (a breach cut short: staggered as she rose)
+  if (b.move !== 'breach') {
+    b.under = false;
+    e.y += (FLIGHT_Y - e.y) * Math.min(1, DT * 6);
+  }
+  if (b.tide.length) ebb(lv, e, b);
   e.x = b.sx;
   e.z = lv.scroll + b.ss;
   if (e.shielded || e.stun > 0 || b.move) return;
@@ -812,6 +854,35 @@ function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
       go(lv, e, 'windup', (b.k ? 0.75 : 1.15) * fast, 'torpedo', p ? { shape: 'lock', id: p.id } : null);
       break;
     }
+    case 'irons': {
+      // she calls, her bow-gunners answer on the beat: a line drawn for each iron, the first two
+      // beats ahead and the rest a beat. The middle one leads you (where you're going); the
+      // others are on you
+      const p = lv.nearest(e.x, e.z);
+      const lead = b.k === 1 && p ? 0.55 : 0;
+      e.aim = Math.atan2(px + (p?.vx ?? 0) * lead - e.x, pz + (p?.vz ?? 0) * lead - e.z);
+      b.len = IRON_LEN;
+      const warn = (b.k ? 1 : 2) * beatOf(lv);
+      go(lv, e, 'windup', warn, 'harpoon', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * IRON_LEN, z2: e.z + Math.cos(e.aim) * IRON_LEN, w: 0.9, lock: warn * 0.6 });
+      break;
+    }
+    case 'breach': {
+      // she sounds: noses down and goes under, and where she'll come up is drawn on you (it
+      // follows you until it sets, a moment before she breaches)
+      go(lv, e, 'windup', (b.k ? 0.75 : 1.0) * fast, 'slam', { shape: 'ring', x: px, z: pz, r: BREACH_R, w: 2 });
+      break;
+    }
+    case 'broadside': {
+      // she comes alongside you: out to your side of the field, turns her flank to you and runs
+      // out her guns. The row she'll fire is drawn across the field, with its gap under her
+      // waist (no guns at the queen's cabin): run with her, in the gap. Coming back (the tide),
+      // she starts from where she ended
+      const side = b.k === 0 ? (px > 0 ? 1 : -1) : -b.dir;
+      b.dir = -side;
+      b.mx = side * BROAD_X;
+      go(lv, e, 'windup', (b.k ? 0.8 : 1.4) * fast, 'sweep', { shape: 'gate', x: -HALF_W, x2: HALF_W, z: e.z + 4, gx: b.mx, gap: BROAD_GAP });
+      break;
+    }
   }
 }
 
@@ -841,6 +912,28 @@ const GUST_T = 0.3;
 const beatOf = (lv: Level) => BEAT[lv.spec.planet.id] ?? 0.45;
 const repoShots = (b: BossState) => 2 + b.phase + (b.last ? 1 : 0);
 const divePasses = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
+
+/** Istra's irons: how many she throws (three on the beat), how far and fast, and how long one is out before it's reeled home (the tide). */
+const ironsN = (b: BossState) => (b.last ? 4 : 3);
+const IRON_LEN = 60;
+const IRON_V = 40;
+const IRON_OUT = 0.75;
+/** Her breach: the ring she comes up in, how long she's under, and how long she takes to rise. */
+const BREACH_R = 8;
+const BREACH_UNDER = 1.15;
+const BREACH_RISE = 0.35;
+const breaches = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
+/** Her broadside: where she starts (either side), how fast she sails, the gap (half its width) and the row's ball spacing. */
+const BROAD_X = HALF_W - 10;
+const BROAD_V = 13;
+const BROAD_GAP = 4.6;
+const BROAD_STEP = 1.8;
+const broadPasses = (b: BossState) => (b.phase >= 2 ? 2 : 1);
+/** The tide: from her third phase, everything she throws comes back to her. */
+const tideOn = (b: BossState) => b.phase >= 2;
+/** How long it stalls before it turns, and how fast it comes home. */
+const EBB = 0.5;
+const TIDE_V = 9;
 
 /** How slowly it moves now (see TEMPO). */
 const slow = (b: BossState) => b.tempo[b.last ? 3 : b.phase] ?? 1;
@@ -1045,33 +1138,10 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
       if (over(e)) endMove(lv, e, b, 1.8);
       break;
     }
-    case 'harpoon': {
-      if (e.grab >= 0) {
-        const q = lv.players[e.grab];
-        b.gone += DT;
-        if (!q || q.down) {
-          release(lv, e, false);
-          endMove(lv, e, b, 1.2);
-          break;
-        }
-        const dx = e.x - q.x;
-        const dz = e.z - q.z;
-        const dl = Math.hypot(dx, dz) || 1;
-        q.x += (dx / dl) * 8 * DT;
-        q.z += (dz / dl) * 8 * DT;
-        q.vx *= 0.85;
-        q.vz *= 0.85;
-        if (q.dashT > 0) {
-          release(lv, e, true);
-          endMove(lv, e, b, 2.2, true);
-        } else if (dl < e.r + 3 || b.gone > 2.4) {
-          lv.hurt(q, q.x, q.z, 'harpoon');
-          release(lv, e, false);
-          endMove(lv, e, b, 1.4);
-        }
-      } else if (!lv.strikes.some((k) => k.owner === e.id && k.kind === 'harpoon')) endMove(lv, e, b, 1.5);
+    case 'harpoon':
+      if (e.grab >= 0) reel(lv, e, b);
+      else if (!lv.strikes.some((k) => k.owner === e.id && k.kind === 'harpoon')) endMove(lv, e, b, 1.5);
       break;
-    }
     case 'skydive':
     case 'crane':
     case 'bloom':
@@ -1084,6 +1154,9 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     case 'calve':
     case 'count':
     case 'grasp':
+    case 'irons':
+    case 'breach':
+    case 'broadside':
       sigAttack(lv, e, b);
       break;
     default:
@@ -1139,6 +1212,44 @@ function sigWindup(lv: Level, e: Enemy, b: BossState) {
         b.ms = p.z;
       }
       break;
+    case 'irons':
+      // caught on the last one: no more thrown, she plays you on the line
+      if (e.grab >= 0) {
+        e.tele = null;
+        go(lv, e, 'attack', 0, 'harpoon');
+      } else if (b.k !== 1 && tl && tl.shape === 'line' && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.1);
+      break;
+    case 'breach':
+      // nose down, sinking; the ring on you
+      e.y = lerp(FLIGHT_Y, -2, smooth(clamp(e.stateT / e.stateDur, 0, 1)));
+      breachRing(lv, e, b, true);
+      break;
+    case 'broadside':
+      // out to her side, the row drawn with her
+      b.sx = lerp(b.sx, b.mx, 0.06);
+      b.ss = lerp(b.ss, HZ, 0.06);
+      if (tl && tl.shape === 'gate') {
+        tl.gx = b.sx;
+        tl.z = e.z + 4;
+      }
+      break;
+  }
+}
+
+/** The ring she'll come up in: on you until it sets (a moment before she breaches), and her under it. */
+function breachRing(lv: Level, e: Enemy, b: BossState, follow: boolean) {
+  const tl = e.tele;
+  const p = lv.nearest(e.x, e.z);
+  if (!tl || tl.shape !== 'ring') return;
+  if (follow && p) {
+    tl.x += (p.x - tl.x) * Math.min(1, DT * 7);
+    tl.z += (p.z - tl.z) * Math.min(1, DT * 7);
+  }
+  tl.x = clamp(tl.x, -HALF_W + BREACH_R, HALF_W - BREACH_R);
+  tl.z = lv.scroll + clamp(tl.z - lv.scroll, -HALF_H + BREACH_R, HALF_H - BREACH_R);
+  if (b.under) {
+    b.sx = tl.x;
+    b.ss = tl.z - lv.scroll;
   }
 }
 
@@ -1243,6 +1354,28 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
     }
     case 'grasp':
       go(lv, e, 'attack', 0.75, 'slam');
+      return true;
+    case 'irons': {
+      // HO: the iron flies down its line
+      const s = strike(lv, 'harpoon', e.x, e.z, { vx: Math.sin(e.aim) * IRON_V, vz: Math.cos(e.aim) * IRON_V, active: 1.6, warn: 0, owner: e.id, effect: 'latch', air: true, color: col });
+      if (tideOn(b)) onTide(lv, b, s, IRON_OUT);
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'irons', k: b.k, x: e.x, z: e.z });
+      b.k++;
+      b.gone = 0;
+      if (b.k < ironsN(b)) startSig(lv, e, b, px, pz);
+      else {
+        go(lv, e, 'attack', 0, 'harpoon');
+        e.tele = null;
+      }
+      return true;
+    }
+    case 'breach':
+      // under: the ring keeps on you a while, then sets, and up she comes
+      b.under = true;
+      go(lv, e, 'attack', BREACH_UNDER + BREACH_RISE, 'slam');
+      return true;
+    case 'broadside':
+      go(lv, e, 'attack', (2 * BROAD_X) / BROAD_V, 'sweep');
       return true;
     case 'screech':
     case 'gust': {
@@ -1480,6 +1613,67 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       if (over(e)) endMove(lv, e, b, 2);
       break;
     }
+    case 'irons':
+      // played on her line; or watching her irons fly (and, on the tide, come home)
+      if (e.grab >= 0) reel(lv, e, b);
+      else if (!lv.strikes.some((k) => k.owner === e.id && k.kind === 'harpoon' && !k.dead)) endMove(lv, e, b, 1.6);
+      break;
+    case 'breach': {
+      const rise = e.stateDur - BREACH_RISE;
+      if (e.stateT < rise) {
+        e.y = -6;
+        e.shielded = true;
+        breachRing(lv, e, b, e.stateT < rise - 0.45);
+      } else {
+        if (b.under) {
+          // up through the ring: a slam where she breaks the surface, and the sea thrown off her
+          // in a ring (from the second phase: dash through it, or be well clear)
+          b.under = false;
+          const tl = e.tele;
+          const x = tl && tl.shape === 'ring' ? tl.x : e.x;
+          const z = tl && tl.shape === 'ring' ? tl.z : e.z;
+          strike(lv, 'slam', x, z, { r: BREACH_R, warn: 0, active: 0.3, air: true, owner: e.id, color: col });
+          if (b.phase >= 1) strike(lv, 'wave', x, z, { v: 14, w: 1.2, rMax: 26, warn: 0.1, active: 3, air: true, owner: e.id, color: col });
+          e.tele = null;
+          lv.emit({ type: 'bossBeat', enemy: e.id, move: 'breach', k: b.k, x, z });
+        }
+        e.y = lerp(-6, FLIGHT_Y, smooth(clamp((e.stateT - rise) / BREACH_RISE, 0, 1)));
+      }
+      if (over(e)) {
+        e.y = FLIGHT_Y;
+        // on the tide she goes straight back under where she came up, and comes up where you went
+        if (++b.k < breaches(b)) startSig(lv, e, b, p?.x ?? 0, p?.z ?? 0);
+        // wallowing where she came up, in the open
+        else endMove(lv, e, b, 2.4);
+      }
+      break;
+    }
+    case 'broadside': {
+      // she sails across, firing the row every other beat; the gap rides under her waist
+      b.sx += b.dir * BROAD_V * (e.stun > 0 ? 0.4 : 1) * DT;
+      b.ss += (HZ - b.ss) * Math.min(1, DT * 3);
+      b.fire -= DT;
+      if (b.fire <= 0) {
+        b.fire += 2 * beatOf(lv);
+        for (let x = -HALF_W + 0.9; x <= HALF_W; x += BROAD_STEP) {
+          if (Math.abs(x - b.sx) < BROAD_GAP) continue;
+          lv.bullet(x, e.z + 3, 0, 13, { color: col, r: 0.45 });
+        }
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'broadside', k: b.k, x: b.sx, z: e.z });
+      }
+      const tl = e.tele;
+      if (tl && tl.shape === 'gate') {
+        tl.gx = b.sx;
+        tl.z = e.z + 4;
+      }
+      if (over(e) || Math.abs(b.sx) > BROAD_X + 1) {
+        b.sx = clamp(b.sx, -BROAD_X, BROAD_X);
+        // the tide: back the other way
+        if (++b.k < broadPasses(b)) startSig(lv, e, b, p?.x ?? 0, p?.z ?? 0);
+        else endMove(lv, e, b, 2.0);
+      }
+      break;
+    }
     case 'breath': {
       // in: everything near is drawn to her maw (boost against it; a dash is free of it)
       for (const q of lv.players) {
@@ -1500,7 +1694,11 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         for (let r = 0; r < rows; r++) {
           const n = 8;
           const step = 1.9 / n;
-          for (let k = 0; k < n; k++) lv.bullet(e.x, e.z + 2, a + (k - (n - 1) / 2 + (r % 2) * 0.5) * step, 6 + r * 1.8, { color: col, kind: 'big', r: 0.7 });
+          for (let k = 0; k < n; k++) {
+            const o = lv.bullet(e.x, e.z + 2, a + (k - (n - 1) / 2 + (r % 2) * 0.5) * step, 6 + r * 1.8, { color: col, kind: 'big', r: 0.7 });
+            // on the tide, the wall comes back to her, the far rows first
+            if (tideOn(b)) onTide(lv, b, o, 2.6 - r * 0.2);
+          }
         }
         lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
         endMove(lv, e, b, 2.3);
@@ -1508,6 +1706,81 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       break;
     }
   }
+}
+
+/** On its line: you're reeled in (dash to break free, and it reels). */
+function reel(lv: Level, e: Enemy, b: BossState) {
+  const q = lv.players[e.grab];
+  b.gone += DT;
+  if (!q || q.down) {
+    release(lv, e, false);
+    endMove(lv, e, b, 1.2);
+    return;
+  }
+  const dx = e.x - q.x;
+  const dz = e.z - q.z;
+  const dl = Math.hypot(dx, dz) || 1;
+  q.x += (dx / dl) * 8 * DT;
+  q.z += (dz / dl) * 8 * DT;
+  q.vx *= 0.85;
+  q.vz *= 0.85;
+  if (q.dashT > 0) {
+    release(lv, e, true);
+    endMove(lv, e, b, 2.2, true);
+  } else if (dl < e.r + 3 || b.gone > 2.4) {
+    lv.hurt(q, q.x, q.z, 'harpoon');
+    release(lv, e, false);
+    endMove(lv, e, b, 1.4);
+  }
+}
+
+/**
+ * Istra's tide: what she has thrown stalls, turns and comes home to her (bubbles to her maw, irons
+ * reeled in). It comes back the way it went, so don't step back onto its line until it's home.
+ */
+function ebb(lv: Level, e: Enemy, b: BossState) {
+  let turned = false;
+  for (const w of b.tide) {
+    const o = w.o;
+    if (o.dead) continue;
+    const iron = o.kind === 'harpoon';
+    if (!w.back) {
+      // stalling, then turning
+      if (lv.time < w.at - EBB) continue;
+      const k = Math.max(0, 1 - DT * (iron ? 12 : 6));
+      o.vx *= k;
+      o.vz *= k;
+      if (lv.time < w.at) continue;
+      w.back = true;
+      turned = true;
+      // (an iron on its way home is only a blade: it no longer catches)
+      if (iron) {
+        const s = o as Strike;
+        s.effect = 'hurt';
+        s.active = s.t + 3;
+      }
+    }
+    const dx = e.x - o.x;
+    const dz = e.z - o.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    if (dl < e.r * 0.6) {
+      o.dead = true;
+      continue;
+    }
+    const v = iron ? IRON_V * 0.8 : TIDE_V;
+    o.vx = (dx / dl) * v;
+    o.vz = (dz / dl) * v;
+  }
+  b.tide = b.tide.filter((w) => !w.o.dead);
+  if (turned && lv.time - b.tideT > 0.4) {
+    b.tideT = lv.time;
+    lv.emit({ type: 'bossBeat', enemy: e.id, move: 'tide', k: 0, x: e.x, z: e.z });
+  }
+}
+
+/** Throw it out on the tide: it comes back after `out` seconds. */
+function onTide(lv: Level, b: BossState, o: Bullet | Strike, out: number) {
+  b.tide.push({ o, at: lv.time + out, back: false });
 }
 
 function at(e: Enemy, m: { x: number; z: number }) {
@@ -1592,6 +1865,15 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
       for (let k = 0; k < n; k++) lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 6, { color: ICE, kind: 'needle', r: 0.4 });
       lv.emit({ type: 'bossBeat', enemy: e.id, move: 'frost', k: b.shots, x: e.x, z: e.z });
       b.fire = 1.6;
+      break;
+    }
+    case 'tide': {
+      // the sea breathed out in a ring that stalls and comes back to her: weave out, weave back
+      const n = 12;
+      const off = (b.shots % 2) * (Math.PI / n);
+      for (let k = 0; k < n; k++) onTide(lv, b, lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 8, { color: col, kind: 'big', r: 0.6 }), 1.8);
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'swell', k: b.shots, x: e.x, z: e.z });
+      b.fire = 2.2;
       break;
     }
     case 'curves': {

@@ -35,6 +35,7 @@ export type Sfx =
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
   | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
+  | 'istra_call' | 'crew_ho' | 'cannon' | 'whale_dive' | 'whale_breach' | 'tide_turn' | 'whale_breath'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
@@ -44,7 +45,7 @@ export type Sfx =
   | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
   | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
 
 // ================================================================================================
 // Engine state
@@ -717,6 +718,78 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t + 1.2, 'sine', 1481 * p, 1481 * p, 1.0, 0.04, 0.003);
     return 2.6;
   }, 1, 1, { rev: 0.5 }),
+
+  // Istra's call to her crew, HEAVE: one voice, a long rising "hee" falling into "ave" (a buzz
+  // through two formants, a breath of h before it)
+  istra_call: S((t, p, o) => {
+    noise(o, t, 0.08, 'bandpass', 1800 * p, 1400 * p, 1, 0.05, 0.01);
+    for (const [at, f0, f1, d, a, b] of [[0.06, 230, 290, 0.3, [380, 340], [2200, 2350]], [0.34, 290, 205, 0.26, [560, 520], [1750, 1600]]] as const) {
+      for (const [k, [g0, g1]] of [a, b].entries()) {
+        const bp = filt(o, 'bandpass', g0 * p, 7);
+        bp.frequency.linearRampToValueAtTime(g1 * p, t + at + d);
+        tone(bp, t + at, 'sawtooth', f0 * p, f1 * p, d, k ? 0.16 : 0.3, 0.03);
+      }
+    }
+    return 0.65;
+  }, 0.3, 1, { rev: 0.3, tuned: true }),
+
+  // her crew answers, HO: a deck of rough voices on one shout, a little apart
+  crew_ho: S((t, p, o) => {
+    const f1 = filt(o, 'bandpass', 520 * p, 5);
+    const f2 = filt(o, 'bandpass', 880 * p, 6);
+    for (let k = 0; k < 6; k++) {
+      const f = (105 + k * 13 + Math.random() * 8) * p;
+      const at = t + Math.random() * 0.04;
+      tone(f1, at, 'sawtooth', f * 1.06, f * 0.94, 0.3, 0.09, 0.02);
+      tone(f2, at, 'sawtooth', f * 1.06, f * 0.94, 0.3, 0.05, 0.02);
+    }
+    noise(o, t, 0.12, 'bandpass', 900 * p, 600 * p, 1.2, 0.08, 0.005);
+    return 0.4;
+  }, 0.1, 3, { rev: 0.25 }),
+
+  // a broadside gun: a wooden carriage kicking back, a deep cough of powder
+  cannon: S((t, p, o) => {
+    boom(o, t, p * 0.75, 0.8, 0.3);
+    tone(o, t, 'triangle', 190 * p, 80 * p, 0.12, 0.18, 0.001);
+    noise(o, t + 0.01, 0.05, 'bandpass', 1400 * p, 900 * p, 2, 0.12, 0.001);
+    return 0.7;
+  }, 0.08, 4, { rev: 0.2 }),
+
+  // the Throne-Whale sounding: a slap of water, a long groan of a dead hulk, bubbles going down
+  whale_dive: S((t, p, o) => {
+    noise(o, t, 0.5, 'bandpass', 1300 * p, 380 * p, 1.1, 0.22, 0.01);
+    const lp = filt(o, 'lowpass', 420);
+    tone(lp, t + 0.1, 'sawtooth', 72 * p, 44 * p, 1.2, 0.12, 0.15);
+    tone(o, t + 0.05, 'sine', 58 * p, 34 * p, 1.0, 0.22, 0.05);
+    for (let k = 0; k < 7; k++) tone(o, t + 0.25 + k * 0.09 + Math.random() * 0.04, 'sine', (500 + Math.random() * 400) * p, (900 + Math.random() * 500) * p, 0.06, 0.03, 0.003);
+    return 1.3;
+  }, 0.5, 1, { rev: 0.35 }),
+
+  // and up through the surface: a burst of spray, a thump of a hull hitting air, her groan
+  whale_breach: S((t, p, o) => {
+    boom(o, t, p * 0.6, 1.4, 0.4);
+    noise(o, t, 0.25, 'highpass', 2600 * p, 1800 * p, 0.7, 0.24, 0.002);
+    noise(o, t + 0.05, 1.3, 'lowpass', 2400 * p, 260 * p, 0.8, 0.3, 0.02);
+    const lp = filt(o, 'lowpass', 380);
+    tone(lp, t + 0.08, 'sawtooth', 48 * p, 66 * p, 1.1, 0.14, 0.2);
+    return 1.5;
+  }, 0.3, 2, { rev: 0.3, duck: [0.3, 0.6] }),
+
+  // the tide turning: surf drawn up a beach, a hush, and the swell of it coming back
+  tide_turn: S((t, p, o) => {
+    noise(o, t, 0.55, 'bandpass', 500 * p, 1900 * p, 0.9, 0.12, 0.35);
+    noise(o, t + 0.5, 0.8, 'bandpass', 1900 * p, 420 * p, 0.9, 0.14, 0.05);
+    tone(o, t, 'sine', 46 * p, 58 * p, 1.2, 0.14, 0.4);
+    return 1.35;
+  }, 0.4, 1, { rev: 0.45 }),
+
+  // the Throne-Whale drawing breath: a vast slow inhale through the ribs
+  whale_breath: S((t, p, o) => {
+    noise(o, t, 1.4, 'lowpass', 260 * p, 1500 * p, 1.4, 0.2, 0.9);
+    noise(o, t + 0.2, 1.2, 'bandpass', 700 * p, 2400 * p, 1.2, 0.06, 0.8);
+    tone(o, t, 'sine', 42 * p, 52 * p, 1.4, 0.16, 0.8);
+    return 1.5;
+  }, 0.6, 1, { rev: 0.4 }),
 
   // heists: an engine on the runner blows, and its turbine winds down
   engine_out: S((t, p, o) => {
@@ -2881,6 +2954,47 @@ const TRACKS: Record<Track, TrackDef> = {
           hat: '1212121212121212', metal: '1111111111111111', rim: '0...0...0...0...',
         },
         fill: { snare: '....0...00000000', tomLo: '..........0..0..' },
+      },
+    ],
+  },
+  // Queen Istra, The Tidecall: a whalers' shanty in D dorian at 126 (her irons and her broadside
+  // land on its beat) over Vesh's dembow. The hunt: her steel drum calls over marimba and the
+  // crew stamping two and four. Broadsides: the brass comes in, a distorted bass, low toms going
+  // off like guns. The tide comes back: the crew's gone, the band thins to the kick, a slow wash
+  // of marimba up and down and the steel drum high and alone. Her last stand: everyone, once more.
+  boss_vesh: {
+    bpm: 126, root: 38, scale: SC.dorian, progA: [0, 6, 0, 4], progB: [3, 6, 0, 4, 3, 2, 6, 4],
+    lead: 'steel', leadOct: 24, density: 0.6,
+    bass: 'sub', bassStyle: 'offbeat', pad: 'warm', padOct: 12,
+    arp: 'marimba', arpOct: 24, arpRate: 2, arpAt: 0.45, arpStyle: 'broken',
+    drums: {
+      kick: '0...0...0...0...', rim: '...0..0....0..0.', clap: '....1.......1...',
+      conga: '..1.....1.1...1.', shaker: '2222222222222222',
+    },
+    fill: { conga: '........1.1.1111', clap: '....1...1.1.1111' },
+    crash: true, kick: [120, 40, 0.35], minI: 0.6, mix: { lead: 0.16, pad: 0.05 },
+    parts: [
+      {},
+      {
+        lead: 'brass', bass: 'dist', arp: 'steel', arpOct: 36, arpStyle: 'up',
+        drums: {
+          kick: '0...0...0...0...', tomLo: '0.....0...0.....', rim: '...0..0....0..0.', snare: '....0.......0...',
+          metal: '..1.......1.....', hat: '1212121212121212',
+        },
+        fill: { tomLo: '0.0.0.0.0.0.0000', snare: '....0...0.0.0000' },
+      },
+      {
+        lead: 'steel', leadOct: 36, bass: 'sub', pad: 'warm', padOct: 24, arp: 'marimba', arpRate: 1, arpStyle: 'updown', crash: false,
+        drums: { kick: '0.......0.......', rim: '...0..0....0..0.', tomLo: '........0.....0.', shaker: '2.2.2.2.2.2.2.2.' },
+        fill: { tomLo: '........0.0.0.0.' },
+      },
+      {
+        lead: 'brass', dbl: true, bass: 'dist', pad: 'dark', arp: 'steel', arpOct: 36, arpRate: 1, arpStyle: 'updown', crash: true,
+        drums: {
+          kick: '0...0...0...0.0.', tomLo: '0.....0...0.....', rim: '...0..0....0..0.', snare: '....0.......0...',
+          clap: '....1.......1...', metal: '0.1.0.1.0.1.0.1.', shaker: '2222222222222222',
+        },
+        fill: { tomLo: '0.0.0.0.0.0.0000', snare: '....0...00000000' },
       },
     ],
   },

@@ -604,6 +604,12 @@ export class LevelView {
           // the Engine's: ice groaning as it shudders, a low toll as it's about to count
           else if (en?.boss?.move === 'calve') audio.play('ice_crack', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.7 });
           else if (en?.boss?.move === 'count') audio.play('toll', { pan: en.x / HALF_W, pitch: 0.5, vol: 0.8 });
+          // Istra's: she calls HEAVE before her irons and her broadside (the crew answers as each
+          // goes), the Throne-Whale draws breath, sounds before a breach
+          else if (en?.boss?.move === 'irons' || en?.boss?.move === 'broadside') {
+            if (en.boss.k === 0) audio.play('istra_call', { pan: en.x / HALF_W, pitch: en.boss.move === 'broadside' ? 0.9 : 1 });
+          } else if (en?.boss?.move === 'breath' && lv.spec.planet.id === 'vesh') audio.play('whale_breath', { pan: en.x / HALF_W });
+          else if (en?.boss?.move === 'breach') audio.play('whale_dive', { pan: en.x / HALF_W, pitch: 1 + en.boss.k * 0.08 });
           else if (en && (e.kind === 'torpedo' || e.kind === 'seekers')) {
             // (the lattice's lock is higher and colder)
             audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5, pitch: e.kind === 'seekers' ? 1.25 : 1 });
@@ -925,6 +931,8 @@ export class LevelView {
           audio.play('explode_big');
           audio.part(e.phase);
           if (lv.spec.planet.id === 'glacis') audio.play('engine_wake', { pitch: e.phase >= 2 ? 1.12 : 1 });
+          // Istra's crew: a shout as the guns run out; and the tide's hush as they leave her
+          if (lv.spec.planet.id === 'vesh') audio.play(e.phase === 1 ? 'crew_ho' : 'tide_turn', { pitch: e.phase === 1 ? 0.9 : 0.8 });
           // what it sheds: the pieces burst off it (Vask's cage), and it says so
           const boss = lv.enemies.find((o) => o.boss && !o.dead);
           const v = boss && this.enemies.get(boss.id);
@@ -956,6 +964,19 @@ export class LevelView {
             audio.play('ice_crack', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.15 });
             this.shards(e.x, e.z, 10, 0xbfe8ff);
           } else if (e.move === 'frost') audio.play('frost_breath', { pan: e.x / HALF_W, vol: 0.6 });
+          // Istra's: the crew's HO on every iron, a gun on every beat of a broadside, the whale
+          // breaking the surface, and the tide turning (all she's thrown, coming home)
+          else if (e.move === 'irons') audio.play('crew_ho', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.05 });
+          else if (e.move === 'broadside') {
+            audio.play('cannon', { pan: e.x / HALF_W });
+            this.fx.ring(e.x, FLIGHT_Y, e.z + 3, 4, 0.2, true, 0xfff0d0);
+          } else if (e.move === 'breach') {
+            audio.play('whale_breach', { pan: e.x / HALF_W });
+            this.trauma = Math.min(1, this.trauma + 0.4);
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.35, true, 0xe8f8ff);
+            this.shards(e.x, e.z, 24, 0xe8f8ff);
+          } else if (e.move === 'tide') audio.play('tide_turn', { pan: e.x / HALF_W, vol: 0.8 });
+          else if (e.move === 'swell') audio.play('whale_breath', { pan: e.x / HALF_W, pitch: 1.4, vol: 0.5 });
           break;
         case 'biome': {
           // named only as the level starts, not at every biome after
@@ -1899,7 +1920,7 @@ export class LevelView {
       if (e.boss) v.pose?.update(e, dt, v.obj);
       // the tell on the body: it heats up through the windup and flickers at the end; open to
       // punishment, it pulses; underground, it's gone; rolling, it spins
-      v.obj.visible = e.state !== 'hidden';
+      v.obj.visible = e.state !== 'hidden' && !e.boss?.under;
       // (a boss under fire only glints: it's lit by hits all fight, and its tells must show)
       let glow = e.flash > 0 ? (e.boss ? 0.25 : 1) : e.stun > 0 ? 0.3 * (Math.floor(this.time * 10) % 2) : 0;
       if (e.state === 'windup' && e.stateDur > 0) {
@@ -1962,6 +1983,13 @@ export class LevelView {
       }
     } else if (e.arch === 'blimp' && Math.random() < 0.12) {
       this.fx.add({ x: e.x + (Math.random() - 0.5) * 3, y: e.y + 0.6, z: groundZ - 3.5, vy: 1, vz: -2, size: 0.7, grow: 2, life: 1.2, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+    } else if (e.boss?.under) {
+      // Istra under the sea: foam boiling up where she is
+      if (Math.random() < 0.6) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 4;
+        this.fx.add({ x: e.x + Math.sin(a) * r, y: FLIGHT_Y - 4, z: e.z + Math.cos(a) * r, vy: 3, size: 0.6, grow: 1.6, life: 0.7, color: FOAM, to: FOAM_END, glow: false, carried: true });
+      }
     } else if (e.boss?.move === 'breath' && e.state === 'attack') {
       for (let k = 0; k < 3; k++) {
         const a = Math.random() * Math.PI * 2;

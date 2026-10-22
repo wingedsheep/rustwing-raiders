@@ -14,8 +14,11 @@ const SFX: Sfx[] = [
   'foot_hurt', 'crew_hit', 'plate_hit', 'plate_break', 'aim_tell', 'crew_shot', 'ricochet', 'door', 'alarm', 'lockdown',
   'breach', 'kelter_clamp', 'hook_fire', 'hook_snap', 'crack_tick', 'crate_open', 'strongbox_open', 'core_pull', 'airlock',
   'clock_tick', 'turret_up', 'charge', 'slam', 'canister', 'pickup_tin', 'heal_foot', 'alert', 'revive',
+  // bosses
+  'horn', 'shriek', 'wingbeat', 'toll', 'ice_crack', 'frost_breath', 'engine_wake',
+  'istra_call', 'crew_ho', 'cannon', 'whale_dive', 'whale_breach', 'tide_turn', 'whale_breath',
 ];
-const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
+const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
 const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

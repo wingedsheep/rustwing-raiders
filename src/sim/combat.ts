@@ -417,8 +417,9 @@ export function parry(lv: Level, p: Player, r: number) {
 }
 
 /** Reeling after its attack (or staggered): its body does no harm, so you can get in close and punish it. A brake-checking rattler still blocks. */
-/** No ram damage: winded (stagger, recover), or a swooper not yet down at its shadow or already climbing away. */
+/** No ram damage: winded (stagger, recover), a boss under the sea, or a swooper not yet down at its shadow or already climbing away. */
 export const winded = (e: Enemy) =>
+  !!e.boss?.under ||
   ((e.state === 'stagger' || e.state === 'recover') && e.arch !== 'rattler') ||
   (e.arch === 'swooper' && (e.state === 'idle' || e.state === 'windup' || (e.state === 'attack' && Math.abs(e.stateT / (e.d.len ?? 0.6) - 1) > 0.25)));
 

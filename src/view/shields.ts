@@ -98,7 +98,7 @@ interface View {
 
 /** What shape a shield takes on an enemy right now, if it has one up. */
 function shieldOf(e: Enemy): 'wedge' | 'bubble' | null {
-  if (e.dead || e.t < 0 || e.state === 'hidden') return null;
+  if (e.dead || e.t < 0 || e.state === 'hidden' || e.boss?.under) return null;
   if (e.guard > 0) return 'wedge';
   if (e.boss && e.shielded && e.t >= 3.5) return 'bubble';
   return null;
