@@ -49,92 +49,250 @@ def hexc(c: int) -> str:
 
 
 # --- ORU-TAL: GREAT MOTHER VASK, a caged queen pterosaur armoured by the Hesk ---------------------
+#
+# A pteranodon from above: a long crest behind a long beak, long narrow wings on a long fourth
+# finger, a short tail. Her parts hinge where she moves (neck, jaw, inner and outer wing, legs,
+# tail) for her poses (see VASK_POSES). The Hesk brass is in pieces of its own with `shed`: the
+# phase it breaks away in (the cage's front and her shoulder turrets in the second, the rest of
+# the cage, her wing guns and her muzzle in the third, when she's free).
+
+def ccw(pts):
+    """The outline counter-clockwise (as slab wants it)."""
+    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
+    return pts if area > 0 else pts[::-1]
+
 
 def boss_orutal():
     RED, BRASS, GLOW = hexc(0xb8503a), hexc(0xc8a040), hexc(0xff6a1a)
-    MEMB, BONE, BELLY = "#8a3428", "#e8c890", "#d88a5a"
+    MEMB, MEMB_LT, BONE, BELLY, BEAK, CREST = "#7e2e24", "#a2463a", "#ecd4a0", "#d88a5a", "#c8a070", "#f08a30"
     root = group("boss_orutal", kind="boss_orutal")
     body = group("vask_body", loc=(0, 0, 2.0), parent=root)
 
-    b = Model("vask_torso")
-    b.ball(1.6, (0, 0.4, 0), RED, subdiv=1, scale=(1.05, 1.7, 0.8))
-    b.ball(1.3, (0, 0.2, -0.45), BELLY, subdiv=1, scale=(0.95, 1.6, 0.6))
-    limb(b, (0, -1.6, 0.2), (0, -3.2, 0.7), 0.7, 0.45, RED)                     # neck
-    b.box((0.5, 1.2, 0.4), (0, -2.4, 0.95), BRASS, rot=(-0.3, 0, 0))             # neck collar plate
-    limb(b, (0, 2.6, 0.1), (0, 6.0, 0.3), 0.55, 0.12, RED, segs=5)               # tail
-    b.prism([(-0.9, 0), (0, 0.5), (0.9, 0), (0, -0.4)], 1.0, (0, 6.2, 0.3), BONE)  # tail vane
-    # the Hesk cage: brass hoops over her back, rails along it
-    for y in (-1.0, 0.5, 2.0):
-        pts = [(-1.9, y, -0.5), (-1.5, y, 0.9), (0, y, 1.7), (1.5, y, 0.9), (1.9, y, -0.5)]
-        for p0, p1 in zip(pts, pts[1:]):
-            b.plank_line(p0, p1, 0.22, 0.22, BRASS)
-    for x in (-1.5, 0, 1.5):
-        z = 1.7 if x == 0 else 0.9
-        b.plank_line((x, -1.1, z), (x, 2.1, z), 0.2, 0.2, BRASS)
-    # harness reactor on her back (weak point) with feed pipes
-    b.cyl(0.75, 0.3, (0, 0.5, 1.5), DARK, segs=8)
-    b.ball(0.55, (0, 0.5, 1.9), GLOW, subdiv=1, glow=True)
+    # the body, and the Hesk harness strapped round it (her reactor: the weak point on her back)
+    t = Model("vask_torso")
+    t.ball(1.45, (0, 0.1, 0), RED, subdiv=1, scale=(1.0, 1.65, 0.75))
+    t.ball(1.15, (0, 0.0, -0.4), BELLY, subdiv=1, scale=(0.9, 1.5, 0.55))
+    for y in (-0.9, 0.0, 0.9, 1.8):                                              # a ridge of bony knobs
+        t.ball(0.22, (0, y, 1.05 - abs(y - 0.4) * 0.12), BONE, subdiv=0)
+    for y in (-0.3, 1.5):                                                        # straps
+        t.plank_line((-1.45, y, -0.2), (0, y, 1.1), 0.24, 0.14, DARK)
+        t.plank_line((0, y, 1.1), (1.45, y, -0.2), 0.24, 0.14, DARK)
+    t.cyl(0.62, 0.32, (0, 0.6, 0.8), DARK, segs=8)
+    t.ball(0.46, (0, 0.6, 1.2), GLOW, subdiv=1, glow=True)
     for s in (1, -1):
-        b.plank_line((0, 0.5, 1.8), (s * 1.5, 1.6, 0.9), 0.14, 0.14, STEEL)
-        # Hesk turrets on the cage shoulders
-        b.cyl(0.45, 0.3, (s * 1.7, -0.7, 0.8), STEEL, segs=6)
-        b.box((0.7, 0.7, 0.35), (s * 1.7, -0.7, 1.2), BRASS, taper=0.8)
-        for dx in (-0.15, 0.15):
-            b.cyl(0.1, 0.9, (s * 1.7 + dx, -0.9, 1.2), DARK, segs=5, rot=FWD)
-        # legs tucked under, claws clutching
-        limb(b, (s * 0.8, 1.6, -0.7), (s * 1.0, 2.6, -1.4), 0.3, 0.2, RED, segs=5)
+        t.plank_line((s * 0.3, 0.6, 1.0), (s * 1.2, 1.6, 0.3), 0.14, 0.14, STEEL)  # feed pipes
+    t.build(body)
+
+    # neck and head, pivoting at the shoulders: beak forward, crest swept back over the neck
+    n = Model("vask_neck")
+    limb(n, (0, 0, 0), (0, -1.7, 0.3), 0.55, 0.36, RED)
+    n.ball(0.68, (0, -2.25, 0.45), RED, subdiv=1, scale=(0.8, 1.3, 0.7))
+    n.cyl(0.4, 3.3, (0, -2.75, 0.42), BONE, segs=6, r_top=0.03, rot=FWD)          # upper beak
+    # the crest: a blade swept up and back off her skull, sunset orange (what the flock follows)
+    n.slab(ccw([(-0.3, -2.75), (0.3, -2.75), (0.5, -0.6), (0.2, 0.9), (-0.2, 0.9), (-0.5, -0.6)]), 0.75, 1.0, CREST,
+           top=ccw([(-0.22, -2.65), (0.22, -2.65), (0.42, -0.6), (0.16, 0.8), (-0.16, 0.8), (-0.42, -0.6)]))
+    n.slab(ccw([(-0.36, -0.9), (0.36, -0.9), (0.18, 0.92), (-0.18, 0.92)]), 1.0, 1.08, BONE)  # a pale stripe
+    for s in (1, -1):
+        n.ball(0.15, (s * 0.42, -2.5, 0.62), GLOW, subdiv=0, glow=True)
+    neck = n.build(body, loc=(0, -1.6, 0.35))
+    j = Model("vask_jaw")
+    j.cyl(0.3, 2.9, (0, 0, 0), BEAK, segs=6, r_top=0.03, rot=FWD)
+    jaw = j.build(neck, loc=(0, -2.55, 0.22))
+    # the Hesk muzzle: rings round her beak and a plate on her head (gone when she's free)
+    mz = Model("vask_muzzle")
+    for y in (-3.5, -4.3):
+        mz.box((0.95, 0.18, 0.9), (0, y, 0.3), BRASS)
+        mz.box((0.62, 0.2, 0.58), (0, y, 0.3), RED)
+    mz.box((1.0, 1.0, 0.24), (0, -2.15, 0.88), BRASS, taper=0.7)
+    for s in (1, -1):
+        mz.box((0.12, 0.12, 0.36), (s * 0.3, -2.0, 1.1), STEEL)
+    mz.build(neck, shed=2)
+
+    # wings: the inner wing from the shoulder to the wrist, the long outer wing on its finger
+    wings = {}
+    for s in (1, -1):
+        side = "r" if s > 0 else "l"
+        wi = Model(f"vask_wing_in_{side}")
+        inner = [(0, -0.4), (3.6, -1.0), (3.6, 0.45), (2.3, 1.5), (0.5, 2.0), (0, 1.3)]
+        wi.slab(ccw([(s * x, y) for x, y in inner]), -0.07, 0.07, MEMB)
+        wi.slab(ccw([(s * x, y) for x, y in [(0.3, 0.2), (3.2, -0.3), (3.2, 0.35), (2.2, 1.2), (0.6, 1.5)]]), 0.07, 0.1, MEMB_LT)
+        wi.plank_line((0, -0.4, 0.08), (s * 3.6, -1.0, 0.1), 0.3, 0.3, BONE)        # arm bone
+        w_in = wi.build(body, loc=(s * 1.0, -0.55, 0.35))
+        wo = Model(f"vask_wing_out_{side}")
+        outer = [(0, -0.15), (2.8, -0.3), (5.4, 0.55), (3.9, 1.05), (1.9, 1.35), (0, 1.45)]
+        wo.slab(ccw([(s * x, y) for x, y in outer]), -0.06, 0.06, MEMB)
+        wo.slab(ccw([(s * x, y) for x, y in [(0.3, 0.2), (2.6, 0.05), (4.4, 0.6), (3.4, 0.9), (0.4, 1.15)]]), 0.06, 0.09, MEMB_LT)
+        wo.plank_line((0, -0.15, 0.08), (s * 2.8, -0.3, 0.08), 0.26, 0.26, BONE)    # the long finger
+        wo.plank_line((s * 2.8, -0.3, 0.08), (s * 5.4, 0.55, 0.06), 0.2, 0.2, BONE)
+        wo.cyl(0.13, 0.7, (0, -0.2, 0.1), BONE, segs=4, r_top=0.02, rot=FWD)          # wrist claw
+        w_out = wo.build(w_in, loc=(s * 3.6, -0.85, 0.02))
+        # the Hesk gun pod and armour on her arm (gone when she's free)
+        g = Model(f"vask_wing_gun_{side}")
+        g.box((1.5, 1.0, 0.22), (s * 1.7, 0.1, 0.16), BRASS, taper=0.85)
+        g.cyl(0.3, 0.38, (s * 1.8, -0.5, 0.2), STEEL, segs=6)
+        g.cyl(0.12, 1.0, (s * 1.8, -0.6, 0.4), DARK, segs=5, rot=FWD)
+        g.box((0.18, 0.18, 0.18), (s * 1.4, 0.45, 0.32), GLOW, glow=True)
+        g.build(w_in, shed=2)
+        # legs tucked under, talons clutching
+        lg = Model(f"vask_leg_{side}")
+        limb(lg, (0, 0, 0), (s * 0.15, 1.1, -0.3), 0.26, 0.17, RED, segs=5)
         for k in (-1, 0, 1):
-            limb(b, (s * 1.0, 2.6, -1.4), (s * (1.0 + k * 0.25), 2.25, -1.6), 0.08, 0.03, BONE, segs=4)
-    b.build(body)
+            limb(lg, (s * 0.15, 1.1, -0.3), (s * (0.15 + k * 0.22), 1.5, -0.45), 0.08, 0.03, BONE, segs=4)
+        leg = lg.build(body, loc=(s * 0.6, 1.5, -0.4))
+        wings[s] = (w_in, w_out, leg)
 
-    # head: long beak at -y, a swept crest back, glowing eyes, a muzzle cage
-    h = Model("vask_head")
-    h.ball(0.8, (0, 0, 0), RED, subdiv=1, scale=(0.85, 1.2, 0.75))
-    h.cyl(0.5, 2.8, (0, -0.6, -0.1), BONE, segs=6, r_top=0.03, rot=FWD)        # beak
-    h.cyl(0.35, 2.2, (0, -0.6, -0.35), "#c8a070", segs=6, r_top=0.03, rot=FWD)  # lower jaw
-    h.slab([(-0.35, 0.0), (0.35, 0.0), (0.12, 2.6), (-0.12, 2.6)], 0.25, 0.45, RED,
-           top=[(-0.25, 0.1), (0.25, 0.1), (0.05, 2.7), (-0.05, 2.7)])                  # swept-back crest
-    h.slab([(-0.36, 0.9), (0.36, 0.9), (0.18, 2.2), (-0.18, 2.2)], 0.45, 0.55, BRASS)
-    h.box((1.2, 1.1, 0.3), (0, -0.2, 0.6), BRASS, taper=0.7)                              # Hesk helmet plate
-    for s in (1, -1):
-        h.box((0.12, 0.12, 0.4), (s * 0.35, -0.1, 0.85), STEEL)                             # rivet horns
-    for s in (1, -1):
-        h.ball(0.16, (s * 0.55, -0.35, 0.3), GLOW, subdiv=0, glow=True)
-    for y in (-1.0, -1.7):                                                        # muzzle cage
-        h.box((0.95, 0.16, 0.95), (0, y, -0.2), BRASS)
-        h.box((0.7, 0.18, 0.7), (0, y, -0.2), RED)
-    head = h.build(body, loc=(0, -3.5, 0.9))
-    head.scale = (1.35, 1.35, 1.35)
-    loop(head, "boss_orutal_flap_idle", "rotation_euler", 2.0,
-         [(0, 0, 0), (0.08, 0, 0.12), (0, 0, 0), (-0.06, 0, -0.12)])
+    tl = Model("vask_tail")
+    limb(tl, (0, 0, 0), (0, 2.3, 0.15), 0.38, 0.1, RED, segs=5)
+    tl.slab(ccw([(0, 1.9), (0.55, 2.4), (0, 3.0), (-0.55, 2.4)]), 0.1, 0.25, BONE)             # tail vane
+    tail = tl.build(body, loc=(0, 2.2, 0.05))
 
-    # wings: membranes with a bone leading edge and brass armour plates
+    # the Hesk cage: its front hoop and the shoulder turrets break off first, then the rest
+    def hoop(m, y):
+        pts = [(-1.6, y, -0.3), (-1.3, y, 0.7), (0, y, 1.4), (1.3, y, 0.7), (1.6, y, -0.3)]
+        for p0, p1 in zip(pts, pts[1:]):
+            m.plank_line(p0, p1, 0.22, 0.22, BRASS)
+    cf = Model("vask_cage_front")
+    hoop(cf, -0.9)
     for s in (1, -1):
-        w = Model(f"vask_wing_{'r' if s > 0 else 'l'}")
-        pts = [(0, 0.9), (0, -0.8), (3.4, -1.5), (5.8, -1.1), (8.0, -0.4), (6.4, 0.5), (4.4, 1.6), (2.0, 2.2)]
-        pts = [(s * x, y) for x, y in pts]
-        if s < 0:
-            pts = pts[::-1]
-        w.slab(pts, -0.08, 0.08, MEMB)
-        lead = [(0, -0.8, 0.1), (3.4, -1.5, 0.15), (5.8, -1.1, 0.12), (8.0, -0.4, 0.1)]
-        for p0, p1 in zip(lead, lead[1:]):
-            w.plank_line((s * p0[0], p0[1], p0[2]), (s * p1[0], p1[1], p1[2]), 0.28, 0.28, BONE)
-        for p0, p1 in (((3.4, -1.5), (4.4, 1.6)), ((5.8, -1.1), (6.4, 0.5))):   # finger bones
-            w.plank_line((s * p0[0], p0[1], 0.1), (s * p1[0], p1[1], 0.1), 0.14, 0.14, BONE)
-        w.box((1.9, 1.3, 0.24), (s * 2.0, 0.0, 0.18), BRASS, taper=0.85)          # armour plate
-        w.box((1.3, 0.9, 0.14), (s * 4.3, 0.0, 0.16), BRASS, taper=0.85)
-        w.cyl(0.32, 0.4, (s * 2.4, -0.4, 0.3), STEEL, segs=6)                     # wing gun pod
-        w.cyl(0.13, 1.0, (s * 2.4, -0.5, 0.5), DARK, segs=5, rot=FWD)
-        w.box((0.18, 0.18, 0.18), (s * 2.0, 0.5, 0.36), GLOW, glow=True)
-        wing = w.build(body, loc=(s * 1.3, -0.6, 0.45))
-        loop(wing, "boss_orutal_flap_idle", "rotation_euler", 2.0,
-             [(0, -s * 0.3, 0), (0, -s * 0.05, 0), (0, s * 0.32, 0), (0, -s * 0.05, 0)])
-    loop(body, "boss_orutal_flap_idle", "location", 2.0, [(0, 0, 0), (0, 0, -0.15), (0, 0, 0.2), (0, 0, -0.05)])
+        cf.cyl(0.42, 0.3, (s * 1.55, -0.6, 0.55), STEEL, segs=6)
+        cf.box((0.66, 0.66, 0.34), (s * 1.55, -0.6, 0.95), BRASS, taper=0.8)
+        for dx in (-0.14, 0.14):
+            cf.cyl(0.1, 0.9, (s * 1.55 + dx, -0.8, 0.95), DARK, segs=5, rot=FWD)
+    cf.build(body, shed=1)
+    cb = Model("vask_cage")
+    for y in (0.4, 1.6):
+        hoop(cb, y)
+    for x in (-1.3, 0, 1.3):
+        z = 1.4 if x == 0 else 0.7
+        cb.plank_line((x, -0.95, z), (x, 1.65, z), 0.18, 0.18, BRASS)
+    cb.build(body, shed=2)
 
-    for x, y, z in ((0, -7.5, 2.8), (-1.85, -1.8, 3.2), (1.85, -1.8, 3.2), (-3.7, -2.2, 3.0), (3.7, -2.2, 3.0), (0, -4.0, 3.4)):
+    vask_poses(body, neck, jaw, tail, wings)
+
+    for x, y, z in ((0, -7.4, 2.7), (-1.55, -1.5, 2.95), (1.55, -1.5, 2.95), (-2.8, -1.3, 2.55), (2.8, -1.3, 2.55)):
         mount(root, (x, y, z), "gun")
-    mount(root, (0, 0.5, 3.9), "weak")
-    mount(root, (0, -3.3, 3.4), "weak")
+    mount(root, (0, 0.6, 3.3), "weak")
+    mount(root, (0, -3.85, 2.9), "weak")
+
+
+BEAT = 60 / 140  # her theme's beat (boss_orutal in src/audio.ts)
+
+
+def vask_poses(body, neck, jaw, tail, wings):
+    """Her idle soar and a pose for each of her moves (boss_orutal_<move>_<state>, see
+    src/view/boss-pose.ts). Windups go into their pose and hold; the rest loop. Rotations are
+    offsets: the body's x is pitch (- nose up), y is roll; a wing's y is up (-s) or down (+s), its
+    z sweeps it back (+s); the jaw's x opens it; a leg's x swings it forward (-)."""
+    R = "rotation_euler"
+
+    def hold(clip, parts, t=0.4):
+        for obj, path, v in parts:
+            animate(obj, clip, path, [(0, (0, 0, 0)), (t, v)])
+
+    def cycle(clip, period, parts):
+        for obj, path, vs in parts:
+            loop(obj, clip, path, period, vs)
+
+    def each_wing(f):
+        out = []
+        for s, (w_in, w_out, leg) in wings.items():
+            out += f(s, w_in, w_out, leg)
+        return out
+
+    # idle: a slow soar, the outer wing lagging the inner, the body lifting on the downstroke
+    cycle("boss_orutal_flap_idle", 2.4, [
+        (body, "location", [(0, 0, 0), (0, 0, 0.05), (0, 0, 0.22), (0, 0, -0.1)]),
+        (neck, R, [(0, 0, 0.08), (0.06, 0, 0), (0, 0, -0.08), (-0.06, 0, 0)]),
+        (jaw, R, [(0, 0, 0), (0.06, 0, 0), (0, 0, 0), (0, 0, 0)]),
+        (tail, R, [(0, 0, -0.15), (0, 0, 0), (0, 0, 0.15), (0, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, -s * 0.28, 0), (0, -s * 0.05, 0), (0, s * 0.26, 0), (0, -s * 0.05, 0)]),
+        (wo, R, [(0, s * 0.1, 0), (0, -s * 0.25, 0), (0, -s * 0.1, 0), (0, s * 0.22, 0)]),
+    ]))
+
+    # RAKE: rears back, wings high, talons forward; then swept back, talons out
+    hold("boss_orutal_rake_windup", [
+        (body, R, (-0.35, 0, 0)), (neck, R, (-0.3, 0, 0)), (jaw, R, (0.25, 0, 0)), (tail, R, (0.3, 0, 0)),
+    ] + each_wing(lambda s, wi, wo, lg: [(wi, R, (0, -s * 0.75, s * 0.15)), (wo, R, (0, -s * 0.4, 0)), (lg, R, (-1.9, 0, 0))]))
+    cycle("boss_orutal_rake_attack", 0.3, [
+        (body, R, [(0.15, 0, 0), (0.12, 0, 0)]), (neck, R, [(0.2, 0, 0), (0.24, 0, 0)]),
+        (jaw, R, [(0.35, 0, 0), (0.3, 0, 0)]), (tail, R, [(-0.1, 0, 0.05), (-0.1, 0, -0.05)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, -s * 0.15, s * 0.45), (0, -s * 0.2, s * 0.42)]),
+        (wo, R, [(0, -s * 0.1, s * 0.6), (0, -s * 0.12, s * 0.65)]),
+        (lg, R, [(-2.1, 0, 0), (-2.0, 0, 0)]),
+    ]))
+
+    # SKY DIVE: wings half folded as she lines up, then tucked tight
+    hold("boss_orutal_skydive_windup", [
+        (body, R, (-0.1, 0, 0)), (neck, R, (0.1, 0, 0)),
+    ] + each_wing(lambda s, wi, wo, lg: [(wi, R, (0, -s * 0.3, s * 0.3)), (wo, R, (0, 0, s * 0.5)), (lg, R, (-0.4, 0, 0))]))
+    cycle("boss_orutal_skydive_attack", 0.25, [
+        (neck, R, [(0.15, 0, 0), (0.18, 0, 0)]), (tail, R, [(0, 0, 0), (0.05, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, -s * 0.05, s * 0.55), (0, -s * 0.1, s * 0.55)]),
+        (wo, R, [(0, 0, s * 0.8), (0, 0, s * 0.75)]),
+        (lg, R, [(0.2, 0, 0), (0.25, 0, 0)]),
+    ]))
+
+    # SCREECH: head thrown back, beak open, wings spread; then a snap of the head on every beat
+    hold("boss_orutal_screech_windup", [
+        (body, R, (-0.2, 0, 0)), (neck, R, (-0.55, 0, 0)), (jaw, R, (0.55, 0, 0)),
+    ] + each_wing(lambda s, wi, wo, lg: [(wi, R, (0, -s * 0.1, -s * 0.1)), (wo, R, (0, s * 0.05, 0)), (lg, R, (-0.6, 0, 0))]), t=0.45)
+    cycle("boss_orutal_screech_attack", BEAT, [
+        (body, R, [(0.05, 0, 0), (-0.1, 0, 0), (-0.2, 0, 0), (-0.15, 0, 0)]),
+        (neck, R, [(-0.1, 0, 0), (-0.35, 0, 0), (-0.5, 0, 0), (-0.45, 0, 0)]),
+        (jaw, R, [(0.75, 0, 0), (0.6, 0, 0), (0.45, 0, 0), (0.55, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, s * 0.1, 0), (0, -s * 0.05, 0), (0, -s * 0.1, 0), (0, -s * 0.05, 0)]),
+        (lg, R, [(-0.6, 0, 0)] * 4),
+    ]))
+
+    # WING GUST: wings raised high; then a hard downstroke every two beats, the body lifting
+    hold("boss_orutal_gust_windup", [
+        (body, R, (-0.45, 0, 0)), (neck, R, (-0.2, 0, 0)), (tail, R, (0.3, 0, 0)),
+    ] + each_wing(lambda s, wi, wo, lg: [(wi, R, (0, -s * 1.0, -s * 0.1)), (wo, R, (0, -s * 0.6, 0)), (lg, R, (-1.0, 0, 0))]), t=0.5)
+    g = 2 * BEAT
+    animate(body, "boss_orutal_gust_attack", "location", [(0, (0, 0, 0)), (0.2 * g, (0, 0, 0.6)), (g, (0, 0, 0))])
+    animate(body, "boss_orutal_gust_attack", R, [(0, (-0.45, 0, 0)), (0.2 * g, (-0.25, 0, 0)), (g, (-0.45, 0, 0))])
+    animate(neck, "boss_orutal_gust_attack", R, [(0, (-0.2, 0, 0)), (0.2 * g, (0.1, 0, 0)), (g, (-0.2, 0, 0))])
+    for s, (w_in, w_out, leg) in wings.items():
+        animate(w_in, "boss_orutal_gust_attack", R, [(0, (0, -s * 1.0, -s * 0.1)), (0.2 * g, (0, s * 0.45, 0)), (0.6 * g, (0, -s * 0.4, 0)), (g, (0, -s * 1.0, -s * 0.1))])
+        animate(w_out, "boss_orutal_gust_attack", R, [(0, (0, -s * 0.6, 0)), (0.2 * g, (0, -s * 0.1, 0)), (0.35 * g, (0, s * 0.5, 0)), (0.7 * g, (0, -s * 0.2, 0)), (g, (0, -s * 0.6, 0))])
+        animate(leg, "boss_orutal_gust_attack", R, [(0, (-1.0, 0, 0)), (g, (-1.0, 0, 0))])
+
+    # BROOD CALL: head up, crying out, wings beckoning
+    cycle("boss_orutal_summon", 1.0, [
+        (body, R, [(-0.2, 0, 0), (-0.25, 0, 0)]),
+        (neck, R, [(-0.5, 0, 0), (-0.3, 0, 0)]),
+        (jaw, R, [(0.6, 0, 0), (0.2, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [(wi, R, [(0, -s * 0.4, 0), (0, -s * 0.1, 0)]), (wo, R, [(0, -s * 0.2, 0), (0, s * 0.1, 0)])]))
+
+    # open after a move: panting, wings drooped, head low
+    cycle("boss_orutal_recover", 1.3, [
+        (body, "location", [(0, 0, 0), (0, 0, -0.25)]),
+        (body, R, [(0.1, 0, 0), (0.15, 0, 0)]),
+        (neck, R, [(0.3, 0, 0), (0.42, 0, 0)]),
+        (jaw, R, [(0.15, 0, 0), (0.35, 0, 0)]),
+        (tail, R, [(-0.2, 0, 0), (-0.25, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, s * 0.25, s * 0.1), (0, s * 0.35, s * 0.1)]),
+        (wo, R, [(0, s * 0.3, 0), (0, s * 0.42, 0)]),
+        (lg, R, [(-0.8, 0, 0), (-0.8, 0, 0)]),
+    ]))
+
+    # staggered: reeling, head hanging, wings slumped, rocking side to side
+    cycle("boss_orutal_stagger", 0.9, [
+        (body, "location", [(0, 0, -0.4)] * 4),
+        (body, R, [(0.1, 0.18, 0), (0.1, 0, 0), (0.1, -0.18, 0), (0.1, 0, 0)]),
+        (neck, R, [(0.6, 0, 0.2), (0.7, 0, 0), (0.6, 0, -0.2), (0.7, 0, 0)]),
+        (jaw, R, [(0.4, 0, 0)] * 4),
+        (tail, R, [(-0.3, 0, 0.2), (-0.3, 0, 0), (-0.3, 0, -0.2), (-0.3, 0, 0)]),
+    ] + each_wing(lambda s, wi, wo, lg: [
+        (wi, R, [(0, s * 0.5, 0), (0, s * 0.45, 0), (0, s * 0.55, 0), (0, s * 0.45, 0)]),
+        (wo, R, [(0, s * 0.6, s * 0.2)] * 4),
+        (lg, R, [(-1.0, 0, 0)] * 4),
+    ]))
 
 
 # --- HALCYON: HARBOURMASTER OKO, a crane-armed fortress barge -------------------------------------

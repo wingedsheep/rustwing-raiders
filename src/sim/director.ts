@@ -7,7 +7,7 @@ import type { Archetype, EnemySkin } from '../world/planets';
 import type { Enemy, HazardKind, Level } from './level';
 import { HALF_H, HALF_W, toFlight } from './types';
 import { LOOT } from './build';
-import { makeBoss } from './boss';
+import { bossHull, makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
 import { BOUNTIES, FOES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
@@ -463,10 +463,14 @@ export class Director {
     const p = lv.spec.planet;
     this.bossSpawned = true;
     lv.state = 'boss';
+    // the fight is the boss's own: nothing more comes (what's left of the level's beats), what's
+    // waiting goes, and what's still about clears off (only what the boss calls joins in)
+    this.beats.length = 0;
     for (const e of lv.enemies) if (e.t < 0) e.dead = true;
+    for (const e of lv.enemies) if (!e.dead) e.d.flee = 1e-3;
     lv.emit({ type: 'bossWarning', name: p.boss.name, title: p.boss.title });
     const skin: EnemySkin = { archetype: 'brute', name: p.boss.name, kind: p.boss.kind, colors: p.boss.colors };
-    const hp = 2400 * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
+    const hp = 2400 * bossHull(p.id) * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
     lv.spawn('boss', skin, 0, lv.top - 20, {}, { boss: makeBoss(p.id), hp, max: hp, t: -2.5 });
   }
 

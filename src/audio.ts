@@ -25,12 +25,12 @@ export type Sfx =
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
-  | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn'
+  | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
 // ================================================================================================
 // Engine state
@@ -573,6 +573,24 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t + 0.55, 'triangle', mtof(84) * p, mtof(84) * p, 0.3, 0.06, 0.002);
     return 0.9;
   }, 0.2, 2, { tuned: true, rev: 0.2 }),
+
+  // Vask's screech: a ragged cry falling away, two throats a little apart, and air tearing
+  shriek: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 1700 * p, 1.6);
+    tone(bp, t, 'sawtooth', 1450 * p, 640 * p, 0.42, 0.13, 0.015, 0.4);
+    tone(bp, t, 'sawtooth', 1530 * p, 700 * p, 0.42, 0.1, 0.02, 0.38);
+    tone(bp, t, 'square', 760 * p, 330 * p, 0.36, 0.05, 0.01, 0.34);
+    noise(o, t, 0.34, 'bandpass', 3200 * p, 1500 * p, 1.4, 0.1, 0.01);
+    return 0.45;
+  }, 0.12, 3, { rev: 0.3 }),
+
+  // a great wing coming down: a leathery snap and a whump of air
+  wingbeat: S((t, p, o) => {
+    noise(o, t, 0.08, 'bandpass', 900 * p, 500 * p, 1.2, 0.18, 0.004);
+    noise(o, t + 0.02, 0.38, 'lowpass', 520 * p, 110 * p, 0.8, 0.5, 0.03);
+    tone(o, t + 0.02, 'sine', 78 * p, 38 * p, 0.3, 0.32, 0.01);
+    return 0.42;
+  }, 0.15, 2, { rev: 0.15 }),
 
   // heists: an engine on the runner blows, and its turbine winds down
   engine_out: S((t, p, o) => {
@@ -1434,6 +1452,11 @@ interface TrackDef {
   mix?: Partial<Record<Chan, number>>;
   rev?: Partial<Record<Chan, number>>;
   dly?: Partial<Record<Chan, number>>;
+  /**
+   * A boss theme's band in each of its fights' parts (its phases, then its last stand): what
+   * changes from the part before, taken up on the next bar (see `audio.part`).
+   */
+  parts?: Partial<Pick<TrackDef, 'lead' | 'leadOct' | 'dbl' | 'density' | 'pad' | 'arp' | 'arpOct' | 'arpRate' | 'arpAt' | 'arpStyle' | 'drums' | 'fill' | 'kick'>>[];
 }
 
 const SC = {
@@ -1500,6 +1523,48 @@ const TRACKS: Record<Track, TrackDef> = {
     },
     fill: { snare: '....0...00000000', tomLo: '..........0..0..' },
     crash: true, kick: [160, 45, 0.3], minI: 0.6,
+  },
+  // Vask, Cage of Brass: G harmonic minor at 140, Oru-Tal's toms under a galloping distorted
+  // bass. Caged, the Hesk are the band (clanking metal, a grinding saw lead); as the cage cracks
+  // her flute takes over; free, the metal's gone and the war toms come up; in her last stand the
+  // harness clanks again under everything.
+  boss_orutal: {
+    bpm: 140, root: 43, scale: SC.harmMinor, progA: [0, 5, 3, 4], progB: [5, 3, 0, 4, 5, 3, 6, 4],
+    lead: 'saw', leadOct: 24, density: 0.55,
+    bass: 'dist', bassStyle: 'gallop', pad: 'dark', padOct: 12,
+    arp: 'pulse12', arpOct: 24, arpRate: 2, arpAt: 0.6, arpStyle: 'down',
+    drums: {
+      kick: '0...0...0...0.2.', metal: '..1...1...1...1.', tomLo: '0..1..0...0.1...', snare: '....0.......0...',
+      hat: '2222222222222222',
+    },
+    fill: { metal: '..1.1.1.11111111', snare: '....0...0.0.0000' },
+    crash: true, kick: [130, 40, 0.35], minI: 0.6, mix: { lead: 0.15 },
+    parts: [
+      {},
+      {
+        lead: 'flute', density: 0.6, arp: 'marimba', arpAt: 0.5, arpStyle: 'broken',
+        drums: {
+          kick: '0...0...0...0.2.', metal: '......1.......1.', tomLo: '0..1..0...0.1...', tomHi: '........0.....1.',
+          conga: '..1..1.....1..1.', snare: '....0.......0...', hat: '1313131313131313',
+        },
+        fill: { tomHi: '........0.0.0.00', tomLo: '0.0.0.0.0.0.....' },
+      },
+      {
+        lead: 'flute', dbl: true, density: 0.7, pad: 'warm', arp: 'marimba', arpRate: 1, arpAt: 0.5, arpStyle: 'broken',
+        drums: {
+          kick: '0...0...0...0...', tomLo: '0.10..0.0.10..0.', tomHi: '....0.....0.0.0.', conga: '.1.1..1..1.1..1.',
+          clap: '....1.......1...', shaker: '2222222222222222',
+        },
+        fill: { tomHi: '........0.0.0.00', tomLo: '0.0.0.0.0.0.....' },
+      },
+      {
+        lead: 'flute', dbl: true, density: 0.75, pad: 'dark', arp: 'pulse12', arpRate: 1, arpAt: 0.4, arpStyle: 'up',
+        drums: {
+          kick: '0...0...0...0.0.', tomLo: '0.10..0.0.10..0.', tomHi: '....0.....0.0.0.', metal: '0.1.0.1.0.1.0.1.',
+          clap: '....1.......1...', shaker: '2222222222222222',
+        },
+      },
+    ],
   },
   // Oru-Tal: tribal toms, warm G lydian flute over marimba.
   orutal: {
@@ -2137,9 +2202,12 @@ interface Player {
   next: number;
   stopAt: number;
   lastLead: number;
+  /** Which of its parts it's playing (a boss theme's phase). */
+  part: number;
 }
 const players: Player[] = [];
 let current: Player | null = null;
+let wantPart = 0;
 const LOOKAHEAD = 0.2;
 
 function makePlayer(name: Track, start: number): Player {
@@ -2190,7 +2258,7 @@ function makePlayer(name: Track, start: number): Player {
     nodes.push(g);
     ch[c] = g;
   }
-  return { name, def, song: getSong(name), out, revOut, nodes, ch, step: 0, next: start, stopAt: Infinity, lastLead: 0 };
+  return { name, def, song: getSong(name), out, revOut, nodes, ch, step: 0, next: start, stopAt: Infinity, lastLead: 0, part: 0 };
 }
 
 /** Fades a player out over `fade` seconds and stops scheduling it after. */
@@ -2214,6 +2282,7 @@ function switchTrack(name: Track | null) {
   for (const p of players) if (p !== current) retire(p, now, running ? 0.12 : 0);
   if (current) retire(current, now, fade);
   current = null;
+  wantPart = 0;
   if (name) {
     current = makePlayer(name, now + fade + 0.05);
     players.push(current);
@@ -2222,7 +2291,20 @@ function switchTrack(name: Track | null) {
 
 const ARP: Record<TrackDef['arpStyle'], number[]> = { up: [0, 1, 2, 3], down: [3, 2, 1, 0], updown: [0, 1, 2, 3, 2, 1], broken: [0, 2, 1, 3] };
 
+/** A track as it plays in part `n` (its parts up to n laid over it). */
+function partOf(name: Track, n: number): TrackDef {
+  const base = TRACKS[name];
+  let d = base;
+  for (const x of base.parts?.slice(0, n + 1) ?? []) d = { ...d, ...x };
+  return d;
+}
+
 function scheduleStep(p: Player, step: number, t0: number) {
+  // a new part comes in on the bar
+  if (step % 16 === 0 && p.part !== wantPart && TRACKS[p.name].parts) {
+    p.part = wantPart;
+    p.def = partOf(p.name, wantPart);
+  }
   const d = p.def;
   const sd = 60 / d.bpm / 4;
   const s = step % 16;
@@ -2317,6 +2399,9 @@ function tick() {
   }
 }
 
+/** A boss's own theme, if it has one (else the shared one). */
+export const bossTrack = (planet: string): Track => (`boss_${planet}` in TRACKS ? (`boss_${planet}` as Track) : 'boss');
+
 // ================================================================================================
 // Public API
 // ================================================================================================
@@ -2357,6 +2442,11 @@ export const audio = {
 
   intensity(x: number): void {
     wantI = clamp(x, 0, 1);
+  },
+
+  /** Which part of its theme a boss fight is in (0 its first phase … 3 its last stand). */
+  part(n: number): void {
+    wantPart = Math.max(0, Math.round(n));
   },
 
   duck(seconds: number): void {

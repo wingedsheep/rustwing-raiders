@@ -17,9 +17,10 @@ import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
-import { audio } from '../audio';
+import { audio, bossTrack } from '../audio';
 import type { Biome } from '../world/planets';
 import type { Read } from '../sim/boss';
+import { BossPose } from './boss-pose';
 import { clamp, damp, lerp } from '../util';
 import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
@@ -97,6 +98,8 @@ interface EnemyView {
   knock: number;
   /** A heist runner's part (drawn by the heist view; this is only a stand-in). */
   part?: boolean;
+  /** A boss's poses, facing and shedding. */
+  pose?: BossPose;
 }
 
 /**
@@ -589,7 +592,10 @@ export class LevelView {
           const en = lv.enemies.find((o) => o.id === e.enemy);
           // a boss's signature: a low horn, so the ear learns it too
           if (en?.boss && en.boss.move === en.boss.sig && en.boss.k === 0) audio.play('horn', { pitch: 0.5, vol: 0.7 });
-          if (en && (e.kind === 'torpedo' || e.kind === 'seekers')) {
+          // Vask's own: she draws breath for a screech, her wings creak up for a gust
+          if (en?.boss?.move === 'screech') audio.play('shriek', { pan: en.x / HALF_W, pitch: 0.6, vol: 0.5 });
+          else if (en?.boss?.move === 'gust') audio.play('wingbeat', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.5 });
+          else if (en && (e.kind === 'torpedo' || e.kind === 'seekers')) {
             // (the lattice's lock is higher and colder)
             audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5, pitch: e.kind === 'seekers' ? 1.25 : 1 });
             const prey = e.tele?.shape === 'lock' ? lv.players[e.tele.id] : undefined;
@@ -867,7 +873,7 @@ export class LevelView {
         case 'bossWarning':
           this.bossBanner = { name: e.name, title: e.title, t: 0 };
           audio.play('boss_warning');
-          audio.music('boss');
+          audio.music(bossTrack(lv.spec.planet.id));
           break;
         case 'armourBreak': {
           // the armour comes off in plates: it reels, wide open (an elite's gold is the big one;
@@ -902,12 +908,35 @@ export class LevelView {
           this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.4, true, 0x9af0b0);
           audio.play('level_clear', { pitch: 1.25, vol: 0.7 });
           break;
-        case 'bossPhase':
+        case 'bossPhase': {
           this.trauma = 0.8;
           this.flash = 0.5;
           this.flashColor.set(0xffffff);
           this.hitstop = 10;
           audio.play('explode_big');
+          audio.part(e.phase);
+          // what it sheds: the pieces burst off it (Vask's cage), and it says so
+          const boss = lv.enemies.find((o) => o.boss && !o.dead);
+          const v = boss && this.enemies.get(boss.id);
+          const shed = v?.pose?.shedTo(e.phase);
+          if (boss && shed?.pieces.length) {
+            for (const q of shed.pieces) this.shards(q.x, q.z, 10, q.color);
+            this.fx.ring(boss.x, FLIGHT_Y, boss.z, 14, 0.4, true, shed.pieces[0].color);
+            if (shed.line) this.pop(shed.line, boss.x, boss.z - 8, '#ffd890', true);
+            audio.play('shield_break', { pitch: 0.5 });
+          }
+          break;
+        }
+        case 'bossBeat':
+          // a boss's move on the beat: a shriek with each ring, a whump with each wing beat
+          if (e.move === 'screech') {
+            audio.play('shriek', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.06 });
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.2, true, 0xfff0d0);
+          } else if (e.move === 'gust') {
+            audio.play('wingbeat', { pan: e.x / HALF_W });
+            this.trauma = Math.min(1, this.trauma + 0.15);
+            this.fx.ring(e.x, FLIGHT_Y, e.z + 3, 10, 0.3, true, 0xfff0d0);
+          }
           break;
         case 'biome': {
           // named only as the level starts, not at every biome after
@@ -1843,10 +1872,12 @@ export class LevelView {
         v.head.rotation.y = e.aim - e.heading;
       } else v.obj.rotation.y = facing;
       if (!e.ground && !e.boss) v.obj.rotation.z = clamp(-e.vx / 30, -0.5, 0.5);
+      if (e.boss) v.pose?.update(e, dt, v.obj);
       // the tell on the body: it heats up through the windup and flickers at the end; open to
       // punishment, it pulses; underground, it's gone; rolling, it spins
       v.obj.visible = e.state !== 'hidden';
-      let glow = e.flash > 0 ? 1 : e.stun > 0 ? 0.3 * (Math.floor(this.time * 10) % 2) : 0;
+      // (a boss under fire only glints: it's lit by hits all fight, and its tells must show)
+      let glow = e.flash > 0 ? (e.boss ? 0.25 : 1) : e.stun > 0 ? 0.3 * (Math.floor(this.time * 10) % 2) : 0;
       if (e.state === 'windup' && e.stateDur > 0) {
         const k = clamp(e.stateT / e.stateDur, 0, 1);
         glow = Math.max(glow, k > 0.8 ? (Math.floor(this.time * 24) % 2 ? 0.9 : 0.3) : k * 0.5);
@@ -1997,7 +2028,8 @@ export class LevelView {
       ring = part(new THREE.RingGeometry(e.r * 1.4, e.r * 1.6, 6), flat(0xffd04a), [0, 0, 0], 1, [-Math.PI / 2, 0, 0]);
       this.scene.add(ring);
     }
-    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0 };
+    const pose = e.boss && inst ? new BossPose(inst, `boss_${this.lv.spec.planet.id}`) : undefined;
+    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose };
   }
 
   /** Flares burn and fizz; afterimages are the ship's ghost, flickering. */

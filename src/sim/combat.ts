@@ -120,7 +120,9 @@ export type FoeEvent =
   /** An elite's armour broken: it reels. */
   | { type: 'armourBreak'; enemy: number; x: number; z: number }
   /** An elite's chain: attack `n` of `of` coming (n === of: the last, then it's open for long). */
-  | { type: 'chain'; enemy: number; n: number; of: number };
+  | { type: 'chain'; enemy: number; n: number; of: number }
+  /** A boss's move landing on the beat (a screech's ring, a wing beat). */
+  | { type: 'bossBeat'; enemy: number; move: string; k: number; x: number; z: number };
 
 /**
  * An elite chains its attack (Hollow Knight's way): this many in a row, each tell quicker than the

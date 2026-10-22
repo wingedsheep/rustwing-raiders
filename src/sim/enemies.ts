@@ -17,6 +17,8 @@ import { strike } from './strikes';
 import type { PartKind } from './heist';
 
 export interface EnemyData {
+  /** The boss has come: it's off out of the way, firing nothing (see Director.spawnBoss). */
+  flee?: number;
   /** Taken down this stagger (a dash through it: see Level.takedown). */
   td?: number;
   path?: 'swoop' | 'dive' | 'cross' | 'loop';
@@ -154,6 +156,17 @@ export function updateEnemy(lv: Level, e: Enemy) {
     e.shielded = true;
     e.z = lv.top - 6;
     e.x = d.x0 ?? 0;
+    return;
+  }
+  // a boss has come: the air's its own now. Fliers go up and away (and are gone off the top);
+  // anything on the ground goes quiet as it scrolls by
+  if (d.flee) {
+    e.tele = null;
+    if (!e.ground) {
+      d.flee += DT;
+      e.z -= 26 * DT * Math.min(1, d.flee);
+      e.vx = 0;
+    }
     return;
   }
   // (a runner's bridge keeps its shield till its engines are out)

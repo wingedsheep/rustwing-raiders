@@ -46,6 +46,10 @@ export type BossMove =
   | 'spores'
   | 'summon'
   | 'lunge'
+  // a boss's own (see OWN)
+  | 'rake'
+  | 'screech'
+  | 'gust'
   // the signatures: one each
   | 'skydive'
   | 'crane'
@@ -117,6 +121,8 @@ export interface BossState {
   perfects: number;
   /** The move just made was part of a string (its end is open longer). */
   comboed: boolean;
+  /** The phase from which it has no guns left (see BARE). */
+  bare: number;
 }
 
 /** What it notices about how you fly. */
@@ -136,6 +142,9 @@ export const READ_LINE: Record<Read, string> = {
 const ANSWERS: Record<BossMove, Read[]> = {
   charge: ['back', 'still'],
   lunge: ['back'],
+  rake: ['back', 'still'],
+  screech: ['close', 'still'],
+  gust: ['close', 'side'],
   slam: ['close', 'still'],
   sweep: ['side', 'still'],
   gate: ['side', 'back'],
@@ -194,9 +203,27 @@ const MOVES: Record<BossStyle, BossMove[][]> = {
   hive: [['spores', 'harpoon'], ['spores', 'summon', 'harpoon'], ['spores', 'harpoon', 'summon']],
 };
 
+/**
+ * A boss's own moves, in place of its style's, a list a phase (its signature goes in second).
+ * Vask: rake, sky dive, screech, to learn; the cage cracks and she adds her gust and calls her
+ * brood; free, she's alone and it's all her.
+ */
+const OWN: Record<string, BossMove[][]> = {
+  orutal: [['rake', 'screech'], ['rake', 'gust', 'summon', 'screech'], ['rake', 'screech', 'gust']],
+};
+
+/** The phase from which a boss has no guns left: no patterns, just its moves (Vask, free). */
+const BARE: Record<string, number> = { orutal: 2 };
+
+/** The beat of a boss's theme (its rings and wing beats land on it). */
+const BEAT: Record<string, number> = { orutal: 60 / 140 };
+
 const KIND: Record<BossMove, AttackKind> = {
   charge: 'charge',
   lunge: 'charge',
+  rake: 'charge',
+  screech: 'slam',
+  gust: 'pulse',
   slam: 'slam',
   sweep: 'sweep',
   gate: 'gate',
@@ -242,6 +269,13 @@ const POISE_BACK = 0.012;
 /** Below this share of its hull it makes its last stand. */
 const LAST = 0.08;
 
+/**
+ * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
+ * teach something, so each needs time: half again as long.
+ */
+const HULL: Record<string, number> = { orutal: 2.6 };
+export const bossHull = (planet: string) => HULL[planet] ?? 1;
+
 /** Who comes when it calls. */
 const HELP: Record<string, [Foe, number]> = {
   orutal: ['swooper', 2],
@@ -267,7 +301,7 @@ export function makeBoss(planet: string): BossState {
   const r = rng(hashStr(planet));
   const fav = shuffle(r, [...(FAVOURITES[planet] ?? ['fans', 'rings', 'spiral', 'walls'])]);
   const style = STYLE[planet] ?? 'brawler';
-  const moves = MOVES[style].map((l) => [...l]);
+  const moves = (OWN[planet] ?? MOVES[style]).map((l) => [...l]);
   // Khet hooks you in his last phase; the others slam
   if (planet === 'ashgrave') moves[2][1] = 'harpoon';
   // its own move comes second in every phase (seen early, and every time round)
@@ -317,6 +351,7 @@ export function makeBoss(planet: string): BossState {
     combo: 0,
     perfects: 0,
     comboed: false,
+    bare: BARE[planet] ?? 9,
   };
 }
 
@@ -335,6 +370,9 @@ export function bossRead(lv: Level, e: Enemy) {
 /** Hit: its poise gives, and when it breaks it's STAGGERED, whatever it was doing. */
 export function bossHurt(lv: Level, e: Enemy, dmg: number) {
   const b = e.boss!;
+  // no hit carries it past a phase it hasn't fought yet (nor past its last stand): it holds at the
+  // line until the phase turns
+  if (!b.last) e.hp = Math.max(e.hp, e.max * (b.phase === 0 ? 2 / 3 : b.phase === 1 ? 1 / 3 : LAST) - 1);
   if (e.t < 3.5 || e.shielded || b.poiseCd > 0 || e.state === 'stagger') return;
   b.poise += dmg;
   if (b.poise < e.max * POISE) return;
@@ -466,10 +504,11 @@ export function updateBoss(lv: Level, e: Enemy) {
   // patterns, then a breath, then a move, then a breath...
   const list = b.patterns[b.phase];
   const pat = list[b.current % list.length];
-  // on a chase it's all moves (a breath between them)
+  // on a chase it's all moves (a breath between them); with no guns left, too
   const chase = b.style === 'pursuer' && b.phase === 0;
+  const bare = b.phase >= b.bare;
   // in its last stand it hardly stops to breathe between moves
-  const len = chase || b.last ? 0.6 : LENGTH[pat];
+  const len = bare ? 0.2 : chase || b.last ? 0.6 : LENGTH[pat];
   b.pt += DT;
   if (b.pt > len + 0.9) {
     b.current++;
@@ -478,7 +517,7 @@ export function updateBoss(lv: Level, e: Enemy) {
     startMove(lv, e, b);
     return;
   }
-  if (b.pt > len || chase) return;
+  if (b.pt > len || chase || bare) return;
   run(lv, e, b, pat);
 }
 
@@ -502,6 +541,7 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
   b.sinceSig = m === b.sig ? 0 : b.sinceSig + 1;
   b.parried = false;
   b.yanked = false;
+  b.k = 0;
   // a string of moves starts here, now and then (not off the back of another)
   if (!b.comboed && b.combo <= 0 && !b.last && lv.rand() < COMBO[b.phase]) {
     b.combo = b.phase >= 2 && lv.rand() < 0.4 ? 2 : 1;
@@ -517,6 +557,7 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
   const line = (len: number, w: number, lock: number, body = false): Tele => ({ shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * len, z2: e.z + Math.cos(aim) * len, w, lock, body });
   switch (m) {
     case 'charge':
+    case 'rake':
     case 'lunge': {
       b.len = m === 'lunge' ? Math.max(14, e.z - pz + 8) : clamp(Math.hypot(px - e.x, pz - e.z) + 6, 16, 40);
       if (m === 'lunge') e.aim = Math.PI;
@@ -552,8 +593,14 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
     case 'summon':
       go(lv, e, 'windup', 0.8, 'pulse', null);
       break;
+    case 'screech':
+      // how far the rings will reach
+      go(lv, e, 'windup', 0.8, 'slam', { shape: 'ring', x: e.x, z: e.z, r: SCREECH_R, w: 1.2 });
+      break;
+    case 'gust':
+      go(lv, e, 'windup', 0.9, 'pulse', { shape: 'ring', x: e.x, z: e.z, r: 12, w: 3 });
+      break;
     default:
-      b.k = 0;
       startSig(lv, e, b, px, pz);
   }
   // dashing through everything: it holds its tell a beat longer, now and then, to bait the dash
@@ -701,8 +748,27 @@ const READ_AGAIN = 14;
 /** How long it's open between the moves of a string. */
 const COMBO_BREATH = 0.45;
 const BREATH_IN = 2.2;
+const rakes = (b: BossState) => (b.last ? 3 : b.phase >= 1 ? 2 : 1);
+const screechRings = (b: BossState) => (b.last ? 4 : b.phase >= 2 ? 3 : 2);
+const SCREECH_R = 30;
+const gustBeats = (b: BossState) => (b.last ? 4 : 3);
+/** How hard a wing beat shoves you (units a second, for GUST_T seconds). */
+const GUST_SHOVE = 26;
+const GUST_T = 0.3;
+const beatOf = (lv: Level) => BEAT[lv.spec.planet.id] ?? 0.45;
 const repoShots = (b: BossState) => 2 + b.phase + (b.last ? 1 : 0);
 const divePasses = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
+
+/** A rake turns where it ended up and comes back at you: the same line, a shorter tell. */
+function rakeAgain(lv: Level, e: Enemy, b: BossState) {
+  const p = lv.nearest(e.x, e.z);
+  const px = p?.x ?? 0;
+  const pz = p?.z ?? lv.bottom - 8;
+  e.aim = Math.atan2(px - e.x, pz - e.z);
+  b.len = clamp(Math.hypot(px - e.x, pz - e.z) + 6, 16, 40);
+  b.gone = 0;
+  go(lv, e, 'windup', 0.7, 'charge', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * b.len, z2: e.z + Math.cos(e.aim) * b.len, w: e.r * 1.4, lock: 0.45, body: true });
+}
 
 function endMove(lv: Level, e: Enemy, b: BossState, dur: number, stagger = false) {
   // mid-string, only a breath open; the end of one, open for longer
@@ -737,7 +803,7 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     const tl = e.tele;
     // the line rides with it (and tracks you, until it locks)
     if (tl && tl.shape === 'line') {
-      if ((m === 'charge' || m === 'harpoon') && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.08);
+      if ((m === 'charge' || m === 'rake' || m === 'harpoon') && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.08);
       const len = m === 'harpoon' ? 60 : b.len;
       tl.x = e.x;
       tl.z = e.z;
@@ -800,8 +866,9 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
   // attack
   switch (m) {
     case 'charge':
+    case 'rake':
     case 'lunge': {
-      const sp = (m === 'lunge' ? 32 : 34) * (e.stun > 0 ? 0.3 : 1);
+      const sp = (m === 'lunge' ? 32 : m === 'rake' ? 36 : 34) * (e.stun > 0 ? 0.3 : 1);
       b.sx += Math.sin(e.aim) * sp * DT;
       b.ss += Math.cos(e.aim) * sp * DT;
       b.gone += sp * DT;
@@ -812,8 +879,10 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
         strike(lv, 'slam', b.sx, lv.scroll + b.ss, { r: 4.5, warn: 0, active: 0.25, air: true, owner: e.id, color: col });
         if (m === 'charge') strike(lv, 'wave', b.sx, lv.scroll + b.ss, { v: 12, w: 1, rMax: 18, warn: 0.05, active: 2, air: true, owner: e.id, color: col });
         // a charge into the wall, or into a parry, leaves it reeling
-        const reel = b.parried || (edge && m === 'charge');
-        endMove(lv, e, b, reel ? 2.2 : m === 'lunge' ? 2 : 1.6, reel);
+        const reel = b.parried || (edge && m !== 'lunge');
+        // a rake turns and comes back at you (a shorter tell), unless it's reeling
+        if (m === 'rake' && !reel && ++b.k < rakes(b)) rakeAgain(lv, e, b);
+        else endMove(lv, e, b, reel ? 2.2 : m === 'lunge' ? 2 : 1.6, reel);
       }
       break;
     }
@@ -865,6 +934,8 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     case 'cross':
     case 'eye':
     case 'breath':
+    case 'screech':
+    case 'gust':
       sigAttack(lv, e, b);
       break;
     default:
@@ -995,6 +1066,20 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
       b.k = 0;
       go(lv, e, 'attack', BREATH_IN, 'pulse');
       return true;
+    case 'screech':
+    case 'gust': {
+      // the first beat straight away, the rest on the beat after it
+      b.k = 0;
+      b.ms = 0;
+      b.angle = lv.aim(e.x, e.z);
+      // the gust's second gap is on the side with more room
+      b.dir = px > e.x ? -1 : 1;
+      const n = b.move === 'screech' ? screechRings(b) : gustBeats(b);
+      const gap = beatOf(lv) * (b.move === 'gust' ? 2 : 1);
+      go(lv, e, 'attack', (n - 1) * gap + 0.35, KIND[b.move]);
+      e.tele = null;
+      return true;
+    }
   }
   return false;
 }
@@ -1084,6 +1169,46 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
         endMove(lv, e, b, 2.1);
       }
+      break;
+    }
+    case 'screech': {
+      // rings of sound on the beat: dash through each
+      b.fire -= DT;
+      if (b.fire <= 0 && b.k < screechRings(b)) {
+        b.fire += beatOf(lv);
+        strike(lv, 'wave', e.x, e.z, { v: 15, w: 1.1, rMax: SCREECH_R, warn: 0, active: 3, air: true, owner: e.id, color: col });
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'screech', k: b.k++, x: e.x, z: e.z });
+      }
+      if (over(e)) endMove(lv, e, b, 1.4);
+      break;
+    }
+    case 'gust': {
+      // a wing beat every two beats: a shove down the screen and a row of feathers with one gap,
+      // first where you are, then on the side with more room, then back
+      b.fire -= DT;
+      if (b.fire <= 0 && b.k < gustBeats(b)) {
+        b.fire += beatOf(lv) * 2;
+        b.ms = GUST_T;
+        const gap = b.angle + (b.k % 2) * b.dir * 0.55;
+        for (let a = -1.15; a <= 1.15; a += 0.085) {
+          if (Math.abs(b.angle + a - gap) < 0.17) continue;
+          lv.bullet(e.x, e.z + 2, b.angle + a, 12, { color: col, kind: 'needle', r: 0.4 });
+        }
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'gust', k: b.k++, x: e.x, z: e.z });
+      }
+      if (b.ms > 0) {
+        b.ms -= DT;
+        for (const q of lv.players) {
+          if (q.down || q.dashT > 0) continue;
+          const dx = q.x - e.x;
+          const dz = q.z - e.z;
+          const dl = Math.hypot(dx, dz) || 1;
+          if (dl > 45) continue;
+          q.x += (dx / dl) * GUST_SHOVE * (1 - 0.5 * q.boosting) * DT;
+          q.z += (dz / dl) * GUST_SHOVE * (1 - 0.5 * q.boosting) * DT;
+        }
+      }
+      if (over(e)) endMove(lv, e, b, 1.8);
       break;
     }
     case 'breath': {
