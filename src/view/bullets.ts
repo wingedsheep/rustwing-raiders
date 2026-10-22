@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Bullet } from '../sim/level';
 import { TORPEDO } from '../sim/level';
 import type { Faction } from '../sim/factions';
-import { FLIGHT_Y, TILT } from '../sim/types';
+import { FLIGHT_Y, TILT, fromFlight } from '../sim/types';
 
 /**
  * Enemy fire, as things in the world: small models lit by the same sun as the ships, drawn into
@@ -530,7 +530,7 @@ export class BulletArt {
         this.q.multiply(this.q2.setFromAxisAngle(axis, a));
       }
       const w = sh.wobble ? Math.sin(time * 13 + b.seed * 6.28) * sh.wobble : 0;
-      this.base.compose(this.v.set(b.x, FLIGHT_Y + 1, b.z), this.q, this.s.set(r * (1 + w), r * (1 - w), r * (1 - w * 0.5)));
+      this.base.compose(this.v.set(b.x, BULLET_Y, fromFlight(b.z, BULLET_Y)), this.q, this.s.set(r * (1 + w), r * (1 - w), r * (1 - w * 0.5)));
 
       sh.parts.forEach((def, j) => {
         const sz = def.size ? def.size(x) : 1;
@@ -588,7 +588,7 @@ export class BulletArt {
     const n = into.count;
     if (n >= MAX_GLOW) return;
     this.q2.copy(cam).multiply(this.q.setFromAxisAngle(Z, Math.atan2(-Math.sin(heading), -Math.cos(heading) * COS_TILT)));
-    this.m.compose(this.v.set(x, FLIGHT_Y + 1, z), this.q2, this.s.set(wid, len, 1));
+    this.m.compose(this.v.set(x, BULLET_Y, fromFlight(z, BULLET_Y)), this.q2, this.s.set(wid, len, 1));
     into.setMatrixAt(n, this.m);
     into.setColorAt(n, color);
     into.count++;
@@ -598,6 +598,8 @@ export class BulletArt {
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);
 const COS_TILT = Math.cos(TILT);
+/** Bullets ride a little over the ships (drawn on top), pushed back so they show where they are on the flight plane. */
+const BULLET_Y = FLIGHT_Y + 1;
 const BACKING = new THREE.Color(0.02, 0.015, 0.035);
 const hsl = { h: 0, s: 0, l: 0 };
 

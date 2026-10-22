@@ -509,23 +509,23 @@
     "name": "Wick Tarrow",
     "kind": "voice",
     "fx": "radio",
-    "seed": 7140,
-    "description": "A very old male pilot. Deep, gravelly, cracked, slow voice, fond and amused, a lifetime of engines in it. Close-mic'd, studio quality.",
-    "voice_id": "l8kwJ9eJ0rIOegAgZJ46",
+    "seed": 7142,
+    "description": "An elderly grandmother, a woman in her eighties, clearly a woman's voice. Warm, weathered, slightly thin and crackly with age, a little breathy, slow and unhurried, dry humour, fond and amused. Close-mic'd, studio quality.",
     "stability": 0.4,
     "barks": {
       "hello": [
-        "[fondly] Well, look at you, kid.",
-        "[chuckles] Another rustwing."
+        "[warmly, a little tired] Well… look at you, kid.",
+        "[chuckles softly] Another rustwing. Good."
       ],
       "pleased": [
-        "[warmly] That's flying, kid."
+        "[fondly, voice catching] That's FLYING, kid… thank you."
       ],
       "annoyed": [
-        "[grumbles] Ah, kids these days."
+        "[dry, disappointed sigh] Ah. Kids these days."
       ]
     },
-    "design_text": "Well, look at you, kid. Another rustwing. Good. That's flying, kid. Ah, I flew these lanes before the lanterns."
+    "design_text": "Well, look at you, kid. Another rustwing. Good. I flew the Throat in my day, near enough. Doctor gives me a month. That's flying, kid. Ah, kids these days.",
+    "voice_id": "ZJHzh1R4Oc4WSxX7YXeC"
   },
   "leeches": {
     "name": "Hull leeches",

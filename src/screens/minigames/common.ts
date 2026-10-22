@@ -1,7 +1,8 @@
 /**
- * Little games inside events: a stick (or d-pad, or arrows) and one button. Each takes ten to
- * thirty seconds and ends with a score, 0..1, that the event turns into what you get. Every one
- * has a careful and a bold version; the bold one is harder and pays about double.
+ * Little games inside events: a stick (or d-pad, or arrows) and one button. Each takes fifteen to
+ * forty seconds and ends with a score, 0..1, that the event turns into what you get. You don't pick
+ * how hard it is: the event rolls a level, 1 (easy) to 5 (deadly), rising through the run, shows
+ * it, and you take it on or run. From level 3 up it pays the bold rewards.
  *
  * They draw themselves into a rectangle of the 640 × 360 UI canvas. Pixels stay whole, but light
  * is soft: glows, haze and vignettes, a modern game in a retro jacket.
@@ -23,6 +24,23 @@ export interface Pad {
   press: boolean;
 }
 
+/** The five levels a game can be rolled at, with the name and colour they're shown in. */
+export const LEVELS = [
+  { name: 'EASY', color: '#8affb0' },
+  { name: 'TRICKY', color: '#c8e86a' },
+  { name: 'HARD', color: '#ffd04a' },
+  { name: 'VICIOUS', color: '#ff8a3a' },
+  { name: 'DEADLY', color: '#ff4a5a' },
+] as const;
+
+export const levelInfo = (level: number) => LEVELS[Math.max(0, Math.min(4, Math.round(level) - 1))];
+
+/** A level as 0 (easy) .. 1 (deadly), for games to scale their numbers with. */
+export const hardness = (level: number) => Math.max(0, Math.min(1, (level - 1) / 4));
+
+/** Mix `a` (at easy) towards `b` (at deadly). */
+export const byLevel = (d: number, a: number, b: number) => a + (b - a) * d;
+
 export interface Minigame {
   readonly title: string;
   /** How to play, a line or two. */
@@ -33,6 +51,8 @@ export interface Minigame {
   value?: number | null;
   /** How it's going, a few words. */
   status(): string;
+  /** Once it's over: what made the score, as label and value pairs ('CRATES', '7/9'). */
+  breakdown?(): [string, string][];
   update(dt: number, pad: Pad): void;
   draw(ctx: CanvasRenderingContext2D, w: number, h: number, t: number): void;
 }
@@ -60,14 +80,28 @@ interface Word {
   x: number;
   y: number;
   life: number;
+  max: number;
   color: string;
   scale: number;
+  /** Punches in a size bigger, then settles. */
+  pop: boolean;
+}
+
+interface Ring {
+  x: number;
+  y: number;
+  t: number;
+  max: number;
+  r: number;
+  color: string;
 }
 
 /** Sparks, smoke, floating words, screen shake and a flash: one per game. */
 export class Fx {
   private sparks: Spark[] = [];
   private words: Word[] = [];
+  private rings: Ring[] = [];
+  private stopT = 0;
   private shakeT = 0;
   private shakeA = 0;
   private flashT = 0;
@@ -88,8 +122,32 @@ export class Fx {
     }
   }
 
-  word(text: string, x: number, y: number, color: string, scale = 1) {
-    this.words.push({ text, x, y, life: 0.9, color, scale });
+  word(text: string, x: number, y: number, color: string, scale = 1, o: { pop?: boolean; life?: number } = {}) {
+    const life = o.life ?? 0.9;
+    this.words.push({ text, x, y, life, max: life, color, scale, pop: o.pop ?? false });
+  }
+
+  /** A shockwave: a ring that races out from (x, y) to radius `r` and fades. */
+  ring(x: number, y: number, r: number, color: string, time = 0.35) {
+    this.rings.push({ x, y, t: 0, max: time, r, color });
+  }
+
+  /** Hit-stop: freeze the game for a moment so a hit lands. */
+  stop(time = 0.06) {
+    this.stopT = Math.max(this.stopT, time);
+  }
+
+  /**
+   * Call first in a game's update: ticks the juice, and says whether the game is frozen in a
+   * hit-stop this frame (so it should skip its own update).
+   */
+  frozen(dt: number) {
+    if (this.stopT > 0) {
+      this.stopT -= dt;
+      return true;
+    }
+    this.update(dt);
+    return false;
   }
 
   shake(amount: number, time = 0.25) {
@@ -122,6 +180,8 @@ export class Fx {
       w.y -= dt * 22;
     }
     this.words = this.words.filter((w) => w.life > 0);
+    for (const r of this.rings) r.t += dt;
+    this.rings = this.rings.filter((r) => r.t < r.max);
   }
 
   /** Where to translate the scene this frame. */
@@ -149,8 +209,19 @@ export class Fx {
   drawWords(ctx: CanvasRenderingContext2D) {
     for (const w of this.words) {
       if (w.life < 0.25 && Math.floor(w.life * 30) % 2) continue;
-      drawText(ctx, w.text, w.x, w.y, w.color, { align: 'center', scale: w.scale });
+      const young = w.max - w.life < 0.09;
+      drawText(ctx, w.text, w.x, w.y - (w.pop && young ? 3 : 0), w.color, { align: 'center', scale: w.scale + (w.pop && young ? 1 : 0) });
     }
+    for (const r of this.rings) {
+      const f = r.t / r.max;
+      ctx.strokeStyle = r.color;
+      ctx.globalAlpha = (1 - f) * 0.9;
+      ctx.lineWidth = Math.max(1, 3 * (1 - f));
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 2 + r.r * (1 - (1 - f) ** 3), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawFlash(ctx: CanvasRenderingContext2D, w: number, h: number) {

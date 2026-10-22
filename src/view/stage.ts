@@ -43,6 +43,9 @@ export class Stage {
     u.uHurt.value = 0;
     u.uHeat.value = 0;
     u.uSpeed.value = 0;
+    u.uImpact.value = 0;
+    u.uAberr.value = 0;
+    u.uDrain.value = 0;
     u.uFade.value = 0;
     u.uVignette.value = 0.35;
     u.uTone.value = 0.3;

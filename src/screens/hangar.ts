@@ -57,8 +57,8 @@ const RULES = [
   'EVERYTHING ELSE IS A FITTING. BOOSTERS HELP THE GUNS THEY TOUCH.',
   'LINKED PARTS RUN AT 150% (200% ON A LATTICE). BACK-ROW ENGINES PUSH HARDER.',
   'EVERY GUN HAS AN EDGE: HOW IT WANTS FLYING. FIRE OUT OF A DASH AND THE GUNS STRIKE 50% HARDER.',
-  'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT DASH RELOADS A ROUND.',
-  'EVERY PART IS LOAD. LIGHT IS NIMBLE (+1 DASH, EASIER PERFECTS); PAST FULL IS OVERLOADED. ENGINES CARRY MORE.',
+  'HEAVY GUNS FIRE ON THEIR OWN BUTTON, A ROUND A PRESS. A PERFECT, DASHED OR PARRIED, RELOADS A ROUND.',
+  'EVERY PART IS LOAD. LIGHT IS NIMBLE (QUICKER DASH, EASIER PERFECTS); PAST FULL IS OVERLOADED. ENGINES CARRY MORE.',
 ];
 
 const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', link: GREEN };
@@ -106,7 +106,7 @@ function explain(b: Build, p: Placement, before: Stats): Step[] {
   else if (pl.link && !pl.link.ok && def.link) out.push({ c: pl.link.c, r: pl.link.r, text: `${def.link.need ? 'NEEDS' : 'WANTS'} ${def.link.text}`, color: def.link.need ? RED : GOLD });
   if (after.loadClass !== before.loadClass) {
     const lc = LOAD_CLASS[after.loadClass];
-    const lost = before.loadClass === 'nimble' ? 'NIMBLE LOST: -1 DASH' : `${lc.name}: ${lc.text}`;
+    const lost = before.loadClass === 'nimble' ? 'NIMBLE LOST: SLOWER DASH' : `${lc.name}: ${lc.text}`;
     out.push({ c: pc, r: pr, text: after.loadClass === 'overloaded' ? `OVERLOADED! ${lc.text}` : lost, color: after.loadClass === 'steady' ? GOLD : lc.color });
   }
   const d0 = Math.round(dps(before));

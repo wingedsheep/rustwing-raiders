@@ -1,7 +1,7 @@
 import type { Game, Screen } from '../game/game';
 import type { Run, Snapshot } from '../sim/run';
 import type { ChartNode } from '../sim/chart';
-import type { Beat, Choice, Result, RunEvent, Scene } from '../sim/events';
+import { isBold, rollLevel, type Beat, type Choice, type Result, type RunEvent, type Scene } from '../sim/events';
 import type { Planet } from '../world/planets';
 import type { Item } from '../game/loot';
 import { castOf, type CastMember } from '../sim/cast';
@@ -18,10 +18,10 @@ import { bestFit } from '../sim/fit';
 import { drawArt } from './art';
 import { status, surround } from './stops';
 import { minigame, type Minigame, type Pad } from './minigames';
-import { glow } from './minigames/common';
-import { hashStr, rng, smooth } from '../util';
+import { glow, levelInfo } from './minigames/common';
+import { hashStr, pick, rng, smooth } from '../util';
 
-type Phase = 'talk' | 'choose' | 'roll' | 'ready' | 'play' | 'scored' | 'outcome';
+type Phase = 'talk' | 'choose' | 'brief' | 'roll' | 'ready' | 'play' | 'scored' | 'outcome';
 
 const TONE = { good: GREEN, bad: RED, info: CYAN };
 /** The narrator's ink, when nobody's talking. */
@@ -31,19 +31,48 @@ const NARRATOR_PACE = 85;
 const COL_X = 334;
 const COL_W = 294;
 const ROLL_TIME = 2.1;
+/** The countdown before a game: three beats, then GO. */
+const COUNT_BEAT = 0.55;
+const COUNT_TIME = COUNT_BEAT * 3;
+/** The results card: the score counts up, then the grade stamps down, then what made it. */
+const COUNT_UP = 0.7;
+const STAMP_AT = 0.85;
+
+/** What you say for yourself when you back out of a game. */
+const RUN_LINES = [
+  'You think better of it, and go while the going is good.',
+  'Not today. You throttle up and leave them to it.',
+  'Some odds are worth turning down. You turn these down.',
+  'You make your excuses and are gone before anyone can argue.',
+];
+
+/** A score as a grade, in the same steps the events pay out in. */
+function grade(s: number) {
+  return s >= 0.85
+    ? { letter: 'S', word: 'SUPERB!', color: GOLD }
+    : s >= 0.55
+      ? { letter: 'A', word: 'WELL DONE', color: GREEN }
+      : s >= 0.25
+        ? { letter: 'C', word: 'SCRAPED BY', color: '#ffb04a' }
+        : { letter: 'F', word: 'FAILED', color: RED };
+}
 
 /**
  * Something out in the dark, Gazillionaire fashion. The scene is painted big; who's in it gets a
  * name plate in their colour and says their piece in their own voice (a bark, voices.ts), the
  * words arriving at their own pace. Then the choices come in, each with what it costs and pays as
  * chips, a part shown as a card where one's on offer. A gamble is rolled in front of you, the
- * needle sweeping over the odds; a little game is played careful or bold. Then what came of it:
+ * needle sweeping over the odds. A little game comes at a level the event rolls (harder further
+ * in), shown up front: take it on, or run. Then what came of it:
  * their answer, and every change to your affairs, tallied in a line at a time. Some answers lead
  * to a second beat, and you choose again.
  */
 export class EventScreen implements Screen {
   private at = 0;
-  private bold = false;
+  /** The level each game choice was rolled at. */
+  private levels = new Map<Choice, number>();
+  /** On the briefing: 0 take it on, 1 run. */
+  private pick = 0;
   private phase: Phase = 'talk';
   private choices: Choice[] = [];
   private result: Result | null = null;
@@ -90,16 +119,24 @@ export class EventScreen implements Screen {
       if (ev.who === 'twins') preloadVoice('vukka');
     }
     this.speak('hello');
-    // ?mini: straight into this event's game (?bold for the bold one), for testing
+    // ?mini: straight into this event's game (&level=1..5 to pick how hard), for testing
     const p = game.params;
     if (p.has('mini')) {
       const k = this.choices.findIndex((c) => c.game && (!p.get('mini') || c.game === p.get('mini')));
       if (k >= 0) {
         this.at = k;
-        this.bold = p.has('bold') || !!this.choices[k].boldOnly;
-        this.choose();
+        this.accept();
       }
     }
+  }
+
+  /** The level the choice under the cursor's game is at (0 if it isn't a game). */
+  private get level() {
+    return this.levels.get(this.choices[this.at]) ?? 0;
+  }
+
+  private get bold() {
+    return isBold(this.level);
   }
 
   private get cast(): CastMember | null {
@@ -110,7 +147,13 @@ export class EventScreen implements Screen {
     this.choices = cs.filter((c) => !c.if || c.if(this.run, this.scene));
     // start on the first one you can take
     this.at = Math.max(0, this.choices.findIndex((c) => !c.locked?.(this.run, this.scene)));
-    this.bold = !!this.choices[this.at]?.boldOnly;
+    const want = Number(this.game.params.get('level'));
+    this.levels.clear();
+    for (const c of this.choices) {
+      if (!c.game) continue;
+      const level = want >= 1 && want <= 5 ? Math.round(want) : rollLevel(this.run, this.ev, c, this.node.seed ^ hashStr(c.label) ^ (this.beats * 0x3b1));
+      this.levels.set(c, level);
+    }
   }
 
   private say(text: string) {
@@ -163,11 +206,13 @@ export class EventScreen implements Screen {
     }
     hush();
     if (c.game) {
+      // what it is and how hard, before you commit
       const setup = c.setup?.(this.run, this.bold, this.scene);
-      this.mini = minigame(c.game, this.bold, this.node.seed ^ (this.bold ? 0x51 : 0x17) ^ (this.beats * 0x101), setup);
-      this.phase = 'ready';
+      this.mini = minigame(c.game, this.level, this.node.seed ^ (this.level * 0x51) ^ (this.beats * 0x101), setup);
+      this.phase = 'brief';
+      this.pick = 0;
       this.pt = 0;
-      audio.play('ui_select');
+      audio.play(this.level >= 4 ? 'risk_up' : 'ui_select');
       return;
     }
     if (c.odds) {
@@ -185,13 +230,38 @@ export class EventScreen implements Screen {
     this.finish(1, true);
   }
 
+  /** Take the game on: the countdown, then play. */
+  private accept() {
+    if (!this.mini) {
+      const c = this.choices[this.at];
+      const setup = c.setup?.(this.run, this.bold, this.scene);
+      this.mini = minigame(c.game!, this.level, this.node.seed ^ (this.level * 0x51) ^ (this.beats * 0x101), setup);
+    }
+    this.phase = 'ready';
+    this.pt = 0;
+    audio.play('ui_select');
+  }
+
+  /** Back out of the game, and the event with it. */
+  private flee() {
+    this.mini = null;
+    this.result = { text: pick(rng(this.node.seed ^ 0x7e7e), RUN_LINES), mood: 'annoyed' };
+    this.changes = this.run.changes(this.before);
+    this.shown = 0;
+    this.phase = 'outcome';
+    this.say(this.result.text);
+    if (this.who) this.speak('annoyed');
+    audio.play('dash', { vol: 0.6 });
+  }
+
   private finish(score: number, won: boolean) {
     const c = this.choices[this.at];
     this.result = c.outcome(this.run, {
       ...this.scene,
       r: rng(this.node.seed ^ 0xe7e7 ^ (this.beats * 31)),
       score,
-      bold: this.bold,
+      bold: this.mini ? this.bold : false,
+      level: this.mini ? this.level : 0,
       won,
       value: this.mini?.value ?? null,
     });
@@ -224,7 +294,10 @@ export class EventScreen implements Screen {
     this.shakeT -= dt;
     if (this.phase === 'ready') {
       this.game.menu();
-      if (this.pt > 1.6) {
+      // a tick on each beat of the countdown, and a kick on GO
+      const beat = Math.floor(this.pt / COUNT_BEAT);
+      if (beat !== Math.floor((this.pt - dt) / COUNT_BEAT) || this.pt === dt) audio.play(beat >= 3 ? 'ui_select' : 'ui_move', { pitch: beat >= 3 ? 1.3 : 0.9 + beat * 0.1 });
+      if (this.pt > COUNT_TIME) {
         this.phase = 'play';
         this.pt = 0;
       }
@@ -236,7 +309,6 @@ export class EventScreen implements Screen {
       if (m.result !== null) {
         this.phase = 'scored';
         this.pt = 0;
-        audio.play(m.result >= 0.55 ? 'level_clear' : m.result > 0 ? 'pickup_scrap' : 'player_hit');
       }
       return;
     }
@@ -244,7 +316,30 @@ export class EventScreen implements Screen {
     if (this.phase === 'scored') {
       // the game goes on ticking, idle, so its sparks settle
       this.mini!.update(dt, { x: 0, y: 0, hold: false, press: false });
-      if (this.pt > 1.6 || (this.pt > 0.5 && m.confirm)) this.finish(this.mini!.result!, true);
+      const s = this.mini!.result!;
+      // the score ticks up, then the grade stamps down
+      if (this.pt < COUNT_UP && Math.floor(this.pt * 20) !== Math.floor((this.pt - dt) * 20)) audio.play('ui_move', { pitch: 0.8 + (this.pt / COUNT_UP) * s * 0.9, vol: 0.5 });
+      if (this.pt >= STAMP_AT && this.pt - dt < STAMP_AT) {
+        this.shakeT = 0.3;
+        audio.play(s >= 0.85 ? 'perfect' : s >= 0.55 ? 'level_clear' : s >= 0.25 ? 'pickup_scrap' : 'player_hit');
+      }
+      if (m.confirm && this.pt < STAMP_AT) this.pt = STAMP_AT;
+      else if (this.pt > 4 || (this.pt > STAMP_AT + 0.3 && m.confirm)) this.finish(s, true);
+      return;
+    }
+    if (this.phase === 'brief') {
+      if (m.left || m.right || m.up || m.down || m.prev || m.next) {
+        this.pick = 1 - this.pick;
+        audio.play('ui_move');
+      }
+      if (m.back) {
+        this.pick = 1;
+        audio.play('ui_move');
+      }
+      if (m.confirm && this.pt > 0.25) {
+        if (this.pick === 0) this.accept();
+        else this.flee();
+      }
       return;
     }
     if (this.phase === 'roll') {
@@ -288,15 +383,7 @@ export class EventScreen implements Screen {
     const n = this.choices.length;
     if (m.up) this.at = (this.at + n - 1) % n;
     if (m.down) this.at = (this.at + 1) % n;
-    if (m.up || m.down) {
-      audio.play('ui_move');
-      this.bold = !!this.choices[this.at].boldOnly;
-    }
-    const c = this.choices[this.at];
-    if ((m.left || m.right || m.prev || m.next) && c.game && !c.boldOnly) {
-      this.bold = !this.bold;
-      audio.play(this.bold ? 'risk_up' : 'ui_move');
-    }
+    if (m.up || m.down) audio.play('ui_move');
     if (m.confirm) this.choose();
   }
 
@@ -318,8 +405,9 @@ export class EventScreen implements Screen {
     const ctx = g.ui;
     ctx.clearRect(0, 0, W, H);
     surround(ctx);
-    const playing = this.phase === 'ready' || this.phase === 'play' || this.phase === 'scored';
+    const playing = this.phase === 'ready' || this.phase === 'play' || this.phase === 'scored' || this.phase === 'brief';
     this.backdrop(ctx, playing);
+    if (this.phase === 'brief') return this.drawBrief(ctx);
     if (playing) return this.drawGame(ctx);
     this.heading(ctx);
     status(ctx, this.run, W - 8, 8);
@@ -330,7 +418,7 @@ export class EventScreen implements Screen {
     } else if (this.phase === 'choose') {
       this.drawChoices(ctx);
       const c = this.choices[this.at];
-      hints(ctx, dev, [['move', c.game && !c.boldOnly ? 'CHOOSE, CAREFUL OR BOLD' : 'CHOOSE'], ['confirm', 'DECIDE']], W / 2, H - 12, 'center');
+      hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', c.game ? 'SIZE IT UP' : 'DECIDE']], W / 2, H - 12, 'center');
     } else if (this.phase === 'roll') {
       this.drawRoll(ctx);
     } else if (this.phase === 'outcome') {
@@ -498,9 +586,12 @@ export class EventScreen implements Screen {
     const lx = x + 8;
     let ly = y + 4;
     drawText(ctx, c.label, lx, ly, locked ? '#6a5e78' : on ? accent : INK);
-    // what kind of choice it is, on the right
-    const tag = c.game ? (on ? '' : 'GAME') : c.odds ? `${Math.round(c.odds(this.run, this.scene) * 100)}%` : '';
-    if (tag) drawText(ctx, tag, x + COL_W - 6, ly, c.odds ? TONE_INK.risk : '#6a5e7a', { align: 'right' });
+    // what kind of choice it is, on the right: a game's level, a gamble's odds
+    const lv = this.levels.get(c) ?? 0;
+    if (c.game) {
+      const info = levelInfo(lv);
+      drawText(ctx, info.name, x + COL_W - 6, ly, locked ? '#6a5e78' : info.color, { align: 'right' });
+    } else if (c.odds) drawText(ctx, `${Math.round(c.odds(this.run, this.scene) * 100)}%`, x + COL_W - 6, ly, TONE_INK.risk, { align: 'right' });
     ly += 12;
     const chips = c.chips?.(this.run, bold, this.scene) ?? [];
     if (locked || chips.length) ly += chipRows(ctx, locked ? [{ icon: 'risk', text: locked, tone: 'bad' }] : chips, lx, ly, COL_W - 16, !on && !locked) + 3;
@@ -524,18 +615,28 @@ export class EventScreen implements Screen {
       ly += 2;
     }
     if (c.game) {
-      // careful | bold, a switch
-      const sw = 66;
-      const sx = lx;
-      const opts = c.boldOnly ? (['BOLD'] as const) : (['CAREFUL', 'BOLD'] as const);
-      opts.forEach((o, k) => {
-        const act = (o === 'BOLD') === this.bold;
-        const bx = sx + k * (sw + 2);
-        ctx.fillStyle = act ? (o === 'BOLD' ? '#ff6a5a' : CYAN) : 'rgba(255,255,255,0.06)';
-        ctx.fillRect(bx, ly, sw, 11);
-        drawText(ctx, o, bx + sw / 2, ly + 2, act ? DARK : DIM, { align: 'center', shadow: false });
-      });
-      drawText(ctx, this.bold ? 'HARDER, PAYS MORE' : 'SAFER', sx + opts.length * (sw + 2) + 4, ly + 2, this.bold ? '#ff9a8a' : DIM);
+      // how hard it's come: five pips
+      drawText(ctx, 'GAME', lx, ly + 2, DIM);
+      this.pips(ctx, lx + 30, ly + 1, lv, 9);
+      drawText(ctx, this.bold ? 'PAYS THE BIG REWARD' : 'PAYS THE SMALL REWARD', lx + 30 + 5 * 11 + 6, ly + 2, this.bold ? '#ff9a8a' : DIM);
+    }
+  }
+
+  /** A level as five pips, lit up to it in its colour; the top ones throb. */
+  private pips(ctx: CanvasRenderingContext2D, x: number, y: number, level: number, size: number) {
+    const info = levelInfo(level);
+    for (let k = 0; k < 5; k++) {
+      const lit = k < level;
+      const px = x + k * (size + 2);
+      ctx.fillStyle = DARK;
+      ctx.fillRect(px - 1, y - 1, size + 2, size + 2);
+      ctx.fillStyle = lit ? info.color : '#2a2236';
+      ctx.fillRect(px, y, size, size);
+      if (lit) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(px, y, size, 1);
+        if (level >= 4 && k === level - 1) glow(ctx, px + size / 2, y + size / 2, size * 1.6, info.color, 0.3 + 0.2 * Math.sin(this.t * 8));
+      }
     }
   }
 
@@ -591,7 +692,10 @@ export class EventScreen implements Screen {
     ctx.fillRect(x, y, COL_W, 1);
     let ty = y + 7;
     if (this.mini) {
-      drawText(ctx, `${this.mini.title}: ${Math.round(this.mini.result! * 100)}%  ${this.bold ? 'BOLD' : 'CAREFUL'}`, x + 8, ty, GOLD);
+      const info = levelInfo(this.level);
+      const head = `${this.mini.title}: ${Math.round(this.mini.result! * 100)}%  `;
+      drawText(ctx, head, x + 8, ty, GOLD);
+      drawText(ctx, info.name, x + 8 + head.length * 6, ty, info.color);
     } else drawText(ctx, this.changes.length ? 'WHAT CHANGED' : 'NOTHING CHANGED', x + 8, ty, DIM);
     ty += 14;
     lines.forEach((c, k) => {
@@ -611,16 +715,97 @@ export class EventScreen implements Screen {
     }
   }
 
+  /**
+   * Sizing up a game before you take it on: what it is, how to play, how hard it's come, what's at
+   * stake; and two ways out of it, take it on or run.
+   */
+  private drawBrief(ctx: CanvasRenderingContext2D) {
+    const m = this.mini!;
+    const c = this.choices[this.at];
+    const info = levelInfo(this.level);
+    const a = smooth(Math.min(1, this.pt / 0.25));
+    const pw = 420;
+    const how = wrap(m.how, pw - 40);
+    const chips = c.chips?.(this.run, this.bold, this.scene) ?? [];
+    const chipH = chips.length ? chipRows(null, chips, 0, 0, pw - 40) : 0;
+    const note = c.note?.(this.run, this.bold, this.scene);
+    const noteL = note ? wrap(note, pw - 40).slice(0, 2) : [];
+    const ph = 132 + how.length * 10 + chipH + noteL.length * 9;
+    const px = Math.round((W - pw) / 2);
+    const py = Math.round((H - ph) / 2 + (1 - a) * 16);
+    ctx.globalAlpha = a;
+    const danger = this.level >= 4;
+    frame(ctx, px, py, pw, ph, 'rgba(16,11,24,0.97)', info.color);
+    if (danger) glow(ctx, px + pw / 2, py, 120, info.color, 0.12 + 0.06 * Math.sin(this.t * 6));
+    let y = py + 10;
+    drawText(ctx, c.label, W / 2, y, DIM, { align: 'center' });
+    y += 12;
+    drawText(ctx, m.title, W / 2, y, INK, { scale: 2, align: 'center' });
+    y += 22;
+    // the level, big, with its pips
+    const lw = info.name.length * 12;
+    const pipsW = 5 * 13 - 2;
+    const rowW = lw + 12 + pipsW;
+    const rx = Math.round(W / 2 - rowW / 2);
+    const jolt = danger && this.pt < 0.35 ? Math.round(Math.sin(this.pt * 90) * 2 * (1 - this.pt / 0.35)) : 0;
+    drawText(ctx, info.name, rx + jolt, y, info.color, { scale: 2 });
+    this.pips(ctx, rx + lw + 12, y + 1, this.level, 11);
+    y += 20;
+    drawText(ctx, `LEVEL ${this.level} OF 5  ·  ${this.bold ? 'PAYS THE BIG REWARD' : 'PAYS THE SMALL REWARD'}`, W / 2, y, this.bold ? '#ff9a8a' : DIM, { align: 'center' });
+    y += 14;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(px + 20, y, pw - 40, 1);
+    y += 7;
+    for (const l of how) {
+      drawText(ctx, l, px + 20, y, INK);
+      y += 10;
+    }
+    y += 4;
+    if (chips.length) y += chipRows(ctx, chips, px + 20, y, pw - 40) + 3;
+    for (const l of noteL) {
+      drawText(ctx, l, px + 20, y, '#a898b8');
+      y += 9;
+    }
+    // take it on, or run
+    const by = py + ph - 24;
+    const bw = 150;
+    const opts = [
+      { label: 'TAKE IT ON', col: GREEN },
+      { label: 'RUN', col: RED },
+    ];
+    opts.forEach((o, k) => {
+      const on = this.pick === k;
+      const bx = Math.round(W / 2 + (k === 0 ? -bw - 6 : 6));
+      ctx.fillStyle = DARK;
+      ctx.fillRect(bx - 1, by - 1, bw + 2, 17);
+      ctx.fillStyle = on ? o.col : 'rgba(255,255,255,0.06)';
+      ctx.fillRect(bx, by, bw, 15);
+      if (on) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(bx, by, bw, 1);
+        glow(ctx, bx + bw / 2, by + 7, 50, o.col, 0.2 + 0.08 * Math.sin(this.t * 7));
+      }
+      drawText(ctx, (on ? '▶ ' : '') + o.label, bx + bw / 2, by + 4, on ? DARK : DIM, { align: 'center', shadow: false });
+    });
+    ctx.globalAlpha = 1;
+    const dev = this.game.devices[0] ?? 'keys';
+    hints(ctx, dev, [['move', 'TAKE IT OR RUN'], ['confirm', 'DECIDE']], W / 2, H - 12, 'center');
+  }
+
   private drawGame(ctx: CanvasRenderingContext2D) {
     const m = this.mini!;
     const gx = 80;
     const gy = 64;
     const gw = 480;
     const gh = 240;
+    const info = levelInfo(this.level);
     drawText(ctx, m.title, W / 2, 10, GOLD, { scale: 2, align: 'center' });
-    drawText(ctx, `${this.ev.title}  ·  ${this.bold ? 'BOLD: HARDER, PAYS MORE' : 'CAREFUL'}`, W / 2, 28, this.bold ? '#ff8a7a' : DIM, { align: 'center' });
+    const sub = `${this.ev.title}  ·  `;
+    const subW = (sub.length + info.name.length) * 6;
+    drawText(ctx, sub, W / 2 - subW / 2, 28, DIM);
+    drawText(ctx, info.name, W / 2 - subW / 2 + sub.length * 6, 28, info.color);
     wrap(m.how, 470).forEach((l, k) => drawText(ctx, l, W / 2, 40 + k * 10, INK, { align: 'center' }));
-    frame(ctx, gx - 2, gy - 2, gw + 4, gh + 4, DARK, '#5a4e68');
+    frame(ctx, gx - 2, gy - 2, gw + 4, gh + 4, DARK, this.phase === 'scored' ? grade(m.result!).color : '#5a4e68');
     ctx.save();
     ctx.translate(gx, gy);
     ctx.beginPath();
@@ -632,20 +817,77 @@ export class EventScreen implements Screen {
     const dev = this.game.devices[0] ?? 'keys';
     const btn = dev === 'keys' ? 'SPACE' : button(dev, 'confirm');
     drawText(ctx, `STICK, D-PAD OR ARROWS TO MOVE.  ${btn}: THE BUTTON`, W / 2, H - 14, DIM, { align: 'center' });
-    if (this.phase === 'ready') {
-      const n = 3 - Math.floor((this.pt / 1.6) * 3);
-      ctx.fillStyle = 'rgba(10,7,16,0.6)';
-      ctx.fillRect(gx, gy, gw, gh);
-      drawText(ctx, 'GET READY', W / 2, gy + gh / 2 - 26, INK, { scale: 2, align: 'center' });
-      drawText(ctx, `${Math.max(1, n)}`, W / 2, gy + gh / 2 - 4, GOLD, { scale: 4, align: 'center' });
+    if (this.phase === 'ready') this.drawCount(ctx, gx, gy, gw, gh);
+    // GO lingers a moment into the game, shrinking away
+    if (this.phase === 'play' && this.pt < 0.35) {
+      ctx.globalAlpha = 1 - this.pt / 0.35;
+      drawText(ctx, 'GO!', W / 2, gy + gh / 2 - 16 - Math.round(this.pt * 30), GREEN, { scale: 4, align: 'center' });
+      ctx.globalAlpha = 1;
     }
-    if (this.phase === 'scored') {
-      const s = m.result!;
-      const word = s >= 0.85 ? 'SUPERB!' : s >= 0.55 ? 'WELL DONE' : s >= 0.25 ? 'NOT BAD' : s > 0 ? 'POOR' : 'FAILED';
-      ctx.fillStyle = 'rgba(10,7,16,0.7)';
-      ctx.fillRect(gx, gy + gh / 2 - 34, gw, 60);
-      drawText(ctx, word, W / 2, gy + gh / 2 - 26, s >= 0.55 ? GREEN : s >= 0.25 ? GOLD : RED, { scale: 3, align: 'center' });
-      drawText(ctx, `${Math.round(s * 100)}%`, W / 2, gy + gh / 2 + 4, INK, { scale: 2, align: 'center' });
+    if (this.phase === 'scored') this.drawScore(ctx, gx, gy, gw, gh);
+  }
+
+  /** 3, 2, 1 over the frozen first frame, each beat punching in big and settling. */
+  private drawCount(ctx: CanvasRenderingContext2D, gx: number, gy: number, gw: number, gh: number) {
+    const beat = Math.floor(this.pt / COUNT_BEAT);
+    const f = (this.pt % COUNT_BEAT) / COUNT_BEAT;
+    ctx.fillStyle = `rgba(10,7,16,${0.62 - beat * 0.12})`;
+    ctx.fillRect(gx, gy, gw, gh);
+    drawText(ctx, 'GET READY', W / 2, gy + gh / 2 - 40, INK, { scale: 2, align: 'center' });
+    const n = 3 - beat;
+    if (n < 1) return;
+    const scale = f < 0.12 ? 6 : 4;
+    const col = n === 1 ? GREEN : n === 2 ? GOLD : '#ff8a3a';
+    glow(ctx, W / 2, gy + gh / 2 + 4, 40 + (1 - f) * 30, col, 0.35 * (1 - f));
+    ctx.globalAlpha = f > 0.8 ? (1 - f) * 5 : 1;
+    drawText(ctx, `${n}`, W / 2, gy + gh / 2 - (scale === 6 ? 14 : 10), col, { scale, align: 'center' });
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * The results card: the score counting up, then the grade stamping down with a jolt, then a
+   * line for each thing that made it.
+   */
+  private drawScore(ctx: CanvasRenderingContext2D, gx: number, gy: number, gw: number, gh: number) {
+    const m = this.mini!;
+    const s = m.result!;
+    const g = grade(s);
+    const rows = m.breakdown?.() ?? [];
+    const cw = 260;
+    const ch = 84 + rows.length * 11;
+    const cx = Math.round(gx + (gw - cw) / 2);
+    const cy = Math.round(gy + (gh - ch) / 2);
+    const a = smooth(Math.min(1, this.pt / 0.2));
+    ctx.fillStyle = `rgba(10,7,16,${0.55 * a})`;
+    ctx.fillRect(gx, gy, gw, gh);
+    ctx.globalAlpha = a;
+    const jolt = this.shakeT > 0 ? Math.round(Math.sin(this.shakeT * 80) * 3) : 0;
+    frame(ctx, cx + jolt, cy, cw, ch, 'rgba(16,11,24,0.96)', this.pt >= STAMP_AT ? g.color : '#5a4e68');
+    // the score, counting up
+    const shown = Math.round(s * 100 * smooth(Math.min(1, this.pt / COUNT_UP)));
+    drawText(ctx, `${shown}%`, cx + 70 + jolt, cy + 14, INK, { scale: 3, align: 'center' });
+    drawText(ctx, 'SCORE', cx + 70 + jolt, cy + 40, DIM, { align: 'center' });
+    // the grade, stamped
+    if (this.pt >= STAMP_AT) {
+      const k = Math.min(1, (this.pt - STAMP_AT) / 0.12);
+      const scale = k < 1 ? 7 : 5;
+      const lx = cx + cw - 64 + jolt;
+      glow(ctx, lx, cy + 28, 44, g.color, 0.4 * (1 - k * 0.5) + (g.letter === 'S' ? 0.1 * Math.sin(this.t * 6) : 0));
+      drawText(ctx, g.letter, lx, cy + 28 - (scale * 7) / 2, g.color, { scale, align: 'center' });
+      drawText(ctx, g.word, cx + cw / 2 + jolt, cy + 56, g.color, { scale: 1, align: 'center' });
+    }
+    // what made it
+    rows.forEach(([label, value], k) => {
+      const at = STAMP_AT + 0.2 + k * 0.12;
+      if (this.pt < at) return;
+      const ry = cy + 72 + k * 11;
+      drawText(ctx, label, cx + 16, ry, DIM);
+      drawText(ctx, value, cx + cw - 16, ry, INK, { align: 'right' });
+    });
+    ctx.globalAlpha = 1;
+    if (this.pt > STAMP_AT + 0.3) {
+      const dev = this.game.devices[0] ?? 'keys';
+      hints(ctx, dev, [['confirm', 'GO ON']], W / 2, gy + gh + 22, 'center');
     }
   }
 }

@@ -1,6 +1,6 @@
 /**
  * The ship's core in flight (see game/core.ts for what it is). The level calls in here as things
- * happen: a perfect dash, a graze, a takedown, plating broken, a hit taken, a weld begun and
+ * happen: a perfect (dashed or parried), a graze, a takedown, plating broken, a hit taken, a weld begun and
  * finished, scrap caught. It keeps the fight's tally of what each vein was fed, and it answers the
  * Engine when it calls.
  *
@@ -13,7 +13,7 @@
  * angry: the Weld, the special and the heavies full, and a few seconds where everything is a blow.
  */
 
-import type { Enemy, Level, LevelEvent, Player } from './level';
+import type { Enemy, Level, LevelEvent, PerfectHow, Player } from './level';
 import { DT } from './types';
 import { FEED, IMPRINTS, agreementsOf, weightOf, type AgreementId, type CoreKit, type Fed, type ImprintId, type KnackId, type Nemva, type Vein } from '../game/core';
 import type { Hardpoint } from '../game/parts';
@@ -222,7 +222,8 @@ export class Mind {
     }
   }
 
-  perfect(p: Player) {
+  /** A perfect, dashed or parried (SEFFA'S SIGHT cuts along a dash, so only a dash's). */
+  perfect(p: Player, how: PerfectHow) {
     const lv = this.lv;
     this.bark(p, 'perfect');
     if (this.knows(p, 'coldblood')) {
@@ -237,7 +238,7 @@ export class Mind {
       lv.slowBullets = LONG_SECOND;
       this.emit(p, 'longsecond');
     }
-    if (this.has(p, 'sight')) {
+    if (how === 'dash' && this.has(p, 'sight')) {
       // along the dash: from where it began to a dash's length on
       const x0 = p.slipX;
       const z0 = lv.scroll + p.slipZ;

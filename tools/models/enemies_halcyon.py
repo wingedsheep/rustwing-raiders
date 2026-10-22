@@ -376,7 +376,7 @@ def customs_tender():
 def depth_charger():
     """A boat-hulled seaplane on a straight wing with tip floats: a revolving drum magazine of depth
     charges on its back, more charges racked on the wings, tractor props, a twin-finned tail."""
-    kind, clip, root = named("depth_charger", "bomber", "mech", "fly", preview=("#8a8a7a", "#2a3a4a", "#ffa03a"))
+    kind, clip, root = named("depth_charger", "bomber", "mech", "fly", preview=("#e0d4b0", "#2a4a7a", "#ffa03a"))
     T = 2.0
     b = Model(f"{kind}_body", seed=2301)
     out = [(0, 1.55), (-0.32, 1.35), (-0.48, 0.7), (-0.46, -1.0), (-0.24, -1.75), (0.24, -1.75), (0.46, -1.0),

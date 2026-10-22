@@ -21,8 +21,11 @@ const PANEL = 'background: #160f22; border: 2px solid #ffd04a; padding: 22px 26p
 const BUTTON = 'font: inherit; text-transform: inherit; letter-spacing: inherit; background: #2a2236; color: #ffd04a; border: 2px solid #ffd04a; padding: 6px 12px; cursor: pointer;';
 const FIELD = 'font: inherit; font-size: 20px; letter-spacing: 0.3em; width: 7.5em; background: #0b0912; color: #ffd04a; border: 2px solid #6a5a8a; padding: 4px 8px; text-transform: uppercase;';
 
-/** Opens the lobby; `start` runs once both players are in (game.net is set by then). */
-export function openLobby(game: Game, start: () => void, code?: string) {
+/**
+ * Opens the lobby; `start` runs once both players are in (game.net is set by then). `mode` goes
+ * straight to hosting, or to typing a code, rather than asking which.
+ */
+export function openLobby(game: Game, start: () => void, code?: string, mode?: 'host' | 'join') {
   if (open) return;
   const root = document.createElement('div');
   root.style.cssText = CSS;
@@ -47,8 +50,9 @@ export function openLobby(game: Game, start: () => void, code?: string) {
   };
   window.addEventListener('keydown', onKey, true);
 
+  const heading = mode === 'host' ? 'Host online co-op' : mode === 'join' ? 'Join online co-op' : 'Online co-op';
   const show = (html: string) => {
-    panel.innerHTML = `<div style="color:#ff8a3a;font-size:18px;margin-bottom:12px">Online co-op</div>${html}`;
+    panel.innerHTML = `<div style="color:#5ae0c0;font-size:18px;margin-bottom:12px">${heading}</div>${html}`;
     const cancel = document.createElement('button');
     cancel.style.cssText = BUTTON + 'margin-top:16px;color:#a090c0;border-color:#6a5a8a';
     cancel.textContent = 'Cancel (Esc)';
@@ -56,18 +60,19 @@ export function openLobby(game: Game, start: () => void, code?: string) {
     panel.append(cancel);
   };
 
-  const choose = (error = '') => {
+  const choose = (error = '', joinOnly = false) => {
     ws?.close();
     ws = null;
     show(`
       ${error ? `<p style="color:#ff6a5a">${error}</p>` : ''}
-      <p><button data-host style="${BUTTON}">Host a game</button></p>
-      <p style="color:#a090c0;margin:14px 0 6px">Or join with your partner's code</p>
+      ${joinOnly ? '' : `<p><button data-host style="${BUTTON}">Host a game</button></p>`}
+      <p style="color:#a090c0;margin:${joinOnly ? 0 : 14}px 0 6px">${joinOnly ? 'Type' : 'Or join with'} your partner's code</p>
       <form data-join style="display:flex;gap:8px">
-        <input data-code maxlength="5" autocomplete="off" spellcheck="false" style="${FIELD}">
+        <input data-code maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" style="${FIELD}">
         <button style="${BUTTON}">Join</button>
       </form>`);
-    panel.querySelector<HTMLButtonElement>('[data-host]')!.onclick = host;
+    const hostBtn = panel.querySelector<HTMLButtonElement>('[data-host]');
+    if (hostBtn) hostBtn.onclick = host;
     const field = panel.querySelector<HTMLInputElement>('[data-code]')!;
     panel.querySelector<HTMLFormElement>('[data-join]')!.onsubmit = (e) => {
       e.preventDefault();
@@ -147,5 +152,6 @@ export function openLobby(game: Game, start: () => void, code?: string) {
   };
 
   if (code) join(code);
-  else choose();
+  else if (mode === 'host') host();
+  else choose('', mode === 'join');
 }

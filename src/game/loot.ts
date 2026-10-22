@@ -148,14 +148,14 @@ export const AFFIXES: Record<AffixId, AffixSpec> = {
   // engines and dash mods
   deflecting: { name: 'DEFLECTING', text: 'A perfect dash throws the bullets it soaks back at them.', fits: (d) => d.cls === 'engine' },
   afterburn: { name: 'AFTERBURN', text: 'Dashes leave a wake of fire: what crosses it burns.', fits: (d) => d.cls === 'engine' },
-  adrenal: { name: 'ADRENAL', text: 'A perfect dash charges the special a fifth and the aux halfway.', fits: (d) => d.cls === 'engine' },
+  adrenal: { name: 'ADRENAL', text: 'A perfect (dash or parry) charges the special a fifth and the aux halfway.', fits: (d) => d.cls === 'engine' },
   // the hull
   secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you a sliver of hull.', fits: (d) => d.cls === 'defense' },
   barbed: { name: 'BARBED', text: 'Whatever rams you, or you ram, takes a hard hit and reels.', fits: (d) => d.cls === 'defense' && !d.aux },
   reactive: { name: 'REACTIVE', text: 'Losing a shield lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
   // boosters: on the guns they touch
   hotwired: { name: 'HOT-WIRED', text: 'Touching guns’ shots pierce one more.', fits: (d) => d.cls === 'booster' },
-  primed: { name: 'PRIMED', text: 'After a perfect dash, touching guns hit +60% for 3 s.', fits: (d) => d.cls === 'booster' },
+  primed: { name: 'PRIMED', text: 'After a perfect (dash or parry), touching guns hit +60% for 3 s.', fits: (d) => d.cls === 'booster' },
   // specials
   surging: { name: 'SURGING', text: 'The special also reloads every heavy and cools every gun.', fits: (d) => !!d.special },
   lingering: { name: 'LINGERING', text: 'Nothing can touch you for 1.5 s after the special.', fits: (d) => !!d.special },

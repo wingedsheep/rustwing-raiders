@@ -87,7 +87,7 @@ def sand_skimmer():
 # --- Dune Mortar: a sandbagged mortar pit, ~2.5 ------------------------------------------------------
 
 def dune_mortar():
-    kind, clip, root = named("dune_mortar", "turret", "mech", "lob", preview=("#b08a5a", "#3a2a1a", "#ffaa2a"),
+    kind, clip, root = named("dune_mortar", "turret", "mech", "lob", preview=("#b4482a", "#3a2a1a", "#ffaa2a"),
                              ground=1)
     T = 2.0
     b = Model(f"{kind}_base", seed=3010)
@@ -98,7 +98,7 @@ def dune_mortar():
             if course == 1 and k in (2, 3):                                        # a firing gap at the front
                 continue
             a = TAU * (k + 0.5 * course) / n
-            col = B if (k + course) % 2 else B.shade(1.6)
+            col = B if (k + course) % 2 else B.shade(2.6)                         # light and dark bags: a crisp ring on the sand
             b.ball(0.2, (math.cos(a) * r, math.sin(a) * r, z), col, subdiv=1, scale=(1.4, 0.95, 0.7),
                    rot=(0, 0, a + math.pi / 2), jitter=0.025)
     # shell crate behind, lid off: a bed of hot shell tips
@@ -120,9 +120,9 @@ def dune_mortar():
     h.cyl(0.6, 0.16, (0, 0, 0), B, segs=8)
     h.cyl(0.5, 0.08, (0, 0, 0.16), A.shade(0.8), segs=8)
     for s in (1, -1):
-        h.box((0.18, 0.62, 0.5), (s * 0.38, -0.02, 0.45), A)                        # trunnion cheeks
+        h.box((0.26, 0.72, 0.5), (s * 0.42, -0.02, 0.45), A)                        # trunnion cheeks
         h.box((0.2, 0.3, 0.1), (s * 0.38, -0.18, 0.74), B)
-        h.box((0.24, 0.2, 0.08), (s * 0.38, 0.18, 0.72), C)                         # hazard caps
+        h.box((0.3, 0.26, 0.08), (s * 0.42, 0.18, 0.72), C)                         # hazard caps
     h.box((0.5, 0.36, 0.3), (0, -0.4, 0.3), B.shade(1.4))                          # breech block
     h.box((0.2, 0.2, 0.22), (0.45, -0.45, 0.35), DARK)                             # spotting scope
     h.box((0.26, 0.14, 0.14), (0.45, -0.35, 0.5), C, glow=True)
@@ -130,12 +130,12 @@ def dune_mortar():
     head.name = f"{kind}_head"
     tilt = 0.72
     m = Model(f"{kind}_tube", seed=3012)
-    tube(m, 0.27, -0.38, 0.92, 0, 0, A, segs=8)
-    tube(m, 0.31, -0.1, 0.12, 0, 0, DARK, segs=8)                                  # bands
-    tube(m, 0.3, 0.5, 0.64, 0, 0, B, segs=8)
-    tube(m, 0.33, 0.86, 0.98, 0, 0, C, segs=8, glow=True)                          # hot muzzle ring
-    tube(m, 0.2, 0.9, 1.0, 0, 0, DARK, segs=8)                                     # bore
-    m.ball(0.3, (0, -0.38, 0), B, subdiv=1, scale=(1, 0.8, 1))
+    tube(m, 0.34, -0.38, 0.92, 0, 0, A, segs=8)
+    tube(m, 0.38, -0.1, 0.12, 0, 0, DARK, segs=8)                                  # bands
+    tube(m, 0.37, 0.5, 0.64, 0, 0, B, segs=8)
+    tube(m, 0.4, 0.86, 0.98, 0, 0, C, segs=8, glow=True)                           # hot muzzle ring
+    tube(m, 0.24, 0.9, 1.0, 0, 0, DARK, segs=8)                                    # bore
+    m.ball(0.36, (0, -0.38, 0), B, subdiv=1, scale=(1, 0.8, 1))
     barrel = m.build(head, loc=(0, 0, 0.5))
     barrel.rotation_euler = (tilt, 0, 0)
     ax = (0.0, math.cos(tilt), math.sin(tilt))

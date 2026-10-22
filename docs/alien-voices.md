@@ -16,7 +16,7 @@ Everything else in `src/audio.ts` is synthesized at runtime. Voices are the exce
 
 Not for us: `eleven_v4_turbo` and `eleven_v3_conversational` are the real-time models. They are built for live agents, and our clips are baked once. `eleven_v3` is the previous generation, our fallback if a designed voice sounds worse on v4 (one guide says designed voices can lose a little polish there, so compare both).
 
-**v4 voice settings:** v4 reads only `stability` and `similarity_boost`. `style`, `speed` and `use_speaker_boost` are gone, and SSML `<break>` doesn't work. Use `[pause]` instead. Lower `stability` (0.3–0.4) gives livelier reads that respond more to tags. Higher (0.6+) makes every bark match. We want low for the characters and high for the droids.
+**v4 voice settings:** v4 reads `stability`, `similarity_boost` and `speed` (1.0 default, 0.7–1.2; outside that the quality drops). `style` and `use_speaker_boost` are gone, and SSML `<break>` doesn't work in v3 or v4. Use an ellipsis (`…`) or punctuation for a pause. Lower `stability` (0.3–0.4) gives livelier reads that respond more to tags. Higher (0.6+) makes every bark match. We want low for the characters and high for the droids.
 
 ---
 
@@ -107,6 +107,27 @@ TTS reads made-up words phonetically, so we write them in **species sound-sets**
 Droids (7-Holly, Saint Ferrule) and the Choir speak **English** in-world (they are Port Authority, a shrine, and a fungus wearing a freighter's intercom). That contrast is the joke and the horror.
 
 Let audio tags do the acting, not the words: `[annoyed] Bahwoh-zza?! [scoffs] Zzimbo wahh…` Put the tag right before the words it colours.
+
+### Acting: how to get emotion out of v4
+
+Emotion comes from four things, strongest first (checked against ElevenLabs' prompting guide, 2026-10-22):
+
+1. **The voice itself.** A tag can only pull out what the voice can do. A voice designed as "fond and amused" laughs easily; one designed as "flat, clipped" will fight `[giggles]`. Put the character's *usual* mood in the design description (§4), and keep tags for what changes per bark. Deliveries in the voice's preview (whispering, shouting) come out most reliably.
+2. **Audio tags** in square brackets, right before the words they colour. A tag carries for about four or five words, then the read drifts back to neutral, so a long line may need a second tag.
+   - Emotion: `[curious]`, `[excited]`, `[sarcastic]`, `[mischievously]`, `[crying]`, `[annoyed]`, `[fondly]`, `[warmly]`, `[sadly]`
+   - Delivery: `[whispers]`, `[shouts]`, `[softly]`, `[briskly]`
+   - Reactions: `[laughs]`, `[chuckles]`, `[sighs]`, `[exhales]`, `[snorts]`, `[clears throat]`, `[gulps]`, `[wheezing]`
+   - Descriptive tags work too: `[low, gravelly voice]`, `[quiet, tired, smiling]`. Prefer these over a bare noun: a bare `[gunshot]` or `[applause]` can come out as a sound effect instead of acting.
+   - Stack them for a mixed read: `[tired] [fondly] Well, look at you.`
+   - Accents: `[strong Scottish accent]`. Less consistent across voices; test first.
+3. **Punctuation.** An ellipsis adds a pause and weight (`I lost… my first ship there.`). CAPITALS stress a word (`That's FLYING, kid.`). `?!` lifts the end of a line.
+4. **Stability.** Low (0.3–0.4) follows tags and varies take to take. High (0.6+) flattens the acting. Characters sit low, droids high.
+
+What not to do:
+
+- Don't write stage directions as prose (`she said, voice trembling`): v4 speaks them aloud. Tags only.
+- Don't make a bark too short to act. Very short text gives the least consistent reads; a two-to-five-second line with a tag at the front works best. Render a couple of takes and keep the good one.
+- Don't use the UI's **Enhance** button for barks: it adds tags by guess, and we want them chosen per character.
 
 ---
 

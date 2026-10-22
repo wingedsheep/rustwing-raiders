@@ -6,9 +6,9 @@ No one faction: the wild fight alongside the planet's own wherever a biome has c
 
 - **Tell:** *rear*. It rears back, crouches and shakes dust, and its shadow falls where it will land.
 - **Colours:** moss `6a8a3a`, bone `e0d0a0`, pink `ff5a8a`. Leans 20% towards the planet's own beasts.
-- **Look:** hide, chitin, feathers; curves, crouches, tails; earth tones with a hot accent where they strike. **Sound:** breaths, chirps, a roar on the tell.
+- **Look:** hide, chitin, husk and membrane (no birds: what flies here was grown or seeded); curves, crouches, tails; earth tones with a hot accent where they strike. **Sound:** breaths, chirps, a roar on the tell.
 - **Bullets:** wobbling, dripping globs, thorns, egg sacs; a cancelled one splashes.
-- **Roster:** [Swooper](../enemies/swooper.md) (0), [Spitter](../enemies/spitter.md) (5%), [Burrower](../enemies/burrower.md) (20%), [Sky Manta](../enemies/sky-manta.md) (20%).
+- **Roster:** [Sower](../enemies/sower.md) (0), [Spitter](../enemies/spitter.md) (5%), [Burrower](../enemies/burrower.md) (20%), [Sky Manta](../enemies/sky-manta.md) (20%).
 - **Bounties:** [Loot Runner](../enemies/loot-runner.md), [Iron Crate](../enemies/iron-crate.md).
 - **Elite names:** SCARBACK, GREYMAW, OLD MOTHER, THE WIDOW, SPLITHORN, HOLLOWEYE.
 

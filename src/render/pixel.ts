@@ -129,6 +129,10 @@ export class PixelRenderer {
         uTime: { value: 0 },
         uFade: { value: 0 },
         uFadeColor: { value: new THREE.Color(0x0b0912) },
+        uImpact: { value: 0 }, // an impact frame: the picture flipped to two tones, paper and ink
+        uImpactColor: { value: new THREE.Color(1, 1, 1) }, // the paper's colour
+        uAberr: { value: 0 }, // the colours split apart at the edges (a blow to the ship)
+        uDrain: { value: 0 }, // the colour drains out of all but the brightest (time slowed)
       },
       vertexShader,
       fragmentShader: /* glsl */ `
@@ -159,6 +163,10 @@ export class PixelRenderer {
         uniform float uTime;
         uniform float uFade;
         uniform vec3 uFadeColor;
+        uniform float uImpact;
+        uniform vec3 uImpactColor;
+        uniform float uAberr;
+        uniform float uDrain;
         varying vec2 vUv;
 
         ivec2 size;
@@ -220,6 +228,11 @@ export class PixelRenderer {
           }
           vec3 col = at(p);
           vec2 q = (vec2(p) / vec2(size) - 0.5) * vec2(float(size.x) / float(size.y), 1.0);
+          if (uAberr > 0.0) {
+            // red out, blue in, more the further from the middle (whole texels: still pixel art)
+            ivec2 o = ivec2(round(q * uAberr * 14.0));
+            col = vec3(at(p + o).r, col.g, at(p - o).b);
+          }
           if (uSpeed > 0.0) {
             // speed: the edges of the picture smear back down the screen
             float e = smoothstep(0.35, 0.95, length(q)) * uSpeed;
@@ -261,6 +274,12 @@ export class PixelRenderer {
           // split tone, as a painter would: shadows go cool, light goes warm
           float lt = dot(col, vec3(0.299, 0.587, 0.114));
           col = mix(col, col * mix(uShade, uLight, smoothstep(0.1, 0.75, lt)), uTone);
+          if (uDrain > 0.0) {
+            // the world goes grey and cool; what burns bright keeps its colour
+            float hot = smoothstep(0.55, 0.9, max(col.r, max(col.g, col.b)));
+            vec3 grey = vec3(dot(col, vec3(0.299, 0.587, 0.114))) * mix(vec3(1.0), uShade * 1.25, 0.5);
+            col = mix(col, grey * 0.85, uDrain * (1.0 - hot));
+          }
 
           float v = smoothstep(0.5, 1.15, length(q)) * uVignette;
           col = mix(col, col * uShade * 0.5, v * 0.6);
@@ -270,6 +289,13 @@ export class PixelRenderer {
             col = mix(col, vec3(0.9, 0.1, 0.15), e * 0.6);
           }
           if (uFlash.a > 0.0) col = mix(col, uFlash.rgb, uFlash.a * 0.75);
+          if (uImpact > 0.0) {
+            // an impact frame: the world goes to paper, and what matters to ink (the foes, what
+            // burns bright, and the silhouettes of everything, so the land shows as a sketch)
+            float li = dot(col, vec3(0.299, 0.587, 0.114));
+            float ink = max(step(0.7, li), max(step(0.5, edge), foeZ(p) < 1.0 ? 1.0 : 0.0));
+            col = mix(col, mix(uImpactColor, vec3(0.05, 0.035, 0.07), ink), uImpact);
+          }
           if (uFade > 0.0) {
             // an iris: the edges close first, in chunky steps so it stays pixel art
             float d = length(q) / 0.9;

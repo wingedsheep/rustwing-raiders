@@ -1400,6 +1400,9 @@ export class BoardingView {
     u.uFlash.value.set(this.flashColor.r, this.flashColor.g, this.flashColor.b, this.flash);
     u.uHurt.value = Math.max(this.hurt, this.lowHull() * (0.25 + 0.15 * Math.sin(this.time * 6)));
     u.uSpeed.value = 0;
+    u.uImpact.value = 0;
+    u.uAberr.value = 0;
+    u.uDrain.value = 0;
     u.uHeat.value = 0;
     u.uFade.value = 0;
     u.uVignette.value = 0.6 + this.kelterK * 0.15;

@@ -7,7 +7,7 @@
  * how you fly.
  *
  * - **It takes in what it sees you do.** Every fight, each of its three **veins** is fed by its own
- *   kind of flying: NERVE by perfect dashes, grazes, Warden phases flown CLEAN and levels without a
+ *   kind of flying: NERVE by perfects (dashed or parried), grazes, Warden phases flown CLEAN and levels without a
  *   scratch; STEEL by takedowns, edge crits and full clears; GREASE by welds, revives and the tin
  *   scooped. Enough, all told, and the core **grows a knot**.
  * - **Attention, not desire** (docs/lore/consensus.md). A knot only grows on a vein you fed in
@@ -166,11 +166,11 @@ export interface KnackDef {
 const K = (d: KnackDef) => d;
 
 export const KNACKS: Record<KnackId, KnackDef> = {
-  coldblood: K({ id: 'coldblood', name: 'COLD BLOOD', vein: 'nerve', text: 'A PERFECT DASH FILLS THE BURN', tip: 'READ THE FIRE, THEN BOOST OUT OF IT' }),
+  coldblood: K({ id: 'coldblood', name: 'COLD BLOOD', vein: 'nerve', text: 'A PERFECT FILLS THE BURN', tip: 'READ THE FIRE, THEN BOOST OUT OF IT' }),
   slipknot: K({ id: 'slipknot', name: 'SLIPKNOT', vein: 'nerve', text: 'A GRAZE GIVES A DASH BACK (ONE A SECOND)', tip: 'SHAVE THE BULLETS AND THE DASHES NEVER RUN DRY' }),
   stillnerve: K({ id: 'stillnerve', name: 'STILL NERVE', vein: 'nerve', text: 'DASH WHILE HOLDING FOCUS AND THE PERFECT WINDOW IS TWICE AS LONG', tip: 'SLOW DOWN, WAIT FOR IT, GO' }),
-  longsecond: K({ id: 'longsecond', name: 'THE LONG SECOND', vein: 'nerve', talisman: true, text: 'A PERFECT DASH SLOWS EVERY ENEMY BULLET TO A CRAWL FOR A SECOND', tip: 'THREAD THE NEEDLE, THEN WALK OUT' }),
-  deadeye: K({ id: 'deadeye', name: 'DEADEYE', vein: 'nerve', talisman: true, text: 'FOR 1.5 S AFTER A PERFECT DASH, EVERYTHING YOUR GUNS FIRE IS A BLOW', tip: 'A PERFECT, THEN HOSE THE PLATING OFF' }),
+  longsecond: K({ id: 'longsecond', name: 'THE LONG SECOND', vein: 'nerve', talisman: true, text: 'A PERFECT SLOWS EVERY ENEMY BULLET TO A CRAWL FOR A SECOND', tip: 'THREAD THE NEEDLE, THEN WALK OUT' }),
+  deadeye: K({ id: 'deadeye', name: 'DEADEYE', vein: 'nerve', talisman: true, text: 'FOR 1.5 S AFTER A PERFECT, EVERYTHING YOUR GUNS FIRE IS A BLOW', tip: 'A PERFECT, THEN HOSE THE PLATING OFF' }),
   follow: K({ id: 'follow', name: 'FOLLOW THROUGH', vein: 'steel', text: 'A TAKEDOWN PUTS A ROUND BACK IN EVERY HEAVY', tip: 'TAKEDOWN, THEN THE HEAVY: THE NEXT ONE OPENS' }),
   splinter: K({ id: 'splinter', name: 'SPLINTERS', vein: 'steel', text: 'BREAKING PLATING THROWS SHRAPNEL INTO WHAT’S NEAR', tip: 'CRACK THE BIG ONE IN THE MIDDLE' }),
   brace: K({ id: 'brace', name: 'BRACE', vein: 'steel', text: 'WHAT YOU STAGGER REELS TWICE AS LONG', tip: 'TIME TO LINE UP THE TAKEDOWN' }),

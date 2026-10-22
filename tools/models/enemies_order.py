@@ -6,8 +6,9 @@ runtime multiplies each by its FOES `scale`. Seeds 10000-10999.
 from __future__ import annotations
 
 import math
+import os
 
-from kit import Model
+from kit import Model, animate
 from creatures_util import TAU, chain, flat, limb, osc, sample, smooth_keys
 from enemies_lib import A, B, C, DARK, both, eyes, fin, flame, hull, marker, mirror, mount, named, pulse, spin, tube, wing_pair
 
@@ -158,7 +159,8 @@ def prism():
 def gatekeeper():
     """A lattice gate pylon on the ground: a tapering white obelisk on an octagonal plinth, a slate
     jamb down its +y face with a rail of light where the gate hangs, a floating capstone and the
-    glowing node the gate springs from. ~2.5 across, ~3.4 tall."""
+    glowing node the gate springs from. ~2.5 across, ~2.1 tall: kept squat so under the camera's tilt
+    the capstone and node stay over the plinth, where it's hit."""
     kind, clip, root = named("gatekeeper", "turret", "mech", "hold", preview=LATTICE, ground=1)
     T = 3.0
     b = Model(f"{kind}_base", seed=10020)
@@ -169,40 +171,40 @@ def gatekeeper():
         a = TAU * (k + 0.5) / 8
         b.box((0.26, 0.14, 0.08), (math.cos(a) * 1.04, math.sin(a) * 1.04, 0.33), C, glow=True, rot=(0, 0, a))
     for s in (1, -1):  # buttresses either side
-        fin(b, [(-0.35, 0.5), (0.35, 0.5), (0.18, 1.35), (-0.18, 1.35)], s * 0.58, 0.22, B)
+        fin(b, [(-0.35, 0.5), (0.35, 0.5), (0.2, 0.92), (-0.2, 0.92)], s * 0.58, 0.22, B)
         fin(b, [(-0.6, 0.0), (0.6, 0.0), (0.4, 0.5), (-0.4, 0.5)], s * 1.0, 0.3, B)
     q = (0, 0, math.pi / 4)
-    b.cyl(0.62, 1.05, (0, 0, 0.55), A, segs=4, r_top=0.52, rot=q)                          # the obelisk, lower
-    b.cyl(0.56, 0.16, (0, 0, 1.55), B, segs=4, rot=q)                                     # slate collar
-    b.cyl(0.5, 1.1, (0, 0, 1.7), A, segs=4, r_top=0.36, rot=q)                             # upper
-    b.cyl(0.36, 0.0, (0, 0, 2.8), A, segs=4, rot=q)
-    b.cyl(0.38, 0.22, (0, 0, 2.8), A.shade(0.8), segs=4, r_top=0.1, rot=q)                 # pyramid top
+    b.cyl(0.66, 0.4, (0, 0, 0.55), A, segs=4, r_top=0.56, rot=q)                           # the obelisk, lower
+    b.cyl(0.6, 0.14, (0, 0, 0.95), B, segs=4, rot=q)                                      # slate collar
+    b.cyl(0.54, 0.35, (0, 0, 1.09), A, segs=4, r_top=0.42, rot=q)                          # upper
+    b.cyl(0.42, 0.0, (0, 0, 1.44), A, segs=4, rot=q)
+    b.cyl(0.44, 0.2, (0, 0, 1.44), A.shade(0.8), segs=4, r_top=0.12, rot=q)                # pyramid top
     for s in (1, -1):  # light slots on the flanks
-        b.box((0.06, 0.16, 0.7), (s * 0.42, 0.0, 1.1), C, glow=True, rot=(0, -s * 0.05, 0))
-        b.box((0.06, 0.14, 0.6), (s * 0.33, 0.0, 2.2), C, glow=True, rot=(0, -s * 0.06, 0))
+        b.box((0.08, 0.2, 0.32), (s * 0.5, 0.0, 0.76), C, glow=True, rot=(0, -s * 0.12, 0))
+        b.box((0.08, 0.18, 0.26), (s * 0.43, 0.0, 1.26), C, glow=True, rot=(0, -s * 0.15, 0))
     # the jamb: a slate fin down the +y face, its edge a rail of light
-    fin(b, [(0.2, 0.5), (1.05, 0.55), (1.05, 2.45), (0.25, 2.6)], 0, 0.34, B)
-    fin(b, [(1.03, 0.65), (1.16, 0.7), (1.16, 2.4), (1.03, 2.4)], 0, 0.22, C, glow=True)
+    fin(b, [(0.2, 0.5), (1.05, 0.55), (1.05, 1.42), (0.25, 1.52)], 0, 0.34, B)
+    fin(b, [(1.03, 0.65), (1.16, 0.7), (1.16, 1.38), (1.03, 1.38)], 0, 0.22, C, glow=True)
     # the arm the gate springs from, reaching towards its twin
-    b.box((0.44, 1.3, 0.3), (0, 0.85, 2.6), A, taper=0.85)
-    b.box((0.2, 0.9, 0.06), (0, 0.95, 2.77), C, glow=True)
-    b.box((0.62, 0.5, 0.42), (0, 1.45, 2.6), B)                                            # the node's cradle
+    b.box((0.44, 0.9, 0.3), (0, 0.6, 1.35), A, taper=0.85)
+    b.box((0.2, 0.6, 0.06), (0, 0.65, 1.52), C, glow=True)
+    b.box((0.62, 0.5, 0.42), (0, 1.05, 1.35), B)                                           # the node's cradle
     for s in (1, -1):
-        b.box((0.12, 0.42, 0.5), (s * 0.3, 1.58, 2.85), B)
+        b.box((0.12, 0.42, 0.5), (s * 0.3, 1.18, 1.6), B)
     base = b.build(root)
     nd = Model(f"{kind}_node", seed=10021)
     nd.ball(0.32, (0, 0, 0), C, subdiv=1, glow=True)
-    node = nd.build(base, loc=(0, 1.55, 3.0))
+    node = nd.build(base, loc=(0, 1.15, 1.75))
     pulse(node, clip, T, 0.2, harm=3)
     cap = Model(f"{kind}_cap", seed=10022)
     gem(cap, 0.3, 0.32, 0.26, (0, 0, 0), A, segs=4)
     cap.box((0.16, 0.16, 0.16), (0, 0, 0.0), C, glow=True)
     gem(cap, 0.16, 0.18, 0.14, (0, 0, 0), C, segs=4, glow=True, rot=(0, 0, math.pi / 4))
-    capstone = cap.build(base, loc=(0, 0, 3.25))
+    capstone = cap.build(base, loc=(0, 0, 1.95))
     spin(capstone, clip, T, 1)
     osc(capstone, clip, "location", T, (2, 0.08, 1, 0))
-    marker(base, kind, "emitter", (0, 1.55, 3.0))
-    mount(base, kind, "muzzle", (0, 1.55, 3.0))
+    marker(base, kind, "emitter", (0, 1.15, 1.75))
+    mount(base, kind, "muzzle", (0, 1.15, 1.75))
 
 
 def rook():
@@ -357,7 +359,8 @@ def strongbox():
     dl.cyl(0.36, 0.14, (0, 0, 0), C, segs=8, glow=True)
     dl.box((0.12, 0.3, 0.06), (0, 0.18, 0.14), B)
     dial = dl.build(wheel, loc=(0, 0, 0.18))
-    sample(dial, clip, "rotation_euler", T, clicks(4, -1.0), step=1)
+    # (the dial rides the wheel, which turns half a turn a loop: -1.5 here makes a whole turn either way, so the loop is seamless)
+    sample(dial, clip, "rotation_euler", T, clicks(4, -1.5), step=1)
     marker(body, kind, "bay", (0, 0, 1.0))
     osc(body, clip, "location", T, (2, 0.1, 1, 0))
     osc(body, clip, "rotation_euler", T, (0, 0.03, 1, 0.25), (1, 0.03, 1, 0))
@@ -365,68 +368,96 @@ def strongbox():
 
 # --- the wild -------------------------------------------------------------------------------------
 
-def swooper():
-    """A raptor: broad fingered wings, a hooked beak, a fanned tail, talons tucked, pink flash
-    bands under the wing glow. Heavy, strong wingbeats. ~1.8 span, ~1.3 long."""
-    kind, clip, root = named("swooper", "swarm", "beast", "beat", preview=WILD)
-    T = 0.75
+_osc, _spin, _pulse = osc, spin, pulse
+
+
+def sower():
+    """A Tonkva sower: a seed grown to plant the kept seed, still sowing a thousand years on. A faceted
+    husk split down the back over a glowing seed-heart, a bone planting-spike in front, a tassel of
+    roots behind, and a crown of four papery vanes that spins like a falling maple key, a pink eye-spot
+    near each tip. Circling, the crown turns and the vanes ripple round it; `_fold` (a pose, blended in
+    by the runtime as it dives) sweeps the vanes back into a dart behind the spike. ~2 across."""
+    kind, clip, root = named("sower", "swarm", "beast", "spin", preview=WILD)
+    # SOWER_FOLD_PREVIEW=1 (previews only): no idle, the fold played as the idle, to look at --frame 1
+    still = bool(os.environ.get("SOWER_FOLD_PREVIEW"))
+    fold = clip if still else f"{kind}_fold"
+    osc = (lambda *a, **k: None) if still else _osc
+    spin = (lambda *a, **k: None) if still else _spin
+    pulse = (lambda *a, **k: None) if still else _pulse
+    T = 1.2
     b = Model(f"{kind}_body", seed=10100)
-    b.ball(1.0, (0, 0.0, 0.0), A, subdiv=1, scale=(0.21, 0.42, 0.17))
-    b.ball(1.0, (0, 0.02, -0.06), B, subdiv=1, scale=(0.17, 0.34, 0.12))                  # cream breast
-    b.ball(1.0, (0, -0.05, 0.08), A.shade(0.62), subdiv=1, scale=(0.14, 0.3, 0.1))        # dark mantle
-    b.ball(0.18, (0, 0.4, 0.06), B, subdiv=1, scale=(1, 1.1, 0.9))                         # the pale hood
-    b.ball(0.15, (0, 0.27, 0.1), B, subdiv=1, scale=(1.1, 1.0, 0.7))                        # down the neck
-    for s in (1, -1):
-        b.ball(0.065, (s * 0.11, 0.48, 0.1), C, subdiv=1, glow=True)
-        b.box((0.07, 0.15, 0.05), (s * 0.08, 0.47, 0.18), A.shade(0.45), rot=(0, 0, s * 0.45))  # a scowling brow
-    limb(b, (0, 0.52, 0.07), (0, 0.7, 0.03), 0.08, 0.04, A.shade(0.45), segs=5)                # the hooked beak
-    limb(b, (0, 0.7, 0.03), (0, 0.76, -0.07), 0.04, 0.0, DARK, segs=4)
-    for s in (1, -1):  # crest swept back
-        limb(b, (s * 0.04, 0.3, 0.16), (s * 0.1, 0.08, 0.24), 0.05, 0.0, B, segs=4)
-        limb(b, (s * 0.07, -0.18, -0.12), (s * 0.08, -0.36, -0.16), 0.05, 0.03, DARK, segs=4)  # tucked legs
-        b.box((0.08, 0.1, 0.05), (s * 0.08, -0.39, -0.17), BONE)                           # talons
+    b.ball(1.0, (0, 0.0, 0.0), A, subdiv=1, scale=(0.28, 0.4, 0.2))                       # the husk
+    b.ball(1.0, (0, -0.02, -0.07), A.shade(0.6), subdiv=1, scale=(0.24, 0.34, 0.14))           # dark belly
+    for s in (1, -1):  # the husk's two bone halves, parted over the heart
+        half = [(0.07, 0.34), (0.05, -0.34), (0.19, -0.27), (0.29, -0.02), (0.23, 0.24)]
+        hull(b, half if s > 0 else mirror(half), 0.08, 0.2, BONE, inset=0.75)
+        for y in (0.12, -0.1):  # ridges across each half
+            b.box((0.12, 0.05, 0.04), (s * 0.15, y, 0.2), A.shade(0.55), rot=(0, s * 0.35, 0))
+    b.cyl(0.15, 0.08, (0, 0.33, -0.02), A.shade(0.5), segs=6, rot=(-math.pi / 2, 0, 0))     # collar
+    limb(b, (0, 0.4, -0.02), (0, 0.8, -0.08), 0.1, 0.0, BONE, segs=5)                     # the planting-spike
+    limb(b, (0, 0.46, 0.02), (0, 0.66, -0.02), 0.035, 0.0, A.shade(0.45), segs=4)              # its dark groove
     body = b.build(root)
 
-    def wing(s):  # inner panel: cream leading edge, pink flash band
-        w = Model(f"{kind}_wing_{'r' if s > 0 else 'l'}", seed=10101 + (s > 0))
-        inner = [(0, 0.18), (0, -0.26), (0.45, -0.3), (0.45, 0.16)]
-        hull(w, inner if s > 0 else mirror(inner), -0.03, 0.04, A, inset=0.9)
-        lead = [(0.0, 0.18), (0.0, 0.08), (0.45, 0.06), (0.45, 0.16)]
-        flat(w, lead if s > 0 else mirror(lead), 0.05, 0.03, B)
-        band = [(0.1, -0.05), (0.1, -0.13), (0.45, -0.15), (0.45, -0.07)]
-        flat(w, band if s > 0 else mirror(band), 0.05, 0.03, C, glow=True)
-        trail = [(0.0, -0.18), (0.0, -0.27), (0.45, -0.31), (0.45, -0.22)]                  # dark trailing feathers
-        flat(w, trail if s > 0 else mirror(trail), 0.045, 0.03, A.shade(0.5))
-        return w
+    ht = Model(f"{kind}_heart", seed=10101)
+    ht.ball(0.12, (0, 0, 0), C, subdiv=1, glow=True, scale=(0.6, 2.5, 0.8))
+    heart = ht.build(body, loc=(0, -0.01, 0.15))
+    pulse(heart, clip, T, 0.16, harm=2)
+    animate(heart, fold, "scale", [(0, (0, 0, 0)), (1.0, (0.45, 0.3, 0.45))])
 
-    def tip(s):  # outer panel and the fingered primaries
-        w = Model(f"{kind}_tip_{'r' if s > 0 else 'l'}", seed=10103 + (s > 0))
-        panel = [(0, 0.16), (0, -0.3), (0.22, -0.24), (0.3, 0.1)]
-        hull(w, panel if s > 0 else mirror(panel), -0.03, 0.035, A, inset=0.9)
-        lead = [(0.0, 0.16), (0.0, 0.06), (0.28, 0.03), (0.3, 0.1)]
-        flat(w, lead if s > 0 else mirror(lead), 0.045, 0.03, B)
-        for k, (dy, L) in enumerate(((0.06, 0.36), (-0.04, 0.38), (-0.13, 0.34), (-0.21, 0.28))):
-            ang = 0.25 - k * 0.3
-            x0, y0 = 0.2, dy
-            x1, y1 = x0 + math.cos(ang) * L, y0 + math.sin(ang) * L
-            limb(w, (s * x0, y0, 0.0), (s * x1, y1, 0.0), 0.065, 0.03, A.shade(0.42), segs=4)
-        return w
+    # the roots: three pale threads trailing, a second joint lagging the first so they whip
+    rt = Model(f"{kind}_roots", seed=10102)
+    rtip = Model(f"{kind}_roots_tip", seed=10103)
+    for x, dx in ((0.0, 0.0), (0.07, 0.1), (-0.07, -0.1)):
+        limb(rt, (x, 0.0, 0.0), (x + dx * 0.6, -0.3, -0.03), 0.045, 0.035, B, segs=4)
+        limb(rtip, (x + dx * 0.6, 0.0, 0.0), (x + dx, -0.26, 0.0), 0.035, 0.0, B, segs=4)
+    rtip.ball(0.05, (0.0, -0.22, 0.0), C, subdiv=1, glow=True)
+    roots = rt.build(body, loc=(0, -0.36, -0.02))
+    tip = rtip.build(roots, loc=(0, -0.3, -0.03))
+    osc(roots, clip, "rotation_euler", T, (2, 0.22, 1, 0.0), (0, 0.12, 2, 0.1))
+    osc(tip, clip, "rotation_euler", T, (2, 0.35, 1, -0.2), (0, 0.15, 2, -0.1))
+    animate(roots, fold, "scale", [(0, (0, 0, 0)), (1.0, (-0.25, 0.5, 0))])                 # streaming back
 
-    for s in (1, -1):
-        wi = wing(s).build(body, loc=(s * 0.14, 0.04, 0.04))
-        osc(wi, clip, "rotation_euler", T, (1, -s * 0.5, 1, 0.0))
-        wo = tip(s).build(wi, loc=(s * 0.45, 0.0, 0.0))
-        osc(wo, clip, "rotation_euler", T, (1, -s * 0.4, 1, -0.1), (2, s * 0.12, 1, 0.15))
-    tl = Model(f"{kind}_tail", seed=10105)
-    fan = [(-0.07, 0.0), (-0.24, -0.36), (-0.1, -0.44), (0.1, -0.44), (0.24, -0.36), (0.07, 0.0)]
-    hull(tl, fan, -0.025, 0.03, A.shade(0.62), inset=0.85)
-    flat(tl, [(-0.17, -0.3), (-0.12, -0.36), (0.12, -0.36), (0.17, -0.3)], 0.045, 0.03, B)  # a cream bar
-    tail = tl.build(body, loc=(0, -0.32, 0.02))
-    osc(tail, clip, "rotation_euler", T, (0, 0.15, 1, 0.3), (2, 0.08, 1, 0.1))
-    marker(body, kind, "muzzle", (0, 0.72, 0.0))
-    # it rises on each downstroke
-    osc(body, clip, "location", T, (2, 0.06, 1, 0.5))
-    osc(body, clip, "rotation_euler", T, (0, 0.06, 1, 0.75))
+    # the crown: a hub that turns, four hinges on it (the fold), a vane on each (the ripple)
+    cr = Model(f"{kind}_crown", seed=10104)
+    cr.cyl(0.1, 0.08, (0, 0, -0.04), A.shade(0.55), segs=6)
+    cr.cyl(0.055, 0.06, (0, 0, 0.03), BONE, segs=6)
+    crown = cr.build(body, loc=(0, -0.01, 0.24))
+    spin(crown, clip, T, 0.5)  # four-fold, so half a turn a loop is seamless
+    # folded: the front pair sweeps right round to lie back along the spine, on top; the rear pair
+    # tucks in under them; all of them turned half edge-on, so seen from above it's a narrow dart
+    sweep = {45: -117, 135: 117, 225: 37, 315: -37}
+    for k, a in enumerate((45, 135, 225, 315)):
+        hg = Model(f"{kind}_hinge_{k}", seed=10110 + k)
+        hg.ball(0.05, (0, 0, 0), A.shade(0.55), subdiv=0)
+        hinge = hg.build(crown, loc=(math.cos(math.radians(a)) * 0.1, math.sin(math.radians(a)) * 0.1, 0.0),
+                         rot_z=math.radians(a))
+        front = a < 180
+        animate(hinge, fold, "rotation_euler",
+                [(0, (0, 0, 0)), (1.0, (0.9 if front else -0.9, -0.25 if front else 0.05, math.radians(sweep[a])))])
+        animate(hinge, fold, "location", [(0, (0, 0, 0)), (1.0, (0, 0, 0.08 if front else -0.06))])
+        v = Model(f"{kind}_vane_{k}", seed=10120 + k)
+        def curl(x, y):  # the blade sweeps back from the turn, like a key's
+            return (x, y - 0.16 * (x / 0.88) ** 2)
+        out = [curl(x, y) for x, y in ((0.0, -0.035), (0.28, -0.08), (0.62, -0.13), (0.86, -0.09), (0.93, 0.06),
+                                       (0.8, 0.2), (0.52, 0.22), (0.22, 0.12), (0.0, 0.045))]
+        flat(v, out, 0.0, 0.03, B.shade(0.72))                                                # the membrane, dry as a key
+        root_ = [curl(x, y) for x, y in ((0.0, -0.035), (0.3, -0.07), (0.34, 0.13), (0.0, 0.045))]
+        flat(v, root_, 0.012, 0.03, A.shade(0.4))                                              # dark at the root
+        limb(v, (*curl(0.0, 0.035), 0.022), (*curl(0.84, 0.17), 0.022), 0.05, 0.03, A.shade(0.45), segs=4)  # dark leading rib
+        limb(v, (*curl(0.2, 0.02), 0.022), (*curl(0.78, -0.04), 0.022), 0.022, 0.014, A.shade(0.4), segs=3)  # a vein
+        sx, sy = curl(0.66, 0.06)
+        v.ball(1.0, (sx, sy, 0.035), C, subdiv=1, glow=True, scale=(0.11, 0.09, 0.02))         # eye-spot
+        v.ball(1.0, (sx, sy, 0.024), A.shade(0.4), subdiv=1, scale=(0.155, 0.125, 0.015))     # its dark ring
+        vane = v.build(hinge, loc=(0.0, 0.0, 0.0))
+        vane.rotation_euler = (0.22, -0.14, 0.0)  # pitched like a key's blade, tips a little up
+        # the ripple runs round the crown: each vane lifts a quarter-beat after the one before
+        osc(vane, clip, "rotation_euler", T, (1, 0.14, 2, k * 0.25), (0, 0.06, 4, k * 0.25))
+
+    marker(body, kind, "muzzle", (0, 0.8, 0.0))
+    # bobbing on the vanes' pulse, and the slow wobble of a spinning seed
+    osc(body, clip, "location", T, (2, 0.05, 2, 0.25))
+    osc(body, clip, "rotation_euler", T, (0, 0.06, 1, 0.0), (1, 0.06, 1, 0.25))
+    animate(body, fold, "rotation_euler", [(0, (0, 0, 0)), (1.0, (-0.12, 0, 0))])            # nose down
 
 
 def burrower():
@@ -610,7 +641,7 @@ def build():
     gatekeeper()
     rook()
     strongbox()
-    swooper()
+    sower()
     burrower()
     spitter()
     puffball()

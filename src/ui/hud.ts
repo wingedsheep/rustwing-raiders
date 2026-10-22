@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { HULL_STEP, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
-import { poiseOf, readLine, sigName } from '../sim/boss';
+import { HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
+import { poiseOf, sigName } from '../sim/boss';
+import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
 import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
 import { coreBadge } from './core-icon';
@@ -41,6 +42,8 @@ export const RED = '#ff5a4a';
 export const WELD = '#8affb0';
 export const GREEN = '#8affb0';
 export const CYAN = '#8affe0';
+/** The riposte's gold (as the view's). */
+const RIPOSTE = '#ffd060';
 
 /** The convoy's colour (an escort's haulers), and what their hull bars go through as they're worn down. */
 export const HAULER = '#8ad0ff';
@@ -161,6 +164,8 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
 export class Hud {
   private v = new THREE.Vector3();
   time = 0;
+  /** The chain of kills, as pips. */
+  private chain = new ChainPips();
   /** The field-guide card showing (see journal). */
   private guide: { kind: Foe; t: number; color: string } | null = null;
   /** Device pixels, and device pixels per UI texel (to put world points on the UI). */
@@ -169,6 +174,10 @@ export class Hud {
   scale = 1;
   /** Each player's heavy button, as a prompt names it ('X', 'O'). */
   heavyKeys: string[] = [];
+  /** And each player's aux button (the guard's hint names it). */
+  auxKeys: string[] = [];
+  /** The view, as last drawn (the plates read its flashes). */
+  private view: LevelView | null = null;
   /** Each player's device (the pause shows their controls). */
   devs: DeviceId[] = [];
   /** Scrap on its way up to the tin, from where it was picked up (UI texels); it counts when it lands. */
@@ -188,6 +197,7 @@ export class Hud {
       this.motes.push({ x: s.x, y: s.y, t: 0, v: g.v, bend: (Math.random() - 0.5) * 140 });
     }
     view.scrapGot.length = 0;
+    this.view = view;
     this.topBar(ctx, lv);
     this.field(ctx, lv, view);
     this.flyMotes(ctx);
@@ -282,10 +292,6 @@ export class Hud {
     this.bump = Math.max(0, b - 4 / 60);
     drawText(ctx, String(lv.score).padStart(7, '0'), ps[1] ? tx + 98 : tx - 4, 7, INK, { align: 'right', shadow: false });
     void align;
-    if (lv.combo > 1) {
-      const big = lv.combo > 20;
-      drawText(ctx, `${lv.combo}× CHAIN`, w / 2, 30, big ? GOLD : CYAN, { align: 'center' });
-    }
   }
 
   /** The scrap flying up to the tin: off to the side first, then drawn in hard, a short gold tail behind. */
@@ -333,6 +339,38 @@ export class Hud {
     }
   }
 
+  /**
+   * At the ship, only when they matter: the riposte draining away in gold over it; the dashes,
+   * flashed red under it when one was pressed with none left; and, early in a run on a ship with a
+   * guard, how to parry, until the first one lands.
+   */
+  private counters(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, y: number) {
+    if (p.riposte > 0) {
+      const gw = 26;
+      const k = p.riposte / RIPOSTE_SHOWN;
+      ctx.fillStyle = 'rgba(14,10,22,0.7)';
+      ctx.fillRect(Math.round(x - gw / 2) - 1, Math.round(y - 19), gw + 2, 4);
+      ctx.fillStyle = k > 0.25 || Math.floor(this.time * 12) % 2 ? RIPOSTE : '#ffffff';
+      ctx.fillRect(Math.round(x - (gw * k) / 2), Math.round(y - 18), Math.max(1, Math.round(gw * k)), 2);
+    }
+    const dry = this.view?.dryT[p.id] ?? 9;
+    if (dry < 0.45) {
+      const n = p.stats.dashes;
+      const x0 = Math.round(x - (n * 6 - 1) / 2);
+      const jolt = dry < 0.1 ? Math.round(Math.sin(dry * 120) * 2) : 0;
+      for (let i = 0; i < n; i++) {
+        ctx.fillStyle = 'rgba(14,10,22,0.7)';
+        ctx.fillRect(x0 + i * 6 - 1 + jolt, Math.round(y + 29), 6, 5);
+        ctx.fillStyle = i < p.dashes ? hex(LIVERY[p.id][2]) : Math.floor(dry * 16) % 2 ? RED : '#5a2a2a';
+        ctx.fillRect(x0 + i * 6 + jolt, Math.round(y + 30), 4, 3);
+      }
+    }
+    if (p.stats.aux === 'parry' && p.parries === 0 && lv.spec.difficulty < 0.35 && lv.time > 5 && lv.time < 40 && this.time % 6 < 2.4) {
+      drawText(ctx, `${this.auxKeys[p.id] ?? 'AUX'} AS FIRE LANDS: PARRY`, x, y + 38, '#ffffff', { align: 'center' });
+      drawText(ctx, 'A PERFECT, AND THE GUNS RIPOSTE', x, y + 47, RIPOSTE, { align: 'center' });
+    }
+  }
+
   /** A player's plate: hull, shield, dashes, special, at one end of the top bar. */
   private player(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, side: 'left' | 'right') {
     const s = p.stats;
@@ -376,8 +414,9 @@ export class Hud {
     cx += 9;
     // dashes: pips, the next one filling
     cx += 3;
+    const dry = (this.view?.dryT[p.id] ?? 9) < 0.35 && Math.floor(this.time * 16) % 2 === 0;
     for (let i = 0; i < s.dashes; i++) {
-      ctx.fillStyle = i < p.dashes ? col : '#3a2e48';
+      ctx.fillStyle = dry ? RED : i < p.dashes ? col : '#3a2e48';
       ctx.fillRect(cx, 9, 5, 4);
       if (i === p.dashes && p.dashes < s.dashes) {
         ctx.fillStyle = col;
@@ -393,7 +432,9 @@ export class Hud {
       const k = ready ? 1 : 1 - p.auxCd / Math.max(0.01, p.auxMax);
       ctx.fillStyle = '#3a2e48';
       ctx.fillRect(cx, 7, 9, 8);
-      ctx.fillStyle = ready ? (p.auxT > 0 ? '#ffffff' : '#ffc860') : '#806838';
+      // a guard let fall on nothing refills red: the long wait a whiff costs
+      const whiffed = !ready && s.aux === 'parry' && (this.view?.whiffT[p.id] ?? 9) < p.auxMax + 0.1;
+      ctx.fillStyle = ready ? (p.auxT > 0 || p.riposte > 0 ? '#ffffff' : '#ffc860') : whiffed ? '#a04a3a' : '#806838';
       ctx.fillRect(cx, 7 + Math.round(8 * (1 - k)), 9, Math.round(8 * k));
       drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S' }[s.aux], cx + 2, 7, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
       cx += 11;
@@ -465,7 +506,8 @@ export class Hud {
     const sx = x0 + Math.round(w * f);
     ctx.fillStyle = Math.floor(this.time * 20) % 2 ? '#ffffff' : GOLD;
     ctx.fillRect(sx - 1, y + 1 - (Math.floor(this.time * 15) % 2), 2, 3);
-    if (f > 0.85) drawText(ctx, 'OPEN', x0 + w + 4, y - 1, GOLD, { shadow: false });
+    // nearly burned through: a glint at the end of the cord, it's about to crack open
+    if (f > 0.85) glint(ctx, x0 + w + 7, y + 2, 4, this.time, GOLD);
   }
 
   /**
@@ -515,19 +557,23 @@ export class Hud {
 
   /**
    * The boss's bar: its hull in three segments, one a phase (the one it's in bright, the ones
-   * gone dark), its poise under it (full: it breaks, STAGGERED), and the name of its signature
-   * move in a ribbon under the plate while it makes it. LAST STAND blinks at the end.
+   * gone dark), its poise under it (full: it breaks into shards, a glint on it), and the name of
+   * its signature move in a ribbon under the plate while it makes it. At its last stand the three
+   * pips are one, beating red.
    */
   private bossBar(ctx: CanvasRenderingContext2D, lv: Level, boss: Enemy, mid: number, w: number) {
     const b = boss.boss!;
     const bw = Math.min(440, w - 80);
     const bx = Math.round(mid - bw / 2);
-    const blink = Math.floor(this.time * 6) % 2 === 0;
     plate(ctx, bx, 28, bw, 24);
     drawText(ctx, lv.spec.planet.boss.name, bx + 5, 31, INK, { shadow: false });
     // which phase: three pips, or the last stand
-    if (b.last) drawText(ctx, 'LAST STAND', bx + bw - 5, 31, blink ? RED : '#ffffff', { shadow: false, align: 'right' });
-    else
+    if (b.last) {
+      // one pip the width of all three, beating like a heart
+      const beat = Math.pow(Math.max(0, Math.sin(this.time * 9)), 4);
+      ctx.fillStyle = beat > 0.5 ? '#ffffff' : RED;
+      ctx.fillRect(bx + bw - 30 - Math.round(beat), 33 - Math.round(beat), 24 + Math.round(beat) * 2, 4 + Math.round(beat) * 2);
+    } else
       for (let k = 0; k < 3; k++) {
         ctx.fillStyle = k < b.phase ? '#4a3e58' : k === b.phase ? RED : '#8a8098';
         ctx.fillRect(bx + bw - 30 + k * 9, 33, 6, 4);
@@ -548,35 +594,21 @@ export class Hud {
     // poise: fills as it's hit, and breaks
     const pz = poiseOf(boss);
     const stag = boss.state === 'stagger';
-    bar(ctx, x0, 47, bw - 10, 2, pz, stag ? (blink ? '#ffffff' : GOLD) : '#e8d8a0', 'rgba(42,34,54,0.7)');
-    if (stag) drawText(ctx, 'STAGGERED', mid, 56, blink ? GOLD : '#ffffff', { align: 'center' });
-    // its signature, named as it comes
-    const name = sigName(boss);
-    if (name && !stag) {
-      const tw = textWidth(name, 2) + 24;
-      const ry = 56;
-      ctx.fillStyle = 'rgba(14,10,22,0.78)';
-      ctx.fillRect(Math.round(mid - tw / 2), ry - 2, tw, 18);
-      ctx.fillStyle = hex(boss.skin.colors[2]);
-      ctx.fillRect(Math.round(mid - tw / 2), ry - 2, tw, 1);
-      ctx.fillRect(Math.round(mid - tw / 2), ry + 15, tw, 1);
-      drawText(ctx, name, mid, ry, boss.state === 'windup' && blink ? '#ffffff' : hex(boss.skin.colors[2]), { scale: 2, align: 'center' });
+    if (stag) brokenBar(ctx, x0, 47, bw - 10, 2, this.time, GOLD);
+    else bar(ctx, x0, 47, bw - 10, 2, pz, '#e8d8a0', 'rgba(42,34,54,0.7)');
+    // its signature, pictured as it comes
+    if (sigName(boss) && !stag && b.move) {
+      const k = boss.state === 'windup' && boss.stateDur > 0 ? clamp(boss.stateT / boss.stateDur, 0, 1) : 1;
+      moveMark(ctx, mid, 56, b.move, k, boss.state === 'attack', this.time, hex(boss.skin.colors[2]));
     }
   }
 
-  /** What the boss has read in how you fly, under its bar: typed out, held, then gone. */
-  private bossRead(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, mid: number) {
+  /** What the boss has read in how you fly, under its bar: an eye opens on what it saw, holds, and shuts. */
+  private bossRead(ctx: CanvasRenderingContext2D, view: LevelView, mid: number) {
     const r = view.bossRead;
     if (!r || r.t > 3.2) return;
-    const line = readLine(lv.spec.planet.id, r.read, r.side);
-    const text = `${lv.spec.planet.boss.name} ${line}`;
-    const shown = text.slice(0, Math.ceil(r.t * 60));
-    ctx.globalAlpha = clamp((3.2 - r.t) * 3, 0, 1);
-    const tw = textWidth(text) + 12;
-    ctx.fillStyle = 'rgba(14,10,22,0.7)';
-    ctx.fillRect(Math.round(mid - tw / 2), 76, tw, 12);
-    drawText(ctx, shown.padEnd(text.length, ' '), mid, 78, '#ffb0a0', { align: 'center' });
-    ctx.globalAlpha = 1;
+    const k = clamp(Math.min(r.t * 5, (3.2 - r.t) * 4), 0, 1);
+    readMark(ctx, mid, 88, r.read, r.side, this.time, k, '#ffb0a0');
   }
 
   /**
@@ -585,7 +617,7 @@ export class Hud {
    */
   private elitePlate(ctx: CanvasRenderingContext2D, lv: Level, mid: number, w: number) {
     const e = lv.enemies.find((o) => o.elite && !o.dead && o.t > 0.5 && o.title && lv.onScreen(o.x, o.z, 2));
-    if (!e) return;
+    if (!e) return false;
     const bw = Math.min(260, w - 80);
     const bx = Math.round(mid - bw / 2);
     plate(ctx, bx, 28, bw, 21);
@@ -595,12 +627,14 @@ export class Hud {
     const of = e.d.chain ?? 0;
     // taken down once: its wreck is that pilot's when it dies
     let right = bx + bw - 5;
-    if (e.downBy !== undefined && !e.bounty) right -= drawText(ctx, '✦ WRECK', right, 31, hex(LIVERY[e.downBy]?.[2] ?? 0xffd04a), { shadow: false, align: 'right' }) + 6;
-    if (of > 1) drawText(ctx, `CHAINS ${of}`, right, 31, '#ffe0b0', { shadow: false, align: 'right' });
+    if (e.downBy !== undefined && !e.bounty) right -= drawText(ctx, '✦', right, 31, hex(LIVERY[e.downBy]?.[2] ?? 0xffd04a), { shadow: false, align: 'right' }) + 6;
+    // how many attacks it strings together: a chevron each, as the boss's
+    if (of > 1) drawText(ctx, '>'.repeat(of), right, 31, '#ffe0b0', { shadow: false, align: 'right' });
     const x0 = bx + 5;
     if (e.armour > 0) bar(ctx, x0, 40, bw - 10, 3, e.armour / e.armourMax, e.hitT < 0.07 ? '#ffffff' : GOLD, 'rgba(42,34,54,0.9)');
-    else if (e.state === 'stagger' && Math.floor(this.time * 6) % 2) drawText(ctx, 'ARMOUR BROKEN', mid, 52, GOLD, { align: 'center' });
+    else if (e.state === 'stagger') brokenBar(ctx, x0, 40, bw - 10, 3, this.time, GOLD);
     bar(ctx, x0, 44, bw - 10, 2, e.hp / e.max, e.flash > 0 ? '#ffffff' : RED, 'rgba(42,34,54,0.9)');
+    return true;
   }
 
   /**
@@ -698,6 +732,7 @@ export class Hud {
       }
       this.rounds(ctx, lv, p, s.x, s.y + 22);
       this.welding(ctx, p, s.x, s.y);
+      this.counters(ctx, lv, p, s.x, s.y);
       if (p.crate) this.fuse(ctx, p, s.x, s.y - 26);
       // how it's loaded, said once as the level starts (steady goes without saying)
       if (lv.time > 1.2 && lv.time < 4.5 && p.stats.loadClass !== 'steady' && (lv.time < 3.6 || Math.floor(this.time * 8) % 2)) {
@@ -757,9 +792,11 @@ export class Hud {
     }
     if (boss && boss.t > 0) {
       this.bossBar(ctx, lv, boss, mid, w);
-      this.bossRead(ctx, lv, view, mid);
+      this.bossRead(ctx, view, mid);
     }
-    else this.elitePlate(ctx, lv, mid, w);
+    const elite = !(boss && boss.t > 0) && this.elitePlate(ctx, lv, mid, w);
+    // the chain under whatever plate is up
+    this.chain.draw(ctx, lv.combo, mid, boss && boss.t > 0 ? 108 : elite ? 54 : 30, 1 / 60);
     this.journal(ctx, lv, h);
     if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;

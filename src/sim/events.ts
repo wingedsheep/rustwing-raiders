@@ -12,8 +12,8 @@
  * A choice is never free. Each pays in a different coin (scrap, fuel, hull, time against the
  * Sweep, a faction, someone's trust), and the coins it costs and pays are shown as chips under it.
  * Some are a gamble with the odds shown (`odds`); some are a little game (screens/minigames/), and
- * how well you play (0..1) scales what you get, careful or bold. Some lead to a second beat
- * (`then`), where the real choice turns out to be.
+ * how well you play (0..1) scales what you get; a game rolled at level 3 or more pays the bold
+ * rewards. Some lead to a second beat (`then`), where the real choice turns out to be.
  *
  * Pure data and rules; no drawing. `where` says where on the chart an event turns up; 'never'
  * ones only come to you (Kaspar, the kelters at the gate, hull leeches).
@@ -47,7 +47,10 @@ export interface Play extends Scene {
   r: Rng;
   /** How well the little game went, 0..1 (1 when there wasn't one). */
   score: number;
+  /** The game was rolled at level 3 or more, and pays the bold rewards. */
   bold: boolean;
+  /** The level the game was rolled at, 1..5 (0 when there wasn't one). */
+  level: number;
   /** How a gamble fell (true when there wasn't one). */
   won: boolean;
   /** What a game settled on, if it settles on a number (the price Tobbo took). */
@@ -93,7 +96,7 @@ export interface Setup {
 
 export interface Choice {
   label: string;
-  /** What it costs and pays (`bold`: for the bold version of a game). */
+  /** What it costs and pays (`bold`: the game was rolled at level 3+). */
   chips?: (run: Run, bold: boolean, s: Scene) => Chip[];
   /** A line of terms or flavour under the chips. */
   note?: (run: Run, bold: boolean, s: Scene) => string;
@@ -102,7 +105,7 @@ export interface Choice {
   /** Why you can't, or null. */
   locked?: (run: Run, s: Scene) => string | null;
   game?: MiniKind;
-  /** Only the bold version of the game (the calf's song). */
+  /** Always rolled at level 3 or more (the calf's song). */
   boldOnly?: boolean;
   setup?: (run: Run, bold: boolean, s: Scene) => Setup;
   /** A gamble: the chance it goes your way, shown, and rolled before the outcome. */
@@ -145,6 +148,16 @@ const ofClass = (r: Rng, cls: PartClass) => pick(r, PARTS.filter((p) => p.cls ==
 const name = (it: Item) => itemName(it);
 const lacks = (n: number) => (run: Run) => (run.scrap < n ? `NEEDS ${n} SCRAP` : null);
 /** Tiers of a game's result, worst to best. */
+/** A game's level at this point in the run, 1..5: mostly how far in you are, partly luck. */
+export function rollLevel(run: Run, ev: RunEvent, c: Choice, seed: number) {
+  const r = rng(seed);
+  const level = Math.round(1 + run.difficulty() * 1.8 + ev.danger * 0.25 + (r() * 2 - 0.9));
+  return Math.max(c.boldOnly ? 3 : 1, Math.min(5, level));
+}
+
+/** Level 3 and up pays the bold rewards. */
+export const isBold = (level: number) => level >= 3;
+
 const tier = (score: number) => (score >= 0.85 ? 3 : score >= 0.55 ? 2 : score >= 0.25 ? 1 : 0);
 const pct = (f: number) => `${Math.round(f * 100)}%`;
 

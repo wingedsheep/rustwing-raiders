@@ -16,7 +16,7 @@
 import type { Bullet, Level, Player } from './level';
 import type { Gun } from './build';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
-import { clamp } from '../util';
+import { clamp, rng, type Rng } from '../util';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
 
 /** How fast a bullet comes down the flight plane (a seeker keeps up with the screen: it's flown, not thrown). */
@@ -39,10 +39,15 @@ export interface PilotState {
   boost: boolean;
   /** Never boost (to tell a hard layout from a greedy pilot). */
   noBoost: boolean;
+  /** Its own dice (seeded from the level on first use, so a run still flies the same twice): a parry's human error. */
+  rand: Rng | null;
+  /** The parry it means to make: when it'll press (level time), or -1; and till when it's let a shot go unanswered. */
+  parryAt: number;
+  parryIgnore: number;
 }
 
 export function newPilot(opts: { noBoost?: boolean } = {}): PilotState {
-  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost };
+  return { last: 0, lastFocus: false, boost: false, noBoost: !!opts.noBoost, rand: null, parryAt: -1, parryIgnore: -1 };
 }
 
 /** Each beam's angle when last seen, and how fast it's turning (rad/s): a turning beam is dodged where it'll be. */
@@ -122,7 +127,7 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   if (lv.state === 'boss') st.boost = p.burn > 0.4 && Math.abs(goal.x - p.x) > 10;
   if (chasing(lv, p) && p.burn > 0.15 && best < 150) st.boost = true;
   intent.boost = st.boost && !st.noBoost ? 1 : 0;
-  intent.aux = useAux(lv, p, best);
+  intent.aux = useAux(lv, p, best, st);
   // the special when it's needed
   if (p.charge >= 1 && (best > 250 || lv.state === 'boss' || lv.enemies.filter((e) => lv.onScreen(e.x, e.z)).length > 8)) intent.special = true;
   // let the guns cool if there's nothing to shoot
@@ -467,20 +472,62 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
 }
 
 /**
- * The aux, crudely: parry what's about to land (a few frames out, inside the window), drink fire
- * when it's thick, throw a flare when a lot is coming, hook something ahead when it's calm.
+ * A parry as a person makes one, not a frame-perfect one: it sees a shot coming a few frames out,
+ * means to press as it lands in the window, and misses the moment by a few frames either way
+ * (early, it only blocks; late, it's hit). Now and then it doesn't react at all.
  */
-function useAux(lv: Level, p: Player, best: number): boolean {
+const PARRY_HUMAN = {
+  /** How far ahead it sees a shot coming (frames), and when it'd press if it were perfect (frames before contact). */
+  look: 16,
+  ideal: 3,
+  /** Its timing error, a spread in frames (about two thirds land within this), and a lean early (nerves). */
+  spread: 3.2,
+  lean: -0.8,
+  /** How often a shot just gets past it. */
+  miss: 0.18,
+};
+
+/**
+ * The aux, crudely: parry what's about to land (see PARRY_HUMAN), drink fire when it's thick,
+ * throw a flare when a lot is coming, hook something ahead when it's calm.
+ */
+function useAux(lv: Level, p: Player, best: number, st: PilotState): boolean {
   const s = p.stats;
-  if (!s.aux || p.auxCd > 0 || p.auxT > 0) return false;
+  if (!s.aux || p.auxCd > 0 || p.auxT > 0) {
+    st.parryAt = -1;
+    return false;
+  }
   const near = (r: number) => lv.bullets.filter((b) => (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < r * r).length;
   if (s.aux === 'parry') {
-    // something reaches the parry reach in the next few frames (not so soon it lands first)
-    for (const b of lv.bullets) {
-      const t = 4 * DT;
-      const z = p.z - lv.speedNow * t;
-      if ((b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < 1.8 * 1.8) return true;
+    const roll = (st.rand ??= rng(lv.spec.seed * 31 + p.id * 7 + 1));
+    if (st.parryAt >= 0) {
+      if (lv.time < st.parryAt) return false;
+      st.parryAt = -1;
+      return true;
     }
+    if (lv.time < st.parryIgnore) return false;
+    // the first frame something reaches the parry's reach
+    let contact = 0;
+    for (let k = 1; k <= PARRY_HUMAN.look && !contact; k++) {
+      const t = k * DT;
+      const z = p.z - lv.speedNow * t;
+      for (const b of lv.bullets)
+        if ((b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < 1.8 * 1.8) {
+          contact = k;
+          break;
+        }
+    }
+    if (!contact) return false;
+    if (roll() < PARRY_HUMAN.miss) {
+      // it let that one go: not again till it's landed
+      st.parryIgnore = lv.time + (contact + 2) * DT;
+      return false;
+    }
+    // a bell curve's worth of error (three dice: their mean's spread is a sixth), in frames
+    const err = ((roll() + roll() + roll()) / 3 - 0.5) * 6 * PARRY_HUMAN.spread + PARRY_HUMAN.lean;
+    const wait = Math.max(0, Math.round(contact - PARRY_HUMAN.ideal + err));
+    if (wait === 0) return true;
+    st.parryAt = lv.time + wait * DT;
     return false;
   }
   if (s.aux === 'siphon') return near(9) >= 6;

@@ -19,7 +19,7 @@
  * Fire is held; heavy is pressed, a round at a time (see GunSpec.heavy).
  */
 
-import type { Intent } from './sim/types';
+import { DT, type Intent } from './sim/types';
 import type { Frame, Netplay } from './net/netplay';
 
 export type DeviceId = 'keys' | 'keys-left' | 'keys-right' | `pad${number}` | `net${number}`;
@@ -140,18 +140,32 @@ const NO_MENU: MenuInput = { up: false, down: false, left: false, right: false, 
 const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c));
 
 /**
- * Presses are held for a moment (seconds), so one made a touch early (in the dash's recovery, a
- * frame before the special fills) still goes off on the first frame it can. The parry is kept
- * strict: a long buffer would catch bullets you didn't time.
+ * Presses are caught every frame and held for a moment, so one made a touch early (in the dash's
+ * recovery, a frame before the special fills) still goes off on the first step it can. The moment
+ * is counted in the sim's steps as they read it, not on the clock: on a fast screen most frames
+ * run no step at all, and hitstop and slow motion hold the game still, and a press made in one of
+ * those must not be lost before the game moves again. The parry is kept strict: a long buffer
+ * would catch bullets you didn't time.
+ *
+ * The dash is handed over once, on the first step after the press (the sim queues it through the
+ * dash's recovery itself).
  */
-const BUFFER = { dash: 0.1, heavy: 0.1, special: 0.1, aux: 0.05 };
+const BUFFER = { dash: 0, heavy: 0.1, special: 0.1, aux: 0.05 };
 type Buffered = keyof typeof BUFFER;
-const buffered = new Map<string, number>();
-/** A press now, or one still buffered. */
-function buffer(dev: DeviceId, a: Buffered, now: boolean) {
+const ACTIONS = Object.keys(BUFFER) as Buffered[];
+/** Pad buttons per action (standard mapping). */
+const PAD_BUTTONS: Record<Buffered, number[]> = { dash: [0], heavy: [2, 5], special: [3], aux: [4] };
+/** A press no step has read after this long (seconds, on the clock) was made in a menu: dropped. */
+const STALE = 0.4;
+const buffered = new Map<string, { left: number; age: number }>();
+const press = (dev: DeviceId, a: Buffered) => buffered.set(`${dev}:${a}`, { left: BUFFER[a], age: 0 });
+/** A press still held: read once a sim step, and used up as it is (the dash at once, the rest after their moment). */
+function buffer(dev: DeviceId, a: Buffered) {
   const k = `${dev}:${a}`;
-  if (now) buffered.set(k, BUFFER[a]);
-  return (buffered.get(k) ?? 0) > 0;
+  const b = buffered.get(k);
+  if (!b) return false;
+  if ((b.left -= DT) < 0) buffered.delete(k);
+  return true;
 }
 
 interface PadState {
@@ -241,15 +255,19 @@ class Input {
     this.dt = dt;
     padNow.clear();
     for (const g of pads()) padNow.set(g.index, g);
+    // this frame's presses, into the buffer, whether or not a step reads them this frame
+    for (const dev of Object.keys(SCHEMES) as (keyof typeof SCHEMES)[])
+      for (const a of ACTIONS) if (any(SCHEMES[dev][a], pressed)) press(dev, a);
+    for (const [i, g] of padNow) {
+      const prev = padPrev.get(i)?.buttons ?? [];
+      for (const a of ACTIONS) if (PAD_BUTTONS[a].some((k) => btn(g, k) && !prev[k])) press(`pad${i}`, a);
+    }
   }
 
   /** Call once at the end of each frame. */
   endFrame() {
     pressed.clear();
-    for (const [k, t] of buffered) {
-      if (t - this.dt <= 0) buffered.delete(k);
-      else buffered.set(k, t - this.dt);
-    }
+    for (const [k, b] of buffered) if ((b.age += this.dt) > STALE) buffered.delete(k);
     anyKey = false;
     for (const [i, g] of padNow) {
       const s = stick(g);
@@ -282,6 +300,15 @@ class Input {
     return this.padName(dev) === 'PS PAD' ? 'SQUARE' : 'X';
   }
 
+  /** The aux button on a player's device, as a prompt names it. */
+  auxKey(dev: DeviceId) {
+    dev = this.shown(dev);
+    if (dev === 'keys') return 'U';
+    if (dev === 'keys-left') return 'R';
+    if (dev === 'keys-right') return "'";
+    return this.padName(dev) === 'PS PAD' ? 'L1' : 'LB';
+  }
+
   /** What a player's device asks of their ship. */
   intent(dev: DeviceId): Intent {
     if (dev.startsWith('net')) return { ...(this.net?.frame(dev).i ?? NO_INTENT) };
@@ -289,17 +316,15 @@ class Input {
       const g = padNow.get(Number(dev.slice(3)));
       if (!g) return { ...NO_INTENT };
       const s = stick(g);
-      const prev = padPrev.get(g.index)?.buttons ?? [];
-      const edge = (...is: number[]) => is.some((i) => btn(g, i) && !prev[i]);
       return {
         x: s.x,
         y: -s.y,
         fire: pull(g, 7) > 0.2,
-        heavy: buffer(dev, 'heavy', edge(2, 5)),
+        heavy: buffer(dev, 'heavy'),
         boost: pull(g, 6),
-        dash: buffer(dev, 'dash', edge(0)),
-        special: buffer(dev, 'special', edge(3)),
-        aux: buffer(dev, 'aux', edge(4)),
+        dash: buffer(dev, 'dash'),
+        special: buffer(dev, 'special'),
+        aux: buffer(dev, 'aux'),
         focus: btn(g, 1) || btn(g, 10),
       };
     }
@@ -308,11 +333,11 @@ class Input {
       x: (any(k.right, held) ? 1 : 0) - (any(k.left, held) ? 1 : 0),
       y: (any(k.up, held) ? 1 : 0) - (any(k.down, held) ? 1 : 0),
       fire: any(k.fire, held),
-      heavy: buffer(dev, 'heavy', any(k.heavy, pressed)),
+      heavy: buffer(dev, 'heavy'),
       boost: any(k.boost, held) ? 1 : 0,
-      dash: buffer(dev, 'dash', any(k.dash, pressed)),
-      special: buffer(dev, 'special', any(k.special, pressed)),
-      aux: buffer(dev, 'aux', any(k.aux, pressed)),
+      dash: buffer(dev, 'dash'),
+      special: buffer(dev, 'special'),
+      aux: buffer(dev, 'aux'),
       focus: any(k.focus, held),
     };
   }

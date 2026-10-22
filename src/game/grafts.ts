@@ -114,8 +114,8 @@ export const GRAFTS: Record<GraftId, GraftDef> = {
     tip: 'BOOST PAST THEM, THEN TURN: LEAD THEM THROUGH YOUR WAKE',
   }),
   stoop: G({
-    id: 'stoop', name: 'STOOP', from: 'Swooper', foe: 'swooper', faction: 'wild', verb: 'dash',
-    text: 'THE DASH THROWS YOUR SHADOW AHEAD. A BEAT LATER A TALON STRIKE COMES DOWN ON IT',
+    id: 'stoop', name: 'SEED SPIKE', from: 'Sower', foe: 'swooper', faction: 'wild', verb: 'dash',
+    text: 'THE DASH THROWS YOUR SHADOW AHEAD. A BEAT LATER A SOWER\'S SPIKE COMES DOWN ON IT',
     tip: 'DASH AT THEM, NOT THROUGH: THE STRIKE LANDS PAST WHERE YOU STOP',
   }),
   acid: G({

@@ -49,6 +49,8 @@ The other peoples' languages (Kehx, Chikta, Eefee, Vaelo) are not related to Ton
 | \*āltʰa | hearth | *Aewhae*, *Alta* |
 | \*ūm | deep | *umora* |
 | \*sēpʰa | one who reads (a lane) | *Sefa* |
+| \*ōm | wind, breath | *Omtal*, *Omter* (Act II) |
+| \*rāk | tear, rend | *Rakven* (Act II) |
 
 ## Hoowae: a thousand years of wear
 
@@ -169,6 +171,7 @@ The natives of Halcyon's twilight band speak in buzzing, rising phrases (`z b w`
 Two words for thinking machines, from two different kinds of borrowing ([minds](minds.md)):
 
 - **nemva**, a woken core: Tonkvan \*nēm-wa, "one who listens" (\*nēm "listen", \*-wa "one who"). Cores were dug up after 180 L, so it's a **late** loan: Vhossk *Nemmva* (the long *ē* doubles the *m*), then the cant simplifies the double before a consonant. In Hoowae, the same word is *naemwae*.
+- **Talang**, the free nemva's meeting-place: Tonkvan \*tāl-āŋ, "house of holding", revived like *Talkwa* below, in its old shape ([the end game](../endgame.md#talang)).
 - **Talkwa**, the free nemva: Tonkvan \*tāl-kʷa, "those who hold". Not borrowed at all: **revived**. The nemva read it off beacon tones and took it in its old shape, the way a people reviving a dead language picks its words from old books. It's the only Tonkvan word in use that no mouth has worn down. Pilots, hearing *talk* in it, made it **talkies**: folk etymology, as with *umora*.
 
 ## The tongues of the Spur

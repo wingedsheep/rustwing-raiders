@@ -27,7 +27,7 @@ The plan for making combat more than dodge-and-shoot, and every run its own. Agr
 
 On top of these, in every fight: **Plating → Open → Takedown**, and healing with the **Weld**.
 
-Every run starts the same: one frame on an open deck with only its guns, a sleeping core with room for three, no grafts. What you end up with depends on the sector.
+Every run starts the same: one frame on an open deck with only its guns (a GUARD frame also has its Parry Emitter), a sleeping core with room for three, no grafts. What you end up with depends on the sector.
 
 ---
 
@@ -41,7 +41,16 @@ Every run starts the same: one frame on an open deck with only its guns, a sleep
 - **Broken, it's OPEN**: staggered and taking extra. **Dash through it for a takedown**: the big hit, hitstop, a camera punch, scrap, and a big chunk of the Weld.
 - **Plating grows back** if you leave it alone for a few seconds: keep the pressure on.
 - **Bosses** take the stream at 60% unless they're open (after a move, or staggered). Blows wear their poise half again as hard as stream fire.
-- **A perfect read opens a boss.** A perfect dash while a boss is attacking wears its poise hard; through its signature, it breaks it outright.
+- **A perfect read opens a boss.** A perfect (dashed or parried) while a boss is attacking wears its poise hard; through its signature, it breaks it outright.
+
+### Perfects: slip it or parry it
+
+Two ways to a perfect, one for each way of flying. Both pay the same: Burn, a chunk of the Weld, a round in every heavy, nerve for the core, a read on a boss mid-attack, and every "on a perfect" knack and affix. Then each pays its own.
+
+- **Slip it (dash ships).** Dash out of fire just before it lands, and the fire that would have hit where you were is soaked up. You get the dash back, and the guns strike harder out of the dash. Kestrel, Wasp, Hammerhead.
+- **Parry it (guard ships).** The aux's guard burst: its first instant parries, throwing the bullets back, and the guns **riposte** for a second (every shot crits, so it breaks plating). After that instant it only blocks a few shots. Put up on nothing, it's a long wait. Mule and Lattice start with one. Anyone can find one.
+- **Chains.** Perfects close together run on as a chain: the bell climbs a step each time.
+- The ship card says which a frame is: **GUARD** or **DASH**.
 
 ### The Weld (healing)
 
@@ -93,7 +102,7 @@ First grafts:
 | Vask (boss) | SPECIAL | SKY DIVE: pick a lane, dive it untouchable, sow eggs |
 | Oko (boss) | AUX | CRANE SWING: a wrecking ball swings under you, batting bullets |
 | Khet (boss) | HEAVY | TITAN EYE: a beam that follows the nearest enemy |
-| Swooper | DASH | STOOP: your shadow thrown ahead, a talon strike on it a beat later |
+| Sower | DASH | SEED SPIKE: your shadow thrown ahead, a sower's spike driven into it a beat later |
 | Spitter | TRIGGER | ACID SPIT: a glob lobbed at the nearest enemy, its puddle eats and cracks |
 | Puffball | BOOST | SPORE TRAIL: clouds that eat enemy fire and rot what flies in |
 | Mother-of-Spores (boss) | HEAVY | MOTHER'S BLOOM: a heavy round that hits flowers into a ring of spores |

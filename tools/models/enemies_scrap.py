@@ -386,9 +386,11 @@ def flakker():
         g = Model(f"{kind}_guns_{k}", seed=9502 + k)
         for s in (1, -1):
             x = s * (0.14 if k == 0 else 0.4)
-            g.cyl(0.16, 0.55, (x, 0, 0), B, segs=6, rot=(-(math.pi / 2 - el), 0, 0))
-            g.cyl(0.11, 1.3, (x, 0, 0), DARK, segs=6, rot=(-(math.pi / 2 - el), 0, 0))
-            g.cyl(0.15, 0.18, (x, 1.18 * dy, 1.18 * dz), C, segs=6, rot=(-(math.pi / 2 - el), 0, 0), glow=True)
+            # thick, pale barrels and a dark muzzle brake, so the hot muzzle sits on something you can see
+            g.cyl(0.2, 0.6, (x, 0, 0), B, segs=6, rot=(-(math.pi / 2 - el), 0, 0))
+            g.cyl(0.15, 1.05, (x, 0, 0), LITE, segs=6, rot=(-(math.pi / 2 - el), 0, 0))
+            g.cyl(0.2, 0.16, (x, 0.82 * dy, 0.82 * dz), B, segs=6, rot=(-(math.pi / 2 - el), 0, 0))
+            g.cyl(0.15, 0.14, (x, 0.98 * dy, 0.98 * dz), C, segs=6, rot=(-(math.pi / 2 - el), 0, 0), glow=True)
         guns = g.build(base, loc=(0, 0.2, 0.72 + zo))
 
         def recoil(u, k=k):
@@ -398,7 +400,7 @@ def flakker():
         sample(guns, clip, "location", T, recoil, step=1)
         for j, s in enumerate((1, -1)):
             x = s * (0.14 if k == 0 else 0.4)
-            marker(base, kind, "muzzle", (x, 0.2 + 1.36 * dy, 0.72 + zo + 1.36 * dz), k * 2 + j)
+            marker(base, kind, "muzzle", (x, 0.2 + 1.16 * dy, 0.72 + zo + 1.16 * dz), k * 2 + j)
     # a little rangefinder dish at the back, spinning
     r = Model(f"{kind}_radar", seed=9504)
     r.box((0.5, 0.1, 0.28), (0, 0, 0.14), LITE, rot=(0.3, 0, 0))

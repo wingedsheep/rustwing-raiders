@@ -69,7 +69,7 @@ def glowmoth():
 # --- Hive Needle: dart, ~2.2 -------------------------------------------------------------------
 
 def hive_needle():
-    kind, clip, root = named("hive_needle", "dart", "beast", "fly", preview=("#4a3a6a", "#8aff8a", "#ff4aff"))
+    kind, clip, root = named("hive_needle", "dart", "beast", "fly", preview=("#d8a848", "#8aff8a", "#ff4aff"))
     T = 0.5
     b = Model(f"{kind}_body", seed=4002)
     # the needle: a long lance of a proboscis, glowing at the tip
@@ -79,17 +79,17 @@ def hive_needle():
     for s in (1, -1):
         b.ball(0.13, (s * 0.15, 0.53, 0.08), C, subdiv=1, scale=(0.8, 1.1, 1.0), glow=True)  # compound eyes
     b.ball(0.24, (0, 0.18, 0.04), A, subdiv=1, scale=(1.0, 1.35, 0.85))                     # thorax
-    b.box((0.16, 0.42, 0.06), (0, 0.18, 0.24), B)                                           # green stripe
+    b.box((0.26, 0.46, 0.08), (0, 0.18, 0.24), B)                                           # green stripe
     for s in (1, -1):  # three pairs of thin dark legs tucked back
         for k, y in enumerate((0.3, 0.16, 0.02)):
             limb(b, (s * 0.15, y, -0.1), (s * (0.36 + k * 0.05), y - 0.25 - k * 0.1, -0.22), 0.04, 0.02, DARK, segs=3)
     limb(b, (0, -0.04, 0.02), (0, -0.16, 0.02), 0.07, 0.07, A.shade(0.6), segs=5)           # wasp waist
     # a long spindle abdomen, green chevrons on top
-    chain(b, [(0, -0.15, 0.02), (0, -0.45, 0.05), (0, -0.8, 0.02), (0, -1.05, -0.02)], [0.14, 0.22, 0.16, 0.05], A, segs=7)
+    chain(b, [(0, -0.15, 0.02), (0, -0.45, 0.05), (0, -0.8, 0.02), (0, -1.05, -0.02)], [0.16, 0.27, 0.2, 0.06], A, segs=7)
     for k, (y, w) in enumerate(((-0.34, 0.34), (-0.58, 0.38), (-0.82, 0.26))):
         z = 0.24 - k * 0.05
         for s in (1, -1):
-            b.box((w * 0.62, 0.11, 0.06), (s * w * 0.27, y - w * 0.12, z), B, rot=(0, 0, -s * 0.5))
+            b.box((w * 0.7, 0.18, 0.07), (s * w * 0.28, y - w * 0.12, z + 0.03), B, rot=(0, 0, -s * 0.5))
     limb(b, (0, -1.02, -0.02), (0, -1.22, -0.04), 0.07, 0.0, C, segs=4, glow=True)          # stinger
     b.ball(0.1, (0, -0.95, 0.06), C, subdiv=0, glow=True)                                    # venom sac
     body = b.build(root)
@@ -100,7 +100,7 @@ def hive_needle():
     for k, (y, span, ph) in enumerate(((0.28, 1.0, 0.0), (0.1, 0.75, 0.5))):
         outline = [(0, 0.08), (0, -0.1), (span * 0.55, -span * 0.7), (span * 0.92, -span * 1.02),
                    (span * 0.98, -span * 0.86), (span * 0.35, -span * 0.12)]
-        wing_pair(body, f"{kind}_wing_{k}", (0.12, y, 0.14), outline, 0.03, A.shade(1.9), clip, T, 0.3, harm=4,
+        wing_pair(body, f"{kind}_wing_{k}", (0.12, y, 0.14), outline, 0.03, A.shade(1.35), clip, T, 0.3, harm=4,
                   phase=ph, dihedral=0.08, extra=vein if k == 0 else None)
     marker(body, kind, "muzzle", (0, 1.22, 0.02))
     osc(body, clip, "location", T, (2, 0.04, 1, 0))
@@ -288,7 +288,7 @@ def _ribbon(parent, name, s, y0, y1, width, clip, T, phase):
 
 def mire_eel():
     T = 1.2
-    pv = ("#2a3a3a", "#6a8a6a", "#ff4aff")
+    pv = ("#4e6e66", "#c0dca0", "#ff4aff")
 
     # head: a broad flat moray head, a lure dangling over the jaws
     kind, clip, root = named("mire_eel_head", "serpent", "beast", "bite", seg_length=SEG, preview=pv)
@@ -298,7 +298,7 @@ def mire_eel():
     h.ball(0.5, (0, 0.45, 0.0), A, subdiv=1, scale=(1.05, 1.3, 0.5))                         # snout
     h.ball(1.0, (0, -0.2, 0.0), B, subdiv=2, scale=(0.62, 0.75, 0.56))                       # pale crown
     h.ball(1.0, (0, 0.42, 0.0), B, subdiv=1, scale=(0.26, 0.6, 0.33))                        # snout blaze
-    h.ball(1.0, (0, -0.8, 0.0), B, subdiv=1, scale=(0.36, 0.3, 0.55))                         # first saddle
+    h.ball(1.0, (0, -0.8, 0.0), B, subdiv=1, scale=(0.44, 0.34, 0.58))                        # first saddle
     for s in (1, -1):
         h.ball(0.17, (s * 0.42, 0.25, 0.22), C, subdiv=1, glow=True)                          # eyes
         h.box((0.06, 0.12, 0.2), (s * 0.45, 0.33, 0.3), DARK)
@@ -327,9 +327,9 @@ def mire_eel():
     tube(g, 0.52, -1.0, 1.0, 0, 0, A, segs=8)
     g.ball(1.0, (0, 0, 0), A, subdiv=2, scale=(0.72, 1.08, 0.58))
     g.ball(1.0, (0, 0, -0.12), A.shade(0.6), subdiv=1, scale=(0.7, 1.04, 0.5))              # dark belly
-    g.ball(1.0, (0, 0.05, 0.0), B, subdiv=2, scale=(0.58, 0.82, 0.66))                      # pale saddle
+    g.ball(1.0, (0, 0.05, 0.0), B, subdiv=2, scale=(0.66, 0.95, 0.7))                       # pale saddle
     for y in (-0.82, 0.88):
-        g.ball(1.0, (0, y, 0.0), B.shade(0.8), subdiv=1, scale=(0.2, 0.18, 0.56))           # small spots at the joints
+        g.ball(1.0, (0, y, 0.0), B, subdiv=1, scale=(0.26, 0.2, 0.58))                      # small spots at the joints
     for s in (1, -1):
         for i, y in enumerate((-0.65, 0.0, 0.65)):
             g.ball(0.15, (s * 0.66, y, 0.14), C, subdiv=1, glow=True)                      # photophores
@@ -347,7 +347,7 @@ def mire_eel():
     t = Model(f"{kind}_body", seed=4012)
     chain(t, [(0, 1.0, 0), (0, 0.15, 0.0), (0, -0.55, 0.02)], [0.48, 0.34, 0.16], A, segs=8)
     t.ball(1.0, (0, 0.55, 0.0), A, subdiv=1, scale=(0.6, 0.6, 0.48))
-    t.ball(1.0, (0, 0.5, 0.0), B, subdiv=1, scale=(0.38, 0.45, 0.58))                       # last saddle
+    t.ball(1.0, (0, 0.5, 0.0), B, subdiv=1, scale=(0.46, 0.56, 0.6))                        # last saddle
     for s in (1, -1):
         t.ball(0.11, (s * 0.5, 0.45, 0.1), C, subdiv=0, glow=True)
     tail = t.build(root)

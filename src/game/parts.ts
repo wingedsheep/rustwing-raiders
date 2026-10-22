@@ -7,12 +7,12 @@
  * - Boosters (amplifier, heat sink, targeting array, capacitor) only help the guns they touch.
  * - Engines in the back row push half as hard again.
  * - Mass is load, against what the frame can carry (engines carry more). A light ship is NIMBLE:
- *   an extra dash, a wider window for a perfect, a quicker recovery. Past what it can carry it is
- *   OVERLOADED: a dash fewer, slow to recover, sluggish. So an empty socket is worth something,
+ *   a wider window for a perfect, a quicker dash recovery. Past what it can carry it is
+ *   OVERLOADED: slow to recover the dash, sluggish. So an empty socket is worth something,
  *   and every part has to earn its weight.
  * - MAIN guns fire while fire is held. HEAVY guns (rail, flak, seekers, mines, the lance) fire on
- *   their own button, a round a press, from a few rounds that reload one by one; a perfect dash
- *   reloads a round. Two triggers: a stream to hold, and blows to time.
+ *   their own button, a round a press, from a few rounds that reload one by one; a perfect (a
+ *   dash out of fire, or a parry) reloads a round. Two triggers: a stream to hold, and blows to time.
  * - HARDPOINTS: a frame has a few hardpoints for each button's tools (the Kestrel two TRIGGER, one
  *   HEAVY, one AUX, one SPECIAL). Guns take a TRIGGER hardpoint, heavy guns a HEAVY one, the aux
  *   and the special theirs. A hardpoint isn't a place: a tool goes on any socket, so long as the
@@ -324,7 +324,7 @@ export const PARTS: PartDef[] = [
   {
     id: 'parry', name: 'Parry Emitter', cls: 'defense', tags: ['energy', 'tech'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.4, shield: 1,
     aux: 'parry', link: { want: { gun: true }, side: 'n', cell: 0, text: 'A GUN IN FRONT' },
-    text: 'AUX: a shield burst. Its first instant parries: bullets fly back as yours and it is ready again. Late, it only blocks.',
+    text: 'AUX: a guard burst. Its first instant parries: a PERFECT, bullets thrown back, and your guns crit for a second (RIPOSTE). Late, it only blocks. Up on nothing, a long wait.',
   },
   {
     id: 'tether', name: 'Grapple Tether', cls: 'defense', tags: ['kinetic', 'drive'], rarity: 'rare', shape: [[0, 0], [0, 1], [1, 1]], mass: 1.8,
@@ -383,6 +383,8 @@ export interface FrameDef {
   thrust: number;
   grip: number;
   dash: number;
+  /** Seconds to get a dash back: a racer is quick about it, a hauler takes its time. */
+  dashCd: number;
   /** The load it carries before it counts as full (engines add to it: see LOAD). Its own engines are built in: thrust, mass and load. */
   load: number;
   /** Top speed against what its thrust alone would give (a racer is quicker than its engines say). */
@@ -415,7 +417,7 @@ export const FRAMES: FrameDef[] = [
     weak: '60 HULL. LITTLE LOAD.',
     grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
     mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 60, mass: 5.6, thrust: 45, grip: 1.25, dash: 1, load: 9.4, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
+    hp: 60, mass: 5.6, thrust: 45, grip: 1.25, dash: 1, dashCd: 1.6, load: 9.4, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
     start: [['rivet', 1, 1], ['rivet', 3, 1]],
   },
   {
@@ -426,18 +428,18 @@ export const FRAMES: FrameDef[] = [
     weak: 'MOVES LIKE A FRIDGE. NO SPECIAL.',
     grid: ['#####', '#####', '#####', '.###.'],
     mounts: { T: 1, H: 2, A: 1 },
-    hp: 100, mass: 7.8, thrust: 28, grip: 0.75, dash: 1, load: 12.7, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
-    start: [['seeker', 1, 0], ['rivet', 2, 0]],
+    hp: 100, mass: 7.8, thrust: 28, grip: 0.75, dash: 1, dashCd: 3, load: 12.7, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
+    start: [['seeker', 1, 0], ['rivet', 2, 0], ['parry', 1, 1]],
   },
   {
     id: 'wasp',
     name: 'Wasp',
     text: 'Twin booms like a pod racer.',
-    perk: { name: 'DARTER', text: 'Two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
+    perk: { name: 'DARTER', text: 'The only frame with two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
     weak: 'NO AUX. THIN PRONGS: LITTLE TOUCHES THE NOSE GUNS.',
     grid: ['.#.#.', '.#.#.', '#####', '#####', '..#..'],
     mounts: { T: 2, H: 1, S: 1 },
-    hp: 80, mass: 5.3, thrust: 31, grip: 1.05, dash: 2, load: 9.2, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
+    hp: 80, mass: 5.3, thrust: 31, grip: 1.05, dash: 2, dashCd: 1.8, load: 9.2, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
     start: [['rivet', 1, 0], ['rivet', 3, 0]],
   },
   {
@@ -448,7 +450,7 @@ export const FRAMES: FrameDef[] = [
     weak: 'STIFF IN A TURN. SLOW TO BURN.',
     grid: ['######', '######', '..##..', '..##..'],
     mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 7.6, thrust: 44, grip: 0.8, dash: 1, load: 11.9, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
+    hp: 80, mass: 7.6, thrust: 44, grip: 0.8, dash: 1, dashCd: 2.5, load: 11.9, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
     start: [['scatter', 2, 0], ['scatter', 3, 0]],
   },
   {
@@ -459,8 +461,8 @@ export const FRAMES: FrameDef[] = [
     weak: 'FEW SOCKETS TOUCH.',
     grid: ['#.#.#', '#.#.#', '#####', '#.#.#', '.#.#.'],
     mounts: { T: 1, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 6.1, thrust: 45, grip: 1, dash: 1, load: 11.4, speed: 1, burn: 0.12, core: 0.38, linked: 2,
-    start: [['rivet', 2, 1]],
+    hp: 80, mass: 6.1, thrust: 45, grip: 1, dash: 1, dashCd: 2.1, load: 11.4, speed: 1, burn: 0.12, core: 0.38, linked: 2,
+    start: [['rivet', 2, 1], ['parry', 2, 2]],
   },
 ];
 
@@ -497,9 +499,9 @@ export const partById = (id: string) => PARTS.find((p) => p.id === id)!;
 export const LOAD = { nimble: 0.6, engine: 0.15 };
 export type LoadClass = 'nimble' | 'steady' | 'overloaded';
 export const LOAD_CLASS: Record<LoadClass, { name: string; color: string; text: string }> = {
-  nimble: { name: 'NIMBLE', color: '#8affe0', text: '+1 DASH, EASIER PERFECTS' },
+  nimble: { name: 'NIMBLE', color: '#8affe0', text: 'QUICKER DASH, EASIER PERFECTS' },
   steady: { name: 'STEADY', color: '#d8cce8', text: 'NO BONUS, NO PENALTY' },
-  overloaded: { name: 'OVERLOADED', color: '#ff5a4a', text: '-1 DASH, SLOW TO RECOVER' },
+  overloaded: { name: 'OVERLOADED', color: '#ff5a4a', text: 'SLOW DASH RECOVERY, SLUGGISH' },
 };
 
 /** How strong a part runs: missing what it needs, linked. */
@@ -516,3 +518,12 @@ export function verbOf(d: PartDef): Verb {
   return 'PASSIVE';
 }
 export const frameById = (id: string) => FRAMES.find((f) => f.id === id)!;
+
+/**
+ * How a frame comes at fire, as the ship card says it: a GUARD ship starts with a Parry Emitter
+ * (its perfects are parries, and its guns riposte); the rest get theirs dashing out of fire.
+ */
+export const styleOf = (f: FrameDef) =>
+  f.start.some(([id]) => partById(id).aux === 'parry')
+    ? { name: 'GUARD', color: '#ffd060', text: 'PARRIES FIRE' }
+    : { name: 'DASH', color: '#8affe0', text: 'SLIPS FIRE' };

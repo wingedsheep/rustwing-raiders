@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
-import { FRAMES, partById, type FrameDef } from '../game/parts';
+import { FRAMES, partById, styleOf, type FrameDef } from '../game/parts';
 import { startBuild, stats, type Build } from '../sim/build';
 import { input, type DeviceId } from '../input';
 import { audio } from '../audio';
@@ -45,6 +45,43 @@ const WIN = { x: 6, y: 20, w: 268, h: 104 };
 const PPU = 9;
 const SWAP_T = 0.24;
 const LAUNCH_T = 1.15;
+
+/** The ways in, as tiles across the foot of the title. */
+type Mode = 'local' | 'host' | 'join';
+const MODES: { id: Mode; kicker: string; name: string; text: string; color: string; icon: string[] }[] = [
+  {
+    id: 'local', kicker: '1 OR 2 PILOTS', name: 'PLAY', text: 'SOLO, OR A FRIEND ON THE SAME SCREEN', color: '#ff8a3a',
+    // a pad
+    icon: ['0111111111110', '1111111111111', '1101111111011', '1000111110101', '1101111111011', '1111111111111', '1111000001111', '0110000000110'],
+  },
+  {
+    id: 'host', kicker: 'ONLINE CO-OP', name: 'HOST ONLINE', text: 'GET A CODE AND SEND YOUR FRIEND THE LINK', color: '#5ae0c0',
+    // a beacon
+    icon: ['0010000000100', '0100100010010', '1001000001001', '1010011100101', '1001000001001', '0100100010010', '0010000000100', '0000001000000'],
+  },
+  {
+    id: 'join', kicker: 'ONLINE CO-OP', name: 'JOIN ONLINE', text: 'TYPE IN THE CODE YOUR FRIEND SENT YOU', color: '#5ae0c0',
+    // an arrow going in
+    icon: ['0000000111111', '0001000000001', '0000100000001', '1111110000001', '0000100000001', '0001000000001', '0000000111111', '0000000000000'],
+  },
+];
+const TILE_W = 184;
+const TILE_H = 64;
+const TILE_Y = 264;
+/** Where a tile sits: in a row across the foot, or stacked under the logo when the window's too narrow (a phone). */
+const narrow = () => VIEW.w < MODES.length * (TILE_W + 12) + 8;
+const tilePos = (i: number) =>
+  narrow()
+    ? { x: Math.round(W / 2 - TILE_W / 2), y: 132 + i * (TILE_H + 10) }
+    : { x: Math.round(W / 2 - (MODES.length * TILE_W + (MODES.length - 1) * 12) / 2) + i * (TILE_W + 12), y: TILE_Y };
+
+/** A bitmap icon (rows of bits), each bit an n×n block. */
+function icon(ctx: CanvasRenderingContext2D, rows: string[], x: number, y: number, color: string, n = 2) {
+  ctx.fillStyle = color;
+  rows.forEach((r, j) => {
+    for (let k = 0; k < r.length; k++) if (r[k] === '1') ctx.fillRect(x + k * n, y + j * n, n, n);
+  });
+}
 
 const sockets = (f: FrameDef) => f.grid.join('').replace(/\./g, '').length;
 const firepower = (b: Build) => b.parts.reduce((s, p) => {
@@ -121,6 +158,26 @@ export class Title implements Screen {
   private dust: THREE.Points;
   /** The painted key art behind it all, once it's loaded. */
   private art: THREE.Texture | null = null;
+  /** The mode tile picked, how far each has risen in, and how lit each is (eased toward the pick). */
+  private pick = 0;
+  private rise = MODES.map(() => 0);
+  private lit = MODES.map((_, i): number => (i === 0 ? 1 : 0));
+  /** Whose buttons the hints name: whoever touched something last. */
+  private shown: DeviceId = 'keys';
+  /** The mouse, in safe-area texels, and a click waiting to be read. */
+  private mouse: { x: number; y: number } | null = null;
+  private click = false;
+  private onMove = (e: PointerEvent) => {
+    const s = this.game.uiScale / (window.devicePixelRatio || 1);
+    this.mouse = { x: e.clientX / s - VIEW.ox, y: e.clientY / s - VIEW.oy };
+    const over = this.tileAt(this.mouse.x, this.mouse.y);
+    if (!this.seats.length && !lobbyOpen() && over >= 0 && over !== this.pick) this.choose(over);
+    document.body.style.cursor = !this.seats.length && over >= 0 ? 'pointer' : '';
+  };
+  private onDown = (e: PointerEvent) => {
+    this.onMove(e);
+    this.click = true;
+  };
 
   constructor(private game: Game) {
     game.devices = game.net ? ['net0', 'net1'] : [];
@@ -145,6 +202,8 @@ export class Title implements Screen {
       this.dust.visible = false;
     });
     audio.music('title');
+    window.addEventListener('pointermove', this.onMove);
+    window.addEventListener('pointerdown', this.onDown);
     if (game.net) {
       this.seat('net0');
       this.seat('net1');
@@ -156,8 +215,64 @@ export class Title implements Screen {
     }
   }
 
-  private online(code?: string) {
-    openLobby(this.game, () => this.game.go(new Title(this.game)), code);
+  private online(code?: string, mode?: 'host' | 'join') {
+    openLobby(this.game, () => this.game.go(new Title(this.game)), code, mode);
+  }
+
+  private tileAt(x: number, y: number) {
+    return MODES.findIndex((_, i) => {
+      const p = tilePos(i);
+      return x >= p.x && x < p.x + TILE_W && y >= p.y - 4 && y < p.y + TILE_H;
+    });
+  }
+
+  private choose(i: number) {
+    this.pick = i;
+    audio.play('ui_move');
+  }
+
+  /** Takes the picked way in: climbs `dev` in for a local game, or opens the lobby. */
+  private enter(dev: DeviceId) {
+    const m = MODES[this.pick].id;
+    if (m === 'local') {
+      this.seat(dev);
+      // that press was the join, not a choice
+      this.game.menuOf(dev);
+    } else {
+      audio.play('ui_select');
+      this.online(undefined, m);
+    }
+  }
+
+  /** The title's own menu, before anyone's in: any pad or the keyboard steers it, or the mouse. */
+  private menu() {
+    const click = this.click;
+    this.click = false;
+    if (input.keyPressed('KeyO')) {
+      this.online();
+      return;
+    }
+    for (const d of ['keys', ...input.padIds()] as DeviceId[]) {
+      const m = this.game.menuOf(d);
+      const step = m.left || m.up ? -1 : m.right || m.down ? 1 : 0;
+      if (!step) continue;
+      this.shown = d;
+      this.choose((this.pick + step + MODES.length) % MODES.length);
+    }
+    // the right hand of a shared keyboard can climb straight in, as before
+    if (input.keyPressed('Slash') || input.keyPressed('Numpad0')) {
+      this.pick = 0;
+      this.enter('keys');
+      return;
+    }
+    const d = input.joining()[0];
+    if (d) {
+      this.shown = d;
+      this.enter(d);
+    } else if (click && this.mouse && this.tileAt(this.mouse.x, this.mouse.y) >= 0) {
+      this.pick = this.tileAt(this.mouse.x, this.mouse.y);
+      this.enter('keys');
+    }
   }
 
   private makePlanet() {
@@ -252,6 +367,8 @@ export class Title implements Screen {
 
   update(dt: number) {
     this.t += dt;
+    this.rise = this.rise.map((r, i) => Math.min(1, Math.max(r, (this.t - 0.25 - i * 0.08) * 3)));
+    this.lit = this.lit.map((l, i) => l + ((i === this.pick ? 1 : 0) - l) * Math.min(1, dt * 16));
     for (const s of this.seats) {
       s.appear = Math.min(1, s.appear + dt * 4);
       s.swap = Math.min(1, s.swap + dt / SWAP_T);
@@ -279,11 +396,15 @@ export class Title implements Screen {
       }
       return;
     }
-    if (lobbyOpen()) return;
-    if (!this.seats.length && input.keyPressed('KeyO')) {
-      this.online();
+    if (lobbyOpen()) {
+      this.click = false;
       return;
     }
+    if (!this.seats.length) {
+      this.menu();
+      return;
+    }
+    this.click = false;
     // joining in
     if (this.seats.length < 2) {
       const taken = new Set(this.seats.map((s) => s.dev));
@@ -414,22 +535,7 @@ export class Title implements Screen {
     ctx.clearRect(0, 0, W, H);
     const wob = Math.round(Math.sin(this.t * 2) * 1);
     if (!this.seats.length) {
-      // the logo
-      drawText(ctx, 'RUSTWING', W / 2 + 3, 26 + wob + 3, '#3a1408', { scale: 5, align: 'center', shadow: false });
-      drawText(ctx, 'RUSTWING', W / 2, 26 + wob, '#ff8a3a', { scale: 5, align: 'center', shadow: '#7a2a10' });
-      drawText(ctx, 'RAIDERS', W / 2, 66 + wob, '#ffd04a', { scale: 3, align: 'center', shadow: '#7a4a10' });
-      // a dark band across the painting so the prompt reads
-      const band = ctx.createLinearGradient(0, 238, 0, 314);
-      band.addColorStop(0, 'rgba(14,8,22,0)');
-      band.addColorStop(0.25, 'rgba(14,8,22,0.78)');
-      band.addColorStop(0.8, 'rgba(14,8,22,0.78)');
-      band.addColorStop(1, 'rgba(14,8,22,0)');
-      ctx.fillStyle = band;
-      ctx.fillRect(-VIEW.ox, 238, VIEW.w, 76);
-      if (Math.floor(this.t * 2) % 2 === 0) drawText(ctx, 'PRESS FIRE TO CLIMB IN', W / 2, 250, INK, { scale: 2, align: 'center' });
-      drawText(ctx, 'ANY PAD: A / CROSS      KEYBOARD: ENTER OR SPACE', W / 2, 276, INK, { align: 'center' });
-      drawText(ctx, 'TWO ON ONE KEYBOARD: SPACE, THEN / FOR THE SECOND PLAYER', W / 2, 288, INK, { align: 'center' });
-      drawText(ctx, 'ONLINE, WITH A FRIEND ELSEWHERE: PRESS O', W / 2, 300, INK, { align: 'center' });
+      this.front(ctx, wob);
       return;
     }
     // the crew select: the logo tucked up top, a card per seat
@@ -452,6 +558,90 @@ export class Title implements Screen {
       ctx.fillStyle = `rgba(10,8,18,${k})`;
       ctx.fillRect(-VIEW.ox, -VIEW.oy, VIEW.w, VIEW.h);
     }
+  }
+
+  /** The front: the logo over the painting, what it is, and the ways in. */
+  private front(ctx: CanvasRenderingContext2D, wob: number) {
+    // shade at the top for the logo, and a deeper one across the foot for the tiles
+    const top = ctx.createLinearGradient(0, -VIEW.oy, 0, 120);
+    top.addColorStop(0, 'rgba(14,8,22,0.55)');
+    top.addColorStop(1, 'rgba(14,8,22,0)');
+    ctx.fillStyle = top;
+    ctx.fillRect(-VIEW.ox, -VIEW.oy, VIEW.w, 120 + VIEW.oy);
+    const foot = ctx.createLinearGradient(0, 214, 0, H + VIEW.oy);
+    foot.addColorStop(0, 'rgba(14,8,22,0)');
+    foot.addColorStop(0.35, 'rgba(14,8,22,0.72)');
+    foot.addColorStop(1, 'rgba(14,8,22,0.92)');
+    ctx.fillStyle = foot;
+    ctx.fillRect(-VIEW.ox, 214, VIEW.w, H + VIEW.oy - 214);
+    // the logo
+    drawText(ctx, 'RUSTWING', W / 2 + 3, 22 + wob + 3, '#3a1408', { scale: 5, align: 'center', shadow: false });
+    drawText(ctx, 'RUSTWING', W / 2, 22 + wob, '#ff8a3a', { scale: 5, align: 'center', shadow: '#7a2a10' });
+    drawText(ctx, 'RAIDERS', W / 2, 62 + wob, '#ffd04a', { scale: 3, align: 'center', shadow: '#7a4a10' });
+    // what it is, on a dark strip so it reads over the sky
+    const tags: [string, string][] = [['SOLO', INK], ['COUCH CO-OP', '#ff8a3a'], ['ONLINE CO-OP', '#5ae0c0']];
+    const sep = '  ◆  ';
+    const tw = tags.reduce((w, [t]) => w + textWidth(t), 0) + textWidth(sep) * (tags.length - 1);
+    const ty = 98;
+    ctx.fillStyle = 'rgba(14,8,22,0.62)';
+    ctx.fillRect(Math.round(W / 2 - tw / 2 - 10), ty - 4, tw + 20, 15);
+    let tx = Math.round(W / 2 - tw / 2);
+    tags.forEach(([t, c], k) => {
+      if (k) tx += drawText(ctx, sep, tx, ty, DIM);
+      tx += drawText(ctx, t, tx, ty, c);
+    });
+    MODES.forEach((m, i) => this.tile(ctx, m, i));
+    const on = this.rise[MODES.length - 1];
+    if (on > 0) {
+      ctx.globalAlpha = on;
+      const hy = narrow() ? tilePos(MODES.length - 1).y + TILE_H + 14 : 342;
+      const hw = hints(ctx, this.shown, [['move', 'CHOOSE'], ['confirm', 'GO']], W / 2 - 30, hy, 'center');
+      drawText(ctx, 'OR CLICK', W / 2 - 30 + hw / 2 + 14, hy, DIM);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** A way in: an icon, what it's for, and a lit frame when it's the one picked. */
+  private tile(ctx: CanvasRenderingContext2D, m: (typeof MODES)[number], i: number) {
+    const k = ease(this.rise[i]);
+    if (k <= 0) return;
+    const l = this.lit[i];
+    const p = tilePos(i);
+    const x = p.x;
+    const y = p.y + Math.round((1 - k) * 18 - l * 4);
+    ctx.globalAlpha = k;
+    // a soft glow round the picked one
+    if (l > 0.05) {
+      ctx.fillStyle = m.color;
+      ctx.globalAlpha = k * l * 0.18;
+      ctx.fillRect(x - 3, y - 3, TILE_W + 6, TILE_H + 6);
+      ctx.globalAlpha = k;
+    }
+    ctx.fillStyle = l > 0.5 ? 'rgba(26,16,38,0.94)' : 'rgba(18,12,26,0.86)';
+    ctx.fillRect(x, y, TILE_W, TILE_H);
+    // the edge, lit in the tile's colour when picked
+    ctx.fillStyle = l > 0.5 ? m.color : EDGE;
+    ctx.fillRect(x, y, TILE_W, 1);
+    ctx.fillRect(x, y + TILE_H - 1, TILE_W, 1);
+    ctx.fillRect(x, y, 1, TILE_H);
+    ctx.fillRect(x + TILE_W - 1, y, 1, TILE_H);
+    // a band across the top in its colour, filling as it's picked
+    const bw = Math.round(TILE_W * (0.18 + 0.82 * l));
+    ctx.fillStyle = m.color;
+    ctx.fillRect(x, y, bw, 2);
+    // the icon: the local pad shows a second, ghosted, for the partner
+    const ix = x + 10;
+    const iy = y + 11;
+    if (m.id === 'local') {
+      ctx.globalAlpha = k * (0.35 + l * 0.35);
+      icon(ctx, m.icon, ix + 6, iy + 4, hex(LIVERY[1][2]));
+      ctx.globalAlpha = k;
+      icon(ctx, m.icon, ix, iy, l > 0.5 ? hex(LIVERY[0][2]) : '#8a7a9a');
+    } else icon(ctx, m.icon, ix, iy, l > 0.5 ? m.color : '#8a7a9a');
+    drawText(ctx, m.kicker, x + 46, y + 10, l > 0.5 ? m.color : DIM);
+    drawText(ctx, m.name, x + 46, y + 21, l > 0.5 ? INK : '#c8bcd8', { scale: 2 });
+    wrap(m.text, TILE_W - 20).slice(0, 2).forEach((line, j) => drawText(ctx, line, x + 10, y + 42 + j * 10, l > 0.5 ? '#d8cce8' : DIM));
+    ctx.globalAlpha = 1;
   }
 
   private card(ctx: CanvasRenderingContext2D, s: Seat, i: number) {
@@ -492,6 +682,15 @@ export class Title implements Screen {
     }
     // the frame's number in the roster, up in the window's corner
     drawText(ctx, `${String(s.frame + 1).padStart(2, '0')}/${String(FRAMES.length).padStart(2, '0')}`, wx + WIN.w - 5, wy + 5, '#6a5a80', { align: 'right' });
+    // how it takes fire: parrying it (a guard) or dashing out of it, in the window's other corner
+    const st = styleOf(f);
+    const nw = textWidth(st.name);
+    ctx.fillStyle = 'rgba(14,10,22,0.8)';
+    ctx.fillRect(wx + 4, wy + 4, nw + textWidth(` · ${st.text}`) + 7, 10);
+    ctx.fillStyle = st.color;
+    ctx.fillRect(wx + 4, wy + 4, 1, 10);
+    drawText(ctx, st.name, wx + 7, wy + 5, st.color, { shadow: false });
+    drawText(ctx, ` · ${st.text}`, wx + 7 + nw, wy + 5, '#a89ac0', { shadow: false });
     if (s.locked) {
       // READY wipes in across the foot of the window
       const k = ease(1 - s.flash);
@@ -589,6 +788,9 @@ export class Title implements Screen {
   }
 
   dispose() {
+    window.removeEventListener('pointermove', this.onMove);
+    window.removeEventListener('pointerdown', this.onDown);
+    document.body.style.cursor = '';
     for (const s of this.seats) this.unfurnish(s);
   }
 }

@@ -31,7 +31,7 @@ export type Sfx =
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
   | 'core_hum' | 'core_feed' | 'core_grow' | 'core_wake' | 'imprint' | 'shaken' | 'engine_call' | 'core_refuse' | 'core_bark'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
-  | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
+  | 'parry' | 'block' | 'aux_ready' | 'guard_up' | 'guard_whiff' | 'dash_dry' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
   | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
@@ -588,6 +588,29 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'sine', 140 * p, 45 * p, 0.25, 0.4, 0.001);
     return 0.95;
   }, 0.06, 3, { tuned: true, rev: 0.35 }),
+
+  /** The guard going up: a quick bright shimmer rising, so the ear has the window's start too. */
+  guard_up: S((t, p, o) => {
+    noise(o, t, 0.09, 'bandpass', 2500 * p, 7000 * p, 3, 0.12, 0.004);
+    tone(o, t, 'sine', 880 * p, 1760 * p, 0.07, 0.06, 0.002);
+    tone(o, t, 'triangle', 1320 * p, 2640 * p, 0.06, 0.025, 0.002);
+    return 0.1;
+  }, 0.05, 2),
+
+  /** The guard fell with nothing in it: a dull sag, the long wait you bought. */
+  guard_whiff: S((t, p, o) => {
+    tone(filt(o, 'lowpass', 900), t, 'triangle', 420 * p, 150 * p, 0.22, 0.08, 0.004);
+    noise(o, t, 0.16, 'lowpass', 1400, 300, 1, 0.05, 0.01);
+    return 0.24;
+  }, 0.1, 1, { low: true }),
+
+  /** Dash pressed with none left: a dry click, so it's never a mystery why nothing went. */
+  dash_dry: S((t, p, o) => {
+    tone(o, t, 'square', 1200 * p, 900 * p, 0.02, 0.04, 0.001);
+    noise(o, t, 0.03, 'bandpass', 2400 * p, 1800 * p, 2, 0.06);
+    tone(o, t + 0.045, 'square', 900 * p, 700 * p, 0.02, 0.03, 0.001);
+    return 0.08;
+  }, 0.08, 1, { low: true }),
 
   block: S((t, p, o) => {
     tone(filt(o, 'lowpass', 1400), t, 'square', 300 * p, 180 * p, 0.12, 0.12, 0.001);

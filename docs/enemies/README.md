@@ -51,7 +51,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Technical](technical.md) | scrap | Gun truck | 2 | 2 | 2 | 1 | 1 | Skid and engine sounds |
 | [Gunboat](gunboat.md) | scrap, water only | Broadside boat | 2 | 2 | 2 | 1 | 1 | Telegraph the deck gun |
 | [Dreadnought](dreadnought.md) | scrap | Heavy airship | 2 | 2 | 2 | 1 | 1 | Tell the mines |
-| [Swooper](swooper.md) | wild, bloom | Diver | 2 | 3 | 2 | 1 | 1 | A screech on the dive |
+| [Sower](sower.md) | wild, bloom | Diver | 2 | 3 | 2 | 2 | 1 | A whirr on the spin-up |
 | [Burrower](burrower.md) | wild | Ambusher | 2 | 2 | 2 | 1 | 1 | Draw the ripple |
 | [Spitter](spitter.md) | wild, bloom | Ground lobber | 1 | 2 | 2 | 1 | 1 | Something the Flakker doesn't do |
 | [Sky Manta](sky-manta.md) | wild, bloom | Crossing heavy | 2 | 2 | 2 | 1 | 1 | Show which thorns ripen when |
@@ -96,7 +96,7 @@ Metal you bolted together yourself: the Hesk, the Uukhvar, the Sankvi and the Lo
 
 The native beasts, on any biome with creatures (`factionsIn`, `src/sim/factions.ts`). Tell grammar: **rear** (crouch back, the shadow falls where they'll land). Their models are in `tools/models/enemies_order.py`.
 
-- [Swooper](swooper.md)
+- [Sower](sower.md)
 - [Burrower](burrower.md)
 - [Spitter](spitter.md)
 - [Sky Manta](sky-manta.md)
@@ -114,7 +114,7 @@ The old machine and its copies. Tell grammar: **draw** (the whole attack in ligh
 
 ## Bloom
 
-The fungal rot of Mirefall (and spore-vent biomes). Tell grammar: **swell** (it pulses, then bursts). Swooper, Spitter and Sky Manta fly with it too (`ROSTER`).
+The fungal rot of Mirefall (and spore-vent biomes). Tell grammar: **swell** (it pulses, then bursts). Sower, Spitter and Sky Manta fly with it too (`ROSTER`).
 
 - [Heartpod](heartpod.md)
 - [Puffball](puffball.md)
@@ -152,4 +152,4 @@ Each planet's own roster (`src/world/planets.ts`), drawn by `spawnArch` (`src/si
 7. **The old guard lags the faction foes** on pattern: five of nine have no real tell. Either bring them up to the loop, or keep them as fodder on purpose and say so.
 8. **Deaths are all the same.** A beast and a machine go up in the same fireball. A beast should fall, a machine break up, a bloom burst into spores.
 9. **The old guard has no owner in the lore.** Dart, swarm, gunship and the rest are worn under planet names, but nobody in the lore flies "a gunship". Each planet's version should be a thing its power would build (the Patrol Cutter is the Compact's dart; the Hesk Skiff the Hesk's), named on its own page, or folded into the faction rosters.
-10. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Swooper, Spitter, Warden, Prism, and the old guard's Gunship, Brute and Lancer.
+10. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Sower, Spitter, Warden, Prism, and the old guard's Gunship, Brute and Lancer.

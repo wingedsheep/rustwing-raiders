@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Enemy, Level } from '../sim/level';
+import type { Enemy, Level, Player } from '../sim/level';
 import type { Fx } from './fx';
 import { FLIGHT_Y, fromFlight } from '../sim/types';
 
@@ -35,6 +35,8 @@ const fragmentShader = /* glsl */ `
   uniform float uBreak;
   uniform float uRadius;
   uniform float uEdge;
+  /** How bright it is over all (a ship's guard is smaller and nearer: it wants less). */
+  uniform float uGain;
   uniform vec4 uHits[${HITS}];
   varying vec3 vLocal;
   varying vec3 vNormalV;
@@ -76,7 +78,7 @@ const fragmentShader = /* glsl */ `
     // shattering: cells drop out one by one
     if (id < uBreak * 1.2) discard;
     vec3 col = mix(uColor, vec3(1.0), clamp(struck * 0.6 + uLit * 0.5 + line * 0.25, 0.0, 1.0));
-    gl_FragColor = vec4(col * a * (1.0 - uBreak * 0.6), 1.0);
+    gl_FragColor = vec4(col * a * uGain * (1.0 - uBreak * 0.6), 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -127,6 +129,7 @@ export class Shields {
         uBreak: { value: 0 },
         uRadius: { value: r },
         uEdge: { value: bubble ? 22 : Math.max(4, Math.round(e.guard * 7)) },
+        uGain: { value: 1 },
         uHits: { value: Array.from({ length: HITS }, () => new THREE.Vector4(0, 0, 0, 9)) },
       },
       vertexShader,
@@ -245,3 +248,166 @@ export class Shields {
     this.dying = [];
   }
 }
+
+/**
+ * A ship's guard (the Parry Emitter's burst) as the same hex light: it snaps out white and wide
+ * for the parry window, so you see the instant you have, then settles smaller in the ship's own
+ * colour while it only blocks, rippling where each bullet lands. Broken by a block that gives
+ * out, it shatters; let fall with nothing in it, it greys and drops away (a long wait).
+ */
+interface Guard {
+  mesh: THREE.Mesh;
+  mat: THREE.ShaderMaterial;
+  hits: THREE.Vector4[];
+  next: number;
+  /** Seconds since it went up (for the snap out). */
+  t: number;
+  lit: number;
+  /** 0 up … 1 gone, and how it went: faded, shattered, or a whiff. */
+  out: number;
+  how: 'fade' | 'broke' | 'whiff' | null;
+}
+
+/** How big it shows: the parry's reach, and the block's (a touch past, so the ship sits inside). */
+const GUARD_R = 2.7;
+const BLOCK_SHOWN = 0.82;
+const GREY = new THREE.Color(0x6a6078);
+
+export class Guards {
+  readonly group = new THREE.Group();
+  private views = new Map<number, Guard>();
+  private dying: Guard[] = [];
+  private time = 0;
+  private c = new THREE.Color();
+
+  constructor(private fx: Fx) {}
+
+  private make(): Guard {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(1, 1, 1) },
+        uTime: { value: 0 },
+        uLit: { value: 1 },
+        uBreak: { value: 0 },
+        uRadius: { value: GUARD_R },
+        uEdge: { value: 14 },
+        uGain: { value: 0.5 },
+        uHits: { value: Array.from({ length: HITS }, () => new THREE.Vector4(0, 0, 0, 9)) },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(GUARD_R, 28, 14), mat);
+    mesh.renderOrder = 24;
+    this.group.add(mesh);
+    return { mesh, mat, hits: mat.uniforms.uHits.value, next: 0, t: 0, lit: 1, out: 0, how: null };
+  }
+
+  /** Something struck the guard at (x, z): a ripple there (the front, if no spot is given). */
+  hit(id: number, x: number, z: number) {
+    const g = this.views.get(id);
+    if (!g) return;
+    const m = g.mesh;
+    const l = new THREE.Vector3(x - m.position.x, 0.3, z - m.position.z);
+    if (l.lengthSq() < 0.01) l.set(0, 0.3, -1);
+    l.setLength(GUARD_R);
+    g.hits[g.next].set(l.x, l.y, l.z, 0);
+    g.next = (g.next + 1) % HITS;
+    g.lit = Math.max(g.lit, 0.7);
+  }
+
+  /** The guard went down: shattered (a block gave out) or greyed out (nothing came). */
+  end(id: number, how: 'broke' | 'whiff') {
+    const g = this.views.get(id);
+    if (!g) return;
+    this.views.delete(id);
+    g.how = how;
+    this.dying.push(g);
+    if (how === 'broke') {
+      const p = g.mesh.position;
+      const col = g.mat.uniforms.uColor.value as THREE.Color;
+      for (let k = 0; k < 18; k++) {
+        const a = (k / 18) * Math.PI * 2 + Math.random() * 0.3;
+        const v = 8 + Math.random() * 10;
+        this.fx.add({ x: p.x + Math.sin(a) * GUARD_R, y: p.y + 0.4, z: p.z + Math.cos(a) * GUARD_R, vx: Math.sin(a) * v, vz: Math.cos(a) * v, vy: Math.random() * 3, size: 0.28, grow: 0.2, life: 0.3 + Math.random() * 0.2, drag: 3, color: col.clone().lerp(WHITE, 0.5).multiplyScalar(1.4), carried: true });
+      }
+      this.fx.ring(p.x, p.y + 0.4, p.z, GUARD_R * 1.5, 0.22, true, col.getHex());
+    }
+  }
+
+  update(dt: number, lv: Level, livery: (id: number) => number) {
+    this.time += dt;
+    const up = new Set<number>();
+    for (const p of lv.players) {
+      if (!guarding(p)) continue;
+      up.add(p.id);
+      let g = this.views.get(p.id);
+      if (!g) {
+        g = this.make();
+        this.views.set(p.id, g);
+      }
+      g.t += dt;
+      g.mesh.position.set(p.x, FLIGHT_Y + 0.3, p.z);
+      // white and full in the window; the ship's colour, drawn in, while it only blocks
+      const win = p.parryT > 0;
+      this.c.setHex(livery(p.id)).lerp(WHITE, 0.25);
+      (g.mat.uniforms.uColor.value as THREE.Color).lerp(win ? WHITE : this.c, win ? 1 : Math.min(1, dt * 18));
+      if (win) g.lit = Math.max(g.lit, 0.6);
+      g.mat.uniforms.uGain.value = win ? 0.55 : 0.4;
+      // the snap out: past full and back, in a blink
+      const k = Math.min(1, g.t / 0.07);
+      const pop = k < 1 ? 0.55 + 0.6 * k : 1 + 0.15 * Math.exp(-(g.t - 0.07) * 30);
+      const size = win ? 1 : BLOCK_SHOWN;
+      const cur = g.mesh.scale.x || size;
+      const s = k < 1 || win ? size * pop : cur + (size - cur) * Math.min(1, dt * 20);
+      g.mesh.scale.set(s, s * 0.55, s);
+    }
+    // gone without a word (the burst ran out, the ship went down): let it fade
+    for (const [id, g] of this.views)
+      if (!up.has(id)) {
+        this.views.delete(id);
+        g.how = 'fade';
+        this.dying.push(g);
+      }
+    const tick = (g: Guard) => {
+      const u = g.mat.uniforms;
+      u.uTime.value = this.time;
+      g.lit = Math.max(0, g.lit - dt * 6);
+      for (const h of g.hits) if (h.w <= 1) h.w += dt * 3.2;
+      u.uLit.value = g.lit;
+      u.uBreak.value = g.out;
+    };
+    for (const g of this.views.values()) tick(g);
+    for (let i = this.dying.length - 1; i >= 0; i--) {
+      const g = this.dying[i];
+      g.out = Math.min(1, g.out + dt * (g.how === 'broke' ? 7 : g.how === 'whiff' ? 3 : 6));
+      if (g.how === 'whiff') {
+        (g.mat.uniforms.uColor.value as THREE.Color).lerp(GREY, Math.min(1, dt * 14));
+        g.mesh.scale.multiplyScalar(1 - dt * 1.5);
+      } else g.mesh.scale.multiplyScalar(1 + dt * (g.how === 'broke' ? 2.5 : 0.8));
+      tick(g);
+      if (g.out >= 1) {
+        this.group.remove(g.mesh);
+        g.mesh.geometry.dispose();
+        g.mat.dispose();
+        this.dying.splice(i, 1);
+      }
+    }
+  }
+
+  dispose() {
+    for (const g of [...this.views.values(), ...this.dying]) {
+      g.mesh.geometry.dispose();
+      g.mat.dispose();
+    }
+    this.views.clear();
+    this.dying = [];
+  }
+}
+
+/** The guard is up: a Parry Emitter's burst running. */
+const guarding = (p: Player) => !p.down && p.stats.aux === 'parry' && p.auxT > 0;

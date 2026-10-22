@@ -27,6 +27,8 @@ import { LONG_SLOW, Mind, newMindState, type MindState, type MindWhat } from './
 import { UNBENDING_HULL, waysOf, type CoreKit, type ImprintId } from '../game/core';
 
 export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
+/** The two ways to a perfect: dash out of fire in the slip, or parry it in the guard's first instant. */
+export type PerfectHow = 'dash' | 'parry';
 
 // Boosting, and what doing it well pays: the numbers the feel hangs on.
 /** Boost is a surge of your own ship: faster, up the screen unless steered, sliding more. */
@@ -55,6 +57,11 @@ const POINT_BLANK = 7;
 const DASH_SPEED = 62;
 const DASH_TIME = 0.17;
 const DASH_RECOVER = 0.25;
+/**
+ * A dash pressed too soon (in the dash, or its recovery) is held this long and goes the moment it
+ * can: mashing through a recovery never eats a press.
+ */
+const DASH_QUEUE = 0.3;
 /** A perfect soaks up the bullets this close. */
 const PERFECT_R = 2.4;
 /** Focus pulls spreads in to this much. */
@@ -133,6 +140,8 @@ export interface Player {
   slipZ: number;
   /** Seconds until the next dash can start. */
   dashLock: number;
+  /** A dash pressed and not gone yet: seconds it's held for (see DASH_QUEUE). */
+  dashQ: number;
   /** This dash has had its perfect already. */
   perfect: boolean;
   perfects: number;
@@ -146,6 +155,14 @@ export interface Player {
   auxT: number;
   /** Seconds left of the parry window (the opening of a Parry Emitter burst). */
   parryT: number;
+  /**
+   * RIPOSTE: seconds left after a perfect parry in which everything the guns fire crits (and so
+   * breaks plating). The dash's answer is the dash-strike; the guard's is this, longer.
+   */
+  riposte: number;
+  /** Perfects in a row, each within PERFECT_CHAIN of the last (for the view's pitch and count), and the time since the last. */
+  chain: number;
+  chainT: number;
   /** Bullets parried, blocked and drunk this use. */
   parried: number;
   blocked: number;
@@ -429,7 +446,7 @@ export interface Hazard {
 export type LevelEvent =
   /** `turret`: fired by a SENTINEL left behind, not the ship. */
   | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number; turret?: boolean; heavy?: boolean }
-  /** HEAVY guns: the button pressed (`fired` rounds went, 0: all dry), a round back (`perfect`: a perfect dash gave it). */
+  /** HEAVY guns: the button pressed (`fired` rounds went, 0: all dry), a round back (`perfect`: a perfect gave it). */
   | { type: 'heavy'; id: number; x: number; z: number; fired: number }
   | { type: 'reload'; id: number; gun: number; perfect: boolean; rounds: number }
   /** `dot`: a burn's tick, not a blow. */
@@ -451,6 +468,8 @@ export type LevelEvent =
   | { type: 'revive'; id: number }
   | { type: 'graze'; id: number; x: number; z: number }
   | { type: 'dash'; id: number; x: number; z: number; dx: number; dz: number }
+  /** Dash pressed with none left (and none back in time). */
+  | { type: 'dashDry'; id: number }
   /** `echo`: the Echo Relay's second go, weaker. */
   | { type: 'special'; id: number; kind: NonNullable<Stats['special']>; x: number; z: number; echo?: boolean }
   | { type: 'specialReady'; id: number }
@@ -472,7 +491,7 @@ export type LevelEvent =
   /** Boost started or stopped. */
   | { type: 'boost'; id: number; on: boolean }
   /** A dash through fire, timed right: `absorbed` bullets soaked up, the dash given back. */
-  | { type: 'perfect'; id: number; x: number; z: number; absorbed: number }
+  | { type: 'perfect'; id: number; x: number; z: number; absorbed: number; how: PerfectHow; chain: number }
   /** Flying a hair from the land or an obstacle (a few times a second while it lasts): (x, z) is the near point, `close` 0..1. */
   | { type: 'skim'; id: number; x: number; z: number; close: number }
   /** A kill from up close. */
@@ -488,7 +507,9 @@ export type LevelEvent =
   /** The aux went off. */
   | { type: 'aux'; id: number; kind: AuxKind; x: number; z: number }
   /** A parry: `count` bullets thrown back (the opening instant of a Parry Emitter burst). */
-  | { type: 'parry'; id: number; x: number; z: number; count: number }
+  | { type: 'parry'; id: number; x: number; z: number; count: number; first: boolean }
+  /** The guard burst ran out with nothing in it (a long wait), or a block gave out under fire. */
+  | { type: 'guardOut'; id: number; x: number; z: number; how: 'whiff' | 'broke' }
   /** A late press: the burst only blocked these. */
   | { type: 'block'; id: number; x: number; z: number; count: number }
   /** The aux can be used again. */
@@ -718,6 +739,7 @@ export class Level {
         slipX: 0,
         slipZ: 0,
         dashLock: 0,
+        dashQ: 0,
         perfect: false,
         perfects: 0,
         boostTime: 0,
@@ -726,6 +748,9 @@ export class Level {
         auxMax: 1,
         auxT: 0,
         parryT: 0,
+        riposte: 0,
+        chain: 0,
+        chainT: 9,
         parried: 0,
         blocked: 0,
         eaten: 0,
@@ -1012,6 +1037,8 @@ export class Level {
     p.strike = Math.max(0, p.strike - DT);
     p.spiteT = Math.max(0, p.spiteT - DT);
     p.primeT = Math.max(0, p.primeT - DT);
+    p.riposte = Math.max(0, p.riposte - DT);
+    if ((p.chainT += DT) > PERFECT_CHAIN) p.chain = 0;
     p.focus = i.focus;
     const welding = this.updateWeld(p, i);
     // a SKY DIVE has the ship till it's done
@@ -1067,7 +1094,14 @@ export class Level {
       p.dashes++;
       p.dashCd = s.dashCooldown;
     }
-    if (i.dash && !welding && !diving && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
+    if (i.dash) {
+      p.dashQ = DASH_QUEUE;
+      // none left, and none back in time: say so (a dry click, the pips flash), don't just ignore it
+      if (p.dashes <= 0 && p.dashCd > DASH_QUEUE) this.emit({ type: 'dashDry', id: p.id });
+    }
+    p.dashQ = Math.max(0, p.dashQ - DT);
+    if (p.dashQ > 0 && !welding && !diving && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
+      p.dashQ = 0;
       p.dashes--;
       if (p.dashCd <= 0) p.dashCd = s.dashCooldown;
       const dl = Math.hypot(mx, mz);
@@ -1288,7 +1322,7 @@ export class Level {
     return 1;
   }
 
-  /** A perfect dash puts a round back in every heavy gun. */
+  /** A perfect puts a round back in every heavy gun. */
   private reloadHeavies(p: Player) {
     p.stats.guns.forEach((g, k) => {
       if (!g.heavy || p.rounds[k] >= g.heavy) return;
@@ -2483,7 +2517,10 @@ export class Level {
   /** The aux has done its thing: how long until it can go again. */
   private auxEnd(p: Player, kill = false) {
     const a = p.stats.aux;
-    if (a === 'parry') this.setAuxCd(p, p.parried ? CD_PARRY : p.blocked ? CD_BLOCK : CD_WHIFF);
+    if (a === 'parry') {
+      if (!p.parried && !p.blocked) this.emit({ type: 'guardOut', id: p.id, x: p.x, z: p.z, how: 'whiff' });
+      this.setAuxCd(p, p.parried ? CD_PARRY : p.blocked ? CD_BLOCK : CD_WHIFF);
+    }
     else if (a === 'siphon') this.setAuxCd(p, CD_SIPHON);
     else if (a === 'flare') this.setAuxCd(p, CD_FLARE);
     else if (a === 'tether') {
@@ -2522,25 +2559,20 @@ export class Level {
           if (p.blocked >= BLOCK_MAX) {
             // the block gives out
             p.auxT = 0;
+            this.emit({ type: 'guardOut', id: p.id, x: p.x, z: p.z, how: 'broke' });
             this.auxEnd(p);
             break;
           }
         }
       }
       if (parried) {
-        if (!p.parried) {
-          // the first of a burst: the reward for the timing
-          p.burn = Math.min(1, p.burn + PARRY_BURN);
-          p.charge = Math.min(1, p.charge + PARRY_CHARGE);
-          p.inv = Math.max(p.inv, 0.35);
-        }
+        const first = !p.parried;
         // and every bullet thrown back feeds the special
         p.charge = Math.min(1, p.charge + PARRY_CHARGE_EACH * parried);
-        // (the Weld once a use)
-        if (!p.parried) this.feedWeld(p, WELD.parry);
         p.parried += parried;
         p.parries += parried;
-        this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: parried });
+        this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: parried, first });
+        if (first) this.perfectParry(p, parried);
       }
       if (blocked) this.emit({ type: 'block', id: p.id, x: p.x, z: p.z, count: blocked });
     } else if (s.aux === 'siphon') {
@@ -2572,13 +2604,19 @@ export class Level {
   private parryLaser(p: Player, l: Level['lasers'][number], owner: Enemy) {
     l.on = 0;
     this.damage(owner, PARRY_LASER * p.stats.auxStr, p.id, true);
-    if (!p.parried) {
-      p.burn = Math.min(1, p.burn + PARRY_BURN);
-      this.feedWeld(p, WELD.parry);
-    }
+    const first = !p.parried;
     p.parried++;
     p.parries++;
-    this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: 1 });
+    this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: 1, first });
+    if (first) this.perfectParry(p, 1);
+  }
+
+  /** The first parry of a burst: the reward for the timing. A perfect, and the riposte. */
+  private perfectParry(p: Player, count: number) {
+    p.charge = Math.min(1, p.charge + PARRY_CHARGE);
+    p.inv = Math.max(p.inv, 0.35);
+    p.riposte = RIPOSTE_TIME;
+    this.perfect(p, 'parry', count);
   }
 
   /** A shield from a part, one over the top at most. */
@@ -2618,6 +2656,7 @@ export class Level {
     if (g.affix === 'spite' && p.spiteT > 0) dmg *= SPITE_DMG;
     if (g.primed && p.primeT > 0) dmg *= PRIMED_DMG;
     dmg *= this.mind.luckMul(p, g.heavy ? 'H' : 'T');
+    if (p.riposte > 0) return { dmg: dmg * RIPOSTE_DMG, crit: true };
     return { dmg, crit: false };
   }
 
@@ -2970,24 +3009,16 @@ export class Level {
       }
     if (p.perfect) return;
     p.perfect = true;
-    p.perfects++;
     p.dashes = Math.min(p.stats.dashes, p.dashes + 1);
     // the Wasp gets them all back and skips the recovery; the afterimage burns hotter
     if (p.stats.mod.refill) {
       p.dashes = p.stats.dashes;
       p.dashLock = Math.min(p.dashLock, p.dashT);
     }
-    this.reloadHeavies(p);
     for (const d of this.decoys) if (d.kind === 'ghost' && d.owner === p.id && d.t < p.stats.slip + DT) d.power *= 2;
-    p.burn = Math.min(1, p.burn + BURN_PERFECT);
-    this.feedWeld(p, WELD.perfect);
-    this.mind.perfect(p);
-    // a perfect read: through a boss's attack it wears its poise hard, through its signature it breaks it
-    for (const e of this.enemies) if (e.boss && !e.dead && e.state === 'attack') bossRead(this, e);
-    this.emit({ type: 'perfect', id: p.id, x: p.x, z: p.z, absorbed });
-    const af = p.stats.affixes;
+    this.perfect(p, 'dash', absorbed);
     // DEFLECTING: what it soaked goes back at them (at least a few, to the nearest)
-    if (af.deflecting) {
+    if (p.stats.affixes.deflecting) {
       for (let k = 0; k < Math.min(8, Math.max(3, absorbed)); k++) {
         const t = this.nearest(p.x, p.z);
         const dir = t ? Math.atan2(t.x - p.x, -(t.z - p.z)) : 0;
@@ -2995,6 +3026,25 @@ export class Level {
       }
       this.emit({ type: 'affix', id: p.id, affix: 'deflecting', x: p.x, z: p.z });
     }
+  }
+
+  /**
+   * A perfect, either way: what every perfect pays (Burn, the Weld, a round in every heavy, the
+   * core's nerve, a read on a boss mid-attack, the perfect affixes). What's the dash's own (a dash
+   * back) or the guard's (the riposte) is paid where it happens.
+   */
+  private perfect(p: Player, how: PerfectHow, absorbed: number) {
+    p.perfects++;
+    p.chain = p.chainT <= PERFECT_CHAIN ? p.chain + 1 : 1;
+    p.chainT = 0;
+    this.reloadHeavies(p);
+    p.burn = Math.min(1, p.burn + BURN_PERFECT);
+    this.feedWeld(p, how === 'parry' ? WELD.parry : WELD.perfect);
+    this.mind.perfect(p, how);
+    // a perfect read: through a boss's attack it wears its poise hard, through its signature it breaks it
+    for (const e of this.enemies) if (e.boss && !e.dead && e.state === 'attack') bossRead(this, e);
+    this.emit({ type: 'perfect', id: p.id, x: p.x, z: p.z, absorbed, how, chain: p.chain });
+    const af = p.stats.affixes;
     // ADRENAL: the kit comes up
     if (af.adrenal) {
       const was = p.charge;
@@ -3156,7 +3206,11 @@ const BLOCK_MAX = 3;
 /** A parried bullet's damage (more with Burn), a parried laser's, the Burn a parry earns. */
 const PARRY_DMG = 14;
 const PARRY_LASER = 25;
-const PARRY_BURN = 0.2;
+/** RIPOSTE: how long after a perfect parry the guns crit, and how much harder they hit in it. */
+export const RIPOSTE_TIME = 1.2;
+const RIPOSTE_DMG = 1.3;
+/** Perfects closer together than this (seconds) run on as a chain. */
+const PERFECT_CHAIN = 3;
 /** Special charge for a parry, and for each bullet in it. */
 const PARRY_CHARGE = 0.08;
 const PARRY_CHARGE_EACH = 0.03;
@@ -3290,7 +3344,7 @@ const POISE_BLOW = 1.5;
 /**
  * The Weld: `hold` before it's under way, `time` it takes then, the speed it crawls at (of top).
  * What charges it, as shares of a full one: per point of damage from the stream and from blows
- * (a hit counts up to `cap`), and per perfect dash, parry (a use) and takedown (an elite's, or a
+ * (a hit counts up to `cap`), and per perfect dash, perfect parry and takedown (an elite's, or a
  * boss's first a phase: `bigTakedown`). About 40 s of good fighting fills it.
  */
 export const WELD = {

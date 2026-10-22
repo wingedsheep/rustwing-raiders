@@ -191,6 +191,7 @@ export class Flight implements Screen {
     this.hud.dh = g.dh;
     this.hud.scale = g.uiScale;
     this.hud.heavyKeys = g.devices.map((d) => input.heavyKey(d));
+    this.hud.auxKeys = g.devices.map((d) => input.auxKey(d));
     this.hud.devs = g.devices;
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }

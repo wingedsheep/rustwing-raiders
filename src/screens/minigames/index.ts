@@ -10,24 +10,26 @@ import { Haggle } from './haggle';
 import { Shake } from './shake';
 
 export type { Minigame, Pad } from './common';
+export { levelInfo } from './common';
 
-export function minigame(kind: MiniKind, bold: boolean, seed: number, setup: Setup = {}): Minigame {
+/** A game of `kind` at `level` (1 easy .. 5 deadly). */
+export function minigame(kind: MiniKind, level: number, seed: number, setup: Setup = {}): Minigame {
   switch (kind) {
     case 'tow':
-      return new Tow(bold, seed);
+      return new Tow(level, seed);
     case 'tune':
-      return new Tune(bold, seed);
+      return new Tune(level, seed);
     case 'grab':
-      return new Grab(bold, seed);
+      return new Grab(level, seed);
     case 'reels':
-      return new Reels(bold, seed);
+      return new Reels(level, seed);
     case 'dock':
-      return new Dock(bold, seed);
+      return new Dock(level, seed);
     case 'thread':
-      return new Thread(bold, seed);
+      return new Thread(level, seed);
     case 'haggle':
-      return new Haggle(bold, seed, setup);
+      return new Haggle(level, seed, setup);
     case 'shake':
-      return new Shake(bold, seed);
+      return new Shake(level, seed);
   }
 }

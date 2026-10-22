@@ -8,6 +8,7 @@ The history behind Rustwing Raiders, the story happening now, and the languages 
 - [Minds](minds.md): the cores that wake up as people, and the powers that wipe them, worship them or sign contracts with them.
 - [History](history.md): from the gate-builders to the present, with dates.
 - [Peoples](peoples.md): who lives in the Reach, and how they got there.
+- [How people live](living.md): the ground most people live on (work, money, food, belief, a day on each world), how machine minds and the soft places touch it, and what the Waking does to it.
 - [The Tonkva](tonkva.md): the dead order that built the gates and the Engine: how they lived, and why they died of being kept.
 - [Languages](languages.md): the old tongue, how it changed in each mouth, and where every name comes from.
 - [The Waking](the-waking.md): the story happening now, what each faction wants from it, and the secrets only we know.

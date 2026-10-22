@@ -899,7 +899,8 @@ def technical_mech():
 
 
 def spindle_mech():
-    """A lattice-machine pylon: an octagonal plinth, a column with turning rings, a four-armed head."""
+    """A lattice-machine pylon: an octagonal plinth, a squat column with turning rings, a four-armed head.
+    Kept low (head at ~1.4) so under the camera's tilt the head stays over the plinth, where it's hit."""
     kind, clip, root = _root("spindle", "mech", "hum")
     T = 4.0
     b = Model(f"{kind}_base", seed=130)
@@ -912,13 +913,13 @@ def spindle_mech():
         b.box((0.3, 0.1, 0.06), (math.cos(a) * 1.0, math.sin(a) * 1.0, 0.41), C, glow=True, rot=(0, 0, a))
         a2 = TAU * k / 8
         b.box((0.22, 0.22, 0.14), (math.cos(a2) * 0.78, math.sin(a2) * 0.78, 0.76), B, rot=(0, 0, a2))
-    b.cyl(0.3, 1.5, (0, 0, 0.75), A, segs=6)                                              # the column
+    b.cyl(0.36, 0.5, (0, 0, 0.75), A, segs=6)                                             # the column
     for k in range(6):  # a channel of light up each face
         a = TAU * (k + 0.5) / 6
-        b.box((0.08, 0.06, 1.2), (math.cos(a) * 0.27, math.sin(a) * 0.27, 1.45), C, glow=True, rot=(0, 0, a + math.pi / 2))
-    b.cyl(0.45, 0.15, (0, 0, 2.2), B, segs=8)                                             # bearing under the head
+        b.box((0.08, 0.06, 0.42), (math.cos(a) * 0.33, math.sin(a) * 0.33, 1.0), C, glow=True, rot=(0, 0, a + math.pi / 2))
+    b.cyl(0.45, 0.15, (0, 0, 1.25), B, segs=8)                                            # bearing under the head
     base = b.build(root)
-    for k, (z, r, turns) in enumerate(((1.05, 0.62, 1), (1.65, 0.5, -1))):
+    for k, (z, r, turns) in enumerate(((0.9, 0.62, 1), (1.12, 0.5, -1))):
         m = Model(f"{kind}_ring_{k}")
         n = 4 if k == 0 else 3
         for j in range(n):  # fins on a slate collar
@@ -938,7 +939,7 @@ def spindle_mech():
         h.box((0.6, 0.16, 0.06), (ca * 0.85, sa * 0.85, 0.31), B, rot=(0, 0, a))
         h.box((0.28, 0.5, 0.34), (ca * 1.42, sa * 1.42, 0.17), B, rot=(0, 0, a))          # claw cradling the crystal
         h.ball(0.26, (ca * 1.62, sa * 1.62, 0.22), C, subdiv=0, glow=True, scale=(1.6, 0.95, 0.95), rot=(0, 0, a))
-    head = h.build(base, loc=(0, 0, 2.35), part="head")
+    head = h.build(base, loc=(0, 0, 1.4), part="head")
     head.name = f"{kind}_head"
     core = Model(f"{kind}_core")
     core.ball(0.3, (0, 0, 0), C, subdiv=1, glow=True)

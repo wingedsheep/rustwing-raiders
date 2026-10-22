@@ -71,7 +71,7 @@ export const FOES: Record<Foe, FoeDef> = {
   rigger: { name: 'Torpedo Rig', faction: 'scrap', hp: 65, r: 1.8, score: 550, scrap: 4, model: 'bomber', beast: false, scale: 1.05, tip: 'LOCKS ON, THEN TORPEDOES: TURN HARD, DASH THROUGH, OR SHOOT THEM DOWN' },
   ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4, tip: 'A RIVAL: ROLLS AWAY FROM YOUR FIRE. BOOST PAST IT TO BEAT IT' },
   flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true , tip: 'SHELLS LAND WHERE YOU WILL BE: CHANGE YOUR PACE' },
-  swooper: { name: 'Swooper', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2, tip: 'ITS SHADOW MARKS YOU, THEN IT DIVES THROUGH THE MARK' },
+  swooper: { name: 'Sower', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2, tip: 'ITS SHADOW MARKS YOU, THEN IT FOLDS AND DIVES THROUGH THE MARK' },
   burrower: { name: 'Burrower', faction: 'wild', hp: 90, r: 2.2, score: 700, scrap: 5, model: 'serpent', beast: true, scale: 1.4, tip: 'A RIPPLE COMES FOR YOU, THEN IT ERUPTS: GET OFF THE MARK' },
   spitter: { name: 'Spitter', faction: 'wild', hp: 40, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: true, scale: 1.1, ground: true , tip: 'LOBS ACID AHEAD OF YOU: KEEP OUT OF THE PUDDLE' },
   warden: { name: 'Warden', faction: 'lattice', hp: 110, r: 2, score: 700, scrap: 5, model: 'gunship', beast: false, scale: 1, tip: 'SHIELDED IN FRONT: GET ROUND IT, HIT IT AS IT FIRES, OR POUND THE SHIELD TILL IT CRACKS' },

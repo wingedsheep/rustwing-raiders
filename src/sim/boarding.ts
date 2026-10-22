@@ -81,6 +81,8 @@ export interface Hero {
   inv: number;
   dashT: number;
   dashAge: number;
+  /** A slide pressed too soon, held for a moment (as the flight's dash: see DASH_QUEUE there). */
+  dashQ: number;
   dashCd: number;
   dashX: number;
   dashZ: number;
@@ -365,7 +367,7 @@ export class Boarding {
     for (let i = 0; i < spec.heroes; i++) {
       const h: Hero = {
         id: i, x: d.breach.x + 0.6, z: d.breach.z + (i - (spec.heroes - 1) / 2) * 1.1, vx: 0, vz: 0, face: 0, aim: 0, hp: HERO.hp, inv: 0,
-        dashT: 0, dashAge: 0, dashCd: 0, dashX: 1, dashZ: 0, perfected: false, fireCd: 0, shells: HERO.shells, shellT: 0, firing: false, sinceShot: 9,
+        dashT: 0, dashAge: 0, dashQ: 0, dashCd: 0, dashX: 1, dashZ: 0, perfected: false, fireCd: 0, shells: HERO.shells, shellT: 0, firing: false, sinceShot: 9,
         mark: -1, down: false, stun: 0, hook: null, work: null, bumped: false, room: d.roomAt(d.breach.x, d.breach.z), kills: 0, takedowns: 0,
         perfects: 0, hits: 0, tins: 0, stride: 0,
       };
@@ -574,7 +576,10 @@ export class Boarding {
     }
     const control = h.stun <= 0;
     // the slide
-    if (control && it.dash && h.dashCd <= 0 && h.dashT <= 0) {
+    if (it.dash) h.dashQ = 0.25;
+    h.dashQ = Math.max(0, h.dashQ - DT);
+    if (control && h.dashQ > 0 && h.dashCd <= 0 && h.dashT <= 0) {
+      h.dashQ = 0;
       const dl = Math.hypot(mx, mz);
       h.dashX = dl > 0.2 ? mx / dl : Math.cos(h.face);
       h.dashZ = dl > 0.2 ? mz / dl : Math.sin(h.face);

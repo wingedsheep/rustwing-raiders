@@ -110,7 +110,8 @@ def pterosaur():
     """A crested pterosaur: rust body and a long pale beak, cream membranes with a rust trailing
     band over dark wing-arms, a long dark crest swept back with a cream blaze, gold eyes. The
     two-jointed wings beat with a whip, the outer half lagging."""
-    kind, clip, root = named("pterosaur", "swarm", "beast", "flap", preview=("#b86a4a", "#e8c890", "#3a2a2a"))
+    kind, clip, root = named("pterosaur", "swarm", "beast", "flap", preview=("#d0703a", "#f0d8a0", "#5a2a22"))
+    W = 1.25  # wings broad enough to read over the jungle
     T = 0.5
     b = Model(f"{kind}_body", seed=1010)
     b.ball(0.17, (0, -0.04, 0), A, subdiv=1, scale=(0.95, 1.55, 0.8))                             # body
@@ -136,18 +137,19 @@ def pterosaur():
         side = "r" if s > 0 else "l"
 
         def m(pts):
+            pts = [(x * W, y * W) for x, y in pts]
             return pts if s > 0 else mirror(pts)
         w = Model(f"{kind}_wing_{side}", seed=1011 + k)
         flat(w, m([(0, 0.12), (0, -0.36), (0.18, -0.33), (0.36, -0.18), (0.38, 0.12)]), 0, 0.04, B)      # membrane
         flat(w, m([(0.0, -0.24), (0.0, -0.36), (0.18, -0.33), (0.36, -0.18), (0.36, -0.08)]), 0.02, 0.03, A)  # rust band
-        limb(w, (0, 0.11, 0.02), (s * 0.38, 0.12, 0.02), 0.06, 0.05, C, segs=4)                        # arm
+        limb(w, (0, 0.11 * W, 0.02), (s * 0.38 * W, 0.12 * W, 0.02), 0.07, 0.06, C, segs=4)            # arm
         wo = w.build(body, loc=(s * 0.12, 0.04, 0.03))
         t = Model(f"{kind}_tip_{side}", seed=1013 + k)
         flat(t, m([(0, 0.12), (0, -0.18), (0.16, -0.13), (0.3, -0.04), (0.4, 0.06), (0.37, 0.1)]), 0, 0.035, B)
         flat(t, m([(0, -0.08), (0, -0.18), (0.16, -0.13), (0.3, -0.04), (0.37, 0.04), (0.25, 0.0)]), 0.02, 0.03, A)
-        limb(t, (0, 0.12, 0.02), (s * 0.39, 0.09, 0.02), 0.05, 0.015, C, segs=4)                       # wing finger
-        limb(t, (0, 0.12, 0.02), (s * 0.07, 0.21, 0.02), 0.035, 0.0, C, segs=3)                        # claw
-        to = t.build(wo, loc=(s * 0.38, 0.0, 0.0))
+        limb(t, (0, 0.12 * W, 0.02), (s * 0.39 * W, 0.09 * W, 0.02), 0.06, 0.02, C, segs=4)             # wing finger
+        limb(t, (0, 0.12 * W, 0.02), (s * 0.07 * W, 0.21 * W, 0.02), 0.035, 0.0, C, segs=3)            # claw
+        to = t.build(wo, loc=(s * 0.38 * W, 0.0, 0.0))
         osc(wo, clip, "rotation_euler", T, (1, s * 0.6, 1, 0.0), (2, s * 0.08, 1, 0.25))
         osc(to, clip, "rotation_euler", T, (1, s * 0.45, 1, -0.1))
     marker(body, kind, "muzzle", (0, 0.86, 0.0))
@@ -160,7 +162,7 @@ def pterosaur():
 def tusk_battery():
     """A Hesk gun pit fenced with poached tusks; the gun hides inside a giant's skull, eye sockets
     lit, twin barrels out of its jaws, its own tusks sweeping forward like a gunsight."""
-    kind, clip, root = named("tusk_battery", "turret", "mech", "scan", preview=("#8a7a5a", "#3a3030", "#ff8a3a"),
+    kind, clip, root = named("tusk_battery", "turret", "mech", "scan", preview=("#d0a040", "#3a2a24", "#ff8a3a"),
                              ground=1)
     T = 3.0
     b = Model(f"{kind}_base", seed=1020)

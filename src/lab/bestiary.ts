@@ -36,7 +36,8 @@ function lookOf(skin: EnemySkin, model: string, seg?: string): Look {
   return { kind: null, source: 'missing', tried };
 }
 
-const seg0 = (k: Kind) => (k.model === 'serpent' ? 'head' : undefined);
+/** Only the serpent archetype comes in segments (as level-view draws it); a foe on the serpent model, like the Burrower, is one piece. */
+const seg0 = (k: Kind) => (k.id === 'serpent' ? 'head' : undefined);
 const scaleOf = (k: Kind) => (FOES as Record<string, { scale: number } | undefined>)[k.id]?.scale ?? 1;
 
 export function mountBestiary(root: HTMLElement, fly: () => void) {
@@ -180,6 +181,9 @@ export function mountBestiary(root: HTMLElement, fly: () => void) {
         u.uHurt.value = 0;
         u.uHeat.value = 0;
         u.uSpeed.value = 0;
+        u.uImpact.value = 0;
+        u.uAberr.value = 0;
+        u.uDrain.value = 0;
         u.uFade.value = 0;
         u.uVignette.value = 0.3;
         u.uTone.value = 0.3;

@@ -106,7 +106,7 @@ def junk_flak():
     """A quad flak gun of mismatched pipes behind a hazard-striped shield plate, on a nest of tyres,
     barrels and ammo crates; a hubcap searchlight sweeps for targets."""
     kind, clip, root = named("junk_flak", "turret", "mech", "scan", ground=1,
-                             preview=("#6a6058", "#2a2a2a", "#ff5a2a"))
+                             preview=("#b07040", "#2a2a2a", "#ff5a2a"))
     T = 3.0
     b = Model(f"{kind}_base", seed=6010)
     ring = [(math.cos(TAU * (k + 0.5) / 9) * (1.18 + 0.06 * (k % 2)), math.sin(TAU * (k + 0.5) / 9) * 1.2)
@@ -137,7 +137,7 @@ def junk_flak():
     sample(radar, clip, "rotation_euler", T, lambda u: (0, 0, 1.3 * math.sin(TAU * u)))
 
     h = Model(f"{kind}_head", seed=6012)
-    h.cyl(0.55, 0.25, (0, 0, 0), B, segs=8)                                            # turning drum
+    h.cyl(0.55, 0.25, (0, 0, 0), RUST, segs=8)                                         # turning drum
     hull(h, [(-0.55, 0.3), (-0.6, -0.4), (-0.35, -0.7), (0.35, -0.7), (0.6, -0.4), (0.55, 0.3)],
          0.2, 0.5, A.shade(1.15), inset=0.8)                                           # gun cradle
     h.box((0.5, 0.36, 0.3), (-0.05, -0.55, 0.62), A.shade(0.8))                         # gunner seat / breech
@@ -166,8 +166,8 @@ def junk_flak():
     for k, (x, z, r, L) in enumerate(((-0.42, 0.5, 0.1, 1.35), (-0.15, 0.62, 0.12, 1.55), (0.15, 0.62, 0.11, 1.5),
                                       (0.42, 0.5, 0.09, 1.25))):
         g = Model(f"{kind}_barrel_{k}", seed=6013 + k)
-        tube(g, r, -0.2, L, 0, 0, DARK, segs=6)
-        tube(g, r + 0.04, 0.1, 0.3, 0, 0, B, segs=6)                                    # band clamp
+        tube(g, r + 0.03, -0.2, L, 0, 0, A.shade(1.25), segs=6)                       # bare pipe, pale against the ash
+        tube(g, r + 0.07, 0.1, 0.3, 0, 0, B, segs=6)                                    # band clamp
         g.cyl(r + 0.02, 0.08, (0, L, 0), C, segs=6, rot=(-math.pi / 2, 0, 0), glow=True)
         obj = g.build(head, loc=(x, 0.3, z))
         sample(obj, clip, "location", T,
@@ -426,10 +426,17 @@ def glass_sniper():
     b = Model(f"{kind}_body", seed=6050)
     hull(b, [(-0.3, 0.35), (-0.45, -0.3), (-0.35, -1.2), (0.35, -1.2), (0.45, -0.3), (0.3, 0.35)], -0.3, 0.05, B,
          inset=0.7)                                                                    # dark frame
-    tube(b, 0.16, 0.2, 1.2, 0, 0.0, B.shade(1.4), segs=7)                               # barrel shroud
-    tube(b, 0.1, 1.2, 1.6, 0, 0.0, DARK, segs=6)                                      # the long barrel
-    for y in (0.45, 0.85, 1.3):                                                        # clamps
-        tube(b, 0.17, y, y + 0.12, 0, 0.0, HAZ, segs=6)
+    tube(b, 0.24, 0.2, 1.3, 0, 0.0, A.shade(1.3), segs=7)                              # barrel shroud (pale, so it reads)
+    tube(b, 0.18, 1.3, 1.62, 0, 0.0, B.shade(1.6), segs=6)                             # the long barrel
+    for y in (0.4, 0.85):                                                              # clamps
+        tube(b, 0.27, y, y + 0.14, 0, 0.0, HAZ, segs=6)
+    # the lens's mount: a heavy cup on the muzzle and four prongs gripping the glass
+    tube(b, 0.4, 1.5, 1.72, 0, 0.0, B.shade(1.8), segs=8)
+    tube(b, 0.42, 1.52, 1.58, 0, 0.0, HAZ, segs=8)
+    for j in range(4):
+        a = TAU * j / 4 + math.pi / 4
+        limb(b, (math.cos(a) * 0.34, 1.65, math.sin(a) * 0.34), (math.cos(a) * 0.3, 2.05, math.sin(a) * 0.3), 0.1, 0.06,
+             A.shade(1.3), segs=4)
     tube(b, 0.11, -0.3, 0.75, 0.32, 0.32, DARK, segs=6)                                # scope, off to one side
     b.cyl(0.13, 0.06, (0.32, 0.76, 0.32), C, segs=6, rot=(-math.pi / 2, 0, 0), glow=True)
     for s in (1, -1):                                                                  # long outrigger skids
