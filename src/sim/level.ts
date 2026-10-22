@@ -430,7 +430,8 @@ export type LevelEvent =
   | { type: 'torpedo'; x: number; z: number; color: number; shot: boolean }
   /** A seeker stops to turn (`n` turns made so far), goes off down its new leg, is shot down, or breaks on a hull. */
   | { type: 'seeker'; x: number; z: number; color: number; how: 'halt' | 'go' | 'shot' | 'hit'; n: number }
-  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number }
+  /** `dmg` and `tier`: what it took off the hull (none when a shield stopped it). */
+  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier }
   | { type: 'crash'; id: number; x: number; z: number }
   | { type: 'down'; id: number; x: number; z: number }
   | { type: 'revive'; id: number }
@@ -1412,15 +1413,18 @@ export class Level {
       if (p.revive >= 1.6) {
         p.down = false;
         p.revive = 0;
-        p.hp = Math.min(2, p.stats.hp);
+        p.hp = Math.round(p.stats.hp * REVIVE_HULL);
         p.inv = 2.5;
         this.emit({ type: 'revive', id: p.id });
       }
     }
   }
 
-  /** A hit on a player: shield first, then hull. Returns false if it didn't land. */
-  hurt(p: Player, x: number, z: number, cause = 'bullet', amount = 1) {
+  /**
+   * A hit on a player: shield first (it stops a whole hit, whatever its tier), then hull, which
+   * takes what the hit is worth (see HIT_DMG). Returns false if it didn't land.
+   */
+  hurt(p: Player, x: number, z: number, cause = 'bullet', tier: HitTier = tierOf(cause)) {
     if (p.down || p.inv > 0 || p.phase > 0 || this.state === 'clear') return false;
     if (p.stats.bonus.armor === 2 && p.ward <= 0) {
       p.ward = 10;
@@ -1450,13 +1454,14 @@ export class Level {
       this.emit({ type: 'playerHit', id: p.id, shield: true, x, z });
       if (p.stats.affixes.reactive) this.reactive(p);
     } else {
-      p.hp -= amount;
+      const dmg = this.hitDamage(p, tier);
+      p.hp -= dmg;
       p.inv = 1.4;
-      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z });
+      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z, dmg, tier });
       // SECOND WIND: once a level, the blow that would down you doesn't
       if (p.hp <= 0 && p.stats.affixes.secondwind && !p.wind) {
         p.wind = true;
-        p.hp = 1;
+        p.hp = Math.max(1, Math.round(p.stats.hp * SECOND_WIND));
         p.inv = 2.5;
         for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.cancel(b, 0.6);
         this.emit({ type: 'affix', id: p.id, affix: 'secondwind', x: p.x, z: p.z });
@@ -1477,6 +1482,12 @@ export class Level {
     for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 9) this.cancel(b);
     this.combo = 0;
     return true;
+  }
+
+  /** What a hit of this tier takes off the hull here: more as the run goes on, less the armour (never under a third). */
+  hitDamage(p: Player, tier: HitTier) {
+    const raw = HIT_DMG[tier] * (1 + HIT_GROWTH * this.spec.difficulty);
+    return Math.round(Math.max(raw / 3, raw - p.stats.armor));
   }
 
   // --- enemies -----------------------------------------------------------------------------
@@ -2100,7 +2111,7 @@ export class Level {
         if (p.slip > 0 && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
         if (b.dead) continue;
         if (d2 < hitR * hitR) {
-          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet')) {
+          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind])) {
             b.dead = true;
             if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
             if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });
@@ -2183,7 +2194,7 @@ export class Level {
           k.dead = true;
           const v = k.value;
           if (k.kind === 'scrap') this.scrap += v;
-          else if (k.kind === 'repair') p.hp = Math.min(p.stats.hp, p.hp + 1);
+          else if (k.kind === 'repair') p.hp = Math.min(p.stats.hp, p.hp + HULL_STEP);
           else if (k.kind === 'part') this.loot[p.id].push(k.part!);
           this.emit({ type: 'pickup', id: p.id, kind: k.kind, x: k.x, z: k.z, value: v, part: k.part });
         }
@@ -2815,7 +2826,7 @@ export class Level {
     if (p.weldT >= WELD.hold) {
       p.weldT += DT;
       if (p.weldT >= WELD.hold + WELD.time) {
-        p.hp = Math.min(p.stats.hp, p.hp + 1);
+        p.hp = Math.min(p.stats.hp, p.hp + Math.round(p.stats.hp * WELD_HEAL));
         p.weld = 0;
         p.weldT = 0;
         p.welds++;
@@ -3134,6 +3145,25 @@ const HOT_BURN = 0.02;
 const HOT_FEED = 1;
 const HOT_JOLT = 0.12;
 const HOT_OPEN_BURN = 1;
+/**
+ * The hull is a number (a frame's 60 to 100), and a hit takes what it's worth. A GRAZE of light
+ * stuff (spores, acid, a jet's wash), a HIT (shots, shells, rams, the land), or a HEAVY blow (big
+ * orbs, torpedoes, seekers, slams, lightning, beams, a crate going up): the bigger the tell, the
+ * more it takes. Hits grow with the run, as the enemies' hulls do.
+ */
+export type HitTier = 'graze' | 'hit' | 'heavy';
+export const HIT_DMG: Record<HitTier, number> = { graze: 8, hit: 15, heavy: 30 };
+const HIT_GROWTH = 0.3;
+const HEAVY_CAUSES = new Set(['torpedo', 'seeker', 'slam', 'ball', 'lightning', 'laser', 'crate']);
+const GRAZE_CAUSES = new Set(['spore', 'acid', 'puddle', 'jetwash']);
+export const tierOf = (cause: string): HitTier => (HEAVY_CAUSES.has(cause) ? 'heavy' : GRAZE_CAUSES.has(cause) ? 'graze' : 'hit');
+const BULLET_TIER: Record<BulletKind, HitTier> = { orb: 'hit', needle: 'hit', mine: 'hit', spore: 'graze', big: 'heavy', torpedo: 'heavy', seeker: 'heavy' };
+/** A step of hull (the old pip): a repair kit's worth, a dock's patch, an event's knock. */
+export const HULL_STEP = 20;
+/** Shares of the hull: a Weld mends this much, a revive comes back with this, a SECOND WIND leaves this. */
+const WELD_HEAL = 0.25;
+const REVIVE_HULL = 0.4;
+const SECOND_WIND = 0.1;
 /** Affixes (see AFFIXES in game/loot.ts). */
 const SPITE_TIME = 5;
 const SPITE_DMG = 1.7;

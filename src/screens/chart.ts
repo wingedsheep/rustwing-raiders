@@ -8,7 +8,7 @@ import { stats } from '../sim/build';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, HEIST, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, haulerIcon, hearts, hints, strongboxIcon } from '../ui/widgets';
+import { backdrop, haulerIcon, hullGauge, hints, strongboxIcon } from '../ui/widgets';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { EncounterPreview } from '../view/encounter-preview';
@@ -793,7 +793,7 @@ export class ChartScreen implements Screen {
     let ty = y + 4;
     run.crew.forEach((cr, i) => {
       drawText(ctx, `P${i + 1}`, px + 6, ty, hex(LIVERY[i][2]));
-      hearts(ctx, cr.hull, stats(cr.build).hp, px + 24, ty, 11);
+      hullGauge(ctx, cr.hull, stats(cr.build).hp, px + 24, ty, 40);
       drawText(ctx, `${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, DIM, { align: 'right' });
       ty += 10;
     });

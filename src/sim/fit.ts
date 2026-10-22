@@ -40,7 +40,7 @@ export function dps(s: Stats) {
 /** A rough worth of a ship, to rank placements by: firepower, toughness, speed, links, power. */
 function worth(b: Build, s: Stats) {
   const lk = links(b);
-  let v = dps(s) / 8 + s.hp * 1.2 + s.shield * 1.4 + s.speed * 0.12 + s.dashes * 0.8;
+  let v = dps(s) / 8 + s.hp * 0.06 + s.armor * 0.5 + s.shield * 1.4 + s.speed * 0.12 + s.dashes * 0.8;
   v += Object.values(s.bonus).reduce((t, n) => t + (n ?? 0) * 1.5, 0);
   for (const pl of lk.parts) v += pl.def.conduit ? 0 : pl.str >= 1 ? (pl.str - 1) * 2 : -(1 - pl.str) * 3;
   if (s.brown < 1) v -= (1 - s.brown) * 12;
@@ -114,6 +114,7 @@ function deltas(a: Stats, b: Stats): Delta[] {
   };
   row('DPS', dps(a), dps(b), (n) => `${Math.round(n)}`, 6);
   row('HULL', a.hp, b.hp, (n) => `${n}`, 5);
+  row('ARMOUR', a.armor, b.armor, (n) => `${n}`, 5);
   row('SHIELD', a.shield, b.shield, (n) => `${n}`, 8);
   row('DASHES', a.dashes, b.dashes, (n) => `${n}`, 4);
   // the load class, when it moves, is the most important line on the card

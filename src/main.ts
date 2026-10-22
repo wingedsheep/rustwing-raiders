@@ -118,7 +118,7 @@ async function boot() {
       // &heist=cfj: a heist's results (c caught, f fell, j jumped; a D on the end: taken down)
       const hq = q.get('heist');
       const spec = levelSpec(PLANETS[0], home ? 'escort' : hq ? 'heist' : 'raid', 1, 0.2);
-      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [3, 3], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
+      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [60, 60], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
       if (home) {
         const n = home.filter(Boolean).length;
         Object.assign(res, { convoy: { delivered: n, home, paid: n * 17, roles: convoyRoles(spec.seed) }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });

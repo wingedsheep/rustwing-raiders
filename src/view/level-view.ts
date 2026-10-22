@@ -12,7 +12,7 @@ import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { TORPEDO, WELD } from '../sim/level';
+import { HULL_STEP, TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
@@ -482,10 +482,15 @@ export class LevelView {
           break;
         case 'playerHit': {
           const p = lv.players[e.id];
-          this.trauma = Math.min(1, this.trauma + (e.shield ? 0.3 : 0.6));
-          this.hitstop = Math.max(this.hitstop, e.shield ? 3 : 7);
-          this.shove(0, 1, e.shield ? 0.6 : 1.2);
-          if (!e.shield) this.hurt = 1;
+          // the hull's hits by tier: a graze stings, a heavy one rocks the whole screen
+          const k = e.shield ? 0.5 : e.tier === 'graze' ? 0.6 : e.tier === 'heavy' ? 1.5 : 1;
+          this.trauma = Math.min(1, this.trauma + 0.6 * k);
+          this.hitstop = Math.max(this.hitstop, Math.round(7 * k));
+          this.shove(0, 1, 1.2 * k);
+          if (!e.shield) {
+            this.hurt = Math.min(1, k);
+            if (e.dmg) this.pop(`-${e.dmg}`, p.x + 1.5, p.z - 1.5, e.tier === 'heavy' ? '#ff4a3a' : '#ff8a6a', e.tier === 'heavy');
+          }
           this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 16, e.shield ? LIVERY[e.id][2] : 0xff5a3a, 18, 0.4, 0.3);
           this.fx.ring(p.x, FLIGHT_Y + 0.5, p.z, 3, 0.25, true, e.shield ? LIVERY[e.id][2] : 0xff5a3a);
           audio.play(e.shield ? 'shield_break' : 'player_hit');
@@ -805,7 +810,7 @@ export class LevelView {
             this.pop(`+${e.value}`, e.x, e.z, '#ffe08a');
           } else if (e.kind === 'repair') {
             audio.play('heal');
-            this.pop('+1 HULL', e.x, e.z, '#8affb0');
+            this.pop(`+${HULL_STEP} HULL`, e.x, e.z, '#8affb0');
           } else this.gotPart(e.part, e.x, e.z);
           if (e.kind !== 'scrap') this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, 0xffe08a, 8, 0.25, 0.18);
           break;

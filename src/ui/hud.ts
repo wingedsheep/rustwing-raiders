@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
+import { HULL_STEP, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, READ_LINE, sigName } from '../sim/boss';
 import { FOES, type Foe } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
@@ -88,6 +88,24 @@ export function frame(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
 }
 
 /** A bar, filled to `f`, in segments. */
+/**
+ * A ship's hull as a bar, notched every HULL_STEP so it reads at a glance. `ghost`: what it read a
+ * moment ago, drawn pale over what's just been lost; `blink`: low, it flashes.
+ */
+export function hullBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, hull: number, max: number, ghost = hull, blink = false) {
+  const px = (v: number) => Math.round(w * clamp(v / Math.max(1, max), 0, 1));
+  ctx.fillStyle = '#3a2e48';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#ffe0b0';
+  ctx.fillRect(x + px(hull), y, px(ghost) - px(hull), h);
+  ctx.fillStyle = blink ? '#ffffff' : hull / max <= 0.25 ? '#ff4a3a' : RED;
+  ctx.fillRect(x, y, px(hull), h);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillRect(x, y, px(hull), 1);
+  ctx.fillStyle = '#1a1020';
+  for (let v = HULL_STEP; v < max; v += HULL_STEP) ctx.fillRect(x + px(v), y, 1, h);
+}
+
 export function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, f: number, color: string, back = '#2a2236') {
   ctx.fillStyle = back;
   ctx.fillRect(x, y, w, h);
@@ -156,6 +174,8 @@ export class Hud {
   private bump = 0;
   /** The fuse last frame (to flash its gains). */
   private fuseWas = 0;
+  /** Each player's hull as the bar last showed it: it drains down after a hit, so you see the bite. */
+  private hullShown: number[] = [];
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
@@ -319,12 +339,12 @@ export class Hud {
     let cx = x0 + 6;
     drawText(ctx, `P${p.id + 1}`, cx, 7, col, { shadow: false });
     cx += 16;
-    for (let i = 0; i < s.hp; i++) {
-      const on = i < p.hp;
-      const blink = on && p.hp <= 1 && Math.floor(this.time * 4) % 2;
-      drawText(ctx, '♥', cx, 7, on ? (blink ? '#ffffff' : RED) : '#3a2e48', { shadow: false });
-      cx += 7;
-    }
+    // the hull: a bar as long as the hull is deep, what a hit bit off draining away after it
+    const hw = Math.round(clamp(s.hp * 0.45, 24, 56));
+    const shown = Math.max(p.hp, Math.min(s.hp, (this.hullShown[p.id] ?? p.hp) - s.hp / 150));
+    this.hullShown[p.id] = shown;
+    hullBar(ctx, cx, 8, hw, 6, p.hp, s.hp, shown, p.hp > 0 && p.hp <= s.hp * 0.25 && Math.floor(this.time * 4) % 2 === 1);
+    cx += hw + 3;
     for (let i = 0; i < s.shield; i++) {
       drawText(ctx, '◆', cx, 7, i < p.shield ? CYAN : '#3a2e48', { shadow: false });
       cx += 7;

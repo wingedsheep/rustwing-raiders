@@ -9,7 +9,7 @@ import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
 import { input, type DeviceId } from '../input';
 import { drawText, textWidth, wrap } from './font';
-import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, H, INK, PANEL, RED, W, frame } from './hud';
+import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, H, INK, PANEL, RED, W, frame, hullBar } from './hud';
 
 export const RARITY_COLOR: Record<Rarity, string> = { common: '#a8a0b8', rare: '#6ad0ff', epic: '#ffb04a' };
 
@@ -52,6 +52,8 @@ export function partStats(def: PartDef): string[] {
   if (def.grip) out.push(`GRIP ${def.grip > 0 ? '+' : ''}${def.grip}`);
   if (def.dash) out.push(`DASH +${def.dash}`);
   if (def.hp) out.push(`HULL +${def.hp}`);
+  if (def.hullPct) out.push(`HULL +${Math.round(def.hullPct * 100)}%`);
+  if (def.armor) out.push(`ARMOUR ${def.armor}: EVERY HIT -${def.armor}`);
   if (def.shield) out.push(`SHIELD +${def.shield}`);
   if (def.magnet) out.push(`MAGNET +${def.magnet}`);
   if (def.graze) out.push(`GRAZE +${def.graze}`);
@@ -231,8 +233,10 @@ export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId, items: [Acti
 }
 
 /** Hull as hearts. */
-export function hearts(ctx: CanvasRenderingContext2D, hull: number, max: number, x: number, y: number, per = 12) {
-  for (let i = 0; i < max; i++) drawText(ctx, '♥', x + (i % per) * 9, y + Math.floor(i / per) * 9, i < hull ? RED : '#3a2e48');
+/** A ship's hull off the field: its notched bar, `w` wide, and the number after it. */
+export function hullGauge(ctx: CanvasRenderingContext2D, hull: number, max: number, x: number, y: number, w = 48) {
+  hullBar(ctx, x, y + 1, w, 6, hull, max);
+  drawText(ctx, `${Math.round(hull)}`, x + w + 4, y, hull <= max * 0.25 ? RED : INK);
 }
 
 /** A big title across the top of a screen, with a rule under it. */

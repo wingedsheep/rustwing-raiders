@@ -132,8 +132,8 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   // (mines want something close behind to drop on: hold them till there is)
   intent.heavy = intent.fire && p.heavyT > 0.45 && p.rounds.some((r) => r > 0);
   if (intent.heavy && style(p).mines) intent.heavy = lv.enemies.some((e) => !e.dead && e.t >= 0 && e.z > p.z - 2 && (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < 10 * 10);
-  // the Weld: full with the hull short and a quiet moment (nothing near, an easy way to go), mend
-  if (p.weld >= 1 && p.hp < p.stats.hp && !intent.dash && near <= 2 && best < 60) {
+  // the Weld: full with a good bite out of the hull and a quiet moment (nothing near, an easy way to go), mend
+  if (p.weld >= 1 && p.hp <= p.stats.hp * 0.8 && !intent.dash && near <= 2 && best < 60) {
     intent.focus = true;
     intent.fire = false;
     intent.heavy = false;

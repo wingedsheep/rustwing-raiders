@@ -178,7 +178,11 @@ export interface PartDef {
   mass: number;
   /** Power drawn (+) or made (-). */
   power: number;
+  /** Hull points (a frame's 60 to 100), and hull as a share more (a PLATED roll). */
   hp?: number;
+  hullPct?: number;
+  /** Armour: taken off every hit on the hull (a graze most of all). */
+  armor?: number;
   shield?: number;
   thrust?: number;
   /** Agility: how hard it turns and stops. */
@@ -289,8 +293,8 @@ export const PARTS: PartDef[] = [
   },
   // --- defence -----------------------------------------------------------------------------
   {
-    id: 'plate', name: 'Armour Plate', cls: 'defense', tags: ['armor'], rarity: 'common', shape: [[0, 0]], mass: 2, power: 0, hp: 3,
-    text: 'Thick and heavy. Three more hits before you go down.',
+    id: 'plate', name: 'Armour Plate', cls: 'defense', tags: ['armor'], rarity: 'common', shape: [[0, 0]], mass: 2, power: 0, hp: 15, armor: 3,
+    text: 'Thick and heavy. More hull, and every hit takes 3 less: grazes barely scratch you.',
   },
   {
     id: 'shield', name: 'Deflector', cls: 'defense', tags: ['tech', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1, power: 2, shield: 1,
@@ -450,7 +454,7 @@ export const PARTS: PartDef[] = [
     text: 'Your special goes off a second time, a moment later, a bit weaker.',
   },
   {
-    id: 'mirror', name: 'Reflector Plate', cls: 'defense', tags: ['armor', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, power: 0, hp: 1,
+    id: 'mirror', name: 'Reflector Plate', cls: 'defense', tags: ['armor', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, power: 0, hp: 10,
     passive: { mirror: 3 },
     text: 'A bullet your shield or a block stops is thrown back as three shots. Parries throw one more.',
   },
@@ -542,9 +546,9 @@ export const FRAMES: FrameDef[] = [
     name: 'Kestrel',
     text: 'A stripped-down racer, made of tinfoil.',
     perk: { name: 'SLIPSTREAM', text: 'Guns hit harder the faster you fly: +50% flat out. Its Burn comes back fastest.' },
-    weak: '3 HULL. FEW SOCKETS, LITTLE LOAD.',
+    weak: '60 HULL. FEW SOCKETS, LITTLE LOAD.',
     grid: ['.#.', '###', '###', '#.#'],
-    hp: 3, mass: 4, power: 4, thrust: 15, grip: 1.25, dash: 1, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
+    hp: 60, mass: 4, power: 4, thrust: 15, grip: 1.25, dash: 1, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
     start: [['rivet', 1, 0], ['rivet', 1, 1], ['thruster', 0, 3], ['thruster', 2, 3], ['reactor', 1, 2]],
   },
   {
@@ -554,7 +558,7 @@ export const FRAMES: FrameDef[] = [
     perk: { name: 'IRONSIDES', text: 'Room for everything, and armour plate that soaks a hit, then grows back.' },
     weak: 'MOVES LIKE A FRIDGE. A BIG TARGET.',
     grid: ['#####', '#####', '.###.'],
-    hp: 5, mass: 7, power: 4, thrust: 13, grip: 0.75, dash: 1, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
+    hp: 100, mass: 7, power: 4, thrust: 13, grip: 0.75, dash: 1, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
     start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 2]],
   },
   {
@@ -564,7 +568,7 @@ export const FRAMES: FrameDef[] = [
     perk: { name: 'DARTER', text: 'Two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
     weak: 'GUNS ONLY ON THE PRONGS. LOW POWER.',
     grid: ['#.#', '#.#', '###', '###'],
-    hp: 4, mass: 4.5, power: 4, thrust: 16, grip: 1.05, dash: 2, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
+    hp: 80, mass: 4.5, power: 4, thrust: 16, grip: 1.05, dash: 2, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
     start: [['rivet', 0, 0], ['rivet', 2, 0], ['thruster', 1, 3], ['reactor', 1, 2]],
   },
   {
@@ -574,7 +578,7 @@ export const FRAMES: FrameDef[] = [
     perk: { name: 'BATTERING RAM', text: 'The dash rams: whatever you dash through takes a hard hit and can\'t hurt you.' },
     weak: 'STIFF IN A TURN. SLOW TO BURN.',
     grid: ['####', '####', '.##.', '.##.'],
-    hp: 4, mass: 6, power: 5, thrust: 14, grip: 0.8, dash: 1, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
+    hp: 80, mass: 6, power: 5, thrust: 14, grip: 0.8, dash: 1, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
     start: [['scatter', 1, 0], ['scatter', 2, 0], ['thruster', 1, 3], ['thruster', 2, 3]],
   },
   {
@@ -584,7 +588,7 @@ export const FRAMES: FrameDef[] = [
     perk: { name: 'TUNED TRUSS', text: 'Links pay double: a linked part runs at 200%, one that needs its link at 133%.' },
     weak: 'FEW SOCKETS TOUCH: BRIDGE THEM WITH CONDUIT.',
     grid: ['#.#.#', '#.#.#', '#####', '.#.#.'],
-    hp: 4, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
+    hp: 80, mass: 4.5, power: 6, thrust: 15, grip: 1, dash: 1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
     start: [['rivet', 0, 0], ['rivet', 4, 0], ['reactor', 2, 2], ['thruster', 1, 3], ['thruster', 3, 3]],
   },
 ];

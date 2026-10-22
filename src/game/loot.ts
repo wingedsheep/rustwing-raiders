@@ -79,7 +79,7 @@ export const MODS: Record<ModKind, ModSpec> = {
   light: { lo: 0.25, hi: 0.6, fits: (d) => d.mass >= 0.4 && !d.conduit, text: (v) => `-${pc(v)}% MASS`, short: (v) => `-${pc(v)}% MASS` },
   frugal: { lo: 1, hi: 2, whole: true, fits: (d) => d.power > 0, text: (v) => `-${v} POWER DRAW`, short: (v) => `-${v} DRAW` },
   output: { lo: 1, hi: 3, whole: true, fits: (d) => d.power < 0, text: (v) => `+${v} POWER`, short: (v) => `+${v} POWER` },
-  plated: { lo: 1, hi: 2, whole: true, fits: (d) => d.cls === 'defense' || d.tags.includes('armor'), text: (v) => `+${v} HULL`, short: (v) => `+${v} HULL` },
+  plated: { lo: 0.1, hi: 0.25, fits: (d) => d.cls === 'defense' || d.tags.includes('armor'), text: (v) => `+${pc(v)}% HULL`, short: (v) => `+${pc(v)}% HULL` },
 };
 
 /** Parts whose effect runs at a strength (boosters, passives, dash mods, the aux). */
@@ -153,7 +153,7 @@ export const AFFIXES: Record<AffixId, AffixSpec> = {
   afterburn: { name: 'AFTERBURN', text: 'Dashes leave a wake of fire: what crosses it burns.', fits: (d) => d.cls === 'engine' },
   adrenal: { name: 'ADRENAL', text: 'A perfect dash charges the special a fifth and the aux halfway.', fits: (d) => d.cls === 'engine' },
   // the hull
-  secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you one hull.', fits: (d) => d.cls === 'defense' },
+  secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you a sliver of hull.', fits: (d) => d.cls === 'defense' },
   barbed: { name: 'BARBED', text: 'Whatever rams you, or you ram, takes a hard hit and reels.', fits: (d) => d.cls === 'defense' && !d.aux },
   reactive: { name: 'REACTIVE', text: 'Losing a shield lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
   // boosters and power: on the guns they touch
@@ -290,7 +290,7 @@ export function itemDef(it: Item): ItemDef {
         d.power -= v;
         break;
       case 'plated':
-        d.hp = (d.hp ?? 0) + v;
+        d.hullPct = (d.hullPct ?? 0) + v;
         break;
     }
   }

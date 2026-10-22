@@ -1,5 +1,6 @@
 import type { Game, Screen } from '../game/game';
 import { CARGO, FUEL_MAX, FUEL_PRICE, REPAIR, Run, type ShopItem, type Snapshot } from '../sim/run';
+import { HULL_STEP } from '../sim/level';
 import type { ChartNode } from '../sim/chart';
 import type { Choice, Result, RunEvent } from '../sim/events';
 import type { Planet } from '../world/planets';
@@ -10,7 +11,7 @@ import { input } from '../input';
 import { drawText, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, VIEW, W, frame, hex } from '../ui/hud';
 import { LIVERY } from '../view/ship-model';
-import { backdrop, button, heading, hearts, hints, TIER_COLOR } from '../ui/widgets';
+import { backdrop, button, heading, hullGauge, hints, TIER_COLOR } from '../ui/widgets';
 import { itemName, tierOf, type Item } from '../game/loot';
 import { bestFit, type Fit } from '../sim/fit';
 import { lootCard, TIER_WORD } from '../ui/loot-card';
@@ -33,7 +34,7 @@ function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
   ty += 10;
   run.crew.forEach((c, i) => {
     drawText(ctx, `P${i + 1}`, x - 126, ty, hex(LIVERY[i][2]));
-    hearts(ctx, c.hull, stats(c.build).hp, x - 108, ty, 11);
+    hullGauge(ctx, c.hull, stats(c.build).hp, x - 108, ty, 40);
     ty += 10;
   });
   if (run.bounty) {
@@ -44,7 +45,7 @@ function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
     drawText(ctx, `OWE MAMA ${run.debt}`, x - 126, ty, '#ff8a7a');
     ty += 10;
   }
-  if (run.policy) drawText(ctx, `INSURED ${run.policy}/HULL`, x - 126, ty, GREEN);
+  if (run.policy) drawText(ctx, `INSURED ${run.policy}/${HULL_STEP} HULL`, x - 126, ty, GREEN);
 }
 
 /** Fills the whole window behind the safe area. */
@@ -140,7 +141,7 @@ export class Shop implements Screen {
         if (crew.hull >= stats(crew.build).hp) return this.say('HULL IS SOUND');
         if (run.scrap < REPAIR) return this.say('NOT ENOUGH SCRAP');
         run.scrap -= REPAIR;
-        crew.hull++;
+        crew.hull = Math.min(stats(crew.build).hp, crew.hull + HULL_STEP);
         audio.play('heal');
         break;
       case 'fuel':
@@ -235,7 +236,7 @@ export class Shop implements Screen {
         drawText(ctx, cheap ? 'CHEAP' : tier === 'common' ? '' : TIER_WORD[tier], x + 176, y, row.item.sold ? '#4a3e58' : cheap ? GREEN : TIER_COLOR[tier], { align: 'right' });
         drawText(ctx, row.item.sold ? 'SOLD' : `${row.item.price}`, x + 262, y, row.item.sold ? '#4a3e58' : run.scrap >= row.item.price ? GOLD : RED, { align: 'right' });
       } else if (row.kind === 'repair') {
-        drawText(ctx, `REPAIR P${this.who + 1}: +1 HULL`, x, y, ink);
+        drawText(ctx, `REPAIR P${this.who + 1}: +${HULL_STEP} HULL`, x, y, ink);
         drawText(ctx, `${REPAIR}`, x + 262, y, run.scrap >= REPAIR ? GOLD : RED, { align: 'right' });
       } else if (row.kind === 'fuel') {
         drawText(ctx, `FUEL: +1 (${run.fuel}/${FUEL_MAX})`, x, y, ink);
@@ -260,7 +261,7 @@ export class Shop implements Screen {
       const cy = 64 + i * 34;
       frame(ctx, rx, cy, 260, 28, i === this.who ? '#2c2240' : '#1c1526', i === this.who ? hex(LIVERY[i][2]) : '#3a2e48');
       drawText(ctx, `P${i + 1}`, rx + 6, cy + 5, hex(LIVERY[i][2]));
-      hearts(ctx, c.hull, stats(c.build).hp, rx + 26, cy + 5, 14);
+      hullGauge(ctx, c.hull, stats(c.build).hp, rx + 26, cy + 5, 60);
       drawText(ctx, `HOLD ${c.cargo.length}/${CARGO}`, rx + 254, cy + 16, c.cargo.length >= CARGO ? GOLD : DIM, { align: 'right' });
       if (i === 0) drawText(ctx, `SCRAP ${run.scrap}  FUEL ${run.fuel}`, rx + 6, cy + 16, GOLD);
     });
@@ -318,7 +319,7 @@ export class Dock implements Screen {
       },
       {
         label: 'LANTERN MUTUAL POLICY',
-        note: '15 SCRAP FOR EVERY HULL LOST, TILL THE GATE',
+        note: `15 SCRAP FOR EVERY ${HULL_STEP} HULL LOST, TILL THE GATE`,
         price: 35,
         can: () => (run.policy ? 'YOU HAVE ONE' : run.scrap < 35 ? 'NOT ENOUGH SCRAP' : null),
         act: () => {

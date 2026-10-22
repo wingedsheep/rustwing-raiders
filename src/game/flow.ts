@@ -17,7 +17,7 @@ import { Ending } from '../screens/ending';
 import { DANGER_HARDER, DANGER_PAY, levelSpec, Run, SECTORS } from '../sim/run';
 import { EVENTS, eventById, type Result, type RunEvent } from '../sim/events';
 import type { ChartNode } from '../sim/chart';
-import type { Mode } from '../sim/level';
+import { HULL_STEP, type Mode } from '../sim/level';
 import type { Planet } from '../world/planets';
 import { stats } from '../sim/build';
 import { hashStr, pick, rng } from '../util';
@@ -40,10 +40,10 @@ export function newRun(game: Game, frames: string[], seed: number) {
 export function toChart(game: Game) {
   const run = game.run!;
   // Dr Varga keeps her word
-  if (run.favours.includes('doctor') && run.crew.some((c, i) => c.hull <= Math.min(2, run.maxHull(i) - 1))) {
+  if (run.favours.includes('doctor') && run.crew.some((c, i) => c.hull <= run.maxHull(i) * 0.4)) {
     run.favours.splice(run.favours.indexOf('doctor'), 1);
     run.heal(3);
-    run.notes.push('DR VARGA PATCHES YOU UP: +3 HULL. SHE SAYS YOU ARE EVEN NOW');
+    run.notes.push(`DR VARGA PATCHES YOU UP: +${3 * HULL_STEP} HULL. SHE SAYS YOU ARE EVEN NOW`);
   }
   game.go(new ChartScreen(game, run));
 }
@@ -207,7 +207,7 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       // the insurance pays for what got shot off
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
       // patched up a little on the way out
-      run.crew.forEach((c, i) => (c.hull = Math.min(stats(c.build).hp, res.hull[i] + 1)));
+      run.crew.forEach((c, i) => (c.hull = Math.min(stats(c.build).hp, res.hull[i] + HULL_STEP)));
       const boss = mode === 'boss';
       if (boss) run.stats.bosses++;
       game.go(

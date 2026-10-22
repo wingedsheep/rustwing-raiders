@@ -10,7 +10,7 @@
  */
 
 import { PLANETS, type Planet } from '../world/planets';
-import type { LevelSpec, Mode } from './level';
+import { HULL_STEP, type LevelSpec, type Mode } from './level';
 import { LOOT, duosOpen, startBuild, stats, type Build } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
@@ -111,7 +111,7 @@ export class Run {
   fuel = 7;
   /** Owed to Mama Ruzz. */
   debt = 0;
-  /** Lantern Mutual pays this much scrap a hull lost, until the gate. */
+  /** Lantern Mutual pays this much scrap a step of hull lost (HULL_STEP), until the gate. */
   policy = 0;
   /** The price on your head, in steps (Kaspar comes for it). */
   bounty = 0;
@@ -156,7 +156,7 @@ export class Run {
     this.chart = new Chart(chartSeed(this.seed, this.sector), this.sector, this.seen.slice(-4), this.seenEvents);
     this.chart.nodes[0].done = true;
     // a breather between sectors, and the tanks topped up a little
-    for (const c of this.crew) c.hull = Math.min(stats(c.build).hp, c.hull + 2);
+    for (const c of this.crew) c.hull = Math.min(stats(c.build).hp, c.hull + 2 * HULL_STEP);
     this.fuel = Math.min(FUEL_MAX, Math.max(this.fuel + 2, 6));
     if (this.policy) this.notes.push('YOUR LANTERN MUTUAL POLICY HAS RUN OUT');
     if (this.contract) this.notes.push(`THE CRATE FOR ${this.planetName(this.contract.planet)} IS LOST TO YOU`);
@@ -283,26 +283,28 @@ export class Run {
     return stats(this.crew[player].build).hp;
   }
 
-  /** Damage everyone takes (never below one hull), with the insurance paying out. */
+  /** Damage everyone takes, `n` steps of hull (never down to nothing), with the insurance paying out. */
   hurt(n: number) {
     let lost = 0;
     for (const c of this.crew) {
       const was = c.hull;
-      c.hull = Math.max(1, c.hull - n);
+      c.hull = Math.max(1, c.hull - n * HULL_STEP);
       lost += was - c.hull;
     }
     this.claim(lost);
   }
 
-  /** Lantern Mutual pays up for hull lost. */
+  /** Lantern Mutual pays up for hull lost (points of it). */
   claim(lost: number) {
-    if (!this.policy || lost <= 0) return;
-    this.scrap += lost * this.policy;
-    this.notes.push(`LANTERN MUTUAL PAYS ${lost * this.policy} SCRAP FOR ${lost} HULL`);
+    const pay = Math.round((lost * this.policy) / HULL_STEP);
+    if (pay <= 0) return;
+    this.scrap += pay;
+    this.notes.push(`LANTERN MUTUAL PAYS ${pay} SCRAP FOR ${lost} HULL`);
   }
 
+  /** Mends everyone `n` steps of hull. */
   heal(n: number) {
-    this.crew.forEach((c, i) => (c.hull = Math.min(this.maxHull(i), c.hull + n)));
+    this.crew.forEach((c, i) => (c.hull = Math.min(this.maxHull(i), c.hull + n * HULL_STEP)));
   }
 
   addFuel(n: number) {
@@ -323,10 +325,10 @@ export class Run {
     this.chart.sweep = this.chart.front();
   }
 
-  /** Can you make a jump costing `cost` fuel? Out of fuel, you burn the hull for it (but not to nothing). */
+  /** Can you make a jump costing `cost` fuel? Out of fuel, you burn the hull for it, a step a cell (but not to nothing). */
   canJump(cost: number) {
     const short = Math.max(0, cost - this.fuel);
-    return short === 0 || this.crew.every((c) => c.hull > short);
+    return short === 0 || this.crew.every((c) => c.hull > short * HULL_STEP);
   }
 
   /** Pays for a jump; the debt grows. */
@@ -334,8 +336,8 @@ export class Run {
     const short = Math.max(0, cost - this.fuel);
     this.fuel = Math.max(0, this.fuel - cost);
     if (short) {
-      for (const c of this.crew) c.hull = Math.max(1, c.hull - short);
-      this.notes.push(`OUT OF FUEL: BURNED ${short} HULL TO MAKE THE JUMP`);
+      for (const c of this.crew) c.hull = Math.max(1, c.hull - short * HULL_STEP);
+      this.notes.push(`OUT OF FUEL: BURNED ${short * HULL_STEP} HULL TO MAKE THE JUMP`);
     }
     if (this.debt) this.debt = Math.ceil(this.debt * (1 + INTEREST));
   }

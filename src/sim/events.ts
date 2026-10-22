@@ -102,7 +102,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'BOARD HER',
         game: 'grab',
-        note: (_, bold) => (bold ? 'DEEP HOLD: MORE CRATES, LESS TIME. FAIL: -2 HULL' : 'GRAB CRATES, GET OUT BEFORE THE HATCH SEALS'),
+        note: (_, bold) => (bold ? 'DEEP HOLD: MORE CRATES, LESS TIME. FAIL: -40 HULL' : 'GRAB CRATES, GET OUT BEFORE THE HATCH SEALS'),
         outcome: (run, p) => {
           if (p.score <= 0) {
             run.hurt(p.bold ? 2 : 1);
@@ -202,7 +202,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'TUNE IN',
         game: 'tune',
-        note: (_, bold) => (bold ? 'ALL THREE VOICES: AN EPIC PART. FAIL: -2 HULL' : 'LOCK ON: A RARE PART. FAIL: -1 HULL'),
+        note: (_, bold) => (bold ? 'ALL THREE VOICES: AN EPIC PART. FAIL: -40 HULL' : 'LOCK ON: A RARE PART. FAIL: -20 HULL'),
         outcome: (run, p) => {
           const t = tier(p.score);
           if (t === 0) {
@@ -294,7 +294,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'CATCH THE POD',
         game: 'dock',
-        note: (_, bold) => (bold ? 'SPINNING FAST: SHE OWES YOU, +3 HULL. FAIL: -2' : 'MATCH ITS SPIN: SHE OWES YOU ONE. FAIL: -1 HULL'),
+        note: (_, bold) => (bold ? 'SPINNING FAST: SHE OWES YOU, +60 HULL. FAIL: -40 HULL' : 'MATCH ITS SPIN: SHE OWES YOU ONE. FAIL: -20 HULL'),
         outcome: (run, p) => {
           if (tier(p.score) === 0) {
             run.hurt(p.bold ? 2 : 1);
@@ -505,7 +505,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'RUN FOR IT',
         game: 'thread',
-        note: (_, bold) => (bold ? 'THROUGH THE MINES: LOSE HIM AND +40. FAIL: -2 HULL' : 'LOSE HIM IN THE ROCKS. BOUNTY +1. FAIL: -1 HULL'),
+        note: (_, bold) => (bold ? 'THROUGH THE MINES: LOSE HIM AND +40. FAIL: -40 HULL' : 'LOSE HIM IN THE ROCKS. BOUNTY +1. FAIL: -20 HULL'),
         outcome: (run, p) => {
           run.bounty++;
           run.mood('Port Authority', -1);
@@ -533,7 +533,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'THE SILVER POLICY',
-        note: () => '-30 SCRAP: 15 FOR EVERY HULL LOST THIS SECTOR',
+        note: () => '-30 SCRAP: 15 FOR EVERY 20 HULL LOST THIS SECTOR',
         locked: lacks(30),
         if: (run) => run.policy < 15,
         outcome: (run) => {
@@ -544,7 +544,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'THE GOLD POLICY',
-        note: () => '-60 SCRAP: 30 FOR EVERY HULL LOST THIS SECTOR',
+        note: () => '-60 SCRAP: 30 FOR EVERY 20 HULL LOST THIS SECTOR',
         locked: lacks(60),
         if: (run) => run.policy < 30,
         outcome: (run) => {
@@ -571,7 +571,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'THREAD THE FIELD',
         game: 'thread',
-        note: (_, bold) => (bold ? 'THE DEEP CACHE: UP TO 90 + AN EPIC. BADLY: -2 HULL' : 'THE NEAR CACHE: UP TO 50 + A PART. BADLY: -1 HULL'),
+        note: (_, bold) => (bold ? 'THE DEEP CACHE: UP TO 90 + AN EPIC. BADLY: -40 HULL' : 'THE NEAR CACHE: UP TO 50 + A PART. BADLY: -20 HULL'),
         outcome: (run, p) => {
           const got = Math.round(p.score * (p.bold ? 90 : 50));
           run.scrap += got;
@@ -614,7 +614,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'DOCK WITH HER',
         game: 'dock',
-        note: (_, bold) => (bold ? 'COME IN FAST: 2 RARE PARTS + 2 FUEL. FAIL: -2 HULL' : 'COME IN SLOW: A PART + 1 FUEL. FAIL: -1 HULL'),
+        note: (_, bold) => (bold ? 'COME IN FAST: 2 RARE PARTS + 2 FUEL. FAIL: -40 HULL' : 'COME IN SLOW: A PART + 1 FUEL. FAIL: -20 HULL'),
         outcome: (run, p) => {
           if (tier(p.score) === 0) {
             run.hurt(p.bold ? 2 : 1);
@@ -710,7 +710,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'HOLD THE HOSE YOURSELF',
         game: 'tow',
-        note: (_, bold) => (bold ? '-10 SCRAP, FULL PRESSURE: UP TO +5 FUEL. FAIL: -1 HULL' : '-10 SCRAP: UP TO +3 FUEL'),
+        note: (_, bold) => (bold ? '-10 SCRAP, FULL PRESSURE: UP TO +5 FUEL. FAIL: -20 HULL' : '-10 SCRAP: UP TO +3 FUEL'),
         locked: lacks(10),
         outcome: (run, p) => {
           run.scrap -= 10;
@@ -813,7 +813,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'OUTRUN HIM',
         game: 'thread',
-        note: (_, bold) => (bold ? 'THROUGH THE DEBRIS: LOSE HIM. FAIL: FIGHT HIM' : 'LOSE HIM. FAIL: -2 HULL'),
+        note: (_, bold) => (bold ? 'THROUGH THE DEBRIS: LOSE HIM. FAIL: FIGHT HIM' : 'LOSE HIM. FAIL: -40 HULL'),
         outcome: (run, p) => {
           if (tier(p.score) <= 1) {
             if (p.bold) return { text: 'He was waiting on the other side. Of course he was.', fight: 'hunt', harder: 0.3 };

@@ -73,6 +73,8 @@ export interface Gun {
 export interface Stats {
   frame: FrameDef;
   hp: number;
+  /** Taken off every hit on the hull (never below a third of it). */
+  armor: number;
   shield: number;
   mass: number;
   powerOut: number;
@@ -204,6 +206,8 @@ export function stats(b: Build): Stats {
   for (const t of Object.keys(tags) as Tag[]) if (tags[t] >= 3) bonus[t] = tags[t] >= 5 ? 2 : 1;
 
   let hp = f.hp;
+  let hullPct = 0;
+  let armor = 0;
   let shield = f.shield ?? 0;
   let mass = f.mass;
   let powerOut = f.power;
@@ -231,6 +235,8 @@ export function stats(b: Build): Stats {
     if (p.trait === 'thunderous') thunder = Math.max(thunder, Math.max(0.5, Math.min(str, 1.5)));
     if (p.trait === 'vengeful') vengeful = true;
     hp += def.hp ?? 0;
+    hullPct += def.hullPct ?? 0;
+    armor += def.armor ?? 0;
     shield += def.shield ?? 0;
     mass += def.mass;
     // power made runs at the part's strength (a clash halves it); power drawn doesn't
@@ -374,7 +380,8 @@ export function stats(b: Build): Stats {
   const ratio = thrust / mass;
   return {
     frame: f,
-    hp,
+    hp: Math.round(hp * (1 + hullPct)),
+    armor,
     shield,
     mass,
     powerOut,

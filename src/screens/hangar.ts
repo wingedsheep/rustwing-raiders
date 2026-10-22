@@ -11,7 +11,7 @@ import { CLASS_COLOR, CYAN, DARK, DIM, EDGE, GOLD, GREEN, H, INK, RED, W, frame,
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
-import { backdrop, hearts, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
+import { backdrop, hullGauge, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { AFFIX_COLOR, AFFIXES, itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
 import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
@@ -377,7 +377,7 @@ export class Hangar implements Screen {
     // header
     drawText(ctx, `P${i + 1}`, x, 26, col, { scale: 1 });
     drawText(ctx, f.name.toUpperCase(), x + 18, 26, INK);
-    hearts(ctx, crew.hull, s.hp, x + 100, 26, 22);
+    hullGauge(ctx, crew.hull, s.hp, x + 100, 26, 60);
     // grid
     frame(ctx, x, 40, 140, 106);
     this.grid(ctx, bay, b, view, x + 70, 93);
@@ -751,6 +751,7 @@ export class Hangar implements Screen {
     const cells: [string, number, number | undefined, (n: number) => string, boolean?][] = [
       ['HULL', s.hp, after?.hp, (n) => `${n}`],
       ['SHIELD', s.shield, after?.shield, (n) => `${n}`],
+      ['ARMOUR', s.armor, after?.armor, (n) => `${n}`],
       ['DASHES', s.dashes, after?.dashes, (n) => `${n}`],
       ['POWER', s.powerOut - s.powerDraw, after ? after.powerOut - after.powerDraw : undefined, (n) => `${n >= 0 ? '+' : ''}${Math.round(n)}`],
       ['DPS', dps(s), after ? dps(after) : undefined, (n) => `${Math.round(n)}`],
