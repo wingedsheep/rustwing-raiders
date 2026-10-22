@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+.idea
+*.iml
+.DS_Store
+.env
+.env.*
+# the ElevenLabs key
+config.yaml

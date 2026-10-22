@@ -20,8 +20,9 @@
  */
 
 import type { Intent } from './sim/types';
+import type { Frame, Netplay } from './net/netplay';
 
-export type DeviceId = 'keys' | 'keys-left' | 'keys-right' | `pad${number}`;
+export type DeviceId = 'keys' | 'keys-left' | 'keys-right' | `pad${number}` | `net${number}`;
 
 export interface MenuInput {
   up: boolean;
@@ -133,6 +134,9 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
   },
 };
 
+const NO_INTENT: Intent = { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
+const NO_MENU: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };
+
 const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c));
 
 /**
@@ -207,6 +211,30 @@ function stick(g: Gamepad) {
 class Input {
   /** Set by the game at the start of each frame. */
   dt = 1 / 60;
+  /** Online co-op: the players are `net0` and `net1`, and the local keyboard and pads only feed the input sent. */
+  net: Netplay | null = null;
+
+  /** Online: what this player is doing now, over the keyboard and every pad at once. */
+  sampleLocal(): Frame {
+    const devs: DeviceId[] = ['keys', ...this.padIds()];
+    const ints = devs.map((d) => this.intent(d));
+    const menus = devs.map((d) => this.menu(d));
+    const i = { ...ints[0] };
+    for (const o of ints.slice(1)) {
+      if (Math.hypot(o.x, o.y) > Math.hypot(i.x, i.y)) [i.x, i.y] = [o.x, o.y];
+      i.boost = Math.max(i.boost, o.boost);
+      for (const k of ['fire', 'heavy', 'dash', 'special', 'aux', 'focus'] as const) i[k] ||= o[k];
+    }
+    const m = { ...menus[0] };
+    for (const o of menus.slice(1)) for (const k of Object.keys(m) as (keyof MenuInput)[]) m[k] ||= o[k];
+    return { i, m, a: devs.map((d) => this.aim(d)).find((a) => a) ?? null };
+  }
+
+  /** The device a player actually has in hand, for the names of its buttons (online, a partner's is taken as keys). */
+  shown(dev: DeviceId): DeviceId {
+    if (!dev.startsWith('net')) return dev;
+    return this.net?.isMine(dev) ? (this.padIds()[0] ?? 'keys') : 'keys';
+  }
 
   /** Call once at the start of each frame, before reading. */
   poll(dt: number) {
@@ -234,6 +262,8 @@ class Input {
   }
 
   padName(id: DeviceId) {
+    if (id.startsWith('net') && !this.net?.isMine(id)) return 'ONLINE';
+    id = this.shown(id);
     if (!id.startsWith('pad')) return 'KEYBOARD';
     const g = padNow.get(Number(id.slice(3)));
     if (!g) return 'PAD';
@@ -245,6 +275,7 @@ class Input {
 
   /** The heavy button on a player's device, as a prompt names it. */
   heavyKey(dev: DeviceId) {
+    dev = this.shown(dev);
     if (dev === 'keys') return 'O';
     if (dev === 'keys-left') return 'G';
     if (dev === 'keys-right') return ';';
@@ -253,9 +284,10 @@ class Input {
 
   /** What a player's device asks of their ship. */
   intent(dev: DeviceId): Intent {
+    if (dev.startsWith('net')) return { ...(this.net?.frame(dev).i ?? NO_INTENT) };
     if (dev.startsWith('pad')) {
       const g = padNow.get(Number(dev.slice(3)));
-      if (!g) return { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
+      if (!g) return { ...NO_INTENT };
       const s = stick(g);
       const prev = padPrev.get(g.index)?.buttons ?? [];
       const edge = (...is: number[]) => is.some((i) => btn(g, i) && !prev[i]);
@@ -285,8 +317,19 @@ class Input {
     };
   }
 
+  /** A pad's right stick, as a direction on the deck (+z down the screen); null off a pad or centred. */
+  aim(dev: DeviceId): { x: number; z: number } | null {
+    if (dev.startsWith('net')) return this.net?.frame(dev).a ?? null;
+    if (!dev.startsWith('pad')) return null;
+    const g = padNow.get(Number(dev.slice(3)));
+    const x = g?.axes[2] ?? 0;
+    const z = g?.axes[3] ?? 0;
+    return Math.hypot(x, z) > 0.35 ? { x, z } : null;
+  }
+
   /** Menu presses this frame from a device (directions repeat when held). */
   menu(dev: DeviceId): MenuInput {
+    if (dev.startsWith('net')) return { ...(this.net?.frame(dev).m ?? NO_MENU) };
     const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };
     let dirs: boolean[];
     if (dev.startsWith('pad')) {
@@ -340,6 +383,7 @@ class Input {
   /** Every device that pressed its confirm/fire this frame (for joining in). */
   joining(): DeviceId[] {
     const out: DeviceId[] = [];
+    if (this.net) return out;
     // only the buttons: running menu() here would eat the first press of a direction
     for (const [i, g] of padNow) {
       const pb = padPrev.get(i)?.buttons ?? [];
@@ -355,12 +399,12 @@ class Input {
 
   /** Whether a key went down this frame. */
   keyPressed(code: string) {
-    return pressed.has(code);
+    return !this.net && pressed.has(code);
   }
 
   /** Whether a key-based device has its fire key held (for keyboard pairs). */
   keyHeld(code: string) {
-    return held.has(code);
+    return !this.net && held.has(code);
   }
 }
 

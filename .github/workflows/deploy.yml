@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # a newer push makes an in-flight build pointless
+    concurrency:
+      group: build
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_repo: ${{ steps.names.outputs.image_repo }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Image name
+        id: names
+        run: echo "image_repo=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.names.outputs.image_repo }}/game:latest
+            ${{ steps.names.outputs.image_repo }}/game:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # never cut a deploy off halfway; a newer one waits its turn instead
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://${{ vars.APP_DOMAIN || 'rustwing.wingedsheep.com' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Copy docker-compose to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: deploy/docker-compose.yml
+          target: ${{ secrets.DEPLOY_PATH }}
+          strip_components: 1
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            cd ${{ secrets.DEPLOY_PATH }}
+            echo "IMAGE_REPO=${{ needs.build.outputs.image_repo }}" > .env
+            echo "IMAGE_TAG=${{ github.sha }}" >> .env
+            echo "APP_DOMAIN=${{ vars.APP_DOMAIN || 'rustwing.wingedsheep.com' }}" >> .env
+            # every deploy leaves a SHA-tagged image that prune -f never touches, so drop this
+            # game's old ones (never the running one) before pulling; the server is shared
+            keep=$(docker inspect --format '{{.Image}}' "$(docker compose ps -q game)" 2>/dev/null || true)
+            docker images -q --no-trunc "${{ needs.build.outputs.image_repo }}/game" | sort -u | grep -vxF "${keep:-none}" | xargs -r docker rmi -f || true
+            df -h / | tail -1
+            docker compose pull
+            docker compose up -d --remove-orphans
+            running=$(docker inspect --format '{{.Config.Image}}' "$(docker compose ps -q game)")
+            echo "Running image: $running"
+            case "$running" in *:${{ github.sha }}) ;; *) echo "Container is not on ${{ github.sha }}"; exit 1 ;; esac
+            docker image prune -f
+
+      - name: Verify the live game serves this commit
+        run: |
+          url="https://${{ vars.APP_DOMAIN || 'rustwing.wingedsheep.com' }}/version.txt"
+          for i in $(seq 1 12); do
+            live=$(curl -fsS "$url?t=$(date +%s)" || true)
+            if [ "$live" = "${{ github.sha }}" ]; then echo "Live: $live"; exit 0; fi
+            echo "Attempt $i: live is '${live:-unreachable}', waiting..."
+            sleep 5
+          done
+          echo "::error::$url never reported ${{ github.sha }}"
+          exit 1

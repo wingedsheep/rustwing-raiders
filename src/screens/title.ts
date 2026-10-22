@@ -6,12 +6,13 @@ import { input, type DeviceId } from '../input';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { DARK, DIM, EDGE, GOLD, H, INK, RED, VIEW, W, frame, hex, schematic } from '../ui/hud';
-import { hints } from '../ui/widgets';
+import { hints, type Action } from '../ui/widgets';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { flat, GEO, part, toon } from '../render/toon';
 import { newRun } from '../game/flow';
 import { clamp, rng } from '../util';
+import { lobbyOpen, openLobby } from '../net/lobby';
 
 interface Seat {
   dev: DeviceId;
@@ -109,7 +110,8 @@ function bayTexture(tint: number) {
 /**
  * The title, and crew select in the same place: press fire on any pad (or the keyboard) to climb
  * in, pick a frame, lock it. A second player joins the same way; two on one keyboard split it
- * left hand and right hand (the right hand joins with / or Num0).
+ * left hand and right hand (the right hand joins with / or Num0). Or O for online: a partner
+ * in another browser, found by a code (see src/net); then both seats are taken from the start.
  */
 export class Title implements Screen {
   private stage = new Stage(W, H, 9, 52, new THREE.Vector3(), true);
@@ -121,7 +123,7 @@ export class Title implements Screen {
   private art: THREE.Texture | null = null;
 
   constructor(private game: Game) {
-    game.devices = [];
+    game.devices = game.net ? ['net0', 'net1'] : [];
     this.planet = this.makePlanet();
     this.stage.scene.add(this.planet);
     const r = rng(7);
@@ -143,6 +145,19 @@ export class Title implements Screen {
       this.dust.visible = false;
     });
     audio.music('title');
+    if (game.net) {
+      this.seat('net0');
+      this.seat('net1');
+    } else if (game.params.has('join')) {
+      // an invite link: ?join=CODE
+      const code = game.params.get('join')!;
+      history.replaceState(null, '', location.pathname);
+      this.online(code);
+    }
+  }
+
+  private online(code?: string) {
+    openLobby(this.game, () => this.game.go(new Title(this.game)), code);
   }
 
   private makePlanet() {
@@ -259,9 +274,14 @@ export class Title implements Screen {
       if (this.launch >= LAUNCH_T && !this.gone) {
         this.gone = true;
         this.game.devices = this.seats.map((s) => s.dev);
-        const seed = Number(this.game.params.get('run') ?? Math.floor(Math.random() * 1e6));
+        const seed = this.game.net?.seed ?? Number(this.game.params.get('run') ?? Math.floor(Math.random() * 1e6));
         newRun(this.game, this.seats.map((s) => FRAMES[s.frame].id), seed);
       }
+      return;
+    }
+    if (lobbyOpen()) return;
+    if (!this.seats.length && input.keyPressed('KeyO')) {
+      this.online();
       return;
     }
     // joining in
@@ -307,7 +327,7 @@ export class Title implements Screen {
         s.locked = true;
         s.flash = 1;
         audio.play('ui_place');
-      } else if (m.back) {
+      } else if (m.back && !this.game.net) {
         this.unfurnish(s);
         this.seats.splice(i, 1);
         if (this.seats.length === 1 && this.seats[0].dev === 'keys-left') this.seats[0].dev = 'keys';
@@ -399,16 +419,17 @@ export class Title implements Screen {
       drawText(ctx, 'RUSTWING', W / 2, 26 + wob, '#ff8a3a', { scale: 5, align: 'center', shadow: '#7a2a10' });
       drawText(ctx, 'RAIDERS', W / 2, 66 + wob, '#ffd04a', { scale: 3, align: 'center', shadow: '#7a4a10' });
       // a dark band across the painting so the prompt reads
-      const band = ctx.createLinearGradient(0, 238, 0, 302);
+      const band = ctx.createLinearGradient(0, 238, 0, 314);
       band.addColorStop(0, 'rgba(14,8,22,0)');
       band.addColorStop(0.25, 'rgba(14,8,22,0.78)');
-      band.addColorStop(0.75, 'rgba(14,8,22,0.78)');
+      band.addColorStop(0.8, 'rgba(14,8,22,0.78)');
       band.addColorStop(1, 'rgba(14,8,22,0)');
       ctx.fillStyle = band;
-      ctx.fillRect(-VIEW.ox, 238, VIEW.w, 64);
+      ctx.fillRect(-VIEW.ox, 238, VIEW.w, 76);
       if (Math.floor(this.t * 2) % 2 === 0) drawText(ctx, 'PRESS FIRE TO CLIMB IN', W / 2, 250, INK, { scale: 2, align: 'center' });
       drawText(ctx, 'ANY PAD: A / CROSS      KEYBOARD: ENTER OR SPACE', W / 2, 276, INK, { align: 'center' });
       drawText(ctx, 'TWO ON ONE KEYBOARD: SPACE, THEN / FOR THE SECOND PLAYER', W / 2, 288, INK, { align: 'center' });
+      drawText(ctx, 'ONLINE, WITH A FRIEND ELSEWHERE: PRESS O', W / 2, 300, INK, { align: 'center' });
       return;
     }
     // the crew select: the logo tucked up top, a card per seat
@@ -451,7 +472,10 @@ export class Title implements Screen {
     ctx.fillStyle = col;
     ctx.fillRect(x + 6, y + 5, 19, 11);
     drawText(ctx, `P${i + 1}`, x + 9, y + 7, DARK, { shadow: false });
-    const dev = input.padName(s.dev) + (s.dev === 'keys-left' ? ' · LEFT' : s.dev === 'keys-right' ? ' · RIGHT' : '');
+    const net = this.game.net;
+    const dev = net && s.dev.startsWith('net')
+      ? net.isMine(s.dev) ? `YOU · ${input.padName(s.dev)}` : 'YOUR PARTNER'
+      : input.padName(s.dev) + (s.dev === 'keys-left' ? ' · LEFT' : s.dev === 'keys-right' ? ' · RIGHT' : '');
     drawText(ctx, dev, x + CARD_W - 6, y + 7, DIM, { align: 'right' });
     // the window onto the bay, with corner brackets
     const wx = x + WIN.x;
@@ -525,7 +549,7 @@ export class Title implements Screen {
     const gw = f.grid[0].length * sc;
     const gh = f.grid.length * sc;
     schematic(ctx, startBuild(f.id), Math.round(x + 236 - gw / 2), Math.round(y + 240 - gh / 2), sc);
-    hints(ctx, s.dev, s.locked ? [['back', 'CHANGE']] : [['move', 'FRAME'], ['confirm', 'READY'], ['back', 'LEAVE']], x + CARD_W / 2, y + CARD_H - 12, 'center');
+    hints(ctx, s.dev, s.locked ? [['back', 'CHANGE']] : [['move', 'FRAME'], ['confirm', 'READY'], ...(this.game.net ? [] : [['back', 'LEAVE'] as [Action, string]])], x + CARD_W / 2, y + CARD_H - 12, 'center');
     ctx.globalAlpha = 1;
   }
 

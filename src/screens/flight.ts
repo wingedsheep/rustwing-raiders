@@ -182,6 +182,11 @@ export class Flight implements Screen {
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }
 
+  netHash() {
+    const lv = this.lv;
+    return [lv.score, lv.scrap, ...lv.players.flatMap((p) => [p.x, p.z, p.hp])];
+  }
+
   dispose() {
     this.view.dispose();
   }

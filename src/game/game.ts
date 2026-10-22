@@ -5,6 +5,7 @@ import { audio } from '../audio';
 import { W, H, VIEW } from '../ui/hud';
 import { drawText } from '../ui/font';
 import type { Run } from '../sim/run';
+import { TICK, hashNums, type Netplay } from '../net/netplay';
 
 export interface Screen {
   update(dt: number): void;
@@ -12,6 +13,8 @@ export interface Screen {
   dispose?(): void;
   /** Draws its UI over the whole window, not into the 640 × 360 safe area. */
   readonly fullUI?: boolean;
+  /** Online co-op: numbers that must come out the same in both browsers (see Netplay). */
+  netHash?(): number[];
 }
 
 /**
@@ -27,6 +30,8 @@ export class Game {
   /** Each player's device, P1 first. */
   devices: DeviceId[] = [];
   run: Run | null = null;
+  /** Online co-op, in lockstep (see src/net). */
+  net: Netplay | null = null;
   readonly params = new URLSearchParams(location.search);
   private last = performance.now();
   time = 0;
@@ -106,11 +111,12 @@ export class Game {
     const frame = (now: number) => {
       const dt = Math.min(0.1, (now - this.last) / 1000);
       this.last = now;
-      this.time += dt;
-      input.poll(dt);
-      if (input.anyKey) audio.unlock();
-      this.menus.clear();
-      this.screen?.update(dt);
+      if (this.net) this.lockstep(this.net, dt);
+      else {
+        input.poll(dt);
+        this.step(dt);
+        input.endFrame();
+      }
       const ctx = this.ui;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, VIEW.w, VIEW.h);
@@ -124,10 +130,61 @@ export class Game {
         ctx.fillRect(VIEW.w - 70, VIEW.h - 14, 70, 14);
         drawText(ctx, `${this.frameMs.toFixed(1)}MS ${Math.round(1000 / this.frameMs)}`, VIEW.w - 4, VIEW.h - 11, '#8affb0', { align: 'right' });
       }
-      input.endFrame();
+      if (this.net) this.netNotes(this.net);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
+  }
+
+  private step(dt: number) {
+    this.time += dt;
+    if (input.anyKey) audio.unlock();
+    this.menus.clear();
+    this.screen?.update(dt);
+  }
+
+  /**
+   * Online: the game steps in fixed ticks, each once both players' input for it is in. This
+   * player's input is read a tick at a time and sent ahead; a partner who's behind holds it up.
+   */
+  private lockstep(n: Netplay, dt: number) {
+    n.acc = Math.min(n.acc + dt, TICK * 4);
+    let steps = 0;
+    while (n.acc >= TICK && steps < 4) {
+      if (!n.sampled) {
+        input.poll(TICK);
+        if (input.anyKey) audio.unlock();
+        n.sample(input.sampleLocal());
+        input.endFrame();
+      }
+      if (!n.ready) break;
+      n.acc -= TICK;
+      steps++;
+      this.step(TICK);
+      const run = this.run;
+      n.stepped(() => hashNums([run?.seed ?? 0, run?.scrap ?? 0, ...(run?.crew.map((c) => c.hull) ?? []), ...(this.screen?.netHash?.() ?? [])]));
+    }
+    n.waiting = steps || n.acc < TICK ? 0 : n.waiting + dt;
+  }
+
+  /** Online: what's holding the game up, over everything. */
+  private netNotes(n: Netplay) {
+    const ctx = this.ui;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const note = (text: string, color: string) => {
+      ctx.fillStyle = 'rgba(10,8,18,0.8)';
+      ctx.fillRect(0, VIEW.h / 2 - 16, VIEW.w, 32);
+      drawText(ctx, text, VIEW.w / 2, VIEW.h / 2 - 6, color, { scale: 2, align: 'center' });
+    };
+    if (n.gone) note('YOUR PARTNER HAS GONE. PRESS ANY KEY', '#ff6a5a');
+    else if (n.waiting > 0.3) note('WAITING FOR YOUR PARTNER', '#ffd04a');
+    if (n.desync) drawText(ctx, 'OUT OF SYNC', VIEW.w - 4, 4, '#ff6a5a', { align: 'right' });
+    if (n.gone) {
+      input.poll(0);
+      // back to the title, offline
+      if (input.anyKey) location.href = location.pathname;
+      input.endFrame();
+    }
   }
 
   /** Any device that's been given to a player can work the menus. */

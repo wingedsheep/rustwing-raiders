@@ -1,0 +1,30 @@
+# Production: runs on the talespinner.io server behind the shared Traefik, at rustwing.wingedsheep.com.
+# IMAGE_REPO, IMAGE_TAG and APP_DOMAIN come from the .env the deploy workflow writes next to this file.
+services:
+  game:
+    image: ${IMAGE_REPO}/game:${IMAGE_TAG:-latest}
+    restart: always
+    networks:
+      - traefik-wingedsheep
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-wingedsheep
+      - traefik.http.routers.game-rustwing-raiders.rule=Host(`${APP_DOMAIN}`)
+      - traefik.http.routers.game-rustwing-raiders.entrypoints=websecure
+      - traefik.http.routers.game-rustwing-raiders.tls=true
+      - traefik.http.routers.game-rustwing-raiders.tls.certresolver=lets-encrypt
+      # vite preview sends everything as is; the models squeeze to a fraction
+      - traefik.http.routers.game-rustwing-raiders.middlewares=game-rustwing-raiders-gzip
+      - traefik.http.middlewares.game-rustwing-raiders-gzip.compress=true
+      - traefik.http.routers.game-rustwing-raiders.service=game-rustwing-raiders
+      # the co-op relay's websocket, around the compression
+      - traefik.http.routers.game-rustwing-raiders-mp.rule=Host(`${APP_DOMAIN}`) && Path(`/mp`)
+      - traefik.http.routers.game-rustwing-raiders-mp.entrypoints=websecure
+      - traefik.http.routers.game-rustwing-raiders-mp.tls=true
+      - traefik.http.routers.game-rustwing-raiders-mp.tls.certresolver=lets-encrypt
+      - traefik.http.routers.game-rustwing-raiders-mp.service=game-rustwing-raiders
+      - traefik.http.services.game-rustwing-raiders.loadbalancer.server.port=80
+
+networks:
+  traefik-wingedsheep:
+    external: true

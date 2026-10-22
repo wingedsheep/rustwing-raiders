@@ -173,6 +173,7 @@ export type Action = 'confirm' | 'back' | 'alt' | 'prev' | 'next' | 'start' | 'm
 
 /** The button for an action on a device, as printed on it. */
 export function button(dev: DeviceId, a: Action): string {
+  dev = input.shown(dev);
   if (dev.startsWith('pad')) {
     const ps = input.padName(dev) === 'PS PAD';
     const names: Record<Action, string> = ps
@@ -192,6 +193,7 @@ export type FlightAction = 'move' | 'fire' | 'heavy' | 'dash' | 'boost' | 'speci
 
 /** The button for a flight control on a device, as printed on it (see input.ts). */
 export function flightButton(dev: DeviceId, a: FlightAction): string {
+  dev = input.shown(dev);
   if (dev.startsWith('pad')) {
     const ps = input.padName(dev) === 'PS PAD';
     const names: Record<FlightAction, string> = ps
