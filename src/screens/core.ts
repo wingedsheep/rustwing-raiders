@@ -12,6 +12,34 @@ import { backdrop, heading, hints } from '../ui/widgets';
 import { coreBall, disc, knotIcon, ring, seal } from '../ui/core-icon';
 import { LIVERY } from '../view/ship-model';
 import { rng } from '../util';
+import { stats, type Stats } from '../sim/build';
+import type { KnackId } from '../game/core';
+
+/**
+ * Whether a knack or an imprint has something to work on in this ship: one that loads the heavies
+ * is nothing without a heavy gun. Null: it works on any ship (how you fly decides).
+ */
+export function shipFit(id: KnackId | ImprintId, s: Stats): { ok: boolean; text: string } | null {
+  const heavies = s.guns.filter((g) => g.heavy).map((g) => g.part.name.toUpperCase());
+  const names = (l: string[]) => [...new Set(l)].join(', ');
+  const needs = (have: boolean, what: string, uses: () => string) => (have ? { ok: true, text: `WORKS WITH YOUR ${uses()}` } : { ok: false, text: `NEEDS ${what}: YOUR SHIP HAS NONE YET` });
+  const tools = [s.guns.some((g) => !g.heavy), heavies.length > 0, !!s.aux, !!s.special].filter(Boolean).length;
+  switch (id) {
+    case 'follow':
+    case 'sleeve':
+      return needs(heavies.length > 0, 'A HEAVY GUN', () => names(heavies));
+    case 'hotrivets':
+      return needs(heavies.length > 0 || !!s.aux, 'A HEAVY OR AN AUX', () => (heavies.length ? names(heavies) : `AUX (${s.aux!.toUpperCase()})`));
+    case 'brisk':
+      return needs(!!s.special, 'A SPECIAL', () => `SPECIAL (${s.special!.toUpperCase()})`);
+    case 'minute':
+      return needs(heavies.length > 0 || !!s.special, 'A HEAVY OR A SPECIAL', () => (heavies.length ? names(heavies) : `SPECIAL (${s.special!.toUpperCase()})`));
+    case 'luck':
+      return tools >= 2 ? { ok: true, text: `WORKS WITH YOUR ${tools} BUTTONS IN USE` } : { ok: false, text: 'NEEDS TWO BUTTONS IN USE: ONLY THE TRIGGER YET' };
+    default:
+      return null;
+  }
+}
 
 type Rect = { x: number; y: number; w: number; h: number };
 
@@ -151,6 +179,11 @@ export class CoreScreen implements Screen {
     t.offerAt = 0;
     t.phase = 'imprint';
     t.t = 0;
+  }
+
+  /** This pilot's ship, as built. */
+  private ship(t: Turn) {
+    return stats(this.run.crew[t.i].build);
   }
 
   private get turn() {
@@ -583,7 +616,7 @@ export class CoreScreen implements Screen {
       const x = VEIN_X[v];
       const fed = c.fed.includes(v) && (t.phase === 'grow' || t.phase === 'feed');
       const col = VEIN_COLOR[v];
-      const y = ROW_Y.foot + 19;
+      const y = ROW_Y.foot + 27;
       drawText(ctx, VEIN_NAME[v], x, y, fed || t.pulse[v] > 0 ? col : DIM, { align: 'center', scale: 1 });
       wrap(VEIN_WHAT[v], 104).forEach((line, n) => drawText(ctx, line, x, y + 10 + n * 8, '#5a5068', { align: 'center' }));
       if (t.phase === 'grow') {
@@ -646,8 +679,26 @@ export class CoreScreen implements Screen {
       drawText(ctx, 'AWAKE', wx, CORE.y - 8, VEIN_COLOR[c.woke.temper]);
       drawText(ctx, 'IT REFUSES THE ENGINE', wx, CORE.y + 2, '#5a5068');
     }
-    // the knots
-    c.tree.forEach((kn, k) => this.knot(ctx, t, k));
+    // the knots, each named under it (so the tree reads at a glance, not one knot at a time)
+    const ship = this.ship(t);
+    c.tree.forEach((kn, k) => {
+      this.knot(ctx, t, k);
+      const p = this.knotAt(kn);
+      const foot = kn.pos === 'foot';
+      const name = kn.knack ? KNACKS[kn.knack].name : KNOT_NAME[kn.kind];
+      const col = c.grown[k] ? VEIN_COLOR[kn.vein] : t.phase === 'grow' && canGrow(c, k) ? INK : reaches(c, k) ? '#8a7e98' : '#4a4058';
+      const lines = foot ? [name] : wrap(name, kn.pos === 'k3a' || kn.pos === 'k3b' ? 62 : 110).slice(0, 2);
+      lines.forEach((l, n) => drawText(ctx, l, p.x, p.y + (foot ? 15 : 12) + n * 8, col, { align: 'center' }));
+      // does it have something to work on in this ship? a tick, or a red cross
+      const fit = kn.knack ? shipFit(kn.knack, ship) : null;
+      if (fit && !c.grown[k]) {
+        const fx = p.x + (foot ? 9 : 7);
+        const fy = p.y - (foot ? 13 : 11);
+        disc(ctx, fx, fy, 4, DARK);
+        disc(ctx, fx, fy, 3, fit.ok ? '#5ad07a' : RED);
+        drawText(ctx, fit.ok ? '+' : 'x', fx + 1, fy - 3, DARK, { align: 'center', shadow: false });
+      }
+    });
     // the cursor
     if (t.panel === 'tree' && t.phase !== 'feed' && t.phase !== 'imprint' && t.phase !== 'wake') {
       const kn = c.tree[t.at];
@@ -708,7 +759,6 @@ export class CoreScreen implements Screen {
     const grown = c.grown[k];
     const can = t.phase === 'grow' && canGrow(c, k);
     const near = reaches(c, k);
-    const on = t.panel === 'tree' && t.at === k && t.phase !== 'feed';
     const growing = t.growing?.k === k;
     if (can) {
       // it wants to grow: a slow light round it
@@ -740,14 +790,6 @@ export class CoreScreen implements Screen {
         const a = (n / 8) * Math.PI * 2 + this.time * (grown ? 0.4 : 0);
         ctx.fillRect(Math.round(p.x + Math.cos(a) * (r + 3)), Math.round(p.y + Math.sin(a) * (r + 3)), 1, 1);
       }
-    }
-    if (on) {
-      const name = kn.knack ? KNACKS[kn.knack].name : KNOT_NAME[kn.kind];
-      const nx = Math.max(16 + textWidth(name) / 2, Math.min(404 - textWidth(name) / 2, p.x));
-      const ny = p.y - r - 13;
-      ctx.fillStyle = 'rgba(14,10,22,0.85)';
-      ctx.fillRect(Math.round(nx - textWidth(name) / 2) - 3, ny - 2, textWidth(name) + 6, 11);
-      drawText(ctx, name, nx, ny, grown ? col : INK, { align: 'center', shadow: false });
     }
   }
 
@@ -794,6 +836,28 @@ export class CoreScreen implements Screen {
     for (const line of wrap(tip, tw)) {
       drawText(ctx, line, x, y, DIM);
       y += 9;
+    }
+    // with this ship: what it would work on, or what it's missing
+    const fit = kn.knack ? shipFit(kn.knack, this.ship(t)) : null;
+    y += 6;
+    if (fit) {
+      for (const line of wrap(`${fit.ok ? '+' : 'x'} ${fit.text}`, tw)) {
+        drawText(ctx, line, x, y, fit.ok ? '#5ad07a' : RED);
+        y += 9;
+      }
+    } else if (kn.knack) {
+      for (const line of wrap('WORKS ON ANY SHIP: IT\'S ABOUT HOW YOU FLY', tw)) {
+        drawText(ctx, line, x, y, '#8a7e98');
+        y += 9;
+      }
+    }
+    // how to choose, while there's a knot to grow
+    if (t.phase === 'grow' && c.growths > 0 && y < P.y + P.h - 80) {
+      y += 6;
+      for (const line of wrap('PICK WHAT SUITS YOUR SHIP (+) AND HOW YOU LIKE TO FLY. THE FOOT OF A VEIN IS ITS BIG ONE: GROW TOWARDS THE ONE YOU WANT.', tw)) {
+        drawText(ctx, line, x, y, '#6a5e78');
+        y += 9;
+      }
     }
     // where it stands
     const sy = P.y + P.h - 44;
@@ -906,6 +970,9 @@ export class CoreScreen implements Screen {
         drawText(ctx, line, P.x + 8, y + 2, DIM);
         y += 9;
       }
+      const fit = shipFit(id, this.ship(t));
+      if (fit) drawText(ctx, wrap(`${fit.ok ? '+' : 'x'} ${fit.text}`, P.w - 16)[0], P.x + 8, y + 2, fit.ok ? '#5ad07a' : RED);
+      if (fit) y += 9;
       const pair = AGREEMENTS.find((p) => p.a === id || p.b === id);
       if (pair) {
         const other = IMPRINTS[pair.a === id ? pair.b : pair.a];
@@ -969,6 +1036,11 @@ export class CoreScreen implements Screen {
       for (const line of wrap(def.from, r.w - 10).slice(0, 3)) {
         drawText(ctx, line, r.x + r.w / 2, ty, DIM, { align: 'center' });
         ty += 9;
+      }
+      const fit = shipFit(id, this.ship(t));
+      if (fit) {
+        const l = wrap(fit.ok ? '+ SUITS YOUR SHIP' : `x ${fit.text.split(':')[0]}`, r.w - 10)[0];
+        drawText(ctx, l, r.x + r.w / 2, y + r.h - 22, fit.ok ? '#5ad07a' : RED, { align: 'center' });
       }
       const fits = weightOf(c.held) + def.weight <= roomOf(c);
       const pair = AGREEMENTS.find((p) => (p.a === id && c.held.includes(p.b)) || (p.b === id && c.held.includes(p.a)));
