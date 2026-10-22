@@ -164,16 +164,17 @@ export const BOND_AT = 3;
 
 export const FACTION_NAME: Record<Faction, string> = { scrap: 'SCRAP', lattice: 'LATTICE', wild: 'WILD', bloom: 'BLOOM' };
 
-/** How many grafts of each faction a ship has. */
-export function factionCount(g: Grafts): Record<Faction, number> {
+/** How many grafts of each faction a ship has (`extra`: a faction's ways held in the core, a graft each). */
+export function factionCount(g: Grafts, extra: readonly Faction[] = []): Record<Faction, number> {
   const n: Record<Faction, number> = { scrap: 0, lattice: 0, wild: 0, bloom: 0 };
   for (const id of Object.values(g)) if (id) n[GRAFTS[id].faction]++;
+  for (const f of extra) n[f]++;
   return n;
 }
 
-/** The bonds a ship's grafts wake. */
-export function bondsOf(g: Grafts): Faction[] {
-  const n = factionCount(g);
+/** The bonds a ship's grafts (and its core's ways) wake. */
+export function bondsOf(g: Grafts, extra: readonly Faction[] = []): Faction[] {
+  const n = factionCount(g, extra);
   return (Object.keys(n) as Faction[]).filter((f) => n[f] >= BOND_AT);
 }
 
@@ -244,11 +245,11 @@ export function salvageOffer(r: Rng, wrecks: Wreck[], have: Grafts): { id: Graft
 }
 
 /** What bolting `id` on does: the ship's grafts after, what it pushed off, the bonds it wakes and breaks. */
-export function boltOn(have: Grafts, id: GraftId) {
+export function boltOn(have: Grafts, id: GraftId, extra: readonly Faction[] = []) {
   const verb = GRAFTS[id].verb;
   const next: Grafts = { ...have, [verb]: id };
-  const was = bondsOf(have);
-  const now = bondsOf(next);
+  const was = bondsOf(have, extra);
+  const now = bondsOf(next, extra);
   return { next, replaced: have[verb] !== id ? have[verb] : undefined, woke: now.filter((f) => !was.includes(f)), broke: was.filter((f) => !now.includes(f)) };
 }
 

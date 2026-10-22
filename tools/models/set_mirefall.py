@@ -12,8 +12,8 @@ from mathutils import Matrix, Vector
 
 from kit import Model
 from props_a_lib import (arc, bend, collider, frond, hull, lump, pulse, recolor, ribbon, root, sway, tube)
-from props_a_mirefall import (CAPS, HOLLOW, MOSS_HANG, PAD, REED, RUSH, SPORE, STEM, TEMPLE, TEMPLE_GLOW,
-                              TEMPLE_GLOW2, TEMPLE_MOSS, TEMPLE_TOP, VENT, VENT_TOP, WOOD, WOOD_TOP, _cap)
+from props_a_mirefall import (BLOOM, CAPS, _bloomcap, _shell, HOLLOW, MOSS_HANG, PAD, REED, RUSH, SPORE, STEM, TEMPLE, TEMPLE_GLOW,
+                              TEMPLE_GLOW2, TEMPLE_MOSS, TEMPLE_STEP, TEMPLE_TOP, VENT, VENT_TOP, WOOD, WOOD_TOP, _cap)
 
 # drowned wood goes silver-violet; moss is lit, not black
 BARK = ["#5e5660", "#6e6670", "#4e4852"]
@@ -33,6 +33,19 @@ FLESH = ["#8a5a7a", "#9a6a88", "#7a4e6c"]
 FLESH_TOP = "#c08ab0"
 PORE = "#8aff8a"
 PORE_HOT = "#e0ffd0"
+# the Hive's bloom where it takes hold: violet moss, swollen sacs, acid light
+VMOSS = ["#4a2e6a", "#5a3a7e", "#3e2a5a"]
+VMOSS_TOP = "#7a5aa8"
+LICHEN = "#a8c070"
+ACID = "#9aff5a"
+SAC = ["#7a3a8a", "#8e4a9e", "#6a3078"]
+SAC_TOP = "#c07ad0"
+PITCH = ["#6a2a6a", "#8a3a7a", "#5a2a5a"]
+PITCH_VEIN = "#a8d060"
+DWOOD = ["#8a8290", "#7a7282", "#968ea0"]
+DWOOD_TOP = "#c4bccc"
+CRUST = ["#8a7098", "#9a80a8", "#7a6088"]
+CRUST_TOP = "#c0a8d0"
 
 
 # --- helpers ----------------------------------------------------------------------------------
@@ -179,7 +192,7 @@ def cap_gate(variants):
                     a2 = rng.uniform(0, math.tau)
                     R = rng.uniform(1.8, 3.0) if z > 10 else rng.uniform(1.0, 1.6)
                     cx, cy = x + math.cos(a2) * (sr + R * 0.5), y + math.sin(a2) * (sr + R * 0.5)
-                    col, tip = (("#e8903a", "#ffe08a"), ("#3ab0a8", "#8affff"), ("#e86a8a", "#ffb0d0"))[(k + int(z)) % 3]
+                    col, tip = (("#a88ad0", "#b8ff4a"), ("#6a4ab0", "#9aff5a"), ("#c04aa0", "#ff8aff"))[(k + int(z)) % 3]
                     m.cyl(R, 0.45, (cx, cy, z), col, segs=10, r_top=R * 0.8)
                     m.cyl(R * 1.05, 0.14, (cx, cy, z), tip, segs=10, glow=True)
             for a, b in ((0, 1), (1, 2)):                                 # a web of glowing threads between
@@ -240,7 +253,7 @@ def fallen_stalk(variants):
             p = pts[rng.randrange(1, n)]
             sy = rng.choice((-1, 1))
             R = rng.uniform(1.0, 1.8)
-            col, tip = (("#e8903a", "#ffe08a"), ("#e86a8a", "#ffb0d0"), ("#3ab0a8", "#8affff"))[k % 3]
+            col, tip = (("#a88ad0", "#b8ff4a"), ("#c04aa0", "#ff8aff"), ("#6a4ab0", "#9aff5a"))[k % 3]
             x = p.x + rng.uniform(-2.5, 2.5)
             z = p.z + rng.uniform(-0.2, 1.4)
             m.cyl(R, 0.35, (x, p.y + sy * (rad[0] - 0.3), z), col, segs=8, r_top=R * 0.8)
@@ -322,7 +335,7 @@ def inkcap(variants):
             t = pts[-1]
             R = 0.6 + h * 0.08
             m.cyl(R, h * 0.3, (t.x, t.y, t.z - h * 0.18), pal[0], segs=7, r_top=R * 0.35)
-            m.cyl(R * 1.05, 0.25, (t.x, t.y, t.z - h * 0.2), pal[2], segs=7, glow=True)
+            m.cyl(R * 0.8, 0.12, (t.x, t.y, t.z - h * 0.2 - 0.02), pal[2], segs=7, glow=True)
             m.ball(R * 0.36, (t.x, t.y, t.z + h * 0.12), pal[1], subdiv=0)
             for j in range(3):                                            # drips
                 b = rng.uniform(0, math.tau)
@@ -391,7 +404,7 @@ def drowned_roots(variants):
                 p = pts[rng.randrange(1, 10)]
                 sy = rng.choice((-1, 1))
                 R = rng.uniform(0.9, 1.6)
-                col, tip = (("#e8903a", "#ffe08a"), ("#3ab0a8", "#8affff"))[k % 2]
+                col, tip = (("#a88ad0", "#b8ff4a"), ("#6a4ab0", "#9aff5a"))[k % 2]
                 z = p.z + rng.uniform(-0.6, 1.4)
                 m.cyl(R, 0.3, (p.x + rng.uniform(-3, 3), p.y + sy * 2.7, z), col, segs=8, r_top=R * 0.8)
                 m.cyl(R * 1.05, 0.12, (p.x + rng.uniform(-3, 3), p.y + sy * 2.7, z), tip, segs=8, glow=True)
@@ -526,7 +539,15 @@ def hummock(variants):
         fs = []
         bumps = [(0, 0, 2.4)] if i == 0 else ([(0, 0, 1.8), (2.4, 0.8, 1.3), (-1.6, 1.8, 1.1)] if i == 1 else [(0, 0, 2.8)])
         for k, (x, y, R) in enumerate(bumps):
-            fs += lump(m, rng, (x, y, 0.0), (R, R * 0.85, R * 0.45), MOSS[k % 3], n=12, flat=0.6)
+            fs += list(m.ball(1.0, (x, y, -0.15), MOSS[k % 3], subdiv=2, scale=(R, R * 0.85, R * 0.42), jitter=0.05))
+            for j in range(3):                                             # softer lobes round the mound
+                a = j * math.tau / 3 + rng.uniform(0, 1)
+                fs += list(m.ball(1.0, (x + math.cos(a) * R * 0.7, y + math.sin(a) * R * 0.6, -0.1), MOSS[(k + j) % 3],
+                                  subdiv=1, scale=(R * 0.5, R * 0.45, R * 0.28), jitter=0.04))
+            for j in range(2):                                             # sundew stars glinting in the moss
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.3, 0.6) * R
+                m.ball(0.14, (x + math.cos(a) * d, y + math.sin(a) * d, R * 0.38), "#ff6a9a", subdiv=0, glow=True)
             for j in range(int(R * 3)):                                    # cottongrass: a stalk and a white tuft
                 a = rng.uniform(0, math.tau)
                 d = rng.uniform(0, R * 0.7)
@@ -534,7 +555,7 @@ def hummock(variants):
                 h = rng.uniform(0.8, 1.4) + R * 0.35
                 m.cyl(0.05, h, (px, py, 0.2), REED[1], segs=3)
                 m.ball(0.2, (px, py, h + 0.2), "#f0f0e0", subdiv=0)
-        _paint(m, fs, MOSS_TOP, MOSS[2], dot=0.8)
+        _paint(m, fs, MOSS_TOP, None, dot=0.8)
         if i == 2:
             # a bank of peat cut square, bricks stacked to dry, a pool of black water
             m.box((3.0, 1.6, 1.4), (0.6, -2.2, 0.2), PEAT[0])
@@ -642,7 +663,7 @@ def ziggurat_ruin(variants):
                 for k in range(n):
                     t = (k + 0.5) / n
                     m.box((5.0, abs(y1 - y0) / n + 0.05, 0.5), (0, y0 + (y1 - y0) * t, base + (top - base) * t),
-                          ("#8a9080", "#7a8070")[k % 2])
+                          TEMPLE_STEP[k % 2])
                 for s in (-1, 1):
                     m.plank_line((s * 2.9, y0, base + 0.4), (s * 2.9, y1, top + 0.4), 0.8, 0.8, TEMPLE[1])
             # the shrine, its door lit, a glow pool before it
@@ -830,7 +851,7 @@ def rubble(variants):
                                  rot=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), rng.uniform(0, 3))))
         elif i == 1:
             for k in range(5):
-                fs += list(m.box((3.6 - k * 0.3, 1.0, 0.5), (0, k * 0.9 - 2, 0.25 + k * 0.5), ("#8a9080", "#7a8070")[k % 2]))
+                fs += list(m.box((3.6 - k * 0.3, 1.0, 0.5), (0, k * 0.9 - 2, 0.25 + k * 0.5), TEMPLE_STEP[k % 2]))
             fs += list(m.box((1.0, 5.0, 3.0), (-2.2, 0, 1.0), TEMPLE[1], taper=0.8))
             m.box((0.2, 1.0, 0.4), (-2.75, 0, 2.0), TEMPLE_GLOW, glow=True)
         else:
@@ -1005,6 +1026,635 @@ def spore_tube(variants):
         m.build(r, rot_z=rng.uniform(0, math.tau))
 
 
+
+# --- the Hive's bloom: new scenery -------------------------------------------------------------
+
+def _blob(m, rng, x, y, z, R, col, sub=1, sq=0.8):
+    return m.ball(R, (x, y, z), col, subdiv=sub, scale=(1, rng.uniform(0.85, 1.1), sq), jitter=R * 0.06)
+
+
+def moss_bed(variants):
+    """Ground cover: beds of violet moss under the caps: one freckled with buttons and lichen, one
+    bristling with lit pins, one a fairy ring round a bare patch."""
+    for i in range(3):
+        r = root("mirefall_moss_bed", i)
+        rng = random.Random(4500 + i)
+        m = Model(f"mirefall_moss_bed_{i}", 4500 + i)
+        fs = []
+        if i < 2:
+            for k in range(5 + i):
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0, 1.6)
+                fs += list(m.ball(1.0, (math.cos(a) * d, math.sin(a) * d, -0.05), VMOSS[k % 3], subdiv=1,
+                                  scale=(rng.uniform(0.8, 1.3), rng.uniform(0.7, 1.1), 0.32), jitter=0.06))
+        _paint(m, fs, VMOSS_TOP, None, dot=0.85)
+        if i == 0:
+            for k in range(4):                                             # lichen rosettes
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.4, 1.8)
+                m.cyl(rng.uniform(0.3, 0.45), 0.1, (math.cos(a) * d, math.sin(a) * d, 0.3), LICHEN, segs=6)
+            for k in range(7):                                             # buttons
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.3, 2.0)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                h = rng.uniform(0.25, 0.55)
+                m.cyl(0.08, h, (x, y, 0.1), STEM[k % 3], segs=4)
+                pal = BLOOM[("lilac", "orchid", "violet")[k % 3]]
+                m.ball(rng.uniform(0.2, 0.3), (x, y, 0.1 + h), pal[0], subdiv=0, scale=(1, 1, 0.55))
+                if k % 2:
+                    m.ball(0.1, (x, y, 0.2 + h), pal[3], subdiv=0, glow=True)
+        elif i == 1:
+            for k in range(14):                                            # pin moulds: lit heads on threads
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.2, 2.0)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                h = rng.uniform(0.4, 0.8)
+                m.cyl(0.05, h, (x, y, 0.2), STEM[1], segs=3)
+                m.ball(0.14, (x, y, 0.2 + h), (ACID, "#ff7aff")[k % 4 == 0], subdiv=0, glow=True)
+        else:
+            m.cyl(1.9, 0.08, (0, 0, -0.02), "#2a1e36", segs=12)                 # the bare, trodden middle
+            for k in range(11):
+                a = k * math.tau / 11 + rng.uniform(-0.1, 0.1)
+                d = 1.75 + rng.uniform(-0.15, 0.2)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                h = rng.uniform(0.35, 0.7)
+                m.cyl(0.1, h, (x, y, 0), STEM[k % 3], segs=4)
+                m.ball(0.3, (x, y, h), BLOOM["lilac"][0] if k % 2 else BLOOM["violet"][1], subdiv=0, scale=(1, 1, 0.5))
+                m.ball(0.12, (x, y, h + 0.12), ACID, subdiv=0, glow=True)
+            for k in range(6):
+                a = rng.uniform(0, math.tau)
+                fs2 = list(m.ball(1.0, (math.cos(a) * 2.6, math.sin(a) * 2.6, -0.05), VMOSS[k % 3], subdiv=1, scale=(0.9, 0.7, 0.28)))
+                _paint(m, fs2, VMOSS_TOP, None, dot=0.85)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def lattice(variants):
+    """Hero fungus: cage fungi, an open lattice of violet ribs with a light caught inside; a stand of
+    small ones; a burst egg throwing out curled orchid arms."""
+    for i in range(3):
+        r = root("mirefall_lattice", i)
+        rng = random.Random(4520 + i)
+        m = Model(f"mirefall_lattice_{i}", 4520 + i)
+        if i < 2:
+            cages = [(0, 0, 1.7, "violet")] if i == 0 else [(0, 0, 1.15, "orchid"), (1.9, 0.6, 0.85, "violet"),
+                                                           (-1.2, 1.5, 0.7, "lilac"), (0.4, -1.7, 0.6, "orchid")]
+            for x, y, R, pal in cages:
+                cap, crown, wart, glow = BLOOM[pal]
+                bm2 = bmesh.new()
+                bmesh.ops.create_icosphere(bm2, subdivisions=1, radius=R)
+                zc = R * 0.75
+                m.ball(R * 0.45, (x, y, zc - R * 0.1), glow, subdiv=1, glow=True)      # the light inside
+                for e in bm2.edges:
+                    a, b = e.verts[0].co, e.verts[1].co
+                    if a.z < -R * 0.6 and b.z < -R * 0.6:
+                        continue
+                    pa = Vector((x + a.x, y + a.y, zc + a.z * 0.9))
+                    pb = Vector((x + b.x, y + b.y, zc + b.z * 0.9))
+                    hi = max(a.z, b.z) > R * 0.3
+                    tube(m, [pa, pb], [R * 0.11, R * 0.11], crown if hi else cap, segs=3, cap=False)
+                for v in bm2.verts:                                         # the nodes, knuckled
+                    if v.co.z > -R * 0.6 and R > 1.0:
+                        m.ball(R * 0.14, (x + v.co.x, y + v.co.y, zc + v.co.z * 0.9), cap, subdiv=0)
+                bm2.free()
+                m.cyl(R * 0.6, 0.25, (x, y, -0.05), STEM[2], segs=6, r_top=R * 0.4)      # the cup it rose from
+                m.cyl(R * 0.7, 0.04, (x, y, 0.0), glow, segs=8, glow=True)               # what drips out of it
+        else:
+            cap, crown, wart, glow = BLOOM["orchid"]
+            m.ball(0.9, (0, 0, 0.45), STEM[0], subdiv=1, scale=(1, 1, 0.65))          # the egg, split
+            m.cyl(0.6, 0.12, (0, 0, 0.95), glow, segs=7, glow=True)
+            for k in range(6):
+                a = k * math.tau / 6 + rng.uniform(-0.15, 0.15)
+                L = rng.uniform(2.0, 2.8)
+                pts = [Vector((math.cos(a) * 0.4, math.sin(a) * 0.4, 0.9))]
+                for j in range(1, 6):
+                    t = j / 5
+                    d = 0.4 + L * t
+                    pts.append(Vector((math.cos(a + t * 0.4) * d, math.sin(a + t * 0.4) * d, 0.9 + math.sin(t * math.pi) * 0.9 - t * 0.7)))
+                tube(m, pts, [0.32, 0.36, 0.34, 0.28, 0.2, 0.08], cap, segs=5, colors=[cap, crown, crown, cap, cap])
+                for j in (2, 4):                                            # black spore smear, lit pores along it
+                    p = pts[j]
+                    m.ball(0.14, (p.x, p.y, p.z + 0.25), glow, subdiv=0, glow=True)
+                p = pts[-1]
+                m.ball(0.16, (p.x, p.y, p.z + 0.05), glow, subdiv=0, glow=True)
+            for k in range(5):
+                a = rng.uniform(0, math.tau)
+                lump(m, rng, (math.cos(a) * 1.1, math.sin(a) * 1.1, 0.0), (0.5, 0.4, 0.25), VMOSS[k % 3], n=7, flat=0.6)
+        obj = m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def drowned_trunk(variants):
+    """Peat scenery: trees that drowned standing, the Hive's bloom eating them: a snapped hollow with
+    a pool of light in it, a forked one hung with moss and blisters, a hollow stump fruiting, a leaner."""
+    for i in range(4):
+        r = root("mirefall_drowned_trunk", i)
+        rng = random.Random(4540 + i)
+        m = Model(f"mirefall_drowned_trunk_{i}", 4540 + i)
+        fs = []
+        if i == 0:
+            H, sr, lean = 5.0, 0.95, (0.4, 0.2)
+        elif i == 1:
+            H, sr, lean = 6.4, 0.6, (-0.6, 0.5)
+        elif i == 2:
+            H, sr, lean = 1.7, 1.35, (0.1, 0.0)
+        else:
+            H, sr, lean = 4.2, 0.65, (2.6, 0.6)
+        pts = bend((0, 0, -0.3), (0, 0, H), lean, n=6)
+        fs += tube(m, pts, [sr * 1.7, sr * 1.2, sr * 1.05, sr, sr * 0.95, sr * 0.9, sr * 0.9], DWOOD[0], segs=7,
+                   colors=[DWOOD[k % 3] for k in range(6)])
+        top = pts[-1]
+        if i in (0, 2):                                                    # the hollow (a pool of light down in the first)
+            m.cyl(sr * 0.72, 0.1, (top.x, top.y, top.z - 0.02), HOLLOW, segs=7)
+            if i == 0:
+                m.cyl(sr * 0.45, 0.08, (top.x, top.y, top.z + 0.02), ACID, segs=7, glow=True)
+            for k in range(6):                                             # the broken rim, jagged
+                a = k * math.tau / 6 + rng.uniform(-0.2, 0.2)
+                m.box((0.4, 0.3, rng.uniform(0.4, 1.0) * (1.4 if i == 2 else 1)),
+                      (top.x + math.cos(a) * sr * 0.8, top.y + math.sin(a) * sr * 0.8, top.z + 0.15), DWOOD_TOP,
+                      rot=(math.sin(a) * 0.25, -math.cos(a) * 0.25, a), taper=0.3)
+        if i == 2:                                                         # fruiting in the stump
+            for k, (dx, dy, h, R, pal) in enumerate(((0.3, 0.2, 1.1, 0.6, "orchid"), (-0.4, -0.2, 0.7, 0.45, "lilac"))):
+                m.cyl(0.1, h, (dx, dy, H - 0.2), STEM[k], segs=4)
+                _bloomcap(m, rng, dx, dy, H - 0.2 + h, R, R * 0.5, pal, warts=2, lobes=7)
+        if i in (1, 3):                                                    # limbs, bare and bowed, moss hanging off
+            nb = 2 if i == 1 else 2
+            for k in range(nb):
+                p = pts[4 if k == 0 else 3]
+                a = (0.4 if k == 0 else 2.9) + rng.uniform(-0.3, 0.3)
+                L = 2.4 if i == 1 else 1.8
+                q = Vector((p.x + math.cos(a) * L, p.y + math.sin(a) * L, p.z + L * 0.55))
+                fs += tube(m, [p, p.lerp(q, 0.5) + Vector((0, 0, 0.25)), q], [0.3, 0.2, 0.08], DWOOD[1], segs=5)
+                for j in range(2):
+                    hp = p.lerp(q, 0.35 + j * 0.35)
+                    _hang(m, rng, hp + Vector((0, 0, -0.1)), rng.uniform(0.8, 1.5), MOSS_HANG[j], width=0.3)
+                m.ball(0.38, tuple(p.lerp(q, 0.55) + Vector((0, 0, 0.25))), SAC[k % 3], subdiv=0, scale=(1, 1, 0.8))
+            m.cyl(sr * 0.6, 0.1, (top.x, top.y, top.z - 0.02), HOLLOW, segs=7)
+        # the bloom: sacs swelling round the foot and up one side, lit pores, a dribble of light
+        for k in range(5 if i != 2 else 6):
+            a = rng.uniform(-0.9, 0.9) + 0.5
+            t = k / 6
+            p = pts[min(5, int(t * 4))]
+            R = rng.uniform(0.35, 0.6) * (1.3 if k < 2 else 1)
+            x, y = p.x + math.cos(a) * (sr * 1.1 + R * 0.4), p.y + math.sin(a) * (sr * 1.1 + R * 0.4)
+            m.ball(R, (x, y, max(p.z, 0.2)), SAC[k % 3], subdiv=1, scale=(1, 1, 0.8))
+            if k == 0:
+                m.ball(R * 0.35, (x + math.cos(a) * R * 0.5, y + math.sin(a) * R * 0.5, max(p.z, 0.2) + R * 0.5), ACID,
+                       subdiv=0, glow=True)
+        for k in range(2):                                                 # bracket shelves on the shady side
+            p = pts[2 + k * 2] if i != 2 else pts[3]
+            a = 3.6 + k * 0.8
+            R = 0.7 - k * 0.15
+            m.cyl(R, 0.16, (p.x + math.cos(a) * sr, p.y + math.sin(a) * sr, p.z), BLOOM["lilac"][0], segs=7, r_top=R * 0.8)
+            m.cyl(R * 0.85, 0.06, (p.x + math.cos(a) * sr, p.y + math.sin(a) * sr, p.z - 0.04), ACID, segs=7, glow=True)
+        for k in range(4):                                                 # roots splayed into the peat
+            a = k * math.tau / 4 + rng.uniform(-0.3, 0.3)
+            fs += tube(m, [Vector((0, 0, 0.5)), Vector((math.cos(a) * sr * 1.4, math.sin(a) * sr * 1.4, 0.05)),
+                           Vector((math.cos(a) * sr * 2.4, math.sin(a) * sr * 2.4, -0.2))], [sr * 0.35, sr * 0.25, 0.08],
+                       DWOOD[k % 3], segs=4)
+        _paint(m, fs, DWOOD_TOP, None, dot=0.85)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def pitcher(variants):
+    """Peat scenery: pitcher plants, swollen violet jugs veined green, a little acid light pooled in
+    each mouth and a lid held over it."""
+    for i in range(3):
+        r = root("mirefall_pitcher", i)
+        rng = random.Random(4560 + i)
+        m = Model(f"mirefall_pitcher_{i}", 4560 + i)
+        spec = ([(0, 0, 2.2, 0.55), (1.0, 0.5, 1.6, 0.45), (-0.8, 0.7, 1.3, 0.4)] if i == 0 else
+                [(0, 0, 1.8, 0.45), (0.9, 0.4, 1.4, 0.4), (-0.7, 0.8, 1.2, 0.36), (0.2, -1.0, 1.5, 0.42), (-1.0, -0.5, 0.9, 0.32)]
+                if i == 1 else [(0, 0, 2.8, 0.8)])
+        for k, (x, y, h, R) in enumerate(spec):
+            a = math.atan2(y, x) if (x or y) else rng.uniform(0, math.tau)
+            lx, ly = math.cos(a) * 0.3, math.sin(a) * 0.3
+            pts = [Vector((x, y, -0.1)), Vector((x + lx * 0.3, y + ly * 0.3, h * 0.3)), Vector((x + lx * 0.6, y + ly * 0.6, h * 0.62)),
+                   Vector((x + lx * 0.9, y + ly * 0.9, h * 0.88)), Vector((x + lx, y + ly, h))]
+            col = PITCH[k % 3]
+            tube(m, pts, [R * 0.6, R * 1.05, R * 1.0, R * 0.7, R * 0.85], col, segs=7,
+                 colors=[col, PITCH_VEIN if k % 2 else col, col, PITCH[(k + 1) % 3]], cap=False)
+            t = pts[-1]
+            m.cyl(R * 0.98, 0.16, (t.x, t.y, t.z - 0.08), SAC_TOP, segs=8, r_top=R * 1.05)     # the lip, rolled
+            m.cyl(R * 0.68, 0.1, (t.x, t.y, t.z - 0.18), ACID, segs=7, glow=True)              # what's pooled inside
+            back = Vector((-math.cos(a), -math.sin(a), 0))
+            m.box((R * 1.4, R * 1.1, 0.1), tuple(t + back * R * 0.9 + Vector((0, 0, R * 0.6))), PITCH[(k + 2) % 3],
+                  rot=(math.sin(a) * 0.9, -math.cos(a) * 0.9, a + math.pi / 2))              # the lid, propped open
+        for k in range(5):                                                  # strap leaves at the foot
+            yaw = k * math.tau / 5 + rng.uniform(-0.2, 0.2)
+            frond(m, (0, 0, 0), yaw, 1.4, 0.32, MOSS[k % 3], MOSS[(k + 1) % 3], rise=0.3, droop=0.7, n=4, serrate=0.0)
+        obj = m.build(r, rot_z=rng.uniform(0, math.tau))
+        sway(obj, f"mirefall_pitcher_{i}_sway_idle", amp=(0.03, 0.025), period=3.4 + i * 0.4, phase=i)
+
+
+def stele(variants):
+    """Temple scenery: carved stones with lit glyphs: a tall one, moss-capped; a fallen pair, one face
+    up so its glyphs shine at the sky; a ring of stumps round a basin of light."""
+    for i in range(3):
+        r = root("mirefall_stele", i)
+        rng = random.Random(4580 + i)
+        m = Model(f"mirefall_stele_{i}", 4580 + i)
+        fs = []
+        if i == 0:
+            fs += list(m.box((1.6, 0.8, 4.4), (0, 0, 2.0), TEMPLE[0], taper=0.8))
+            fs += list(m.box((1.9, 1.1, 0.5), (0, 0, 0.1), TEMPLE[1]))
+            for k in range(4):
+                m.box((0.7 - (k % 2) * 0.25, 0.1, 0.32), (0, -0.42, 0.9 + k * 0.85), TEMPLE_GLOW if k % 2 else TEMPLE_GLOW2, glow=True)
+            m.ball(0.9, (0.1, 0.0, 4.25), TEMPLE_MOSS[0], subdiv=1, scale=(1.1, 0.8, 0.35))
+            _hang(m, rng, Vector((0.6, -0.35, 4.1)), 1.6, TEMPLE_MOSS[1], width=0.3)
+        elif i == 1:
+            fs += list(m.box((1.5, 0.75, 3.6), (-1.2, 0.3, 1.6), TEMPLE[1], rot=(0.25, -0.2, 0.2), taper=0.85))
+            fs += list(m.box((1.6, 4.0, 0.8), (1.3, -0.3, 0.25), TEMPLE[2], rot=(0, 0.05, 0.3)))          # fallen, face up
+            for k in range(4):
+                y = -1.7 + k * 0.95
+                m.box((0.7 - (k % 2) * 0.25, 0.32, 0.1), (1.3 + y * -0.3 * 0.3, -0.3 + y, 0.67), TEMPLE_GLOW if k % 2 else TEMPLE_GLOW2,
+                      rot=(0, 0, 0.3), glow=True)
+            for k in range(3):                                             # the bloom has found it
+                m.ball(rng.uniform(0.35, 0.55), (2.2 + rng.uniform(-0.3, 0.3), -2.0 + k * 0.7, 0.55), SAC[k % 3], subdiv=1, scale=(1, 1, 0.8))
+            m.ball(0.15, (2.5, -1.6, 0.95), ACID, subdiv=0, glow=True)
+        else:
+            m.cyl(1.4, 0.3, (0, 0, -0.1), TEMPLE[2], segs=8)                    # the basin
+            m.cyl(1.1, 0.1, (0, 0, 0.15), TEMPLE_GLOW, segs=8, glow=True)
+            for k in range(6):
+                a = k * math.tau / 6 + rng.uniform(-0.1, 0.1)
+                h = rng.uniform(0.9, 2.0) if k != 4 else 0.5
+                x, y = math.cos(a) * 2.6, math.sin(a) * 2.6
+                fs += list(m.box((0.8, 0.6, h), (x, y, h / 2 - 0.1), TEMPLE[k % 3], rot=(rng.uniform(-0.1, 0.1), rng.uniform(-0.1, 0.1), a),
+                                 taper=0.85))
+                if k % 2 == 0:
+                    m.box((0.12, 0.3, 0.3), (x - math.cos(a) * 0.32, y - math.sin(a) * 0.32, h * 0.6), TEMPLE_GLOW2,
+                          rot=(0, 0, a), glow=True)
+                if k == 3:
+                    m.ball(0.5, (x, y, h + 0.05), TEMPLE_MOSS[0], subdiv=1, scale=(1, 1, 0.4))
+        _paint(m, fs, TEMPLE_TOP[0], None, dot=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def brood_sac(variants):
+    """Spore-vent scenery: the Hive's brood, swelling: a clutch on a fleshy mat, one great sac split
+    and lit along its seam, sacs hung from an arching root, dripping."""
+    for i in range(3):
+        r = root("mirefall_brood_sac", i)
+        rng = random.Random(4600 + i)
+        m = Model(f"mirefall_brood_sac_{i}", 4600 + i)
+        g = Model(f"mirefall_brood_sac_{i}_swell", 4610 + i)
+        fs = []
+        if i == 0:
+            fs += lump(m, rng, (0, 0, -0.1), (2.2, 1.9, 0.35), FLESH[2], n=12, flat=0.7)
+            for k, (x, y, R) in enumerate(((0, 0, 0.95), (1.2, 0.5, 0.7), (-0.9, 0.8, 0.65), (0.3, -1.1, 0.6), (-1.1, -0.6, 0.5))):
+                tgt = g if k == 0 else m
+                ox, oy = (0, 0) if k == 0 else (x, y)
+                tgt.ball(R, (ox, oy, R * 0.75 if k else 0), SAC[k % 3], subdiv=1, scale=(1, 1, 0.85), jitter=0.04)
+                tgt.ball(R * 0.4, (ox + R * 0.25, oy - R * 0.2, (R * 0.75 if k else 0) + R * 0.62), SAC_TOP, subdiv=0, scale=(1, 1, 0.5))
+                for j in range(3):                                         # lit pores
+                    a = rng.uniform(0, math.tau)
+                    tgt.ball(0.11 * max(1, R), (ox + math.cos(a) * R * 0.6, oy + math.sin(a) * R * 0.6, (R * 0.75 if k else 0) + R * 0.5),
+                             ACID, subdiv=0, glow=True)
+            m.cyl(0.6, 0.04, (1.6, -1.0, 0.0), ACID, segs=7, glow=True)                       # a drip, pooled
+            swell = (0, 0, 0.95 * 0.75)
+        elif i == 1:
+            for k in range(6):
+                a = k * math.tau / 6
+                tube(m, [Vector((math.cos(a) * 0.8, math.sin(a) * 0.8, 0.6)), Vector((math.cos(a) * 1.7, math.sin(a) * 1.7, 0.1)),
+                         Vector((math.cos(a) * 2.4, math.sin(a) * 2.4, -0.2))], [0.3, 0.2, 0.06], FLESH[k % 3], segs=4)
+            g.ball(1.5, (0, 0, 0), SAC[0], subdiv=1, scale=(1, 0.9, 1.0), jitter=0.06)
+            g.box((0.26, 1.1, 0.3), (0, 0.1, 1.36), ACID, glow=True)          # the seam, splitting
+            g.ball(0.6, (0.5, -0.4, 1.1), SAC_TOP, subdiv=0, scale=(1, 1, 0.5))
+            for j in range(5):
+                a = rng.uniform(0, math.tau)
+                g.ball(0.16, (math.cos(a) * 1.3, math.sin(a) * 1.2, rng.uniform(-0.2, 0.8)), ACID, subdiv=0, glow=True)
+            m.cyl(1.0, 0.04, (0.9, 1.2, 0.0), ACID, segs=8, glow=True)
+            swell = (0, 0, 1.4)
+        else:
+            pts = [Vector((-2.2, 0, -0.2)), Vector((-1.6, 0.2, 1.8)), Vector((0, 0.1, 2.7)), Vector((1.6, -0.2, 1.8)), Vector((2.2, 0, -0.2))]
+            tube(m, pts, [0.55, 0.42, 0.38, 0.42, 0.55], FLESH[0], segs=6, colors=[FLESH[0], FLESH[1], FLESH[1], FLESH[0]])
+            for k, (x, z, R) in enumerate(((-0.9, 1.5, 0.55), (0.6, 1.6, 0.65), (1.4, 1.0, 0.45))):
+                m.cyl(0.08, 2.4 - z, (x, 0.1, z), FLESH[2], segs=4)
+                m.ball(R, (x, 0.1, z - R * 0.4), SAC[k % 3], subdiv=1, scale=(1, 1, 1.2))
+                m.ball(0.14, (x, 0.1, z - R * 1.6), ACID, subdiv=0, scale=(1, 1, 1.6), glow=True)     # a drip, falling
+                m.cyl(0.35, 0.04, (x, 0.1, 0.0), ACID, segs=6, glow=True)
+            g.ball(0.75, (0, 0, 0), SAC[1], subdiv=1, scale=(1, 1, 0.8))
+            g.ball(0.2, (0.3, -0.3, 0.45), ACID, subdiv=0, glow=True)
+            swell = (-0.2, -1.4, 0.55)
+        if fs:
+            _paint(m, fs, FLESH_TOP, None, dot=0.85)
+        m.build(r)
+        obj = g.build(r, loc=swell)
+        pulse(obj, f"mirefall_brood_sac_{i}_swell_idle", amp=0.08, period=2.2 + i * 0.5, axes=(1, 1, 0.8))
+
+
+def crust(variants):
+    """Spore-vent ground cover: fungal crust, plated like a dried bed, the light of the vents seeping
+    up through the seams; one patch long, one with little chimneys starting."""
+    for i in range(3):
+        r = root("mirefall_crust", i)
+        rng = random.Random(4620 + i)
+        m = Model(f"mirefall_crust_{i}", 4620 + i)
+        sx, sy = ((2.4, 2.2), (3.6, 1.6), (2.6, 2.6))[i]
+        # the seep under it all
+        m.cyl(1.0, 0.06, (0, 0, -0.02), "#2e7a40", segs=10)
+        for v in m.bm.verts:
+            v.co.x *= sx * 0.8
+            v.co.y *= sy * 0.8
+        m.bm.faces.ensure_lookup_table()
+        idx = m._slot("#2e7a40", True)
+        for f in m.bm.faces:
+            f.material_index = idx
+        cell = 0.95
+        nx, ny = int(sx * 2 / cell) + 1, int(sy * 2 / cell) + 1
+        for a in range(nx):
+            for b in range(ny):
+                cx = -sx + (a + 0.5) * cell + rng.uniform(-0.15, 0.15) + (b % 2) * cell * 0.5
+                cy = -sy + (b + 0.5) * cell + rng.uniform(-0.15, 0.15)
+                if (cx / sx) ** 2 + (cy / sy) ** 2 > 0.75 + rng.uniform(-0.1, 0.15):
+                    continue
+                n = rng.choice((5, 6, 6))
+                rr = cell * 0.56
+                pts = []
+                for k in range(n):
+                    t = k * math.tau / n + rng.uniform(-0.2, 0.2)
+                    q = rr * rng.uniform(0.85, 1.05)
+                    pts.append((cx + math.cos(t) * q, cy + math.sin(t) * q))
+                h = rng.uniform(0.12, 0.3)
+                top = [(cx + (px - cx) * 0.82, cy + (py - cy) * 0.82) for px, py in pts]
+                col = CRUST[(a + b) % 3]
+                m.slab(pts, -0.05, h, col, top=top)
+                if rng.random() < 0.25:
+                    m.slab(top, h, h + 0.04, CRUST_TOP)
+        if i == 2:
+            for k in range(3):                                               # chimneys starting
+                a = k * math.tau / 3 + 0.4
+                x, y = math.cos(a) * 1.1, math.sin(a) * 1.1
+                h = rng.uniform(0.5, 0.9)
+                m.cyl(0.32, h, (x, y, 0), CRUST[k % 3], segs=6, r_top=0.22)
+                m.cyl(0.16, 0.05, (x, y, h), ACID, segs=6, glow=True)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+
+# --- the drowned temple, round 3: architecture you can name -----------------------------------
+
+def _column(m, rng, x, y, h, R=0.55, broken=False):
+    """A drum column on a square plinth, its capital (unless snapped off), slightly out of true."""
+    fs = []
+    fs += list(m.box((R * 2.6, R * 2.6, 0.5), (x, y, 0.0), TEMPLE[1]))
+    n = max(2, int(h / 1.0))
+    for k in range(n):
+        z = 0.25 + k * (h - 0.6) / n
+        fs += m.cyl(R, (h - 0.6) / n - 0.05, (x + rng.uniform(-0.04, 0.04), y + rng.uniform(-0.04, 0.04), z), TEMPLE[k % 3],
+                    segs=8, rot=(0, 0, rng.uniform(0, 1)))
+    if broken:
+        for k in range(4):                                                 # the jagged break
+            a = k * math.tau / 4 + rng.uniform(-0.3, 0.3)
+            m.box((0.35, 0.3, rng.uniform(0.2, 0.5)), (x + math.cos(a) * R * 0.6, y + math.sin(a) * R * 0.6, h - 0.4), TEMPLE[2],
+                  rot=(0, 0, a), taper=0.4)
+    else:
+        fs += list(m.box((R * 2.5, R * 2.5, 0.45), (x, y, h - 0.25), TEMPLE[2]))
+    return list(fs)
+
+
+def _bloom_on(m, rng, x, y, z, n=4, spread=0.8):
+    """The Hive's bloom, taking stone back: violet sacs in a clutch and a lit pore or two."""
+    for k in range(n):
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0, spread)
+        R = rng.uniform(0.3, 0.55)
+        px, py = x + math.cos(a) * d, y + math.sin(a) * d
+        m.ball(R, (px, py, z + R * 0.5), SAC[k % 3], subdiv=1, scale=(1, 1, 0.8))
+        if k % 2 == 0:
+            m.ball(R * 0.35, (px + R * 0.3, py, z + R * 1.0), ACID, subdiv=0, glow=True)
+
+
+def colonnade(variants):
+    """Temple scenery: colonnades: a row with a lintel left on two of them; a portico, roof half gone;
+    an apse of columns curving round a basin of light. They stand in the shallows as well as on stone."""
+    for i in range(3):
+        r = root("mirefall_colonnade", i)
+        rng = random.Random(4640 + i)
+        m = Model(f"mirefall_colonnade_{i}", 4640 + i)
+        fs = []
+        if i == 0:
+            hs = [4.6, 4.6, 2.2, 4.6, 1.2]
+            for k, h in enumerate(hs):
+                fs += _column(m, rng, -5.2 + k * 2.6, 0, h, broken=h < 4)
+            fs += list(m.box((3.8, 1.3, 0.6), (-3.9, 0, 4.85), TEMPLE[0]))
+            m.box((1.0, 0.1, 0.3), (-3.9, -0.66, 4.85), TEMPLE_GLOW, glow=True)
+            for k in range(3):                                             # the fallen one, in drums
+                fs += m.cyl(0.55, 0.9, (3.2 + k * 0.95, 1.8 + k * 0.25, 0.5), TEMPLE[k % 3], segs=8,
+                            rot=(math.pi / 2, 0, 1.4 + k * 0.1))
+            _bloom_on(m, rng, -0.1, 0.4, 0.2, n=4)
+            m.ball(0.9, (-2.6, 0.1, 5.15), TEMPLE_MOSS[0], subdiv=1, scale=(1.4, 0.8, 0.3))
+        elif i == 1:
+            for a in range(3):
+                for b in (-1, 1):
+                    h = 4.4 if not (a == 2 and b == 1) else 2.0
+                    fs += _column(m, rng, -2.8 + a * 2.8, b * 1.8, h, R=0.5, broken=h < 4)
+            fs += list(m.box((6.6, 4.6, 0.5), (-1.4, 0, 4.65), TEMPLE[0]))            # the roof, what's left
+            fs += list(m.box((6.8, 0.5, 0.35), (-1.4, -2.2, 4.2), TEMPLE[2]))
+            for k in range(3):
+                m.box((0.7, 0.1, 0.3), (-3.6 + k * 2.2, -2.47, 4.2), TEMPLE_GLOW2, glow=True)
+            m.ball(1.4, (-2.0, 0.5, 5.0), TEMPLE_MOSS[1], subdiv=1, scale=(1.4, 1.0, 0.3))
+            for k in range(3):                                             # roof slabs where they fell
+                fs += list(m.box((2.0, 1.6, 0.4), (3.2 + rng.uniform(-0.5, 0.5), -1.5 + k * 1.5, 0.3), TEMPLE[k % 3],
+                                 rot=(rng.uniform(-0.2, 0.2), rng.uniform(-0.3, 0.3), rng.uniform(0, 1))))
+            _bloom_on(m, rng, 3.0, 1.6, 0.4, n=5, spread=1.0)
+        else:
+            m.cyl(2.0, 0.35, (0, 0, -0.15), TEMPLE[2], segs=10)
+            m.cyl(1.6, 0.1, (0, 0, 0.2), TEMPLE_GLOW, segs=10, glow=True)
+            for k in range(5):
+                a = math.pi * (k / 4) + math.pi * 0.0
+                h = (4.2, 4.6, 4.8, 3.0, 4.2)[k]
+                fs += _column(m, rng, math.cos(a) * 4.0, math.sin(a) * 4.0, h, R=0.5, broken=h < 4)
+            fs += list(m.box((2.8, 1.0, 0.5), (math.cos(0.4) * 4.0, math.sin(0.4) * 4.0 + 0.4, 4.5), TEMPLE[0], rot=(0, 0, 1.97)))
+            _bloom_on(m, rng, 2.4, -1.2, 0.0, n=3)
+        _paint(m, fs, TEMPLE_TOP[0], None, dot=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def stair_run(variants):
+    """Temple scenery: a broad flight of steps up out of the swamp to nothing, balustraded, a glow at
+    its head; the second broken off halfway, its blocks tumbled and the bloom in among them."""
+    for i in range(2):
+        r = root("mirefall_stair", i)
+        rng = random.Random(4660 + i)
+        m = Model(f"mirefall_stair_{i}", 4660 + i)
+        fs = []
+        n = 9 if i == 0 else 6
+        for k in range(n):
+            fs += list(m.box((4.2, 0.9, 0.35 + k * 0.38), (0, -3.6 + k * 0.85, (0.35 + k * 0.38) / 2 - 0.2),
+                             TEMPLE_STEP[k % 2] if k % 3 else TEMPLE[k % 3]))
+        top = -3.6 + (n - 1) * 0.85
+        zt = 0.35 + (n - 1) * 0.38 - 0.2
+        for sx in (-1, 1):                                                 # balustrades and their newels
+            fs += list(m.box((0.55, n * 0.85, 0.5), (sx * 2.35, -3.6 + (n - 1) * 0.425, zt * 0.5 + 0.35), TEMPLE[1]))
+            fs += list(m.box((0.9, 0.9, 1.6), (sx * 2.35, -4.0, 0.6), TEMPLE[2]))
+            m.ball(0.3, (sx * 2.35, -4.0, 1.55), TEMPLE_GLOW2, subdiv=0, glow=True)
+        if i == 0:
+            fs += list(m.box((5.4, 2.4, zt + 0.4), (0, top + 1.6, zt / 2 - 0.1), TEMPLE[0]))            # the landing
+            m.box((1.6, 1.6, 0.1), (0, top + 1.6, zt + 0.12), TEMPLE_GLOW, glow=True, rot=(0, 0, 0.785))
+            for k in range(6):                                             # moss pouring down the steps
+                m.ball(rng.uniform(0.5, 0.8), (rng.uniform(-1.6, 1.6), -3.0 + k * 1.1, 0.2 + k * 0.42), TEMPLE_MOSS[k % 2],
+                       subdiv=1, scale=(1.4, 0.8, 0.3))
+        else:
+            for k in range(5):
+                fs += list(m.box((rng.uniform(1.0, 1.8), rng.uniform(0.8, 1.2), rng.uniform(0.6, 1.0)),
+                                 (rng.uniform(-2.0, 2.0), top + 1.5 + rng.uniform(0, 2.5), 0.3), TEMPLE[k % 3],
+                                 rot=(rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4), rng.uniform(0, 3))))
+            _bloom_on(m, rng, 0.6, top + 2.4, 0.2, n=6, spread=1.4)
+        _paint(m, fs, TEMPLE_TOP[0], None, dot=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def courtyard(variants):
+    """Temple scenery: a sunken court: low walls with gaps for doors, a flagged floor stepped down,
+    corner stumps, a pool of light in the middle that the bloom has come to drink from."""
+    for i in range(2):
+        r = root("mirefall_courtyard", i)
+        rng = random.Random(4680 + i)
+        m = Model(f"mirefall_courtyard_{i}", 4680 + i)
+        fs = []
+        W = 9.0 if i == 0 else 7.5
+        for a in range(5):                                                 # the floor, flagged
+            for b in range(5):
+                x = -W / 2 + 0.9 + a * (W - 1.8) / 4
+                y = -W / 2 + 0.9 + b * (W - 1.8) / 4
+                fs += list(m.box(((W - 1.8) / 4 - 0.12, (W - 1.8) / 4 - 0.12, 0.25), (x, y, -0.15),
+                                 TEMPLE_STEP[(a + b) % 2] if rng.random() > 0.15 else TEMPLE[2]))
+        for sd in range(4):                                                # walls, a door in each
+            a = sd * math.pi / 2
+            ca, sa = math.cos(a), math.sin(a)
+            for part in (-1, 1):
+                L = W / 2 - 1.0
+                cx = part * (0.9 + L / 2)
+                h = rng.uniform(0.9, 1.4) if not (i == 1 and sd == 2 and part == 1) else 0.35
+                px, py = ca * (W / 2) - sa * cx, sa * (W / 2) + ca * cx
+                fs += list(m.box((0.7, L, h), (px, py, h / 2 - 0.1), TEMPLE[(sd + part) % 3], rot=(0, 0, a)))
+            for c in (-1, 1):                                              # corner stumps
+                px, py = ca * (W / 2) - sa * c * W / 2, sa * (W / 2) + ca * c * W / 2
+                if sd % 2 == 0:
+                    fs += list(m.box((1.1, 1.1, 2.0 if (sd + c) % 4 else 1.2), (px, py, 0.9 if (sd + c) % 4 else 0.5), TEMPLE[1]))
+        m.cyl(1.8 if i == 0 else 1.4, 0.3, (0, 0, -0.1), TEMPLE[0], segs=10)
+        m.cyl(1.45 if i == 0 else 1.1, 0.08, (0, 0, 0.18), TEMPLE_GLOW, segs=10, glow=True)
+        _bloom_on(m, rng, 1.6, 1.4, 0.0, n=5, spread=0.9)
+        for k in range(5):
+            m.ball(rng.uniform(0.6, 1.0), (rng.uniform(-W / 2, W / 2), rng.uniform(-W / 2, W / 2), 0.1), TEMPLE_MOSS[k % 2],
+                   subdiv=1, scale=(1.4, 1.0, 0.25))
+        _paint(m, fs, TEMPLE_TOP[0], None, dot=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def idol_head(variants):
+    """Temple hero: the head of a fallen idol, lying on its cheek in the swamp: brow, nose, a crown
+    of fanned slabs, one eye up and still lit; the bloom swelling out of the other."""
+    for i in range(2):
+        r = root("mirefall_idol_head", i)
+        rng = random.Random(4700 + i)
+        m = Model(f"mirefall_idol_head_{i}", 4700 + i)
+        fs = []
+        # the head lies along x, face toward -y, tipped over so its right cheek is down
+        fs += list(m.box((5.6, 4.4, 3.6), (0, 0, 1.4), TEMPLE[0], taper=0.85))
+        fs += list(m.box((4.8, 0.9, 0.8), (0.2, -2.3, 2.5), TEMPLE[2]))                     # the brow
+        fs += list(m.box((1.0, 1.4, 1.6), (0.6, -2.6, 1.6), TEMPLE[1], taper=0.6))           # the nose
+        fs += list(m.box((2.6, 0.6, 0.5), (0.4, -2.4, 0.5), TEMPLE[1]))                      # lips
+        m.box((1.2, 0.3, 0.35), (-1.2, -2.35, 2.05), TEMPLE_GLOW, glow=True)               # the lit eye
+        m.box((1.2, 0.3, 0.35), (2.2, -2.35, 2.05), "#2a2230")                            # the dead one
+        for k in range(7):                                                  # the crown: fanned slabs
+            a = -0.9 + k * 0.3
+            fs += list(m.box((1.3, 0.6, 2.4 if k % 2 else 1.8), (math.sin(a) * 3.2 - 0.2, 1.2 + math.cos(a) * 1.0, 3.2 + math.cos(a) * 0.4),
+                             TEMPLE[k % 3], rot=(-0.5, a * 0.6, 0), taper=0.6))
+            if k % 2 == 0:
+                m.ball(0.22, (math.sin(a) * 3.2 - 0.2, 1.2 + math.cos(a) * 1.0 - 0.3, 4.3 + math.cos(a) * 0.4), TEMPLE_GLOW2, subdiv=0, glow=True)
+        fs += list(m.box((3.6, 2.4, 1.2), (-0.3, 3.0, 0.3), TEMPLE[1], rot=(0, 0, 0.1)))     # the neck, broken
+        m.cyl(1.0, 0.1, (-0.3, 4.25, 0.3), "#2a2230", segs=7, rot=(math.pi / 2, 0, 0))
+        _bloom_on(m, rng, 2.4, -1.8, 1.6, n=6, spread=1.0)                                  # out of the dead eye
+        _bloom_on(m, rng, 3.4, 1.0, 0.0, n=4, spread=1.2)
+        for k in range(4):
+            m.ball(rng.uniform(0.8, 1.2), (rng.uniform(-2.2, 1.6), rng.uniform(-1.4, 1.4), 3.25), TEMPLE_MOSS[k % 2], subdiv=1,
+                   scale=(1.4, 1.0, 0.25))
+        _hang(m, rng, Vector((-2.6, -2.1, 3.0)), 2.2, TEMPLE_MOSS[1], width=0.35)
+        if i == 1:                                                          # a hand beside it, palm up, holding a light
+            fs += list(m.box((2.6, 2.0, 0.8), (-5.4, -2.0, 0.2), TEMPLE[2], rot=(0, 0, 0.3)))
+            for k in range(4):
+                fs += list(m.box((0.5, 1.4, 0.55), (-6.4 + k * 0.6, -3.4, 0.45), TEMPLE[k % 3], rot=(0.3, 0, 0.3)))
+            m.ball(0.5, (-5.4, -2.0, 0.9), TEMPLE_GLOW, subdiv=1, glow=True)
+        _paint(m, fs, TEMPLE_TOP[0], None, dot=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+# --- the spore vents, round 3: a vent you can see from orbit -----------------------------------
+
+def great_vent(variants):
+    """Spore-vent hero: a great crusted chimney, its stepped crust like shelf fungus, side stacks, and
+    a plume of lit spores standing over it; the second a twin stack leaning apart."""
+    for i in range(2):
+        r = root("mirefall_great_vent", i)
+        rng = random.Random(4720 + i)
+        m = Model(f"mirefall_great_vent_{i}", 4720 + i)
+        fs = []
+        stacks = [(0, 0, 5.4, 2.4, (0.5, 0.15))] if i == 0 else [(-1.6, 0, 5.0, 1.9, (-0.7, 0.2)), (1.8, 0.4, 4.2, 1.7, (0.8, -0.2))]
+        mouths = []
+        for k, (x, y, h, R, lean) in enumerate(stacks):
+            pts = bend((x, y, -0.3), (x, y, h), lean, n=4)
+            fs += tube(m, pts, [R * 1.25, R * 0.9, R * 0.68, R * 0.58, R * 0.55], VENT[k], segs=9,
+                       colors=[VENT[0], VENT[1], VENT[2], VENT[1]])
+            for j in range(5):                                             # crust shelves stepping up it
+                p = pts[1 + j % 3]
+                a = j * 1.3 + k
+                fs += lump(m, rng, (p.x + math.cos(a) * R * 0.75, p.y + math.sin(a) * R * 0.75, p.z + (j // 3) * 0.5),
+                           (R * 0.6, R * 0.5, 0.4), VENT[j % 3], n=9, flat=0.4)
+            t = pts[-1]
+            m.cyl(R * 0.62, 0.4, (t.x, t.y, t.z - 0.1), VENT_TOP, segs=9, r_top=R * 0.7)       # the lip
+            m.cyl(R * 0.42, 0.1, (t.x, t.y, t.z + 0.28), "#1a0e1e", segs=9)
+            mouths.append(Vector((t.x, t.y, t.z + 0.35)))
+        for k in range(9):                                                 # the mound it stands in
+            a = k * math.tau / 9 + rng.uniform(-0.2, 0.2)
+            fs += lump(m, rng, (math.cos(a) * 3.4, math.sin(a) * 3.0, 0.1), (1.3, 1.0, 0.7), VENT[k % 3], n=9, flat=0.5)
+        for k in range(3):                                                 # little side stacks, lit
+            a = k * 2.1 + 0.6
+            x, y = math.cos(a) * 3.2, math.sin(a) * 2.8
+            h = rng.uniform(1.4, 2.2)
+            tube(m, [Vector((x, y, -0.2)), Vector((x, y, h))], [0.7, 0.45], VENT[(k + 1) % 3], segs=6)
+            m.cyl(0.5, 0.2, (x, y, h - 0.05), VENT_TOP, segs=6)
+            m.cyl(0.28, 0.06, (x, y, h + 0.15), PORE, segs=6, glow=True)
+        _paint(m, fs, VENT_TOP, None, dot=0.8)
+        m.build(r)
+        for k, mo in enumerate(mouths):                                    # the plume, paling as it rises
+            g = Model(f"mirefall_great_vent_{i}_plume{k}", 4730 + i * 2 + k)
+            for j, (dz, R, col) in enumerate(((0.1, 0.8, "#5ac860"), (0.9, 1.1, PORE), (1.8, 0.95, "#a8ff90"), (2.5, 0.55, PORE))):
+                if mo.z + dz + R * 0.7 > 7.9:
+                    continue
+                g.ball(R, (0.15 * j, 0.08 * j, dz), col, subdiv=1, scale=(1, 1, 0.7), jitter=0.06, glow=True)
+            obj = g.build(r, loc=tuple(mo))
+            pulse(obj, f"mirefall_great_vent_{i}_{k}_breathe_idle", amp=0.1, period=2.8 + k * 0.5 + i * 0.3)
+
+
+
+def vent_mound(variants):
+    """Spore-vent landmark (blown up ~3x by the runtime): a squat crusted cone, terraced, a wide lit
+    throat and a low plume; built small so it scales to a hill of a vent."""
+    r = root("mirefall_vent_mound", 0)
+    rng = random.Random(4740)
+    m = Model("mirefall_vent_mound_0", 4740)
+    fs = []
+    for ring, (d, z, sz) in enumerate(((3.6, 0.2, 1.1), (2.5, 0.8, 0.9), (1.6, 1.4, 0.7))):
+        n = 11 - ring * 2
+        for k in range(n):
+            a = k * math.tau / n + rng.uniform(-0.15, 0.15) + ring * 0.3
+            fs += lump(m, rng, (math.cos(a) * d, math.sin(a) * d, z), (sz * 1.2, sz, sz * 0.8), VENT[(k + ring) % 3], n=9, flat=0.4)
+    fs += tube(m, [Vector((0, 0, 0)), Vector((0, 0, 2.0))], [1.6, 1.2], VENT[1], segs=9)
+    m.cyl(1.25, 0.3, (0, 0, 1.9), VENT_TOP, segs=9, r_top=1.35)
+    m.cyl(0.9, 0.08, (0, 0, 2.18), "#1a0e1e", segs=9)
+    for k in range(4):                                                     # little side mouths on the terraces
+        a = k * math.tau / 4 + 0.5
+        x, y = math.cos(a) * 2.6, math.sin(a) * 2.6
+        m.cyl(0.35, 0.5, (x, y, 1.1), VENT_TOP, segs=6, r_top=0.3)
+        m.cyl(0.2, 0.05, (x, y, 1.6), PORE, segs=6, glow=True)
+    _paint(m, fs, VENT_TOP, None, dot=0.8)
+    m.build(r)
+    g = Model("mirefall_vent_mound_0_plume", 4741)
+    for j, (dz, R, col) in enumerate(((0.0, 0.75, "#5ac860"), (0.55, 0.85, PORE), (1.0, 0.55, "#a8ff90"))):
+        g.ball(R, (0.1 * j, 0.05 * j, dz), col, subdiv=1, scale=(1, 1, 0.6), jitter=0.04, glow=True)
+    obj = g.build(r, loc=(0, 0, 2.25))
+    pulse(obj, "mirefall_vent_mound_0_breathe_idle", amp=0.08, period=3.4)
+
 def build():
     cap_gate(2)
     fallen_stalk(2)
@@ -1023,3 +1673,16 @@ def build():
     fungal_arch(2)
     vent_crater(1)
     spore_tube(3)
+    moss_bed(3)
+    lattice(3)
+    drowned_trunk(4)
+    pitcher(3)
+    stele(3)
+    brood_sac(3)
+    crust(3)
+    colonnade(3)
+    stair_run(2)
+    courtyard(2)
+    idol_head(2)
+    great_vent(2)
+    vent_mound(1)

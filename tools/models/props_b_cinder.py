@@ -48,50 +48,120 @@ def _fruit(m, rng, centre, rad, n, squash=1.0, below=False):
         m.ball(0.26, tuple(p), FRUIT, subdiv=0, glow=True)
 
 
+CYAN = "#4ae8ff"                                            # Vantorr's lattice cyan: tags, sensors, status
+SOIL = ["#3a2618", "#4e3420", "#644630"]
+YOUNG = ["#b0682e", "#d8904a", "#f0b464", "#ffd890"]       # fresh copper, bright
+OLD = ["#5e2e18", "#7a3e1e", "#a0582c", "#c87c3e"]          # weathered copper, dark
+
+
+def orchard_tree(m, rng, x, y, stage=2, style="round", z0=0.0, fruit=None, collar=True):
+    """One crop tree at (x, y): stage 0 a staked whip, 1 young, 2 bearing, 3 old. Crown styles read
+    differently from above: 'round' a dome, 'vase' an open ring (pruned to an open centre),
+    'fan' an espalier flattened along x, 'cone' a trained spire. Returns the crown's centre."""
+    R = (0.45, 0.85, 1.2, 1.45)[stage]
+    h = (0.9, 1.3, 1.6, 1.8)[stage] * rng.uniform(0.92, 1.08)
+    leaf = YOUNG if stage <= 1 else (COPPER[:4] if stage == 2 else OLD)
+    if collar:
+        st = mark(m)
+        m.cyl(0.42 + 0.1 * stage, 0.32, (x, y, z0 - 0.05), PAINT[2], segs=6)
+        facet(m, new_faces(m, st), PAINT, noise=0.04)
+    tz = z0 + h
+    lean = (rng.uniform(-0.12, 0.12), rng.uniform(-0.12, 0.12))
+    limb(m, (x, y, z0), (x + lean[0], y + lean[1], tz), 0.1 + 0.06 * stage, 0.07 + 0.04 * stage, BRONZE[1], segs=5)
+    cx, cy = x + lean[0], y + lean[1]
+    if stage == 0:
+        limb(m, (x + 0.25, y, z0), (x + 0.25, y, z0 + h + 0.4), 0.07, 0.07, PAINT[3], segs=4)    # the stake
+    st = mark(m)
+    if style == "vase":
+        n = 5
+        for k in range(n):
+            a = k / n * math.tau + rng.uniform(-0.25, 0.25)
+            d = R * 0.62
+            px, py = cx + math.cos(a) * d, cy + math.sin(a) * d
+            limb(m, (cx, cy, tz - 0.2), (px, py, tz + 0.35), 0.08 + 0.03 * stage, 0.06, BRONZE[1], segs=4)
+            m.ball(R * 0.48, (px, py, tz + 0.45 + rng.uniform(-0.1, 0.15)), leaf[1], subdiv=0 if stage < 2 else 1,
+                   scale=(1, 1, 0.75),
+                   jitter=R * 0.07)
+        c = (cx, cy, tz + 0.45)
+    elif style == "fan":
+        m.ball(R, (cx, cy, tz + R * 0.55), leaf[1], subdiv=1, scale=(1.55, 0.42, 1.0), jitter=R * 0.07)
+        for s in (-1, 1):
+            m.ball(R * 0.55, (cx + s * R * 1.25, cy, tz + R * 0.2), leaf[1], subdiv=1, scale=(1.3, 0.6, 0.8),
+                   jitter=R * 0.06)
+        c = (cx, cy, tz + R * 0.55)
+    elif style == "cone":
+        for i, (k, dz) in enumerate(((1.0, 0.1), (0.7, 0.75), (0.4, 1.35))):
+            m.cyl(R * k, 0.7, (cx, cy, tz + dz * R), leaf[1], segs=6, r_top=R * k * 0.5, rot=(0, 0, i * 0.6))
+        c = (cx, cy, tz + 0.6 * R)
+    else:
+        m.ball(R, (cx, cy, tz + R * 0.55), leaf[1], subdiv=1, scale=(1, 1, 0.78), jitter=R * 0.08)
+        for k in range(3 if stage >= 2 else 1):
+            a = rng.uniform(0, math.tau)
+            m.ball(R * 0.55, (cx + math.cos(a) * R * 0.7, cy + math.sin(a) * R * 0.7, tz + R * 0.5), leaf[1], subdiv=0,
+                   scale=(1, 1, 0.8), jitter=R * 0.06)
+        c = (cx, cy, tz + R * 0.55)
+    faces = new_faces(m, st)
+    facet(m, faces, leaf, noise=0.18, bias=-0.1)
+    if stage >= 2:
+        vg = [m._slot(c_, False) for c_ in VERDIGRIS]
+        for f in faces:
+            if rng.random() < (0.05 if stage == 2 else 0.18):
+                f.material_index = vg[1] if f.normal.z > 0.3 else vg[0]
+    nf = fruit if fruit is not None else (0, 0, 4, 2)[stage]
+    if nf:
+        # ember fruit hang in a cluster or two on the sunny side, not sprinkled all over
+        base = rng.uniform(0, math.tau)
+        for i in range(nf):
+            a = base + (i % 2) * 2.4 + rng.uniform(-0.35, 0.35)
+            d = R * (1.0 if style != "fan" else 0.45) * rng.uniform(0.85, 1.0)
+            sx = 1.5 if style == "fan" else 1.0
+            m.ball(rng.uniform(0.26, 0.32), (c[0] + math.cos(a) * d * sx, c[1] + math.sin(a) * d,
+                                             c[2] + rng.uniform(-0.1, 0.35) * R), FRUIT, subdiv=0, glow=True)
+    return c
+
+
 def copper_tree(v):
-    """A metal fruit tree: a bronze trunk in a steel planter collar, copper leaves, violet fruit."""
+    """A lone company fruit tree (the rows are in set_cinder: cinder_orchard_row). v0 a bearing dome,
+    v1 pruned open like a vase, v2 the old heritage tree propped on white crutches, v3 a young cone."""
     r = root("copper_tree", v)
     rng = random.Random(700 + v)
     m = Model(f"copper_tree_{v}", 700 + v)
-    m.cyl(0.75, 0.35, (0, 0, -0.05), STEEL[1], segs=8)
-    m.cyl(0.8, 0.1, (0, 0, 0.3), COPPER[2], segs=8)
-    h = (1.8, 1.4, 2.6)[v]
-    st = mark(m)
-    limb(m, (0, 0, 0), (0.05, 0, h), 0.26, 0.2, BRONZE[1], segs=6)
-    for k in range(3):
-        a = k / 3 * math.tau + rng.uniform(0, 0.6)
-        limb(m, (0, 0, h * 0.75), (math.cos(a) * 0.8, math.sin(a) * 0.8, h + 0.6), 0.14, 0.1, BRONZE[1], segs=4)
-    facet(m, new_faces(m, st), BRONZE, noise=0.1)
-    m.cyl(0.3, 0.2, (0, 0, h * 0.45), COPPER[3], segs=6)                    # a rivet band
-    st = mark(m)
     if v == 0:
-        c = (0, 0, h + 1.1)
-        m.ball(1.5, c, COPPER[2], subdiv=1, scale=(1, 1, 0.85), jitter=0.12)
-        for k in range(4):
-            a = k / 4 * math.tau + 0.4
-            m.ball(0.85, (math.cos(a) * 1.0, math.sin(a) * 1.0, h + 1.0 + rng.uniform(-0.2, 0.4)), COPPER[2], subdiv=1,
-                   jitter=0.1)
-        _leaves(m, new_faces(m, st), rng)
-        _fruit(m, rng, c, 1.55, 11, 0.85)
+        orchard_tree(m, rng, 0, 0, 2, "round")
     elif v == 1:
-        # trained into a cone of three tiers, like a show pear
-        for i, (rad, z) in enumerate(((1.6, h + 0.2), (1.15, h + 1.2), (0.7, h + 2.1))):
-            m.cyl(rad, 0.7, (0, 0, z), COPPER[2], segs=7, r_top=rad * 0.6, rot=(0, 0, i * 0.5))
-        limb(m, (0, 0, h), (0, 0, h + 3.0), 0.12, 0.06, BRONZE[1], segs=4)
-        _leaves(m, new_faces(m, st), rng)
-        for i, (rad, z) in enumerate(((1.6, h + 0.2), (1.15, h + 1.2), (0.7, h + 2.1))):
-            for k in range(5 - i):
+        orchard_tree(m, rng, 0, 0, 2, "vase", fruit=5)
+    elif v == 2:
+        # gnarled, older than the company's charter; two limbs held up on crutches with a brass tag
+        st = mark(m)
+        m.cyl(1.0, 0.35, (0, 0, -0.05), PAINT[2], segs=7)
+        facet(m, new_faces(m, st), PAINT, noise=0.04)
+        m.box((0.5, 0.12, 0.3), (0, -1.0, 0.2), CYAN, glow=True)                       # its heritage tag
+        limb(m, (0, 0, 0), (0.3, 0.1, 1.4), 0.42, 0.3, BRONZE[1], segs=6)
+        limb(m, (0.3, 0.1, 1.3), (-0.2, 0.3, 2.4), 0.3, 0.22, BRONZE[1], segs=5)
+        crowns = []
+        for a, d, z in ((0.3, 1.9, 2.0), (2.6, 1.7, 2.3), (4.4, 1.2, 2.6)):
+            px, py = math.cos(a) * d, math.sin(a) * d
+            limb(m, (0.1, 0.2, 1.6), (px, py, z), 0.22, 0.14, BRONZE[0], segs=5)
+            crowns.append((px, py, z))
+        for px, py, z in crowns[:2]:
+            limb(m, (px * 1.05, py * 1.05, 0), (px, py, z - 0.1), 0.1, 0.1, PAINT[3], segs=4)        # the crutches
+            m.box((0.5, 0.5, 0.18), (px, py, z - 0.15), PAINT[3])
+        st = mark(m)
+        for px, py, z in crowns:
+            m.ball(1.25, (px, py, z + 0.75), OLD[2], subdiv=1, scale=(1, 1, 0.7), jitter=0.12)
+        m.ball(1.2, (0, 0.2, 3.0), OLD[2], subdiv=1, scale=(1, 1, 0.65), jitter=0.12)
+        faces = new_faces(m, st)
+        facet(m, faces, OLD, noise=0.2, bias=-0.05)
+        vg = [m._slot(c_, False) for c_ in VERDIGRIS]
+        for f in faces:
+            if rng.random() < 0.22:
+                f.material_index = vg[1] if f.normal.z > 0.3 else vg[2]
+        for px, py, z in crowns:
+            for k in range(2):
                 a = rng.uniform(0, math.tau)
-                m.ball(0.24, (math.cos(a) * rad * 0.95, math.sin(a) * rad * 0.95, z + 0.05), FRUIT, subdiv=0, glow=True)
+                m.ball(0.32, (px + math.cos(a) * 1.15, py + math.sin(a) * 1.15, z + 0.9), FRUIT, subdiv=0, glow=True)
     else:
-        # a wide flat parasol, fruit hanging under the rim
-        c = (0, 0, h + 0.7)
-        m.ball(2.0, c, COPPER[2], subdiv=1, scale=(1, 1, 0.42), jitter=0.12)
-        for k in range(5):
-            a = k / 5 * math.tau
-            m.ball(0.9, (math.cos(a) * 1.4, math.sin(a) * 1.4, h + 0.75), COPPER[2], subdiv=1, scale=(1, 1, 0.55), jitter=0.1)
-        _leaves(m, new_faces(m, st), rng)
-        _fruit(m, rng, c, 1.9, 12, 0.42, below=False)
+        orchard_tree(m, rng, 0, 0, 1, "cone")
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
 
@@ -270,9 +340,15 @@ def refinery_tank(v):
         st = mark(m)
         m.cyl(R + 0.1, 0.3, (0, 0, H), PAINT[1], segs=14, r_top=0.7)
         facet(m, new_faces(m, st), PAINT, noise=0.04)
+        # roof plant: a handrail round the crown, vents, a hatch, a small company mark by the stair
+        ring(m, 1.3, 0.12, H + 0.55, STEEL[2], n=10, h=0.2)
+        for k in range(3):
+            a = 0.8 + k * 2.1
+            m.cyl(0.3, 0.35, (math.cos(a) * 2.0, math.sin(a) * 2.0, H + 0.1), STEEL[1], segs=6)
+        m.box((0.8, 0.8, 0.15), (0, 0, H + 0.45), STEEL[1])
         st = mark(m)
-        m.prism([(-1.7, 1.0), (-1.0, 1.0), (0, -0.9), (1.0, 1.0), (1.7, 1.0), (0, -2.0)], 0.12, (0, 0, 0), ORANGE)
-        xform(m, st, M((0, 0.3, H + 0.36), (math.pi / 2, 0, 0)))
+        m.prism([(-0.6, 0.35), (-0.35, 0.35), (0, -0.3), (0.35, 0.35), (0.6, 0.35), (0, -0.7)], 0.06, (0, 0, 0), PAINT[0])
+        xform(m, st, M((-1.6, -1.4, H + 0.2), (math.pi / 2 - 0.1, 0, 0.8)))
         for k in range(9):                                                    # the stair
             a = -1.2 + k * 0.26
             z = 0.3 + k * 0.33
@@ -292,6 +368,44 @@ def refinery_tank(v):
         m.cyl(0.3, 0.12, (0, 0, 5.6), RED, segs=6, glow=True)
         limb(m, (0, -2.6, 0.4), (0, -0.6, 0.8), 0.3, 0.3, COPPER[2], segs=6)
         light(r, (0, 0, 5.9), RED, radius=3, intensity=0.5)
+    elif v == 3:
+        # a floating-roof tank: a white rim, the dark roof riding low inside it on the product, a
+        # rolling ladder down to it, rainwater pooled in the sump
+        R, H = 3.2, 3.0
+        st = mark(m)
+        m.cyl(R, H - 1.0, (0, 0, 0), PAINT[2], segs=14)
+        facet(m, new_faces(m, st), PAINT, noise=0.04)
+        ring(m, R - 0.12, 0.26, H - 0.5, PAINT[3], n=14, h=1.0)
+        ring(m, R + 0.15, 0.4, H - 0.35, ORANGE, n=14, h=0.22)                          # the wind girder
+        st = mark(m)
+        m.cyl(R - 0.25, 0.2, (0, 0, H - 1.0), STEEL[1], segs=14)
+        facet(m, new_faces(m, st), STEEL[:3], noise=0.08)
+        m.cyl(0.6, 0.06, (0.9, 0.7, H - 0.8), "#3a5a6a", segs=7)
+        st = mark(m)
+        m.box((0.5, 3.0, 0.12), (0, 0, 0), STEEL[3])
+        xform(m, st, M((-0.9, -1.2, H - 0.45), (0.38, 0, 0.3)))
+        for k in range(3):
+            m.cyl(0.25, 0.12, (math.cos(k * 2.1) * 1.8, math.sin(k * 2.1) * 1.8, H - 0.8), SOOT, segs=6)
+        for k in range(8):                                                       # the stair up its side
+            a = 2.0 + k * 0.24
+            m.box((0.55, 0.9, 0.12), (math.cos(a) * (R + 0.4), math.sin(a) * (R + 0.4), 0.3 + k * 0.34), STEEL[2],
+                  rot=(0, 0, a))
+    elif v == 4:
+        # LPG bullets: three white capsules on saddles, a header along their ends
+        for i, y in enumerate((-1.9, 0, 1.9)):
+            for x in (-2.0, 2.0):
+                m.box((0.6, 1.3, 0.9), (x, y, 0.45), CONCRETE[2])
+            st = mark(m)
+            m.cyl(0.8, 5.6, (-2.8, y, 1.6), PAINT[2], segs=8, rot=(0, math.pi / 2, 0))
+            for x in (-2.8, 2.8):
+                m.ball(0.8, (x, y, 1.6), PAINT[2], subdiv=1, scale=(0.55, 1, 1))
+            facet(m, new_faces(m, st), PAINT, noise=0.04)
+            m.cyl(0.83, 0.3, (-0.15, y, 1.6), ORANGE if i != 1 else CYAN, segs=8, rot=(0, math.pi / 2, 0),
+                  glow=i == 1)
+            m.box((0.5, 0.4, 0.3), (1.2, y, 2.45), STEEL[1])
+            limb(m, (3.3, y, 1.0), (3.9, y, 1.0), 0.18, 0.18, STEEL[2], segs=5)
+        limb(m, (3.9, -2.6, 1.0), (3.9, 2.6, 1.0), 0.3, 0.3, COPPER[2], segs=6)
+        m.box((7.0, 0.25, 0.25), (0, -3.0, 0.12), HAZARD)
     else:
         # three small chemical tanks round a glass vat of violet run-off
         for k in range(3):
@@ -377,9 +491,11 @@ def pipe_run(v):
 
 
 def build():
-    for v in range(3):
+    for v in range(4):
         copper_tree(v)
+    for v in range(5):
         refinery_tank(v)
+    for v in range(3):
         pipe_run(v)
     for v in range(2):
         silo(v)

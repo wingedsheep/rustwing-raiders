@@ -371,33 +371,6 @@ def statue_head(variants):
 
 # --- bluepalm oasis ---------------------------------------------------------------------------
 
-def blue_palm(variants):
-    shapes = [(5.0, (1.2, 0.3), 9), (6.2, (-1.6, 0.8), 10), (3.8, (0.6, -0.9), 8)]
-    for i, (H, lean, n) in enumerate(shapes):
-        r = root("blue_palm", i, height=round(H + 1.2, 2))
-        rng = random.Random(740 + i)
-        m = Model(f"blue_palm_{i}_trunk", 740 + i)
-        pts = bend((0, 0, 0), (0, 0, H), lean, n=8)
-        tube(m, pts, [0.36, 0.3, 0.27, 0.25, 0.24, 0.23, 0.22, 0.22, 0.26], PALM_BARK[0], segs=6,
-             colors=[PALM_BARK[k % 2] for k in range(8)])
-        m.cyl(0.5, 0.25, (0, 0, -0.05), PALM_BARK[0], segs=6, r_top=0.36)
-        m.build(r)
-        top = pts[-1]
-        c = Model(f"blue_palm_{i}_crown", 750 + i)
-        turn = rng.uniform(0, math.tau)
-        for k in range(n):
-            yaw = turn + k * math.tau / n + rng.uniform(-0.15, 0.15)
-            c1, c2 = PALM_LEAF[k % 3]
-            frond(c, (0, 0, 0), yaw, rng.uniform(2.4, 3.0), 0.42, c1, c2, rise=0.55, droop=1.1, n=8, serrate=0.55,
-                  fold=0.45)
-        for k in range(5):                                                 # a hang of dates under the crown
-            a = turn + k * math.tau / 5
-            c.ball(0.2, (math.cos(a) * 0.3, math.sin(a) * 0.3, -0.25), DATES, subdiv=0)
-        c.ball(0.3, (0, 0, 0.1), PALM_BARK[1], subdiv=1)
-        crown = c.build(r, loc=tuple(top))
-        sway(crown, f"blue_palm_{i}_sway_idle", amp=(0.06, 0.05), period=3.4 + i * 0.4, phase=i)
-
-
 def nomad_tent(variants):
     for i in range(3):
         r = root("nomad_tent", i)
@@ -455,5 +428,4 @@ def build():
     dune_grass(3)
     monolith(3)
     statue_head(2)
-    blue_palm(3)
     nomad_tent(3)

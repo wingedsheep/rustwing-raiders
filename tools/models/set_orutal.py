@@ -14,7 +14,8 @@ from props_a_lib import (arc, bend, collider, crystal, frond, hull, lump, recolo
 from props_a_orutal import (BASALT, BASALT_TOP, CRUST, CRUST_TOP, CRYSTAL_ROCK, CRYSTAL_ROCK_TOP, CYAN, FERN_BARK,
                             FERN_STUB, FIDDLE, FROND, FROND_OLD, GUANO, LAVA, LAVA_DEEP, LAVA_HOT, LILAC, MAGENTA,
                             MOSS, OBSIDIAN, OBSIDIAN_GLINT, STACK, STACK_TOP, STACK_TOP2, fern_crown, hex_cells,
-                            strata, two_tone)
+                            BRONZE, EMERALD, LIME, crozier,
+                            strata, two_tone, hexcol, stack_pillar, jungle_cap)
 
 MOSS_LIT = "#8cbc44"
 MOSS_DARK = "#4a6a30"
@@ -316,6 +317,17 @@ def sauropod_bones(variants):
         m.build(r)
 
 
+HEART = [("#6a2e1a", "#a4482a", "#d47436"), ("#5a3a1e", "#8a5a2a", "#c08a3a")]   # rust and ochre: growth that never unrolled
+
+
+def _old_heart(m, rng, s, k):
+    """What grows out of an old fern's heart instead of new fronds: fiddleheads the size of a house,
+    tipped over and rolled up for good, buds lit at their centres."""
+    turn = rng.uniform(0, math.tau)
+    for j in range(3):
+        crozier(m, rng, (0, 0, -0.1 * s), turn + j * math.tau / 3, s * 0.9, s * 0.62, HEART[(k + j) % 2], thick=s * 0.55)
+
+
 def titan_ferns(variants):
     """Gate: tree ferns of the old forest, grown far taller than you fly, their crowns meeting
     overhead. Slip between the trunks, under the canopy."""
@@ -353,7 +365,8 @@ def titan_ferns(variants):
         m.build(r)
         for k, (top, h) in enumerate(crowns):
             c = Model(f"orutal_titan_ferns_{i}_crown{k}", 1210 + i * 10 + k)
-            fern_crown(c, rng, (0, 0, 0), 12, 9.0, 1.5, old=3)
+            fern_crown(c, rng, (0, 0, 0), 12, 9.0, 1.5, palette=(EMERALD, LIME, BRONZE)[k % 3], old=3, fiddle=False)
+            _old_heart(c, rng, 3.4, k)
             obj = c.build(r, loc=tuple(top))
             sway(obj, f"orutal_titan_ferns_{i}_crown{k}_sway_idle", amp=(0.025, 0.02), period=4.5 + k * 0.6, phase=k)
 
@@ -409,7 +422,9 @@ def fern_grove(variants):
         m.build(r)
         for k, (tp, L) in enumerate(tops):
             c = Model(f"orutal_fern_grove_{i}_crown{k}", 1510 + i * 4 + k)
-            fern_crown(c, rng, (0, 0, 0), 12, L, 0.6, old=2)
+            fern_crown(c, rng, (0, 0, 0), 12, L, 0.6, palette=(EMERALD, LIME)[k % 2], old=2, fiddle=k > 0)
+            if k == 0:
+                _old_heart(c, rng, L * 0.4, k)
             obj = c.build(r, loc=tuple(tp))
             sway(obj, f"orutal_fern_grove_{i}_crown{k}_sway_idle", amp=(0.045, 0.04), period=3.4 + k * 0.5, phase=k)
 
@@ -675,8 +690,13 @@ def hex_pad(variants):
                 continue
             side = (x * math.cos(tilt) + y * math.sin(tilt)) / (rad * rings * 2)
             h = 0.9 + side * 0.9 + rng.uniform(-0.2, 0.2)
-            fs = list(m.cyl(rad * 0.9, h + 0.4, (x, y, -0.4), BASALT[k % 3], segs=6, rot=(0, 0, math.pi / 6)))
-            recolor(m, fs, lambda f: ("#6e6a72" if k % 4 else "#807a80") if f.normal.z > 0.9 and f.calc_center_median().z > h - 0.2 else None)
+            cap = "#a8a0a0" if rng.random() < 0.15 else ("#e8d040" if rng.random() < 0.06 else None)
+            hexcol(m, x, y, -0.4, h, rad * 0.92, k, cap=cap)
+        for k in range(2):                                                 # lava in a seam along its foot
+            a = tilt + math.pi + rng.uniform(-0.6, 0.6)
+            d = rad * (rings + 0.9)
+            m.box((rng.uniform(1.6, 2.6), 0.3, 0.3), (math.cos(a) * d, math.sin(a) * d, 0.0), LAVA,
+                  rot=(0, 0, a + math.pi / 2), glow=True)
         m.build(r, rot_z=rng.uniform(0, math.tau))
 
 
@@ -880,29 +900,11 @@ NACRE = ("#c8f0e0", "#e8d0f0")
 
 
 def _stack(m, rng, x, y, H, R, drift=(0.08, 0.05), cap=True):
-    """A sea stack: strata drums wandering up, a cap of jungle with ferns hanging over the lip."""
-    n = max(4, int(H / 3))
-    layers = []
-    z = -3.0
-    for k in range(n):
-        z1 = -3.0 + (H + 3.0) * (k + 1) / n
-        r0 = R * (1.2 - 0.25 * k / n) * (1.06 if k % 2 else 0.97)
-        r1 = R * (1.15 - 0.25 * (k + 1) / n) * (0.97 if k % 2 else 1.06)
-        if k == n - 1:
-            r1 = R * 1.1
-        layers.append((z, z1, r0, r1))
-        z = z1
-    fs, (tx, ty) = strata(m, rng, x, y, layers, sides=8, drift=drift)
-    for f in fs:
-        f.normal_update()
-    recolor(m, fs, lambda f: (STACK_TOP2 if f.calc_center_median().z > H - 1.2 else GUANO) if f.normal.z > 0.6 else None)
+    """A sea stack, as the scattered ones (props_a_orutal): banded limestone wandering up from the
+    sea bed, weed at the waterline, a hat of jungle and vines down its sides."""
+    tx, ty = stack_pillar(m, rng, x, y, H, R, drift, z0=-3.0)
     if cap:
-        m.cyl(R * 1.05, 0.8, (tx, ty, H - 0.3), STACK_TOP, segs=8, r_top=R * 0.75)
-        m.ball(R * 0.75, (tx + 0.3, ty - 0.2, H + 0.4), STACK_TOP2, subdiv=1, scale=(1, 1, 0.42), jitter=0.15)
-        for k in range(6):
-            a = k * math.tau / 6 + rng.uniform(-0.2, 0.2)
-            frond(m, (tx + math.cos(a) * R * 0.95, ty + math.sin(a) * R * 0.95, H + 0.3), a, 2.4, 0.5, *FROND[k % 3], rise=0.2,
-                  droop=1.4)
+        jungle_cap(m, rng, tx, ty, H, R, 1)
     return tx, ty
 
 

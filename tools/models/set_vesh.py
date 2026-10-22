@@ -11,8 +11,9 @@ import random
 
 from mathutils import Vector
 from kit import Model, light
-from props_a_lib import hull, tube
+from props_a_lib import hull, lump, tube
 from props_b_kit import M, collider, facet, jitter, limb, mark, new_faces, paint, root, sway, xform
+from props_b_vesh import MANG, PROPAGULE
 from props_b_vesh import (BARNACLE, BIOLUM, BONE, BONE_DARK, C_GOLD, C_MAGENTA, C_ORANGE, C_TEAL, C_VIOLET, LEAF,
                           MANGROVE_BARK, REEF_ROCK, SAND, TIDE_POOL, WEED, _fan)
 
@@ -652,16 +653,28 @@ def skull_gate(v):
         m.ball(2.6, (0, -9.0, 19.6), BONE_DARK, subdiv=1, scale=(0.75, 0.9, 0.6))                         # the nose
         for k in range(3):                                                                                 # cracks
             a = k * 1.4 + 0.6
-            m.box((0.45, 6, 0.45), (math.cos(a) * 5, 10 + math.sin(a) * 3, 25.4 - abs(math.cos(a)) * 1.2), BONE[0],
+            m.box((0.45, 6, 0.3), (math.cos(a) * 5, 10 + math.sin(a) * 3, 25.2 - abs(math.cos(a)) * 1.2), BONE[1],
                   rot=(0.1, 0, a))
-        # a green crown: the reef has taken the top of its head
-        for k in range(8):
+        # the reef has taken the top of its head: thin creeping mats of salt turf and pink crust
+        # hugging the dome, and three screw pines rooted in the cracks
+        for k in range(16):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0.5, 7.5)
+            st = mark(m)
+            cols = MANG[1] if k % 3 else ["#3e5a4a", "#5e806a", "#86a88a", "#b4ccaa"]
+            m.ball(rng.uniform(1.1, 1.8), (math.cos(a) * d * 1.3, 8 + math.sin(a) * d * 0.8, 25.5 - d * 0.36), cols[1],
+                   subdiv=1, scale=(1.4, 1.1, 0.16), jitter=0.12, rot=(0, 0, a))
+            facet(m, new_faces(m, st), cols, noise=0.2, bias=0.1)
+        for k in range(10):
             a = rng.uniform(0, math.tau)
             d = rng.uniform(1, 8)
-            st = mark(m)
-            m.ball(rng.uniform(1.6, 2.4), (math.cos(a) * d * 1.3, 8 + math.sin(a) * d * 0.8, 25.4 - d * 0.35), LEAF[1],
-                   subdiv=1, scale=(1, 1, 0.6), jitter=0.2)
-            facet(m, new_faces(m, st), LEAF, noise=0.15)
+            m.ball(rng.uniform(0.5, 0.8), (math.cos(a) * d * 1.3, 8 + math.sin(a) * d * 0.8, 25.6 - d * 0.36),
+                   rng.choice((C_MAGENTA[2], C_ORANGE[2], BARNACLE)), subdiv=0, scale=(1.2, 1, 0.5))
+        for (px, py) in ((-2.5, 9.5), (3.0, 7.0), (0.5, 12.5)):
+            d = math.hypot(px, (py - 8) / 0.8) / 1.3
+            z = 25.5 - d * 0.36
+            tube(m, [V((px, py, z - 0.3)), V((px + 0.3, py, z + 0.9))], [0.35, 0.25], SCREW_BARK[2], segs=5)
+            screw_head(m, rng, (px + 0.3, py, z + 0.9), 9, 2.2, fruit=True, droop=1.0)
     else:
         tusks = [(-18.5, 0, 18, 0.5), (-6, -2, 24, -0.3), (6.5, 1, 20, 0.3), (19, -1, 16, -0.5)]
         tops = []
@@ -818,8 +831,8 @@ def carcass(v):
             z = math.sqrt(max(0.0, 17 ** 2 - d * d)) * 0.95 - 9.4
             if rng.random() < 0.5:
                 st = mark(m)
-                m.ball(rng.uniform(1.4, 2.2), (math.cos(a) * d, 4 + math.sin(a) * d, z), LEAF[1], subdiv=1, scale=(1, 1, 0.6), jitter=0.2)
-                facet(m, new_faces(m, st), LEAF, noise=0.15)
+                m.ball(rng.uniform(1.4, 2.2), (math.cos(a) * d, 4 + math.sin(a) * d, z), MANG[1][1], subdiv=1, scale=(1.2, 1, 0.4), jitter=0.25)
+                facet(m, new_faces(m, st), MANG[1], noise=0.18)
             else:
                 m.ball(rng.uniform(0.8, 1.4), (math.cos(a) * d, 4 + math.sin(a) * d, z), rng.choice((C_ORANGE[2], C_MAGENTA[2], BARNACLE)),
                        subdiv=0)
@@ -845,11 +858,9 @@ def bone_scatter(v):
         vertebra(m, rng, (1.6, 0.8, 0.0), 0.9, axis=0.9, crest=0.6)
     else:
         vertebra(m, rng, (0, 0, 0.5), 1.3, axis=0.2, crest=0.5)
-        limb(m, (0, 0, 0.5), (0.2, 0.1, 3.4), 0.25, 0.18, MANGROVE_BARK[1], segs=5)
-        st = mark(m)
-        m.ball(1.3, (0.2, 0.1, 3.9), LEAF[1], subdiv=1, scale=(1.1, 1, 0.6), jitter=0.12)
-        m.ball(0.9, (1.1, -0.4, 3.5), LEAF[2], subdiv=1, scale=(1, 1, 0.6), jitter=0.1)
-        facet(m, new_faces(m, st), LEAF, noise=0.15)
+        # a young screw pine has rooted in the marrow hole and pushed up through it
+        tube(m, [V((0, 0, 0.6)), V((0.2, 0.1, 1.6)), V((0.3, 0.2, 2.5))], [0.2, 0.17, 0.15], SCREW_BARK[2], segs=5)
+        screw_head(m, rng, (0.3, 0.2, 2.5), 9, 1.2, fruit=False)
     st = mark(m)
     m.cyl(2.2, 0.3, (0, 0, -0.25), SAND[1], segs=7, r_top=1.8)
     jitter(m, new_faces(m, st), 0.12)
@@ -880,21 +891,24 @@ def bone_spike(v):
 
 # --- the Sky-Whale Lagoon ----------------------------------------------------------------
 
-def leaf_mass(m, rng, at, rad, n=5, cols=LEAF, flowers=3, squash=0.6):
-    """A mangrove crown: overlapping faceted clumps, pale flowers on top."""
+def leaf_mass(m, rng, at, rad, n=5, cols=MANG[0], flowers=3, squash=0.42):
+    """A mangrove crown: a flat ragged mat of overlapping faceted clumps, the rim lobes dropping
+    lower, a few pale propagules on top."""
     x, y, z = at
     st = mark(m)
-    m.ball(rad, (x, y, z), cols[1], subdiv=1, scale=(1.1, 1.0, squash), jitter=0.12 * rad)
+    m.ball(rad * 0.85, (x, y, z), cols[1], subdiv=1, scale=(1.1, 1.0, squash), jitter=0.12 * rad)
+    n *= 2                                                   # many smaller lobes: a ragged edge at any scale
     for k in range(n):
-        a = k / n * math.tau + rng.uniform(-0.3, 0.3)
-        d = rad * rng.uniform(0.7, 1.0)
-        m.ball(rad * rng.uniform(0.55, 0.75), (x + math.cos(a) * d, y + math.sin(a) * d, z + rng.uniform(-0.3, 0.4) * rad * squash),
+        a = k / n * math.tau + rng.uniform(-0.25, 0.25)
+        d = rad * rng.uniform(0.6, 1.1)
+        m.ball(rad * rng.uniform(0.35, 0.5), (x + math.cos(a) * d, y + math.sin(a) * d, z - rng.uniform(-0.2, 0.6) * rad * squash),
                cols[1], subdiv=1, scale=(1, 1, squash + 0.05), jitter=0.1 * rad)
-    facet(m, new_faces(m, st), cols, noise=0.15)
+    facet(m, new_faces(m, st), cols, noise=0.18, bias=0.05)
     for k in range(flowers):
         a = rng.uniform(0, math.tau)
         d = rng.uniform(0.2, 0.9) * rad
-        m.ball(0.3 + 0.05 * rad, (x + math.cos(a) * d, y + math.sin(a) * d, z + rad * squash * 0.95), "#f8f0b0", subdiv=0)
+        m.ball(0.3 + 0.05 * rad, (x + math.cos(a) * d, y + math.sin(a) * d, z + rad * squash * 0.95), PROPAGULE, subdiv=0,
+               scale=(1.2, 1, 0.5))
 
 
 def mangrove_trunk(m, r, rng, x, y, top, rad):
@@ -1126,33 +1140,6 @@ def blue_hole(v):
     return r
 
 
-def palm(v):
-    """Scenery: a reef palm on the sandbars: a ringed stem, a crown of teal-and-gold fronds, pods
-    glowing under it."""
-    from props_a_lib import frond
-    r = root("vesh_palm", v)
-    rng = random.Random(9480 + v)
-    m = Model(f"vesh_palm_{v}", 9480 + v)
-    stems = {0: [(0, 0, 5.6, (1.2, 0.4))], 1: [(-0.6, 0, 4.8, (-1.6, 0.6)), (0.6, 0.2, 6.0, (1.4, -0.5))], 2: [(0, 0, 3.6, (0.4, 0.3))]}[v]
-    for x, y, h, (lx, ly) in stems:
-        pts = [V((x, y, -0.2)), V((x + lx * 0.3, y + ly * 0.3, h * 0.5)), V((x + lx, y + ly, h))]
-        tube(m, pts, [0.32, 0.26, 0.22], "#8a6a50", segs=6, colors=["#6a5040", "#a88a60"])
-        top = pts[-1]
-        n = 7 if v != 2 else 9
-        for k in range(n):
-            yaw = k / n * math.tau + rng.uniform(-0.2, 0.2)
-            frond(m, tuple(top), yaw, rng.uniform(2.6, 3.4) * (0.8 if v == 2 else 1), 0.6,
-                  C_TEAL[1] if k % 2 else C_TEAL[2], C_GOLD[1] if k % 3 == 0 else C_TEAL[0], rise=0.35, droop=0.9)
-        for k in range(3):
-            a = rng.uniform(0, math.tau)
-            m.ball(0.28, tuple(top + V((math.cos(a) * 0.35, math.sin(a) * 0.35, -0.35))), "#ff9aff", subdiv=0, glow=True)
-    st = mark(m)
-    m.cyl(1.4, 0.25, (0, 0, -0.2), SAND[1], segs=7, r_top=1.0)
-    jitter(m, new_faces(m, st), 0.1)
-    m.build(r, rot_z=rng.uniform(0, math.tau))
-    return r
-
-
 def shack(v):
     """Scenery: a reef pirates' stilt shack on the beach: a patched roof, a lantern, a red rag of a
     flag, barrels; v1 two of them with a plank walk between."""
@@ -1366,16 +1353,29 @@ def grotto(v):
     m = Model(f"vesh_grotto_{v}", 9620 + v)
     if v == 0:
         R = 15.0
-        for k in range(16):
-            a = k / 16 * math.tau
-            rr = R * rng.uniform(0.9, 1.1)
-            pts = []
-            for j in range(10):
-                pts.append(V((math.cos(a) * rr + rng.uniform(-3.5, 3.5), math.sin(a) * rr + rng.uniform(-3.5, 3.5),
-                              rng.uniform(-1, 4.5 + 2.5 * math.sin(a * 2 + 1) ** 2))))
-            hull(m, pts, CAVE[2])
-        faces = {f for f in m.bm.faces if f.material_index == m._slot(CAVE[2], False)}
-        facet(m, faces, CAVE, noise=0.12)
+        # the ring: worn, rounded shelves of cave rock in two or three tiers, high on one side and
+        # broken low on the other where the tide gets in, not a crown of spikes
+        st = mark(m)
+        k = 0
+        a = 0.0
+        while a < math.tau - 0.2:
+            high = 0.5 + 0.5 * math.sin(a + 1.2)
+            w = rng.uniform(3.2, 5.0)
+            rr = R * rng.uniform(0.95, 1.08)
+            cx, cy = math.cos(a) * rr, math.sin(a) * rr
+            h = 1.2 + 3.2 * high * rng.uniform(0.7, 1.0)
+            lump(m, rng, (cx, cy, 0.0), (w, w * 0.8, h), CAVE[2], n=12, flat=0.55)
+            if high > 0.5 and rng.random() < 0.7:            # a second, smaller tier sitting back on it
+                lump(m, rng, (cx * 1.06, cy * 1.06, h * 0.5), (w * 0.55, w * 0.5, h * 0.7), CAVE[2], n=10, flat=0.5)
+            a += w / rr * rng.uniform(0.75, 1.0)
+            k += 1
+        facet(m, new_faces(m, st), CAVE, noise=0.12, bias=0.05)
+        # crust along its top: coral heads, weed, a few urchins' worth of glow
+        for j in range(18):
+            a = rng.uniform(0, math.tau)
+            rr = R * rng.uniform(0.9, 1.05)
+            m.ball(rng.uniform(0.6, 1.1), (math.cos(a) * rr, math.sin(a) * rr, 1.5 + 2.5 * (0.5 + 0.5 * math.sin(a + 1.2))),
+                   rng.choice((C_ORANGE[2], C_MAGENTA[2], WEED[0], WEED[1], CALCITE[3])), subdiv=0, scale=(1.2, 1, 0.6))
         m.cyl(R * 0.95, 0.3, (0, 0, -0.3), "#1a6a80", segs=14)
         m.cyl(R * 0.6, 0.1, (0, 0, 0.0), "#2aa8b8", segs=12)
         m.cyl(R * 0.25, 0.1, (0.5, -0.5, 0.06), TIDE_POOL, segs=9, glow=True)
@@ -1387,9 +1387,9 @@ def grotto(v):
             m.ball(rng.uniform(0.6, 1.0), (math.cos(a) * d, math.sin(a) * d, 0.3), rng.choice((C_MAGENTA[2], C_ORANGE[2], C_VIOLET[2])),
                    subdiv=0)
             anem.bm.free()
-        for k in range(10):
+        for k in range(5):
             a = rng.uniform(0, math.tau)
-            stalactite(m, rng, (math.cos(a) * R * 0.95, math.sin(a) * R * 0.95, 0), -rng.uniform(3, 6), 1.0, drip=False)
+            stalactite(m, rng, (math.cos(a) * R * 0.8, math.sin(a) * R * 0.8, 0), -rng.uniform(2.0, 3.5), 0.8, cols=CALCITE, drip=False)
         light(r, (0, 0, 4), BIOLUM, radius=16, intensity=0.6)
     else:
         L = 38.0
@@ -1421,19 +1421,706 @@ def grotto(v):
     return r
 
 
+# --- scenery, layered: ground cover, mid plants, a few heroes per biome ---------------------------
+
+SCREW_BARK = ["#5a4a3e", "#7a6652", "#9a8468", "#b8a080"]
+SCREW_LEAF = ("#2a5a5a", "#3e7f78", "#9ac8a8")        # dark, mid, the pale keel
+SCREW_FRUIT = ["#c8401e", "#f06a2a", "#ffa040"]
+CALCITE = ["#7a4a54", "#a06a70", "#c89090", "#ecc4b4", "#fae4d8"]
+SHELL = ["#c8a890", "#e8d4bc", "#fff0e0"]
+
+
+def screw_head(m, rng, at, n, L, cols=SCREW_LEAF, fruit=True, droop=0.75):
+    """A pandanus head: a spiral rosette of stiff strap leaves, the inner ones standing up, the
+    outer ones bowing over; a fat segmented fruit hung under it."""
+    from props_a_lib import frond
+    x, y, z = at
+    a0 = rng.uniform(0, math.tau)
+    for k in range(n):
+        a = a0 + k * 2.4                                    # the golden angle: a screw of leaves
+        outer = k < n * 0.6
+        frond(m, (x, y, z), a, L * rng.uniform(0.85, 1.1) * (1 if outer else 0.75), rng.uniform(0.2, 0.25),
+              cols[1] if k % 2 else cols[0], cols[2], rise=0.9 if outer else 2.2, droop=droop if outer else 0.6,
+              n=3, serrate=0, fold=0.5, thick=0.04, tip=0.25)
+    if fruit:
+        st = mark(m)
+        a = rng.uniform(0, math.tau)
+        p = V((x + math.cos(a) * 0.35, y + math.sin(a) * 0.35, z - 0.45))
+        m.ball(0.42, tuple(p), SCREW_FRUIT[1], subdiv=1, scale=(0.9, 0.9, 1.1), jitter=0.04)
+        facet(m, new_faces(m, st), SCREW_FRUIT, noise=0.3)
+
+
+def screwpine(v):
+    """Scenery: a screw pine of the sandbars: a ringed trunk standing on a cone of stilt roots,
+    forking into a few stiff rosettes of sea-green leaves, an orange fruit under one. Small and
+    awkward and salt-proof, not a palm (2.5-5 tall). v0 forked, v1 tall and leaning, three heads,
+    v2 a young one, a single rosette on its roots."""
+    r = root("vesh_screwpine", v)
+    rng = random.Random(9480 + v)
+    m = Model(f"vesh_screwpine_{v}", 9480 + v)
+    spec = {0: (2.6, (0.3, 0.1), [(-1.1, 0.4, 0.9), (1.2, -0.3, 0.6), (0.1, 1.2, 1.3)], 1.1),
+            1: (3.4, (0.8, 0.3), [(-0.8, 0.9, 1.1), (1.3, 0.3, 0.6), (0.3, -1.2, 0.4), (0.9, 1.1, 1.5)], 1.0),
+            2: (1.5, (0.1, 0.0), [], 1.4)}[v]
+    h, lean, forks, L = spec
+    st = mark(m)
+    top = V((lean[0], lean[1], h))
+    tube(m, [V((0, 0, 0.9)), V((lean[0] * 0.4, lean[1] * 0.4, h * 0.55)), top], [0.3, 0.26, 0.22], SCREW_BARK[1], segs=6,
+         colors=[SCREW_BARK[1], SCREW_BARK[2]])
+    nroots = 6 if v != 2 else 5
+    for k in range(nroots):                                 # straight stilt roots, splayed like a tent
+        a = k / nroots * math.tau + rng.uniform(-0.3, 0.3)
+        o = rng.uniform(0.8, 1.1) * (1.15 if v == 1 else 1)
+        tube(m, [V((0, 0, rng.uniform(1.0, 1.5))), V((math.cos(a) * o, math.sin(a) * o, -0.2))], [0.12, 0.15], SCREW_BARK[3], segs=4)
+    heads = []
+    if forks:
+        for fx, fy, up in forks:
+            end = top + V((fx, fy, up))
+            tube(m, [top, top.lerp(end, 0.5) + V((0, 0, 0.25)), end], [0.18, 0.15, 0.13], SCREW_BARK[2], segs=5)
+            heads.append(end)
+    else:
+        heads.append(top)
+    facet(m, new_faces(m, st), SCREW_BARK, noise=0.1)
+    for i, hd in enumerate(heads):
+        screw_head(m, rng, tuple(hd), 8 if v != 2 else 11, L * rng.uniform(0.9, 1.05), fruit=(i == 0), droop=0.9)
+    # a skirt of fallen leaves and sand round its roots
+    st = mark(m)
+    for k in range(3):
+        a = rng.uniform(0, math.tau)
+        m.box((0.9, 0.3, 0.08), (math.cos(a) * 1.0, math.sin(a) * 1.0, 0.06), "#b0905a", rot=(0, 0, a + rng.uniform(-0.6, 0.6)))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def seagrass(v):
+    """Ground cover: tufts of turtle grass on the sand and the sandbars, a few shells, now and then
+    a pink spike of sea lavender (under 1.2 tall)."""
+    from props_a_lib import frond
+    r = root("vesh_seagrass", v)
+    rng = random.Random(9700 + v)
+    m = Model(f"vesh_seagrass_{v}", 9700 + v)
+    cols = (("#1a5e6e", "#3a9aa0"), ("#8a7428", "#d4b84e"), ("#7a2e26", "#c8603a"))[v]   # teal, straw, rust: they read on grass and sand
+    tufts = {0: [(0, 0, 1.0), (1.3, 0.5, 0.8), (-0.9, 1.0, 0.7)],
+             1: [(0, 0, 0.9), (-1.2, -0.4, 0.75), (0.9, -1.0, 0.7), (0.4, 1.2, 0.6)],
+             2: [(0, 0, 1.1), (1.2, -0.6, 0.8)]}[v]
+    for tx, ty, s in tufts:
+        n = 7
+        a0 = rng.uniform(0, math.tau)
+        for k in range(n):
+            a = a0 + k / n * math.tau + rng.uniform(-0.3, 0.3)
+            frond(m, (tx, ty, -0.05), a, rng.uniform(0.9, 1.3) * s, 0.13 * s + 0.03, cols[k % 2], cols[1],
+                  rise=rng.uniform(0.9, 1.4), droop=1.1, n=3, serrate=0, fold=0.3, thick=0.03, tip=0.35)
+    if v == 1:
+        for k in range(3):                                   # sea lavender
+            a = rng.uniform(0, math.tau)
+            p = V((math.cos(a) * 0.8, math.sin(a) * 0.8, 0))
+            limb(m, p, p + V((0, 0, 1.0)), 0.07, 0.05, "#6a8a3a", segs=3)
+            m.ball(0.22, tuple(p + V((0, 0, 1.05))), "#e070c0", subdiv=0, scale=(1, 1, 1.5))
+    for k in range(2 + v % 2):                               # shells
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.9, 1.6)
+        m.ball(0.22, (math.cos(a) * d, math.sin(a) * d, 0.05), rng.choice(SHELL[1:] + ["#ffb090"]), subdiv=0, scale=(1.3, 1, 0.5))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def _spiral_shell(m, rng, at, L, yaw, cols=SHELL, lip="#ffa890"):
+    """A conch lying on its side: a knobbed spire tapering one way, a flared pink lip the other."""
+    x, y, z = at
+    st = mark(m)
+    pts, radii = [], []
+    for i in range(6):
+        t = i / 5
+        pts.append(V((-L * 0.5 + L * t, 0.08 * math.sin(t * 9), z + 0.15 + (0.45 - 0.3 * t) * L * 0.4)))
+        radii.append(L * (0.08 + 0.3 * math.sin(math.pi * min(1, t * 1.25 + 0.05))) if i < 5 else 0.02)
+    tube(m, pts, radii, cols[1], segs=6, colors=[cols[1], cols[0], cols[1], cols[0], cols[1]])
+    for i in range(1, 4):                                    # the knobs of the whorls
+        p = pts[i] + V((0, 0, radii[i] * 0.9))
+        m.cyl(0.13 * L, 0.22 * L, tuple(p), cols[2], segs=4, r_top=0.02)
+    facet(m, new_faces(m, st), cols, noise=0.15)
+    m.prism([(-0.1 * L, 0), (0.3 * L, 0), (0.15 * L, 0.42 * L), (-0.25 * L, 0.3 * L)], 0.1 * L, (-0.05 * L, -0.28 * L, z + 0.05),
+            lip, rot=(0.35, 0, 0))
+    xform(m, st, M((x, y, 0), (0, 0, yaw)))
+
+
+def conch(v):
+    """Clutter on the sandbars: shells the size of a crate. v0 a great conch, v1 a spill of cowries
+    round a fan of scallop, v2 a small giant clam, its mantle glowing between the lips."""
+    r = root("vesh_conch", v)
+    rng = random.Random(9720 + v)
+    m = Model(f"vesh_conch_{v}", 9720 + v)
+    if v == 0:
+        _spiral_shell(m, rng, (0, 0, 0), 2.4, rng.uniform(0, math.tau))
+        _spiral_shell(m, rng, (1.5, 1.0, 0), 1.2, rng.uniform(0, math.tau), cols=["#a07a68", "#d0a890", "#f0d8c0"])
+    elif v == 1:
+        st = mark(m)
+        for k in range(7):                                   # a scallop: ribbed fan
+            a = math.pi * (0.15 + 0.7 * k / 6)
+            limb(m, (0, 0, 0.1), (math.cos(a) * 1.3, math.sin(a) * 1.3, 0.35), 0.16, 0.24, "#f08a5a" if k % 2 else "#ffb070", segs=4)
+        facet(m, new_faces(m, st), ["#c85a3a", "#f08a5a", "#ffc090"], noise=0.15)
+        for k in range(6):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0.7, 1.7)
+            st = mark(m)
+            m.ball(0.32, (math.cos(a) * d, math.sin(a) * d - 0.5, 0.05), "#e8c8a0", subdiv=1, scale=(1.4, 1, 0.65))
+            facet(m, new_faces(m, st), ["#8a5a3a", "#d8b088", "#fff0d8"], noise=0.3)
+    else:
+        st = mark(m)
+        for s in (-1, 1):                                    # two wavy valves, open a crack
+            pts = [(-1.3, 0), (-1.2, 0.5), (-0.7, 0.9), (0, 1.05), (0.7, 0.9), (1.2, 0.5), (1.3, 0)]
+            m.prism(pts, 0.35, (0, s * 0.35, 0), "#d8c8b8", rot=(s * 0.35, 0, 0))
+        facet(m, new_faces(m, st), ["#a09088", "#c8b8a8", "#f0e4d8"], noise=0.1)
+        m.box((2.2, 0.35, 0.3), (0, 0, 0.75), "#3a6ad8")
+        m.box((1.6, 0.2, 0.12), (0, 0, 0.92), "#7ae8ff", glow=True)
+        light(r, (0, 0, 1.4), "#7ae8ff", radius=3, intensity=0.4, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def saltbush(v):
+    """Ground cover on the bone islands: mats of fat salt succulent creeping over the sand, grey-green
+    fingers with magenta flowers; v2 one the sun has turned rust-red (under 1 tall)."""
+    r = root("vesh_saltbush", v)
+    rng = random.Random(9740 + v)
+    m = Model(f"vesh_saltbush_{v}", 9740 + v)
+    cols = (["#3e5a4a", "#5e806a", "#86a88a", "#b4ccaa"], ["#3a5a52", "#587e72", "#7aa294", "#a8c8b8"],
+            ["#6a2a22", "#9a4a2a", "#c8743a", "#e8a85a"])[v]
+    flower = ("#ff5ab0", "#ffe070", "#fff0d0")[v]
+    mats = {0: [(0, 0, 1.3), (1.4, 0.6, 0.9), (-1.1, 0.9, 0.8)],
+            1: [(-1.6, 0, 0.9), (-0.4, 0.3, 1.1), (0.9, -0.1, 1.0), (2.0, 0.4, 0.7)],
+            2: [(0, 0, 1.1), (1.0, -0.9, 0.8)]}[v]
+    st = mark(m)
+    for x, y, s in mats:
+        m.ball(s, (x, y, 0.05), cols[1], subdiv=1, scale=(1.1, 1, 0.32), jitter=0.12 * s)
+        for k in range(int(5 * s)):                          # fat finger leaves standing out of the mat
+            a = rng.uniform(0, math.tau)
+            d = s * rng.uniform(0.1, 0.75)
+            b = V((x + math.cos(a) * d, y + math.sin(a) * d, 0.2))
+            m.cyl(0.17, rng.uniform(0.45, 0.75), tuple(b), cols[2], segs=4, r_top=0.08,
+                  rot=(rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5), 0))
+    facet(m, new_faces(m, st), cols, noise=0.2, bias=0.1)
+    for k in range(4 + v):
+        x, y, s = rng.choice(mats)
+        a = rng.uniform(0, math.tau)
+        d = s * rng.uniform(0.2, 0.7)
+        m.cyl(0.24, 0.06, (x + math.cos(a) * d, y + math.sin(a) * d, 0.33 * s + 0.12), flower, segs=5)
+        m.ball(0.1, (x + math.cos(a) * d, y + math.sin(a) * d, 0.33 * s + 0.2), "#ffe070", subdiv=0)
+    if v == 1:                                               # a small bone it is creeping over
+        tube(m, [V((-1.6, -0.9, 0.1)), V((0, -0.8, 0.35)), V((1.4, -1.0, 0.15))], [0.3, 0.22, 0.32], BONE[2], segs=5)
+        m.ball(0.4, (-1.7, -0.9, 0.15), BONE[3], subdiv=0)
+        m.ball(0.42, (1.5, -1.0, 0.18), BONE[3], subdiv=0)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def jawbone(v):
+    """Scenery: the jaw of something huge, half sunk in the sand, its teeth still up. v0 the whole
+    U of it, v1 one half rearing out of the shallows (2-3 tall)."""
+    r = root("vesh_jawbone", v)
+    rng = random.Random(9760 + v)
+    m = Model(f"vesh_jawbone_{v}", 9760 + v)
+    if v == 0:
+        pts = []
+        for i in range(9):
+            t = i / 8
+            a = math.pi * (0.1 + 0.8 * t)
+            pts.append(V((math.cos(a) * 2.6, math.sin(a) * 3.2 - 1.2, 0.35 + 0.25 * math.sin(math.pi * t))))
+        radii = [0.5, 0.45, 0.42, 0.4, 0.42, 0.4, 0.42, 0.45, 0.5]
+    else:
+        pts = [V((-2.4, -0.6, -0.2)), V((-1.4, -0.2, 0.7)), V((-0.2, 0.1, 1.4)), V((1.0, 0.3, 1.8)), V((2.0, 0.6, 1.5)),
+               V((2.6, 0.7, 2.4))]
+        radii = [0.55, 0.5, 0.46, 0.42, 0.5, 0.35]
+    bone(m, pts, radii, segs=6)
+    for i in range(1, len(pts) - 1):                         # the teeth, bigger towards the back
+        p = pts[i]
+        h = 0.55 + 0.25 * (i % 3) + (0.2 if v == 0 and i in (2, 6) else 0)
+        st = mark(m)
+        m.cyl(0.24, h, (p.x, p.y, p.z + radii[i] * 0.7), BONE[3], segs=4, r_top=0.05, rot=(rng.uniform(-0.2, 0.2), rng.uniform(-0.2, 0.2), 0))
+        facet(m, new_faces(m, st), BONE[1:], noise=0.1)
+    if v == 0:
+        st = mark(m)
+        m.ball(0.75, tuple(pts[0] + V((0, -0.3, 0.2))), BONE[2], subdiv=0, scale=(1, 1.4, 0.8))
+        m.ball(0.75, tuple(pts[-1] + V((0, -0.3, 0.2))), BONE[2], subdiv=0, scale=(1, 1.4, 0.8))
+        facet(m, new_faces(m, st), BONE, noise=0.1)
+    for k in range(6):                                       # weed and barnacles where it meets the sand
+        p = rng.choice(pts)
+        m.ball(rng.uniform(0.25, 0.4), (p.x + rng.uniform(-0.6, 0.6), p.y + rng.uniform(-0.6, 0.6), 0.05),
+               rng.choice((WEED[0], WEED[1], BARNACLE)), subdiv=0, scale=(1.2, 1, 0.6))
+    st = mark(m)
+    m.cyl(2.6 if v == 0 else 1.5, 0.3, (0, 0.6, -0.25) if v == 0 else (-1.8, -0.5, -0.25), SAND[1], segs=8, r_top=2.0 if v == 0 else 1.1)
+    jitter(m, new_faces(m, st), 0.15, z=False)
+    xform(m, st, M(scale=(1.25, 0.9, 1)))
+    facet(m, new_faces(m, st), SAND, noise=0.1)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def _plate(m, rng, at, rad, cols, rim=None, z_th=0.22):
+    """A table coral's plate: a wide thin disc, its rim scalloped and a little raised, the middle
+    darker where it's oldest."""
+    x, y, z = at
+    n = 11
+    outer, inner = [], []
+    for i in range(n):
+        a = i / n * math.tau
+        rr = rad * rng.uniform(0.8, 1.08)
+        outer.append((x + math.cos(a) * rr, y + math.sin(a) * rr))
+        inner.append((x + math.cos(a) * rr * 0.55, y + math.sin(a) * rr * 0.55))
+    st = mark(m)
+    m.slab(outer, z, z + z_th, cols[2], top=[(px + (px - x) * 0.04, py + (py - y) * 0.04) for px, py in outer])
+    facet(m, new_faces(m, st), cols[1:], noise=0.1, bias=0.2)
+    m.slab(inner, z + z_th, z + z_th + 0.06, cols[1])
+    for i in range(1, n, 2):                                     # pale growth tips standing up round the middle
+        px, py = outer[i]
+        m.ball(0.2, (x + (px - x) * 0.72, y + (py - y) * 0.72, z + z_th + 0.08), cols[3], subdiv=0, scale=(1, 1, 0.7))
+    if rim:
+        for i in range(0, n, 2):
+            px, py = outer[i]
+            m.ball(0.2, (px, py, z + z_th), rim, subdiv=0, glow=True)
+
+
+def table_coral(v):
+    """Hero of the flats: table coral, flat plates held up on stout stalks and tiered over each
+    other, so from above it is a stack of overlapping discs. v0 teal, v1 gold and amber, v2 violet
+    with a rim of glowing polyps (2-3 tall, 4-5 across)."""
+    r = root("vesh_table_coral", v)
+    rng = random.Random(9780 + v)
+    m = Model(f"vesh_table_coral_{v}", 9780 + v)
+    cols = (["#155a68", "#1f7a84", "#3aa8a8", "#7ad0c0"], C_GOLD, C_VIOLET)[v]
+    rim = (None, None, BIOLUM)[v]
+    plates = {0: [((0, 0), 1.8, 2.2), ((2.3, 1.2), 1.1, 1.4), ((-1.9, 1.6), 0.8, 0.9)],
+              1: [((0, 0), 1.4, 2.6), ((-1.5, -1.4), 1.2, 1.6), ((1.9, -0.6), 0.9, 1.0), ((0.5, 2.1), 0.7, 0.7)],
+              2: [((0, 0), 2.0, 1.8), ((2.1, -1.8), 0.9, 1.1), ((-1.6, -1.9), 0.6, 0.6)]}[v]
+    for (x, y), rad, h in plates:
+        st = mark(m)
+        tube(m, [V((x * 0.6, y * 0.6, -0.2)), V((x, y, h))], [0.45 * rad / 2 + 0.2, 0.3], cols[1], segs=5)
+        facet(m, new_faces(m, st), cols[:3], noise=0.1)
+        _plate(m, rng, (x, y, h), rad, cols, rim)
+    if v == 1:                                               # a gold one has fish-bitten holes: dark notches
+        for k in range(3):
+            a = rng.uniform(0, math.tau)
+            m.cyl(0.3, 0.05, (math.cos(a) * 0.9, math.sin(a) * 0.9, 2.6 + 0.29), C_GOLD[0], segs=5)
+    st = mark(m)
+    m.ball(1.6, (0, 0, -0.4), REEF_ROCK[1], subdiv=1, scale=(1.3, 1.1, 0.35), jitter=0.15)
+    facet(m, new_faces(m, st), REEF_ROCK[:3], noise=0.1)
+    if rim:
+        light(r, (0, 0, 2.4), BIOLUM, radius=4, intensity=0.4, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def _starlet(m, rng, at, s, col, col2):
+    """A small starfish, flat on the ground."""
+    x, y, z = at
+    a0 = rng.uniform(0, math.tau)
+    for k in range(5):
+        a = a0 + k / 5 * math.tau
+        limb(m, (x, y, z + 0.08), (x + math.cos(a) * s, y + math.sin(a) * s, z + 0.05), 0.2 * s + 0.06, 0.06, col, segs=4)
+    m.ball(0.2 * s + 0.08, (x, y, z + 0.1), col2, subdiv=0, scale=(1, 1, 0.6))
+
+
+def coral_rubble(v):
+    """Ground cover on the flats: what the tide breaks off: bleached branches, little domes of new
+    coral, a starfish or two, the odd shell (under 0.8 tall)."""
+    r = root("vesh_coral_rubble", v)
+    rng = random.Random(9800 + v)
+    m = Model(f"vesh_coral_rubble_{v}", 9800 + v)
+    st = mark(m)
+    for k in range((6, 4, 7)[v]):                            # bleached broken branches
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.2, 1.8)
+        p = V((math.cos(a) * d, math.sin(a) * d, 0.1))
+        yaw = rng.uniform(0, math.tau)
+        q = p + V((math.cos(yaw) * 0.9, math.sin(yaw) * 0.9, rng.uniform(0.0, 0.3)))
+        limb(m, p, q, 0.17, 0.12, "#f4ece0", segs=4)
+        if k % 2:
+            limb(m, p.lerp(q, 0.5), p.lerp(q, 0.5) + V((-math.sin(yaw) * 0.5, math.cos(yaw) * 0.5, 0.3)), 0.12, 0.09, "#f4ece0", segs=4)
+    facet(m, new_faces(m, st), ["#c8b8a8", "#e8dccc", "#fff8f0"], noise=0.15)
+    domes = ((C_ORANGE, C_GOLD), (C_MAGENTA, C_VIOLET), (C_GOLD, C_TEAL))[v]
+    for k in range((3, 5, 3)[v]):                            # young brain and button corals
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.6, 2.0)
+        cols = domes[k % 2]
+        st = mark(m)
+        s = rng.uniform(0.35, 0.6)
+        m.ball(s, (math.cos(a) * d, math.sin(a) * d, 0.0), cols[2], subdiv=1, scale=(1, 1, 0.6), jitter=0.04)
+        facet(m, new_faces(m, st), cols[1:], noise=0.2)
+    for k in range((1, 2, 1)[v]):
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.8, 1.8)
+        sc = rng.choice(((C_ORANGE[2], C_ORANGE[3]), ("#e03a4a", "#ff8a7a"), (C_VIOLET[2], C_VIOLET[3])))
+        _starlet(m, rng, (math.cos(a) * d, math.sin(a) * d, 0), rng.uniform(0.55, 0.75), *sc)
+    if v == 2:
+        _spiral_shell(m, rng, (-1.0, 0.8, 0), 1.0, rng.uniform(0, math.tau))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def _urchin(m, rng, at, s, body, spine, tip=None, n=9, fat=False):
+    x, y, z = at
+    st = mark(m)
+    m.ball(s, (x, y, z + s * 0.5), body, subdiv=1 if s > 0.45 else 0, scale=(1, 1, 0.75))
+    facet(m, new_faces(m, st), [body, spine], noise=0.2, bias=-0.3)
+    for k in range(n):
+        a = k / n * math.tau + rng.uniform(-0.2, 0.2)
+        up = rng.uniform(0.2, 1.0) if k else 1.4
+        d = V((math.cos(a), math.sin(a), up)).normalized()
+        b = V((x, y, z + s * 0.5)) + d * s * 0.7
+        e = b + d * s * (0.9 if fat else 1.3)
+        limb(m, b, e, 0.15 * s + (0.12 if fat else 0.04), 0.06 if fat else 0.02, spine, segs=4)
+        if tip:
+            m.ball(0.11 + 0.05 * s, tuple(e), tip, subdiv=0, glow=True)
+
+
+def urchin(v):
+    """Clutter on the reef floor: sea urchins. v0 a herd of black-violet ones with glowing spine tips
+    (caves), v1 red pencil urchins with fat blunt spines, v2 one great flower urchin, its spines
+    tipped with pink."""
+    r = root("vesh_urchin", v)
+    rng = random.Random(9820 + v)
+    m = Model(f"vesh_urchin_{v}", 9820 + v)
+    if v == 0:
+        for k, (x, y, s) in enumerate(((0, 0, 0.55), (1.1, 0.4, 0.4), (-0.8, 0.9, 0.45), (0.4, -1.0, 0.35), (-1.2, -0.5, 0.3))):
+            _urchin(m, rng, (x, y, 0), s, "#2a1438", "#4a2a6a", tip="#ff7ae8" if k % 2 else BIOLUM)
+        light(r, (0, 0, 1.0), "#ff7ae8", radius=3, intensity=0.35, halo=False)
+    elif v == 1:
+        for k, (x, y, s) in enumerate(((0, 0, 0.5), (1.0, -0.6, 0.42), (-0.7, 0.8, 0.38))):
+            _urchin(m, rng, (x, y, 0), s, "#5a1a1a", "#d8402a", n=7, fat=True)
+    else:
+        _urchin(m, rng, (0, 0, 0), 0.75, "#3a5a8a", "#e8e0f0", tip="#ff8ac8", n=12)
+        for k in range(10):                                  # a ring of little flowers over its back
+            a = k / 10 * math.tau
+            m.ball(0.14, (math.cos(a) * 0.45, math.sin(a) * 0.45, 0.85), "#ffc0e0", subdiv=0)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def rimstone(v):
+    """Hero of the caves: rimstone pools, terraces of calcite the dripping water built, each lip
+    holding a step of glowing water, stepping down. From above: nested scalloped rings of cream
+    round pools of light (under 1.5 tall)."""
+    r = root("vesh_rimstone", v)
+    rng = random.Random(9840 + v)
+    m = Model(f"vesh_rimstone_{v}", 9840 + v)
+    steps = {0: [((0, 0), 2.1, 0.7), ((0.5, 0.35), 1.4, 0.95), ((0.75, 0.6), 0.75, 1.15)],
+             1: [((-2.1, 0), 1.3, 0.35), ((-0.5, 0.2), 1.5, 0.6), ((1.3, -0.1), 1.35, 0.85), ((2.6, 0.3), 0.9, 1.05)]}[v]
+    water = ["#1a5a78", "#1f8a9a", TIDE_POOL]
+    for i, ((x, y), rad, z) in enumerate(steps):
+        n = 10
+        outer = []
+        for k in range(n):
+            a = k / n * math.tau
+            rr = rad * (1 + 0.12 * math.sin(a * 3 + i) + rng.uniform(-0.06, 0.06))
+            outer.append((x + math.cos(a) * rr, y + math.sin(a) * rr))
+        st = mark(m)
+        foot = [(x + (px - x) * 1.15, y + (py - y) * 1.15) for px, py in outer]
+        m.slab(foot, -0.2, z, CALCITE[2], top=outer)
+        facet(m, new_faces(m, st), CALCITE[1:], noise=0.1)
+        inner = [(x + (px - x) * 0.8, y + (py - y) * 0.8) for px, py in outer]
+        m.slab(inner, z, z + 0.04, water[min(i, 2)] if i < len(steps) - 1 else TIDE_POOL, glow=(i == len(steps) - 1))
+        for k in range(0, n, 3):                             # flowstone drapes over the lip
+            px, py = outer[k]
+            m.cyl(0.24, z * 0.8, ((px - x) * 1.05 + x, (py - y) * 1.05 + y, 0), CALCITE[3], segs=4, r_top=0.32)
+    # the stub of a stalagmite that feeds it, dripping light
+    x, y = steps[-1][0]
+    z = steps[-1][2]
+    m.cyl(0.45, 0.9, (x + 0.2, y + 0.1, z - 0.2), CALCITE[3], segs=5, r_top=0.15)
+    m.ball(0.18, (x + 0.2, y + 0.1, z + 0.75), BIOLUM, subdiv=0, glow=True)
+    light(r, (x, y, z + 1.2), BIOLUM, radius=4, intensity=0.45, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def mussel_bed(v):
+    """Ground cover in the caves: a rock crusted with mussels, blue-black and shining, red tube
+    worms fanning out of the cracks (under 1 tall)."""
+    r = root("vesh_mussel_bed", v)
+    rng = random.Random(9860 + v)
+    m = Model(f"vesh_mussel_bed_{v}", 9860 + v)
+    st = mark(m)
+    lump(m, rng, (0, 0, 0.0), (1.4 + 0.4 * v, 1.1, 0.55), CAVE[2], n=12, flat=0.6)
+    if v == 1:
+        lump(m, rng, (1.9, 0.6, 0.0), (0.9, 0.8, 0.4), CAVE[2], n=10, flat=0.6)
+    facet(m, new_faces(m, st), CAVE[1:4], noise=0.12)
+    for k in range(16 + 6 * v):
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.7, 1.5 + 0.4 * v)
+        x, y = math.cos(a) * d + (0.6 if v and k % 2 else 0), math.sin(a) * d * 0.8
+        st = mark(m)
+        m.ball(0.3, (x, y, 0.15), "#22304a", subdiv=0, scale=(1.5, 0.75, 0.6), rot=(0, rng.uniform(-0.4, 0.4), a + 1.4))
+        paint(m, new_faces(m, st), lambda f: "#5a7aa8" if f.normal.z > 0.6 else ("#22304a" if f.normal.z > 0 else "#141a2a"))
+    for k in range(3 + v):                                   # tube worms: a red feather fan at the top of a white tube
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.2, 0.9)
+        p = V((math.cos(a) * d, math.sin(a) * d, 0.3))
+        m.cyl(0.13, 0.5, tuple(p), "#f0e4d8", segs=4)
+        m.cyl(0.16, 0.18, tuple(p + V((0, 0, 0.5))), "#ff4a3a", segs=5, r_top=0.36, glow=bool(k % 2))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
 def stalagmite(v):
-    """Scenery: stalagmites of pink cave rock, a pool glowing at the foot (2-6 tall)."""
+    """Scenery: stalagmites of banded calcite, each standing in a skirt of flowstone, a glint of
+    water on its tip (1.5-3.5 tall). v0 one tall column, v1 a pair grown together, v2 a stump the
+    roof dropped a rock on: broken off, a pool in its top, two young ones beside it."""
     r = root("vesh_stalagmite", v)
     rng = random.Random(9660 + v)
     m = Model(f"vesh_stalagmite_{v}", 9660 + v)
-    n = (1, 3, 5)[v]
-    for k in range(n):
-        a = k / max(1, n) * math.tau
-        d = 0 if k == 0 else rng.uniform(1.0, 2.0)
-        h = rng.uniform(3.5, 5.5) * (1 if k == 0 else 0.6)
-        stalactite(m, rng, (math.cos(a) * d, math.sin(a) * d, -0.2), -h, rng.uniform(0.7, 1.0) * (1 if k == 0 else 0.7), drip=False)
-        m.cyl(0.35, 0.25, (math.cos(a) * d, math.sin(a) * d, h - 0.3), CAVE[4], segs=5)
-    m.cyl(1.2, 0.1, (1.6, -1.2, 0.0), TIDE_POOL, segs=7, glow=True)
+
+    def column(x, y, h, rad, broken=False):
+        st = mark(m)
+        n = 4
+        z = -0.2
+        for i in range(n):                                   # stacked drums, each a little narrower and off-centre
+            r0 = rad * (1 - 0.7 * i / n)
+            r1 = rad * (1 - 0.7 * (i + 1) / n) if (i < n - 1 or broken) else 0.06
+            hh = h / n
+            m.cyl(r0, hh + 0.02, (x + rng.uniform(-0.08, 0.08), y + rng.uniform(-0.08, 0.08), z), CALCITE[2], segs=6, r_top=r1,
+                  rot=(0, 0, rng.uniform(0, 1)))
+            z += hh
+        faces = new_faces(m, st)
+        jitter(m, faces, 0.06)
+        facet(m, faces, CALCITE[1:] if not broken else CALCITE[:4], noise=0.12)
+        for f in faces:                                      # bands: alternate drums a shade warmer
+            if int((f.calc_center_median().z + 0.2) / (h / n)) % 2 and f.normal.z < 0.7:
+                f.material_index = m._slot(CAVE[2], False)
+        if broken:
+            m.cyl(rad * 0.25, 0.06, (x, y, z), TIDE_POOL, segs=6, glow=True)
+        else:
+            m.ball(0.14, (x, y, z + 0.02), BIOLUM, subdiv=0, glow=True)
+        return z
+
+    if v == 0:
+        column(0, 0, 3.8, 1.0)
+        skirt = [(0, 0, 1.7)]
+    elif v == 1:
+        column(-0.45, 0, 3.2, 0.85)
+        column(0.6, 0.25, 2.2, 0.75)
+        skirt = [(0, 0.1, 1.9)]
+    else:
+        column(0, 0, 1.3, 1.1, broken=True)
+        column(1.4, 0.6, 1.4, 0.45)
+        column(-1.0, 1.1, 0.9, 0.35)
+        skirt = [(0.1, 0.3, 2.0)]
+    for x, y, rad in skirt:                                  # a skirt of flowstone, terraced, a crescent of water in it
+        st = mark(m)
+        m.cyl(rad * 0.8, 0.35, (x, y, -0.25), CALCITE[2], segs=7, r_top=rad * 0.5)
+        jitter(m, new_faces(m, st), 0.12, z=False)
+        facet(m, new_faces(m, st), CALCITE[1:4], noise=0.1)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+
+# --- round 2: life in the shallows, bones in clusters, shrubs on the islands ----------------------
+
+KELP = ["#3a3a1a", "#5a5a22", "#7a7430", "#b0a048"]
+
+
+def reef_head(v):
+    """Water: a coral head breaking the surface at low tide, its crown dry, a skirt of paler coral
+    under the water round it. v0 a brain dome with fans, v1 a stand of tube sponges, v2 staghorn
+    with glowing tips (top under 1.5 above the water)."""
+    r = root("vesh_reef_head", v)
+    rng = random.Random(9900 + v)
+    m = Model(f"vesh_reef_head_{v}", 9900 + v)
+    st = mark(m)
+    lump(m, rng, (0, 0, -0.5), (2.0, 1.7, 1.2), REEF_ROCK[1], n=12, flat=0.4)
+    facet(m, new_faces(m, st), REEF_ROCK, noise=0.12)
+    st = mark(m)                                                 # the drowned skirt: a pale ring just under the surface
+    m.cyl(2.9, 0.2, (0, 0, -0.35), "#7ad0c8", segs=9, r_top=2.5)
+    jitter(m, new_faces(m, st), 0.25, z=False)
+    if v == 0:
+        st = mark(m)
+        m.ball(1.3, (0.2, 0, 0.35), C_ORANGE[2], subdiv=1, scale=(1.1, 1, 0.6), jitter=0.05)
+        facet(m, new_faces(m, st), C_ORANGE[1:], noise=0.15)
+        fan(m, rng, (-1.0, 0.8, 0.0), 2.0, 0.5, 1.0, 1.4, C_MAGENTA, s=0.8)
+        fan(m, rng, (1.2, -0.9, 0.0), 4.2, 0.6, 0.9, 1.2, C_VIOLET, s=0.7)
+    elif v == 1:
+        tube_sponges(m, rng, (0, 0, 0.3), 6, C_GOLD, "#ff6a9a", 0.9, (0.8, 1.6), rad=(0.35, 0.5))
+    else:
+        for k in range(4):
+            a = k / 4 * math.tau + rng.uniform(-0.3, 0.3)
+            staghorn(m, rng, V((0, 0, 0.4)), V((math.cos(a) * 0.8, math.sin(a) * 0.8, 0.6)).normalized(), 1.0, 0.26, 1, C_VIOLET)
+        light(r, (0, 0, 1.0), BIOLUM, radius=3, intensity=0.4, halo=False)
+    for k in range(5):
+        a = rng.uniform(0, math.tau)
+        m.ball(rng.uniform(0.25, 0.4), (math.cos(a) * 1.8, math.sin(a) * 1.5, -0.1), rng.choice((BARNACLE, WEED[1], "#ff7a90")), subdiv=0)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def kelp_mat(v):
+    """Water: a raft of bladder weed afloat on the lagoon, gold-brown and lumpy with floats, a
+    seabird's worth of white on it. Flat: it reads as a shape on the water (under 0.4)."""
+    r = root("vesh_kelp_mat", v)
+    rng = random.Random(9920 + v)
+    m = Model(f"vesh_kelp_mat_{v}", 9920 + v)
+    blobs = {0: 5, 1: 8, 2: 4}[v]
+    pts = []
+    x = y = 0.0
+    for k in range(blobs):                                       # a wandering chain of weed
+        pts.append((x, y))
+        a = rng.uniform(-0.8, 0.8) + (0 if v != 1 else k * 0.4)
+        x += math.cos(a) * 1.2
+        y += math.sin(a) * 1.2
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    for px, py in pts:
+        px -= cx
+        py -= cy
+        st = mark(m)
+        m.ball(rng.uniform(0.8, 1.2), (px, py, -0.05), KELP[1], subdiv=1, scale=(1.3, 1, 0.14), jitter=0.12, rot=(0, 0, rng.uniform(0, 3)))
+        facet(m, new_faces(m, st), KELP, noise=0.25, bias=0.1)
+        for j in range(2):
+            m.ball(0.2, (px + rng.uniform(-0.6, 0.6), py + rng.uniform(-0.6, 0.6), 0.1), KELP[3], subdiv=0)
+    if v == 2:                                                   # something's nest on it
+        m.ball(0.45, (0.2, 0.1, 0.15), "#f0ece0", subdiv=0, scale=(1, 1, 0.5))
+        m.ball(0.18, (0.2, 0.1, 0.3), "#a0d8e0", subdiv=0)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def bone_tip(v):
+    """Water: the tips of drowned bones breaking the surface: v0 three rib tips in a curving row,
+    v1 a vertebra's crest with barnacles, v2 one great tusk (top under 3)."""
+    r = root("vesh_bone_tip", v)
+    rng = random.Random(9940 + v)
+    m = Model(f"vesh_bone_tip_{v}", 9940 + v)
+    if v == 0:
+        for k in range(3):
+            x = (k - 1) * 1.8
+            y = 0.4 * (k - 1) ** 2
+            h = 2.2 - 0.4 * abs(k - 1)
+            bone(m, [V((x, y, -0.8)), V((x + 0.3, y, h * 0.6)), V((x + 0.9, y + 0.1, h))], [0.45, 0.38, 0.1], segs=6)
+    elif v == 1:
+        vertebra(m, rng, (0, 0, -0.9), 1.1, axis=rng.uniform(0, 3), crest=0.8)
+    else:
+        bone(m, [V((0, 0, -0.8)), V((0.6, 0.2, 1.2)), V((1.6, 0.3, 2.4)), V((2.6, 0.1, 2.6))], [0.7, 0.55, 0.32, 0.06], segs=7)
+    for k in range(8):                                           # barnacles and weed at the waterline, a foam ring
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(0.6, 1.6)
+        m.ball(rng.uniform(0.2, 0.35), (math.cos(a) * d, math.sin(a) * d, 0.05), rng.choice((BARNACLE, WEED[0], WEED[1], "#f4f8f8")),
+               subdiv=0, scale=(1.2, 1, 0.5))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def skiff(v):
+    """Water: a reef pirates' skiff, moored to a stake: a patched hull, a battened rag of a sail
+    furled on its boom, a lantern; v1 with a float-net strung out behind it."""
+    r = root("vesh_skiff", v)
+    rng = random.Random(9960 + v)
+    m = Model(f"vesh_skiff_{v}", 9960 + v)
+    hull_col = ("#8a5a3a", "#5a6a6a")[v]
+    m.prism([(-0.75, 0.45), (0.75, 0.45), (0.55, -0.3), (-0.55, -0.3)], 3.4, (0, 0, 0.1), hull_col, rot=(0, 0, 0))
+    m.prism([(-0.75, 0.45), (0.75, 0.45), (0, -0.3)], 1.0, (0, 2.1, 0.1), hull_col)            # the bow, a wedge
+    m.box((1.3, 3.2, 0.12), (0, 0, 0.5), "#c8a870")                                          # the deck boards
+    m.box((1.3, 0.4, 0.08), (0, -0.6, 0.58), "#a8804a")
+    m.box((0.2, 0.2, 2.2), (0, 0.6, 0.5), MANGROVE_BARK[0])                                  # the mast
+    sail = ("#c83a4a", "#d8b060")[v]
+    m.box((0.5, 2.6, 0.35), (0.05, -0.2, 1.5), sail, rot=(0, 0, 0.05))                     # the furled sail
+    for k in range(3):
+        m.box((0.55, 0.12, 0.4), (0.05, -1.2 + k * 1.0, 1.5), "#3a2a2a")
+    m.box((0.35, 0.35, 0.35), (0.4, -1.4, 0.75), LANTERN, glow=True)
+    m.cyl(0.18, 2.0, (0.2, 3.4, -0.6), MANGROVE_BARK[0], segs=5)                             # the mooring stake
+    limb(m, (0, 2.5, 0.6), (0.2, 3.4, 1.1), 0.06, 0.06, ROPE, segs=3)
+    if v == 1:
+        for k in range(5):
+            m.ball(0.22, (-0.4 + k * 0.1, -2.3 - k * 0.9, 0.05), ("#ff6a3a", "#f0e0c0")[k % 2], subdiv=0)
+    light(r, (0.4, -1.4, 1.3), LANTERN, radius=4, intensity=0.5, flicker=0.15)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def ribcage(v):
+    """Scenery: the chest of something huge, half buried: a spine of vertebrae trailing off across
+    the sand, ribs arching up out of it on both sides, saltbush in its shade (top under 4)."""
+    r = root("vesh_ribcage", v)
+    rng = random.Random(9980 + v)
+    m = Model(f"vesh_ribcage_{v}", 9980 + v)
+    n = (5, 4)[v]
+    bend = (0.08, -0.12)[v]
+    spine = []
+    for k in range(n + 2):                                       # the spine, sinking towards its tail
+        a = k * bend
+        x = sum(math.cos(j * bend) for j in range(k)) * 1.7 - 4
+        y = sum(math.sin(j * bend) for j in range(k)) * 1.7
+        s = 0.8 * (1 - 0.1 * k)
+        spine.append((x, y, a, s))
+        vertebra(m, rng, (x, y, 0.3 - 0.1 * k), s, axis=a, crest=0.6)
+    for k in range(min(n, 4)):                                   # ribs up out of the sand, both sides, the far ones broken
+        x, y, a, s = spine[k]
+        for side in (-1, 1):
+            if v == 1 and side == 1 and k > 1:
+                continue
+            nx, ny = -math.sin(a) * side, math.cos(a) * side
+            L = 3.4 - 0.4 * k
+            pts = [V((x, y, 0.4)), V((x + nx * L * 0.45, y + ny * L * 0.45, L * 0.75)), V((x + nx * L * 0.85, y + ny * L * 0.85, L * 0.75)),
+                   V((x + nx * L * 1.05 + 0.3, y + ny * L * 1.05, L * (0.25 if k % 2 else 0.05)))]
+            bone(m, pts, [0.32, 0.28, 0.24, 0.12], segs=5)
+    for k in range(5):
+        x, y, a, s = rng.choice(spine)
+        m.ball(rng.uniform(0.3, 0.5), (x + rng.uniform(-1.5, 1.5), y + rng.uniform(-1.5, 1.5), 0.05), rng.choice((WEED[0], "#5e806a", BARNACLE)),
+               subdiv=0, scale=(1.3, 1, 0.5))
+    st = mark(m)
+    m.cyl(4.0, 0.3, (0, 0, -0.25), SAND[1], segs=9, r_top=3.4)
+    jitter(m, new_faces(m, st), 0.3, z=False)
+    xform(m, st, M(scale=(1.3, 0.85, 1)))
+    facet(m, new_faces(m, st), SAND, noise=0.1)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def tide_pool(v):
+    """Scenery: rock pools left on the islands by the tide: a rim of worn pink rock round still
+    water, a starfish, anemones, weed (under 0.8 tall)."""
+    r = root("vesh_tide_pool", v)
+    rng = random.Random(10000 + v)
+    m = Model(f"vesh_tide_pool_{v}", 10000 + v)
+    pools = {0: [((0, 0), 1.6)], 1: [((-1.2, 0.2), 1.2), ((1.0, -0.4), 1.0), ((0.2, 1.4), 0.7)], 2: [((0, 0), 2.1)]}[v]
+    for (x, y), R in pools:
+        st = mark(m)
+        k = 0
+        a = 0.0
+        while a < math.tau - 0.3:
+            w = rng.uniform(0.5, 0.8) * R ** 0.5
+            lump(m, rng, (x + math.cos(a) * R, y + math.sin(a) * R, 0.0), (w, w * 0.8, rng.uniform(0.3, 0.55)), REEF_ROCK[1], n=8, flat=0.6)
+            a += w / R * 1.4
+        facet(m, new_faces(m, st), REEF_ROCK, noise=0.12)
+        m.cyl(R * 0.95, 0.1, (x, y, 0.0), ("#1f7a8a", "#2a90a0", "#1a6a88")[v], segs=9)
+        m.cyl(R * 0.5, 0.1, (x + 0.2, y + 0.1, 0.02), "#3ab8c0", segs=7)
+        m.ball(0.3, (x - R * 0.4, y + R * 0.3, 0.1), rng.choice((C_MAGENTA[2], "#ff7a90", C_TEAL[2])), subdiv=0)
+    x, y = pools[0][0]
+    _starlet(m, rng, (x + 0.3, y - 0.3, 0.02), 0.55, *rng.choice(((C_ORANGE[2], C_ORANGE[3]), ("#e03a4a", "#ff8a7a"))))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def sea_grape(v):
+    """Scenery: sea grape bushes on the lagoon islands: mounds of big round leathery leaves held
+    flat to the sun, each a coin of light, some flushed red, bunches of purple grapes (1-2 tall)."""
+    r = root("vesh_sea_grape", v)
+    rng = random.Random(10020 + v)
+    m = Model(f"vesh_sea_grape_{v}", 10020 + v)
+    cols = (["#1e4a2a", "#2e6a3a", "#4a8a48", "#7aae5a"], ["#24503a", "#356e4a", "#5a9a5a", "#9ac870"],
+            ["#3a4a24", "#5a6a2e", "#8a8a3a", "#c0b050"])[v]
+    mounds = {0: [((0, 0), 1.3, 1.4)], 1: [((-0.9, 0), 1.0, 1.1), ((0.9, 0.4), 1.1, 1.6)], 2: [((0, 0), 1.0, 0.9), ((1.3, -0.6), 0.7, 0.7)]}[v]
+    for (x, y), R, h in mounds:
+        st = mark(m)
+        m.ball(R, (x, y, h * 0.5), cols[0], subdiv=1, scale=(1.1, 1, h / R * 0.55), jitter=0.1)
+        facet(m, new_faces(m, st), cols[:2], noise=0.1)
+        n = int(9 * R)
+        for k in range(n):                                       # the leaves: round plates laid over the mound
+            a = rng.uniform(0, math.tau)
+            d = R * rng.uniform(0.0, 0.95)
+            z = h * 0.5 + h * 0.5 * math.sqrt(max(0.0, 1 - (d / R) ** 2)) + 0.05
+            red = rng.random() < 0.1
+            col = "#b8402a" if red else rng.choice(cols[1:])
+            m.cyl(rng.uniform(0.38, 0.5), 0.08, (x + math.cos(a) * d, y + math.sin(a) * d, z), col, segs=6,
+                  rot=(rng.uniform(-0.35, 0.35) + math.sin(a) * d / R * 0.5, -math.cos(a) * d / R * 0.5, rng.uniform(0, 1)))
+        for k in range(2):
+            a = rng.uniform(0, math.tau)
+            m.ball(0.22, (x + math.cos(a) * R * 0.8, y + math.sin(a) * R * 0.8, h * 0.6), "#6a2a7a", subdiv=0, scale=(1, 1, 1.4))
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
 
@@ -1459,5 +2146,23 @@ def build():
         anemone(v)
         pillar_coral(v)
         bone_scatter(v)
-        palm(v)
         stalagmite(v)
+        screwpine(v)
+        seagrass(v)
+        conch(v)
+        saltbush(v)
+        table_coral(v)
+        coral_rubble(v)
+        urchin(v)
+    for v in range(3):
+        reef_head(v)
+        kelp_mat(v)
+        bone_tip(v)
+        tide_pool(v)
+        sea_grape(v)
+    for v in range(2):
+        skiff(v)
+        ribcage(v)
+        jawbone(v)
+        rimstone(v)
+        mussel_bed(v)

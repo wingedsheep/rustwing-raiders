@@ -522,78 +522,296 @@ def boss_mirefall():
         mount(root, (c[0], c[1] - 0.4, c[2] + 3.0), "weak")
 
 
-# --- GLACIS: THE WAKING ENGINE, an ancient machine half out of the ice ----------------------------
+# --- GLACIS: THE WAKING ENGINE, the Tonkva's ledger-machine, half out of the ice ----------------
+#
+# From above: a hexagon of white ceramic with an iris on its brow (six shutters over a burning
+# core: the weak point, open when it's open), a crown of six pylons turning round it, two long
+# feathered antennae laid back behind it (the Tonkva felt the lanes with theirs), and two arms
+# folded at its sides. Ice holds it: the front shell breaks off in the second phase, the rest
+# (and with it the arms and antennae come free) in the third. Its idle changes with each phase
+# (boss_glacis_doze_idle, _p1, _p2: dozing, stirring, awake); see ENGINE_POSES.
 
 def boss_glacis():
-    GREY, DARKC, ORANGE = hexc(0x6a7a8a), hexc(0x2a3040), hexc(0xff6a1a)
-    ICE, ICE2, SNOW = "#bfe0f0", "#8ab8d8", "#eef6fa"
+    CER, CER2, NAVY, NAVY2, SLATE = "#e8ecf0", "#b8c4d0", "#2a3448", "#3e4c66", "#56688a"
+    ORANGE, AMBER, PALE = hexc(0xff6a1a), "#ffb050", "#ffe0b8"
+    ICE, ICE2, SNOW = "#6eb0dc", "#3f78b0", "#d8ecf6"
     root = group("boss_glacis", kind="boss_glacis")
-    ice = Model("engine_ice", seed=7)
-    # the glacier holding its back half: jagged ice blocks
-    for x, y, z, r, sc in ((-5.5, 2.5, 0.5, 2.6, (1.2, 1.0, 0.8)), (5.6, 2.2, 0.4, 2.5, (1.1, 1.0, 0.9)),
-                           (-2.5, 4.0, 0.8, 2.8, (1.3, 0.8, 0.8)), (2.4, 4.2, 0.9, 2.9, (1.2, 0.8, 0.8)),
-                           (0, 5.0, 0.3, 2.6, (1.8, 0.7, 0.6)), (-7.4, 0.2, 0.0, 1.6, (1, 1, 0.8)), (7.5, 0.0, 0.0, 1.5, (1, 1, 0.9))):
-        ice.ball(r, (x, y, z), ICE, subdiv=1, scale=sc, jitter=0.35)
-        ice.ball(r * 0.6, (x + 0.4, y - 0.2, z + r * 0.55), SNOW, subdiv=0, scale=sc, jitter=0.2)
-    for x, y, h, rot in ((-6.0, 0.8, 2.6, 0.35), (6.2, 1.0, 3.0, -0.3), (-3.6, 2.4, 2.2, 0.2), (3.9, 2.6, 2.4, -0.25)):
-        ice.cyl(0.7, h, (x, y, 0.5), ICE2, segs=4, r_top=0.05, rot=(rot * 0.6, rot, 0))  # shards
-    ice.build(root)
+    body = group("engine_body", loc=(0, 0, 1.6), parent=root)
 
-    m = Model("engine_body")
-    # the great dome of the machine, front half free of the ice
-    m.cyl(4.6, 1.6, (0, 0.6, -0.4), DARKC, segs=10, r_top=4.3)
-    m.cyl(4.2, 1.4, (0, 0.6, 1.2), GREY, segs=10, r_top=3.2)
-    m.cyl(3.0, 0.6, (0, 0.6, 2.6), DARKC, segs=10, r_top=2.6)
-    # radial heat vents glowing orange, front half only
-    for i in range(7):
-        a = -math.pi / 2 + (i - 3) * 0.32
-        x, y = math.cos(a) * 3.8, 0.6 + math.sin(a) * 3.8
-        m.box((0.55, 1.1, 0.4), (x, y, 1.6), DARKC, rot=(0, 0, a + math.pi / 2))
-        m.box((0.3, 0.8, 0.42), (x, y, 1.62), ORANGE, rot=(0, 0, a + math.pi / 2), glow=True)
-    # armoured brow over the eye
-    m.box((4.6, 1.2, 0.8), (0, -2.6, 2.0), GREY, rot=(0.35, 0, 0), taper=0.8)
-    for s in (1, -1):
-        m.box((1.2, 2.4, 1.6), (s * 3.2, -1.6, 0.8), GREY, rot=(0, 0, s * 0.5), taper=0.75)
-        m.cyl(0.35, 1.6, (s * 3.0, -2.8, 0.8), DARKC, segs=6, rot=FWD)              # cheek cannons
-        m.cyl(0.24, 0.1, (s * 3.0, -4.42, 0.8), ORANGE, segs=6, rot=FWD, glow=True)
-    # the eye (main weak point): a ring with a burning core, set into the front
-    m.cyl(1.4, 0.6, (0, -3.0, 1.1), DARKC, segs=8, rot=FWD)
-    m.cyl(1.0, 0.3, (0, -3.5, 1.1), ORANGE, segs=8, rot=FWD, glow=True)
-    m.ball(0.65, (0, -3.55, 1.1), "#ffd0a0", subdiv=1, glow=True)
-    # frost still clinging to its top
-    m.ball(1.2, (-1.8, 1.8, 2.6), SNOW, subdiv=0, scale=(1.4, 1, 0.4), jitter=0.15)
-    m.ball(0.9, (2.0, 2.2, 2.5), SNOW, subdiv=0, scale=(1.4, 1, 0.4), jitter=0.15)
-    m.build(root)
+    def hexagon(r, rot=0.0, cy=0.0):
+        return [(r * math.cos(rot + k * TAU / 6), cy + r * math.sin(rot + k * TAU / 6)) for k in range(6)]
 
-    # turbine crown spinning on top
-    t = Model("engine_crown")
-    t.cyl(1.6, 0.4, (0, 0, 0), GREY, segs=8)
-    for i in range(8):
-        a = TAU * i / 8
-        t.box((0.4, 1.3, 0.5), (math.cos(a) * 1.6, math.sin(a) * 1.6, 0.35), DARKC, rot=(0.4, 0, a))
-    t.cyl(0.6, 0.5, (0, 0, 0.3), ORANGE, segs=6, glow=True)
-    crown = t.build(root, loc=(0, 0.8, 3.2))
-    animate(crown, "boss_glacis_wake_idle", "rotation_euler",
-            [(0, (0, 0, 0)), (1.0, (0, 0, TAU / 3)), (2.0, (0, 0, 2 * TAU / 3)), (3.0, (0, 0, TAU))])
+    # the hull: a navy hexagon with a white ceramic top, sloped, seamed, a furnace glowing at the back
+    h = Model("engine_hull", seed=3)
+    h.slab(hexagon(5.2), 0.0, 0.8, NAVY, top=hexagon(5.0))
+    h.slab(hexagon(4.9), 0.8, 1.7, NAVY2, top=hexagon(3.9))
+    h.slab(hexagon(3.8), 1.7, 1.95, CER, top=hexagon(3.5))
+    for k in range(6):                                                           # seams, corner to corner
+        a = k * TAU / 6
+        h.plank_line((math.cos(a) * 3.6, math.sin(a) * 3.6, 1.9), (math.cos(a) * 4.9, math.sin(a) * 4.9, 0.85), 0.32, 0.14, CER2)
+    for x in (-1.5, 0, 1.5):                                                     # the furnace: slots at the back
+        h.box((0.7, 1.6, 0.3), (x, 2.4 - abs(x) * 0.25, 1.95), NAVY)
+        h.box((0.4, 1.3, 0.32), (x, 2.4 - abs(x) * 0.25, 1.98), ORANGE, glow=True)
+    for s in (1, -1):                                                            # heat vents low on the flanks
+        h.box((0.5, 1.4, 0.35), (s * 4.6, 1.4, 0.55), ORANGE, glow=True, rot=(0, 0, s * 0.52))
+    h.cyl(2.45, 0.35, (0, -2.0, 1.75), NAVY, segs=6)                             # the socket of its eye
+    h.build(body)
 
-    # two huge arms dragging themselves out of the ice
+    # the iris: a burning core under six shutters, lying on its brow (tilted to look at you)
+    eye = group("engine_eye", loc=(0, -2.0, 2.05), parent=body)
+    eye.rotation_euler = (0.3, 0, 0)
+    c = Model("engine_core")
+    c.ball(1.05, (0, 0, 0), AMBER, subdiv=1, glow=True)
+    c.ball(0.6, (0, 0, 0.55), PALE, subdiv=1, glow=True)
+    core = c.build(eye)
+    petals = []
+    R = 2.15
+    for k in range(6):
+        a = k * TAU / 6 + TAU / 12
+        pm = Model(f"engine_petal_{k}")
+        half = R * math.tan(math.pi / 6)
+        pm.slab(ccw([(0, -half), (0, half), (-R + 0.12, 0)]), 0.0, 0.22, CER, top=ccw([(0, -half * 0.86), (0, half * 0.86), (-R + 0.3, 0)]))
+        pm.slab(ccw([(-0.05, -half * 0.5), (-0.05, half * 0.5), (-0.7, 0)]), 0.22, 0.3, NAVY2)
+        petals.append(pm.build(eye, loc=(R * math.cos(a), R * math.sin(a), 0.15), rot_z=a))
+
+    # the crown: six pylons on a ring, turning about it (its beacons: the cross comes from here)
+    rg = Model("engine_ring")
+    for k in range(6):
+        a = k * TAU / 6
+        x, y = math.cos(a) * 6.4, math.sin(a) * 6.4
+        x1, y1 = math.cos(a + TAU / 6) * 6.4, math.sin(a + TAU / 6) * 6.4
+        rg.plank_line((x, y, 0.5), (x1, y1, 0.5), 0.6, 0.34, NAVY)
+        rg.cyl(0.75, 0.5, (x, y, 0.0), NAVY, segs=6)
+        rg.cyl(0.55, 2.1, (x, y, 0.4), CER, segs=6, r_top=0.4)
+        rg.cyl(0.42, 0.5, (x, y, 2.5), NAVY, segs=6, r_top=0.15)
+        rg.ball(0.3, (x, y, 2.75), ORANGE, subdiv=0, glow=True)
+        rg.box((0.18, 0.5, 1.0), (x * 0.94, y * 0.94, 1.4), AMBER, glow=True, rot=(0, 0, a + math.pi / 2))
+    ring = rg.build(body, loc=(0, 0, 0.1))
+
+    # the antennae: long feathered vanes laid back behind it, raised as it wakes
+    antennae = {}
     for s in (1, -1):
-        a = Model(f"engine_arm_{'r' if s > 0 else 'l'}")
-        limb(a, (0, 0, 0), (s * 2.4, -2.2, 0.4), 0.8, 0.6, GREY, segs=6)
-        a.ball(0.75, (s * 2.4, -2.2, 0.4), DARKC, subdiv=0)
-        limb(a, (s * 2.4, -2.2, 0.4), (s * 1.8, -5.4, 0.0), 0.6, 0.45, GREY, segs=6)
-        a.box((0.9, 1.6, 0.3), (s * 2.2, -3.6, 0.8), ORANGE, glow=True, rot=(0, 0, s * 0.18))  # piston glow
-        for k in (-1, 0, 1):                                                       # claw fingers
-            limb(a, (s * 1.8, -5.4, 0.0), (s * (1.8 + k * 0.7), -6.5, -0.3), 0.28, 0.1, DARKC, segs=4)
-        arm = a.build(root, loc=(s * 4.0, 1.0, 1.0))
-        loop(arm, "boss_glacis_wake_idle", "rotation_euler", 3.0,
-             [(0, 0, 0), (0.1, 0, s * 0.12), (0, 0, 0)])
-        mount(root, (s * 5.8, -5.6, 1.2), "gun")
+        am = Model(f"engine_antenna_{'r' if s > 0 else 'l'}")
+        # a moth's: a shaft curving out and back, combed on both sides (the teeth make its edge
+        # saw-toothed), the comb shortening to the tip
+        spine = [(0, 0), (s * 1.0, 1.7), (s * 2.4, 3.4), (s * 3.9, 4.8), (s * 5.3, 5.7)]
+
+        def along(u):
+            i = min(int(u * (len(spine) - 1)), len(spine) - 2)
+            f = u * (len(spine) - 1) - i
+            (x0, y0), (x1, y1) = spine[i], spine[i + 1]
+            ln = math.hypot(x1 - x0, y1 - y0)
+            return x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, -(y1 - y0) / ln, (x1 - x0) / ln
+        outline_a, outline_b = [], []
+        N = 14
+        for i in range(N + 1):
+            u = i / N
+            x, y, nx, ny = along(u)
+            w = (0.25 + 1.75 * math.sin(math.pi * min(1, u * 1.25)) ** 0.7) * (1 if i % 2 else 0.55)
+            w = max(w, 0.18)
+            outline_a.append((x + nx * w, y + ny * w))
+            outline_b.append((x - nx * w, y - ny * w))
+        am.slab(ccw(outline_a + outline_b[::-1]), 0.0, 0.12, SLATE)
+        for (x0, y0), (x1, y1) in zip(spine, spine[1:]):
+            am.plank_line((x0, y0, 0.18), (x1, y1, 0.22), 0.3, 0.2, CER)
+        for u in (0.3, 0.5, 0.7):                                                 # warm bands across the comb
+            x, y, nx, ny = along(u)
+            am.plank_line((x - nx * 1.3, y - ny * 1.3, 0.16), (x + nx * 1.3, y + ny * 1.3, 0.16), 0.16, 0.08, AMBER)
+        am.ball(0.32, (s * 5.3, 5.7, 0.22), PALE, subdiv=0, glow=True)
+        antennae[s] = am.build(body, loc=(s * 1.2, 2.0, 1.75))
+
+    # the arms: folded at its sides, claws forward; frozen in until the ice goes
+    arms = {}
     for s in (1, -1):
-        mount(root, (s * 3.0, -4.6, 1.8), "gun")
-        mount(root, (s * 1.9, -1.0, 3.4), "gun")
-    mount(root, (0, -4.0, 2.1), "weak")
-    mount(root, (0, 0.8, 4.0), "weak")
+        side = "r" if s > 0 else "l"
+        u = Model(f"engine_arm_{side}")
+        limb(u, (0, 0, 0), (s * 1.5, -2.6, -0.1), 0.8, 0.6, SLATE, segs=6)
+        u.box((1.1, 2.0, 0.4), (s * 0.85, -1.4, 0.55), CER, rot=(0, 0, -s * 0.5), taper=0.7)
+        u.ball(0.7, (s * 1.5, -2.6, -0.1), NAVY, subdiv=0)
+        upper = u.build(body, loc=(s * 4.9, 0.2, 0.5))
+        f = Model(f"engine_fore_{side}")
+        limb(f, (0, 0, 0), (-s * 0.5, -2.8, -0.2), 0.6, 0.45, SLATE, segs=6)
+        f.box((0.32, 1.6, 0.2), (-s * 0.25, -1.4, 0.42), ORANGE, glow=True, rot=(0, 0, s * 0.18))
+        fore = f.build(upper, loc=(s * 1.5, -2.6, -0.1))
+        claws = []
+        for k, dx in enumerate((-0.45, 0.45)):
+            cm = Model(f"engine_claw_{side}{k}")
+            limb(cm, (0, 0, 0), (dx * 1.4, -1.1, -0.1), 0.26, 0.2, NAVY, segs=4)
+            limb(cm, (dx * 1.4, -1.1, -0.1), (dx * 0.4, -1.9, -0.2), 0.2, 0.05, CER2, segs=4)
+            claws.append(cm.build(fore, loc=(-s * 0.5, -2.8, -0.2)))
+        arms[s] = (upper, fore, claws)
+
+    # the ice: the front shell (and the frost on its crown) breaks off first, then the rest
+    fi = Model("engine_ice_front", seed=11)
+    for x, y, z, r, sc in ((-4.6, -3.2, 0.6, 1.9, (1.2, 1.4, 0.9)), (4.7, -3.0, 0.6, 1.8, (1.2, 1.4, 0.9)),
+                           (-2.6, -4.9, 0.4, 1.4, (1.4, 0.9, 0.7)), (2.7, -5.0, 0.3, 1.3, (1.4, 0.9, 0.7)),
+                           (-3.4, -0.2, 1.6, 1.4, (1.0, 1.3, 0.6)), (3.5, 0.0, 1.6, 1.4, (1.0, 1.3, 0.6))):
+        fi.ball(r, (x, y, z), ICE, subdiv=1, scale=sc, jitter=0.3)
+        fi.ball(r * 0.55, (x + 0.3, y - 0.1, z + r * 0.6), SNOW, subdiv=0, scale=sc, jitter=0.15)
+    for x, y, rot in ((-5.8, -2.2, 0.5), (5.9, -1.8, -0.45), (-1.6, -5.6, 0.2), (1.8, -5.7, -0.2)):
+        fi.cyl(0.5, 2.0, (x, y, 0.4), ICE2, segs=4, r_top=0.05, rot=(rot * 0.7, rot, 0))
+    fi.build(body, shed=1)
+    bi = Model("engine_ice_back", seed=13)
+    for x, y, z, r, sc in ((-3.6, 3.6, 0.8, 2.2, (1.3, 1.0, 0.8)), (3.8, 3.4, 0.8, 2.1, (1.3, 1.0, 0.8)),
+                           (0.0, 5.2, 0.6, 2.3, (1.8, 0.9, 0.7)), (-6.0, 1.6, 0.2, 1.6, (1, 1.3, 0.8)), (6.1, 1.4, 0.2, 1.6, (1, 1.3, 0.8)),
+                           (-2.2, 6.8, 1.6, 1.6, (1.1, 1.6, 0.6)), (2.3, 6.9, 1.6, 1.6, (1.1, 1.6, 0.6))):
+        bi.ball(r, (x, y, z), ICE, subdiv=1, scale=sc, jitter=0.35)
+        bi.ball(r * 0.6, (x - 0.3, y + 0.2, z + r * 0.55), SNOW, subdiv=0, scale=sc, jitter=0.2)
+    for x, y, h_, rot in ((-4.8, 5.4, 2.4, 0.4), (4.9, 5.2, 2.6, -0.35), (0.6, 7.4, 2.0, -0.1)):
+        bi.cyl(0.6, h_, (x, y, 0.6), ICE2, segs=4, r_top=0.05, rot=(-rot * 0.6, rot, 0))
+    for x in (-1.3, 1.6):                                                         # frost on its brow
+        bi.ball(0.8, (x, 0.6, 1.95), SNOW, subdiv=0, scale=(1.5, 1.1, 0.35), jitter=0.12)
+    bi.build(body, shed=2)
+
+    engine_poses(body, eye, core, petals, ring, antennae, arms)
+
+    for k in range(6):                                                            # its guns: the crown's pylons
+        a = k * TAU / 6
+        mount(root, (math.cos(a) * 6.4, math.sin(a) * 6.4, 4.3), "gun")
+    mount(root, (0, -2.6, 4.0), "weak")
+    mount(root, (0, 2.4, 3.6), "weak")
+
+
+ENGINE_BEAT = 60 / 120  # its theme's beat (boss_glacis in src/audio.ts)
+
+
+def engine_poses(body, eye, core, petals, ring, antennae, arms):
+    """Its idles by phase and a pose for each of its moves (see src/view/boss-pose.ts). A petal's
+    y opens it (lifts its tip off the core); an antenna's x raises it, its z spreads it (+s); an
+    upper arm's z swings it out (+s), its forearm's z straightens it (+s), a claw's z opens it."""
+    R = "rotation_euler"
+    S = "scale"
+    ONE = (0, 0, 0)
+
+    def hold(clip, parts, t=0.4):
+        for obj, path, v in parts:
+            animate(obj, clip, path, [(0, ONE), (t, v)])
+
+    def cycle(clip, period, parts):
+        for obj, path, vs in parts:
+            loop(obj, clip, path, period, vs)
+
+    def iris(v):
+        return [(p, R, (0, v, 0)) for p in petals]
+
+    def iris_cycle(vs):
+        return [(p, R, [(0, v, 0) for v in vs]) for p in petals]
+
+    def ant(f):
+        out = []
+        for s, a in antennae.items():
+            out += f(s, a)
+        return out
+
+    def arm(f):
+        out = []
+        for s, (u, fo, cl) in arms.items():
+            out += f(s, u, fo, cl)
+        return out
+
+    def turn(clip, period):
+        # the crown turning a sixth (it looks the same every sixth: a seamless loop)
+        animate(ring, clip, R, [(0, ONE), (period, (0, 0, TAU / 6))])
+
+    # dozing: the crown creeping round, a slow breath, the iris a sliver open, antennae laid flat
+    # (and every part that moves keyed at rest in it, so the model rests as built)
+    turn("boss_glacis_doze_idle", 6.0)
+    still = [(ring, "location"), (ring, S), (body, R)] + [(o, R) for u, fo, cl in arms.values() for o in (u, fo, *cl)]
+    for obj, path in still:
+        animate(obj, "boss_glacis_doze_idle", path, [(0, ONE), (6.0, ONE)])
+    cycle("boss_glacis_doze_idle", 6.0, [
+        (body, "location", [(0, 0, 0), (0, 0, 0.12), (0, 0, 0.18), (0, 0, 0.06)]),
+        (core, S, [(-0.25, -0.25, -0.25), (-0.15, -0.15, -0.15), (-0.1, -0.1, -0.1), (-0.2, -0.2, -0.2)]),
+    ] + iris_cycle([0.12, 0.2, 0.24, 0.16]) + ant(lambda s, a: [(a, R, [(0, 0, 0), (0.04, 0, 0), (0.02, 0, 0), (0, 0, 0)])]))
+
+    # stirring: turning faster, the iris half open, its antennae lifting off its back to listen
+    turn("boss_glacis_p1", 3.0)
+    cycle("boss_glacis_p1", 3.0, [
+        (body, "location", [(0, 0, 0.1), (0, 0, 0.25), (0, 0, 0.1), (0, 0, 0.0)]),
+        (core, S, [(0, 0, 0), (0.1, 0.1, 0.1), (0, 0, 0), (0.05, 0.05, 0.05)]),
+    ] + iris_cycle([0.45, 0.5, 0.4, 0.5]) + ant(lambda s, a: [(a, R, [(0.35, 0, s * 0.05), (0.45, 0, s * 0.1), (0.35, 0, s * 0.05), (0.4, 0, 0)])]))
+
+    # awake: the crown spinning, iris wide and flicking, antennae up and spread, arms flexing
+    turn("boss_glacis_p2", 1.0)
+    cycle("boss_glacis_p2", 2.0, [
+        (body, "location", [(0, 0, 0.3), (0, 0, 0.45), (0, 0, 0.3), (0, 0, 0.2)]),
+        (body, R, [(0, 0.03, 0), (0, 0, 0), (0, -0.03, 0), (0, 0, 0)]),
+        (core, S, [(0.15, 0.15, 0.15), (0.25, 0.25, 0.25), (0.15, 0.15, 0.15), (0.2, 0.2, 0.2)]),
+    ] + iris_cycle([0.7, 0.8, 0.65, 0.8]) + ant(lambda s, a: [(a, R, [(0.7, 0, s * 0.3), (0.8, 0, s * 0.38), (0.7, 0, s * 0.3), (0.75, 0, s * 0.25)])])
+      + arm(lambda s, u, fo, cl: [(u, R, [(0, 0, s * 0.1), (0, 0, s * 0.18), (0, 0, s * 0.1), (0, 0, s * 0.05)])]))
+
+    # SCAN: the iris thrown wide, the core swelling, leaning in to look; then it reads, flickering
+    hold("boss_glacis_scan_windup", [
+        (body, R, (0.14, 0, 0)), (core, S, (0.35, 0.35, 0.35)),
+    ] + iris(1.15) + ant(lambda s, a: [(a, R, (0.5, 0, -s * 0.15))]), t=0.5)
+    cycle("boss_glacis_scan_attack", 0.4, [
+        (body, R, [(0.14, 0, 0), (0.16, 0, 0)]), (core, S, [(0.3, 0.3, 0.3), (0.45, 0.45, 0.45)]),
+    ] + iris_cycle([1.15, 1.05]) + ant(lambda s, a: [(a, R, [(0.5, 0, -s * 0.15), (0.55, 0, -s * 0.1)])]))
+
+    # FROST CROSS: the crown rises and spreads, the core blazing; then the crown spins with the beams
+    hold("boss_glacis_cross_windup", [
+        (ring, "location", (0, 0, 0.9)), (ring, S, (0.12, 0.12, 0.12)), (core, S, (0.5, 0.5, 0.5)),
+        (body, "location", (0, 0, 0.3)),
+    ] + iris(0.9) + ant(lambda s, a: [(a, R, (0.3, 0, s * 0.4))]), t=0.6)
+    cycle("boss_glacis_cross_attack", 0.6, [
+        (ring, "location", [(0, 0, 0.9), (0, 0, 0.8)]), (ring, S, [(0.12, 0.12, 0.12), (0.1, 0.1, 0.1)]),
+        (core, S, [(0.5, 0.5, 0.5), (0.4, 0.4, 0.4)]), (body, "location", [(0, 0, 0.3), (0, 0, 0.3)]),
+    ] + iris_cycle([0.9, 0.85]))
+    animate(ring, "boss_glacis_cross_attack", R, [(0, ONE), (0.6, (0, 0, TAU / 6))])
+
+    # CALVING: a shudder that grows (ice cracking off), then a heave that throws it
+    shake = [(0, ONE)] + [(0.07 * i, ((-1) ** i * 0.012 * i, (-1) ** (i + 1) * 0.015 * i, 0)) for i in range(1, 15)]
+    animate(body, "boss_glacis_calve_windup", R, shake)
+    animate(body, "boss_glacis_calve_windup", "location", [(0, ONE), (1.0, (0, 0, -0.25))])
+    for p in petals:
+        animate(p, "boss_glacis_calve_windup", R, [(0, ONE), (0.3, (0, 0.05, 0))])
+    animate(body, "boss_glacis_calve_attack", "location", [(0, (0, 0, -0.25)), (0.12, (0, 0, 0.5)), (0.6, (0, 0, 0.1)), (1.1, (0, 0, 0))])
+    animate(body, "boss_glacis_calve_attack", R, [(0, ONE), (0.12, (-0.08, 0, 0)), (1.1, ONE)])
+
+    # THE COUNT: antennae high and spread (listening), the crown stops; then it ticks a sixth a beat
+    hold("boss_glacis_count_windup", [
+        (core, S, (0.2, 0.2, 0.2)), (body, "location", (0, 0, 0.2)),
+    ] + iris(0.6) + ant(lambda s, a: [(a, R, (0.9, 0, s * 0.5))]), t=0.5)
+    b_ = ENGINE_BEAT
+    animate(ring, "boss_glacis_count_attack", R, [(0, ONE), (0.08, (0, 0, TAU / 6)), (b_, (0, 0, TAU / 6))])
+    animate(core, "boss_glacis_count_attack", S, [(0, (0.45, 0.45, 0.45)), (0.12, (0.2, 0.2, 0.2)), (b_, (0.2, 0.2, 0.2))])
+    animate(body, "boss_glacis_count_attack", "location", [(0, (0, 0, 0.1)), (0.08, (0, 0, 0.3)), (b_, (0, 0, 0.2))])
+    for s, a in antennae.items():
+        animate(a, "boss_glacis_count_attack", R, [(0, (0.9, 0, s * 0.5)), (0.06, (1.0, 0, s * 0.56)), (b_, (0.9, 0, s * 0.5))])
+    for p in petals:
+        animate(p, "boss_glacis_count_attack", R, [(0, (0, 0.6, 0)), (b_, (0, 0.6, 0))])
+
+    # GRASP: arms flung out to both edges, claws open; then they snap shut across the row
+    hold("boss_glacis_grasp_windup", [
+        (body, "location", (0, 0, 0.5)), (body, R, (-0.1, 0, 0)), (core, S, (0.3, 0.3, 0.3)),
+    ] + iris(0.8) + arm(lambda s, u, fo, cl: [(u, R, (0, 0, s * 1.15)), (fo, R, (0, 0, s * 0.8))]
+                       + [(c, R, (0, 0, (1 if k else -1) * 0.6)) for k, c in enumerate(cl)]), t=0.45)
+    for s, (u, fo, cl) in arms.items():
+        animate(u, "boss_glacis_grasp_attack", R, [(0, (0, 0, s * 1.15)), (0.25, (0, 0, -s * 0.2)), (0.75, (0, 0, -s * 0.15))])
+        animate(fo, "boss_glacis_grasp_attack", R, [(0, (0, 0, s * 0.8)), (0.25, (0, 0, -s * 0.3)), (0.75, (0, 0, -s * 0.3))])
+        for k, c in enumerate(cl):
+            animate(c, "boss_glacis_grasp_attack", R, [(0, (0, 0, (1 if k else -1) * 0.6)), (0.22, (0, 0, -(1 if k else -1) * 0.15)), (0.75, ONE)])
+    animate(body, "boss_glacis_grasp_attack", "location", [(0, (0, 0, 0.5)), (0.25, (0, 0, 0.1)), (0.75, (0, 0, 0.2))])
+
+    # calling its menders: antennae waving, the core pulsing
+    cycle("boss_glacis_summon", 1.0, [
+        (core, S, [(0.4, 0.4, 0.4), (0.1, 0.1, 0.1)]),
+    ] + iris_cycle([0.9, 0.5]) + ant(lambda s, a: [(a, R, [(0.9, 0, s * 0.6), (0.6, 0, s * 0.2)])]))
+
+    # open after a move: the iris gaping, the core bare and guttering, sunk low, the crown slowed
+    cycle("boss_glacis_recover", 1.4, [
+        (body, "location", [(0, 0, -0.2), (0, 0, -0.35)]),
+        (body, R, [(0.06, 0, 0), (0.1, 0, 0)]),
+        (core, S, [(0.25, 0.25, 0.25), (0.1, 0.1, 0.1)]),
+    ] + iris_cycle([1.25, 1.35]) + ant(lambda s, a: [(a, R, [(-0.05, 0, -s * 0.05), (-0.1, 0, -s * 0.08)])]))
+
+    # staggered: listing and rocking, the iris flapping, the crown wobbling on its axis
+    cycle("boss_glacis_stagger", 0.8, [
+        (body, "location", [(0, 0, -0.5)] * 4),
+        (body, R, [(0.12, 0.16, 0), (0.12, 0, 0), (0.12, -0.16, 0), (0.12, 0, 0)]),
+        (ring, R, [(0.12, 0, 0), (0, 0.12, 0.05), (-0.12, 0, 0.1), (0, -0.12, 0.05)]),
+        (core, S, [(-0.2, -0.2, -0.2), (0.2, 0.2, 0.2), (-0.1, -0.1, -0.1), (0.25, 0.25, 0.25)]),
+    ] + iris_cycle([1.3, 0.6, 1.2, 0.4]) + ant(lambda s, a: [(a, R, [(-0.1, 0, s * 0.1), (0, 0, 0), (-0.1, 0, -s * 0.1), (0, 0, 0)])]))
 
 
 # --- ASHGRAVE: WARLORD KHET, riding a re-wired titan head -----------------------------------------

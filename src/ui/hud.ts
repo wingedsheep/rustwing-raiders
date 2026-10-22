@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { HULL_STEP, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
-import { poiseOf, READ_LINE, sigName } from '../sim/boss';
+import { poiseOf, readLine, sigName } from '../sim/boss';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
 import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
+import { coreBadge } from './core-icon';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { frameById, LOAD_CLASS, partById, type FrameDef, type Hardpoint, type PartClass } from '../game/parts';
@@ -373,6 +374,14 @@ export class Hud {
       ctx.fillRect(cx + 3, 8, 1, 6);
       ctx.fillRect(cx + 1, 10, 5, 2);
     }
+    // SPARE TANK: a second, thinner cell beside it
+    if (p.ch.knacks.has('sparetank')) {
+      ctx.fillStyle = '#3a2e48';
+      ctx.fillRect(cx + 8, 7, 3, 8);
+      ctx.fillStyle = p.ch.weld2 >= 1 ? WELD : '#4a8a68';
+      ctx.fillRect(cx + 8, 7 + Math.round(8 * (1 - p.ch.weld2)), 3, Math.round(8 * p.ch.weld2));
+      cx += 4;
+    }
     cx += 9;
     // dashes: pips, the next one filling
     cx += 3;
@@ -409,6 +418,7 @@ export class Hud {
       const ready = p.charge >= 1;
       bar(ctx, x0 + 4, 19, pw - 8, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', 'rgba(60,48,80,0.6)');
     }
+    coreBadge(ctx, p.ch, side === 'left' ? x0 + pw + 8 : x0 - 8, 13, this.time);
     if (p.down) drawText(ctx, lv.players.length > 1 ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', side === 'left' ? x0 : x0 + pw, 28, RED, { align: side });
     else this.grafts(ctx, p, side === 'left' ? x0 : x0 + pw, side);
   }
@@ -567,7 +577,7 @@ export class Hud {
   private bossRead(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, mid: number) {
     const r = view.bossRead;
     if (!r || r.t > 3.2) return;
-    const line = r.read === 'side' ? `SEES YOU HUGGING THE ${r.side < 0 ? 'LEFT' : 'RIGHT'}` : READ_LINE[r.read];
+    const line = readLine(lv.spec.planet.id, r.read, r.side);
     const text = `${lv.spec.planet.boss.name} ${line}`;
     const shown = text.slice(0, Math.ceil(r.t * 60));
     ctx.globalAlpha = clamp((3.2 - r.t) * 3, 0, 1);

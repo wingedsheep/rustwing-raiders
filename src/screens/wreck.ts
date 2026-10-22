@@ -12,6 +12,7 @@ import { FACTION_BODY, FACTION_COLOR, FACTION_DARK, graftIcon } from '../ui/graf
 import { LIVERY } from '../view/ship-model';
 import { WreckYard } from '../view/wreck-yard';
 import { rng } from '../util';
+import { waysOf } from '../game/core';
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Bolt = ReturnType<typeof boltOn>;
@@ -85,7 +86,7 @@ export class WreckScreen implements Screen {
       const own = wrecks.filter((w) => w.owner === i);
       const cards = salvageOffer(rng(seed * 17 + i * 101 + run.levels), own, crew.grafts);
       const none = !cards.length;
-      return { wrecks: own, cards, at: 0, done: none, doneT: none ? 9 : 0, took: -1, stats: stats(crew.build), bolts: cards.map((c) => boltOn(crew.grafts, c.id)) };
+      return { wrecks: own, cards, at: 0, done: none, doneT: none ? 9 : 0, took: -1, stats: stats(crew.build), bolts: cards.map((c) => boltOn(crew.grafts, c.id, waysOf(crew.core.held))) };
     });
     if (this.picks.length === 1) this.yard = new WreckYard(planet, this.picks[0].wrecks, YARD.w, YARD.h);
     audio.play('explode_small', { pitch: 0.6, vol: 0.5 });
@@ -556,7 +557,7 @@ export class WreckScreen implements Screen {
     else if (bolt.replaced) lines.push([`REPLACES ${GRAFTS[bolt.replaced].name}`, GOLD]);
     else lines.push([`INTO THE EMPTY ${VERB_NAME[def.verb]} SOCKET`, GREEN]);
     if (!tool) lines[0] = [`SLEEPS: NO ${NEED[def.verb].replace(/^AN? /, '')}`, RED];
-    const after = factionCount(bolt.next)[f];
+    const after = factionCount(bolt.next, waysOf(crew.core.held))[f];
     if (bolt.woke.length) lines.push([`WAKES ${BONDS[bolt.woke[0]].name}!`, this.t % 0.5 < 0.25 ? INK : col]);
     else if (bolt.broke.length) lines.push([`BREAKS ${BONDS[bolt.broke[0]].name}`, RED]);
     else lines.push([`${FACTION_NAME[f]} BOND ${Math.min(after, BOND_AT)}/${BOND_AT}`, col]);
@@ -638,8 +639,9 @@ export class WreckScreen implements Screen {
   private bondRow(ctx: CanvasRenderingContext2D, p: Pick, i: number, x: number, y: number, w: number, per: number) {
     const have = this.run.crew[i].grafts;
     const focus = !p.done && p.at < p.cards.length ? p.bolts[p.at] : undefined;
-    const now = factionCount(have);
-    const then = focus ? factionCount(focus.next) : now;
+    const ways = waysOf(this.run.crew[i].core.held);
+    const now = factionCount(have, ways);
+    const then = focus ? factionCount(focus.next, ways) : now;
     const fs: Faction[] = ['scrap', 'lattice', 'wild', 'bloom'];
     const cw = Math.floor(w / per);
     fs.forEach((f, k) => {

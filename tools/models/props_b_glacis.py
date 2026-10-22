@@ -7,6 +7,7 @@ import math
 import random
 
 from kit import Model, emitter, light
+from props_a_lib import hull
 from props_b_kit import (M, collider, crystal, facet, jitter, limb, mark, new_faces, paint, pulse, bob,
                          ring, root, xform)
 
@@ -78,45 +79,83 @@ def ice_spire(v):
     return r
 
 
+def _shard(m, rng, size, mat, cols, snow=True, n=10):
+    """An angular slab of ice: the hull of points on the faces of a box, moved by `mat`; faces
+    that look straight up get snow."""
+    st = mark(m)
+    sx, sy, sz = size
+    pts = []
+    for _ in range(n):
+        p = [rng.uniform(-sx, sx) / 2, rng.uniform(-sy, sy) / 2, rng.uniform(-sz, sz) / 2]
+        k = rng.randrange(3)
+        p[k] = size[k] / 2 * (1 if rng.random() < 0.5 else -1)
+        pts.append(p)
+    for cx in (-1, 1):
+        for cy in (-1, 1):
+            for cz in (-1, 1):
+                if rng.random() < 0.7:
+                    pts.append((cx * sx / 2 * rng.uniform(0.75, 1), cy * sy / 2 * rng.uniform(0.75, 1), cz * sz / 2))
+    hull(m, pts, cols[0])
+    fs = xform(m, st, mat)
+    facet(m, fs, cols, noise=0.14, bias=-0.2)
+    if snow:
+        paint(m, [f for f in fs if f.normal.z > 0.82], lambda f: SNOW[2] if f.normal.z > 0.93 else SNOW[1])
+    return fs
+
+
 def ice_block(v):
+    """Ice on the shelf, four ways: a tabular berg with a blue stratum through it and the aurora
+    caught in one cliff (v0); a slab broken and tumbled, one piece reared up on edge (v1); a
+    pressure ridge, plates shoved up in a row (v2); a hoodoo, the wind having carved its foot
+    thin under a snow cap (v3)."""
     r = root("ice_block", v)
     rng = random.Random(120 + v)
     m = Model(f"ice_block_{v}", 120 + v)
     if v == 0:
-        # a tabular berg: flat snowy top, blue cliff sides
-        n = 7
-        pts = [(math.cos(a) * rng.uniform(1.8, 2.5), math.sin(a) * rng.uniform(1.5, 2.1))
-               for a in (i / n * math.tau for i in range(n))]
-        top = [(x * 0.9, y * 0.9) for x, y in pts]
-        f = m.slab(pts, -0.2, 1.4, ICE_LOW[0], top=top)
-        facet(m, f, ICE_LOW, noise=0.1, bias=-0.2)
-        cap = [(x * 0.86, y * 0.86) for x, y in pts]
-        f = m.slab(top, 1.4, 1.65, SNOW[2], top=cap)
-        facet(m, f, SNOW, noise=0.05)
-        m.box((2.4, 0.35, 0.2), (0.2, 0.1, 1.62), ICE_LOW[1], rot=(0, 0, 0.4))   # a crack across the top
+        n = 8
+        pts = [(math.cos(a) * rng.uniform(1.9, 2.7), math.sin(a) * rng.uniform(1.4, 2.0))
+               for a in ((i + rng.uniform(-0.2, 0.2)) / n * math.tau for i in range(n))]
+        sc = lambda k, dx=0.0, dy=0.0: [(x * k + dx, y * k + dy) for x, y in pts]
+        facet(m, m.slab(sc(1.0), -0.3, 0.9, ICE_LOW[0], top=sc(0.96)), ICE_LOW, noise=0.1, bias=-0.25)
+        facet(m, m.slab(sc(0.95), 0.9, 1.15, ICE[1], top=sc(0.93)), ICE[:3], noise=0.1)
+        facet(m, m.slab(sc(0.93, 0.1, -0.05), 1.15, 1.75, ICE_LOW[1], top=sc(0.86, 0.12, -0.05)), ICE_LOW, noise=0.1,
+              bias=-0.15)
+        facet(m, m.slab(sc(0.85, 0.1, -0.05), 1.75, 1.95, SNOW[2], top=sc(0.76, 0.05, 0.0)), SNOW, noise=0.05, bias=0.2)
+        # a crack across the top, and the aurora frozen in the cliff under it
+        m.box((3.2, 0.32, 0.12), (0.3, 0.0, 1.93), ICE[1], rot=(0, 0, 0.5))
+        m.box((0.34, 0.12, 0.9), (pts[1][0] * 0.97, pts[1][1] * 0.97, 0.75), AURORA, rot=(0, 0, math.atan2(pts[1][1], pts[1][0]) + math.pi / 2), glow=True)
     elif v == 1:
-        # tumbled cubes, broken off a shelf
-        for (x, y, s) in ((0, 0, 1.8), (1.5, 0.9, 1.2), (-1.2, 1.1, 1.0), (0.7, -1.4, 0.9)):
-            st = mark(m)
-            m.box((s, s * rng.uniform(0.8, 1.1), s * rng.uniform(0.7, 1.0)), (0, 0, 0), ICE_LOW[0])
-            xform(m, st, M((x, y, s * 0.3), (rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4), rng.uniform(0, 3))))
-            jitter(m, new_faces(m, st), 0.08)
-            facet(m, new_faces(m, st), ICE_LOW, noise=0.15, bias=-0.25)
-    else:
-        # a pressure ridge: slabs shoved up on edge in a row
-        for i in range(5):
-            st = mark(m)
-            w = rng.uniform(1.0, 1.6)
-            m.box((w, 0.55, rng.uniform(1.6, 2.6)), (0, 0, 0), ICE_LOW[0])
-            xform(m, st, M((i * 1.0 - 2.0, rng.uniform(-0.3, 0.3), 0.4),
-                           (rng.uniform(-0.6, 0.6), rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3))))
-            jitter(m, new_faces(m, st), 0.06)
-            facet(m, new_faces(m, st), ICE_LOW, noise=0.15, bias=-0.3)
+        _shard(m, rng, (3.2, 2.4, 0.8), M((-0.6, -0.3, 0.2), (0.08, -0.06, 0.3)), ICE_LOW)
+        _shard(m, rng, (2.4, 1.8, 0.7), M((1.5, 0.9, 0.9), (0.15, 1.05, 2.0)), ICE_LOW)       # reared up on edge
+        _shard(m, rng, (1.6, 1.2, 0.6), M((-1.8, 1.5, 0.2), (0.3, 0.2, 1.1)), ICE_LOW)
+        _shard(m, rng, (1.0, 0.8, 0.5), M((0.9, -1.8, 0.1), (0.4, -0.3, 0.4)), ICE_LOW)
+        _shard(m, rng, (0.8, 0.6, 0.5), M((2.6, -0.6, 0.1), (0.2, 0.5, 2.4)), ICE_LOW)
+    elif v == 2:
+        for i in range(6):
+            w = rng.uniform(1.0, 1.7)
+            tilt = (0.55 if i % 2 else -0.45) + rng.uniform(-0.2, 0.2)
+            _shard(m, rng, (w, 0.55, rng.uniform(1.6, 2.6)),
+                   M((i * 0.95 - 2.4, rng.uniform(-0.35, 0.35), 0.45), (tilt, rng.uniform(-0.2, 0.2), rng.uniform(-0.3, 0.3))),
+                   ICE_LOW, n=8)
         st = mark(m)
-        m.cyl(1.2, 0.3, (0, 0, -0.1), SNOW[1], segs=7, r_top=0.9)
-        xform(m, st, M(scale=(2.2, 0.9, 1.0)))
-        jitter(m, new_faces(m, st), 0.15)
-        facet(m, new_faces(m, st), SNOW)
+        m.ball(1.0, (0, 0.2, -0.1), SNOW[1], subdiv=1, scale=(3.4, 1.3, 0.45), jitter=0.12)
+        facet(m, new_faces(m, st), SNOW, bias=0.2)
+    else:
+        # the hoodoo: a waisted pedestal under a broad cap
+        st = mark(m)
+        pts = []
+        for z, rr in ((-0.3, 1.4), (0.4, 0.9), (1.4, 0.65), (2.1, 1.1)):
+            a0 = rng.uniform(0, math.tau)
+            for k in range(6):
+                a = a0 + k / 6 * math.tau
+                pts.append((math.cos(a) * rr * rng.uniform(0.85, 1.1), math.sin(a) * rr * rng.uniform(0.85, 1.1), z))
+        hull(m, pts, ICE_LOW[0])
+        facet(m, new_faces(m, st), ICE_LOW, noise=0.15, bias=-0.3)
+        _shard(m, rng, (3.6, 3.0, 0.8), M((0.25, 0.1, 2.4), (0.06, -0.05, 0.4)), ICE_LOW)
+        st = mark(m)
+        m.ball(1.5, (0.15, 0.15, 2.82), SNOW[2], subdiv=1, scale=(1.05, 0.9, 0.28), jitter=0.1)
+        facet(m, new_faces(m, st), SNOW, noise=0.05, bias=0.3)
+        _shard(m, rng, (1.2, 0.9, 0.6), M((1.9, -1.2, 0.1), (0.3, 0.2, 0.7)), ICE_LOW)
     m.build(r, rot_z=rng.uniform(0, 1))
     return r
 
@@ -157,11 +196,11 @@ def steam_vent(v):
             facet(m, new_faces(m, st), CRUST, noise=0.1, bias=0.1)
             # the terrace's own little pool, a pink crescent
             if i < 2:
-                m.cyl(rad * 0.88, 0.04, (0.15 * i - 0.25, -0.1 * i - 0.35, z + h), ALGAE[i % 2], segs=10, glow=True)
+                m.cyl(rad * 0.88, 0.04, (0.15 * i - 0.25, -0.1 * i - 0.35, z + h), ALGAE[i % 2], segs=10)
             z += h
         cx, cy = 0.3, -0.2
-        for k, rad in enumerate((1.45, 1.15, 0.85, 0.5)):
-            m.cyl(rad, 0.05, (cx, cy, z + 0.01 + k * 0.012), POOL[[4, 3, 2, 0][k]], segs=10, glow=True)
+        for k, (rad, col) in enumerate(((1.45, "#d8705a"), (1.15, "#f0a860"), (0.85, "#3aa8c0"), (0.4, "#c8fff8"))):
+            m.cyl(rad, 0.05, (cx, cy, z + 0.01 + k * 0.012), col, segs=10, glow=k == 3)
         emitter(r, (cx, cy, z + 0.2), "steam")
         light(r, (cx, cy, z + 0.6), "#7af0f0", radius=4, intensity=0.5, halo=False)
     else:
@@ -179,40 +218,106 @@ def steam_vent(v):
         for a, d, s in ((0.3, 2.1, 1.0), (2.4, 2.0, 0.8), (4.3, 2.3, 0.9)):
             st = mark(m)
             m.cyl(1.0 * s, 0.08, (math.cos(a) * d, math.sin(a) * d, 0), CRUST[3], segs=8)
-            m.cyl(0.8 * s, 0.05, (math.cos(a) * d, math.sin(a) * d, 0.08), ALGAE[0], segs=8, glow=True)
-            m.cyl(0.4 * s, 0.05, (math.cos(a) * d, math.sin(a) * d, 0.1), POOL[0], segs=8, glow=True)
+            m.cyl(0.8 * s, 0.05, (math.cos(a) * d, math.sin(a) * d, 0.08), ALGAE[0], segs=8)
+            m.cyl(0.4 * s, 0.05, (math.cos(a) * d, math.sin(a) * d, 0.1), "#3aa8c0", segs=8)
         emitter(r, (0, 0, 2.4), "steam")
         light(r, (0, 0, 2.6), HOT, radius=4, intensity=0.6, flicker=0.2)
     m.build(r)
     return r
 
 
+SPRUCE = ["#10243a", "#173452", "#20486a", "#2e6082"]   # rime-spruce: deep blue-teal needles
+SPRUCE_BARK = ["#2a2230", "#3e3040", "#544456"]
+
+
+def _lens(m, rng, cx, cy, z, rad, th, droop, cols, n=None, squash=(1.0, 1.0), bias=0.0):
+    """A flat plate of needles, irregular and a little drooping at the rim: the convex hull of a
+    jittered rim (dropped by `droop`), an inner ring on top and a point underneath."""
+    n = n or rng.choice((5, 6, 7))
+    a0 = rng.uniform(0, math.tau)
+    rim = []
+    for i in range(n):
+        a = a0 + (i + rng.uniform(-0.25, 0.25)) / n * math.tau
+        d = rad * rng.uniform(0.72, 1.1)
+        rim.append((math.cos(a) * d * squash[0], math.sin(a) * d * squash[1], a))
+    pts = [(cx + x, cy + y, z - droop * rng.uniform(0.6, 1.2)) for x, y, _ in rim]
+    pts += [(cx + x * 0.45, cy + y * 0.45, z + th) for x, y, _ in rim]
+    pts.append((cx, cy, z - th * 0.5 - droop))
+    f = hull(m, pts, cols[0])
+    facet(m, f, cols, noise=0.12, bias=bias)
+    return rim
+
+
+def _arm(m, rng, c, z, a, length, w, th, droop, cols, snow=True):
+    """One bough of a rime-spruce: a flat, leaf-shaped blade of needles from the trunk out, its tip
+    drooping, a ridge of snow along its back."""
+    ca, sa = math.cos(a), math.sin(a)
+    px, py = -sa, ca
+    def at(t, side, dz):
+        return (c[0] + ca * length * t + px * side, c[1] + sa * length * t + py * side, z + dz)
+    pts = [at(0, -w * 0.45, th), at(0, w * 0.45, th), at(0, 0, -th),
+           at(0.55, -w, th * 0.6 - droop * 0.35), at(0.55, w, th * 0.6 - droop * 0.35), at(0.55, 0, -th - droop * 0.35),
+           at(1.0, -w * 0.18, -droop), at(1.0, w * 0.18, -droop), at(1.0, 0, -droop - th * 0.5)]
+    for i in range(3, 6):
+        q = pts[i]
+        pts[i] = (q[0] + rng.uniform(-0.06, 0.06), q[1] + rng.uniform(-0.06, 0.06), q[2])
+    facet(m, hull(m, pts, cols[0]), cols, noise=0.12, bias=-0.05)
+    if snow:
+        sp = [at(0.05, -w * 0.22, th + 0.02), at(0.05, w * 0.22, th + 0.02), at(0.05, 0, th + 0.2),
+              at(0.5, -w * 0.4, th * 0.6 - droop * 0.3 + 0.05), at(0.5, w * 0.4, th * 0.6 - droop * 0.3 + 0.05),
+              at(0.45, 0, th * 0.6 - droop * 0.25 + 0.2), at(0.72, 0, -droop * 0.6 + th * 0.6)]
+        facet(m, hull(m, sp, SNOW[2]), SNOW, noise=0.06, bias=0.35)
+
+
 def conifer(v):
-    """A dark spruce bowed under snow: from above, rings of white and dark teal."""
+    """A rime-spruce: no cone of needles but tiers of flat, leaf-shaped boughs standing straight out
+    from a leaning trunk, each tier turned against the one below, so from above it is a spiky star of
+    snow-ridged blades over blue-black, with the trunk showing between; a pale frost bud on top."""
     r = root("conifer", v)
     rng = random.Random(180 + v)
     m = Model(f"conifer_{v}", 180 + v)
-    trees = {0: [(0, 0, 1.0, 4)], 1: [(0, 0, 0.75, 6)], 2: [(-0.8, 0.2, 0.75, 4), (0.9, -0.3, 0.55, 3)]}[v]
-    for x, y, s, tiers in trees:
-        m.cyl(0.22 * s, 1.2 * s, (x, y, 0), BARK, segs=5)
-        step = 1.0 if tiers <= 4 else 0.82
+    # (x, y, height, base reach, tiers, lean, arms in the bottom tier)
+    trees = {0: [(0, 0, 5.2, 2.1, 4, (0.35, -0.2), 6)],
+             1: [(0, 0, 3.4, 2.3, 3, (-0.2, 0.3), 7)],
+             2: [(-1.0, 0.3, 4.4, 1.7, 4, (-0.3, 0.1), 5), (1.3, -0.6, 2.8, 1.3, 3, (0.25, -0.2), 5)],
+             3: [(0, 0, 4.6, 2.0, 4, (0.6, 0.25), 5)]}[v]
+    for x, y, h, reach, tiers, lean, arms0 in trees:
+        top = (x + lean[0], y + lean[1], h)
+        st = mark(m)
+        limb(m, (x, y, -0.2), (x + lean[0] * 0.5, y + lean[1] * 0.5, h * 0.5), 0.3, 0.22, SPRUCE_BARK[0], segs=5)
+        limb(m, (x + lean[0] * 0.5, y + lean[1] * 0.5, h * 0.5), top, 0.22, 0.08, SPRUCE_BARK[0], segs=5)
+        facet(m, new_faces(m, st), SPRUCE_BARK, noise=0.1)
+        a0 = rng.uniform(0, math.tau)
+        lean_a = math.atan2(lean[1], lean[0])
         for i in range(tiers):
-            z = (0.7 + i * step) * s
-            rad = (1.65 - i * (1.35 / tiers)) * s
-            col = PINE[(i + v) % 3]
-            st = mark(m)
-            m.cyl(rad, 1.5 * s, (x, y, z), col, segs=7, r_top=0.06, rot=(0, 0, rng.uniform(0, 1)))
-            jitter(m, new_faces(m, st), 0.06 * s, z=False)
-            facet(m, new_faces(m, st), [PINE[0], col, PINE_LIGHT], noise=0.1)
-            # the snow load: a white cone sitting on the tier, leaving a dark fringe
-            st = mark(m)
-            m.cyl(rad * 0.84, 0.95 * s, (x + 0.05, y - 0.05, z + 0.5 * s), SNOW[2], segs=7, r_top=0.04,
-                  rot=(0, 0, rng.uniform(0, 1)))
-            jitter(m, new_faces(m, st), 0.05 * s, z=False)
-            facet(m, new_faces(m, st), SNOW, noise=0.05, bias=0.2)
-        m.ball(0.3 * s, (x, y, (0.7 + tiers * step) * s + 0.2), SNOW[2], subdiv=0)
+            t = i / max(1, tiers - 1)
+            z = h * (0.3 + 0.6 * t)
+            k = 0.35 + 0.65 * (1 - t)
+            cx, cy = x + lean[0] * (z / h), y + lean[1] * (z / h)
+            n = max(3, arms0 - i)
+            for j in range(n):
+                a = a0 + i * 0.9 + (j + rng.uniform(-0.18, 0.18)) / n * math.tau
+                L = reach * k * rng.uniform(0.8, 1.12)
+                if v == 3:
+                    # windswept: the boughs on the weather side broken short
+                    L *= 0.45 + 0.55 * (1 + math.cos(a - lean_a)) / 2
+                _arm(m, rng, (cx, cy), z, a, L, 0.42 * k + 0.2, 0.1 + 0.05 * k, 0.32 * k + 0.1, SPRUCE)
+        m.cyl(0.22, 0.8, top, ICE[4], segs=5, r_top=0.0)
+    if v == 0:
+        x, y, h, *_ = trees[0]
+        lean = trees[0][5]
+        m.ball(0.3, (x + lean[0], y + lean[1], h + 0.3), AURORA, subdiv=0, glow=True)
+    for x, y, *_ in trees:
+        _snow_foot(m, rng, (x, y), 0.9)
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
+
+
+def _snow_foot(m, rng, c, rad):
+    """A low drift round a trunk, so it stands in the snow rather than on it."""
+    st = mark(m)
+    m.ball(rad, (c[0] + 0.2, c[1] - 0.15, -0.25), SNOW[1], subdiv=1, scale=(1.1, 0.9, 0.22), jitter=0.08 * rad)
+    facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
 
 
 # --- Engine City ------------------------------------------------------------------------
@@ -284,11 +389,11 @@ def machine_dome(v):
         st = mark(m)
         m.ball(3.0, (0, 0, -0.4), METAL[2], subdiv=1, scale=(1, 1, 0.75))
         facet(m, new_faces(m, st), METAL[1:], noise=0.05)
-        for k in range(10):
-            a = k / 10 * math.tau
-            m.box((0.35, 0.9, 0.5), (math.cos(a) * 2.5, math.sin(a) * 2.5, 0.75), HOT, rot=(0, 0, a), glow=True)
+        for k in range(5):
+            a = k / 5 * math.tau + 0.4
+            m.box((0.35, 0.7, 0.4), (math.cos(a) * 2.55, math.sin(a) * 2.55, 0.75), HOT, rot=(0, 0, a), glow=True)
         m.cyl(1.1, 0.25, (0, 0, 1.6), METAL[0], segs=8)
-        eye_z, eye_r = 1.85, 0.85
+        eye_z, eye_r = 1.85, 0.55
         # snow drifted up one side
         st = mark(m)
         m.ball(2.4, (-1.6, 1.3, 0.0), SNOW[2], subdiv=1, scale=(1.0, 0.8, 0.55), jitter=0.15)
@@ -301,9 +406,13 @@ def machine_dome(v):
             m.cyl(rad, h, (0, 0, z), METAL[1], segs=8, r_top=rad * 0.92, rot=(0, 0, math.pi / 8))
             facet(m, new_faces(m, st), METAL, noise=0.05)
             z += h
-            m.cyl(rad * 0.85, 0.16, (0, 0, z), HOT, segs=8, rot=(0, 0, math.pi / 8), glow=True)
+            m.cyl(rad * 0.86, 0.16, (0, 0, z), METAL[0], segs=8, rot=(0, 0, math.pi / 8))
+            for k in range(4):
+                a = (k + 0.5 * i) / 4 * math.tau + 0.3
+                m.box((0.3, rad * 0.5, 0.18), (math.cos(a) * rad * 0.8, math.sin(a) * rad * 0.8, z + 0.02), HOT,
+                      rot=(0, 0, a), glow=True)
             z += 0.12
-        eye_z, eye_r = z, 0.7
+        eye_z, eye_r = z, 0.5
         # an ice crust cracked over half of it
         st = mark(m)
         m.ball(2.6, (1.3, -0.6, 0.6), ICE_LOW[3], subdiv=1, scale=(1.0, 1.1, 0.6), jitter=0.2)
@@ -314,7 +423,7 @@ def machine_dome(v):
     em.cyl(eye_r * 0.5, 0.25, (0, 0, 0), HOT_PALE, segs=8, glow=True)
     eye = em.build(r, loc=(0, 0, eye_z))
     pulse(eye, f"machine_dome_{v}_pulse_idle", amp=0.25, period=2.6, axes=(1, 1, 0.5))
-    light(r, (0, 0, eye_z + 0.6), HOT, radius=6, intensity=0.9)
+    light(r, (0, 0, eye_z + 0.6), HOT, radius=6, intensity=0.6, halo=False)
     return r
 
 
@@ -368,10 +477,11 @@ def light_strip(v):
 def build():
     for v in range(2):
         ice_spire(v)
-    for v in range(3):
+    for v in range(4):
         ice_block(v)
-        snow_rock(v)
         conifer(v)
+    for v in range(3):
+        snow_rock(v)
         light_strip(v)
     for v in range(2):
         steam_vent(v)

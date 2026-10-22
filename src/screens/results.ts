@@ -4,7 +4,9 @@ import type { LevelSpec } from '../sim/level';
 import { CARGO, Run, SELL } from '../sim/run';
 import { partById } from '../game/parts';
 import { itemName, rollItem, TIER_VALUE, tierOf, TIERS, type Item, type Tier } from '../game/loot';
-import { rng } from '../util';
+import { clamp, rng } from '../util';
+import { VEINS, VEIN_COLOR, grownCount, toGrow } from '../game/core';
+import { coreBall } from '../ui/core-icon';
 import { ROLES } from '../sim/convoy';
 import { bestFit, type Fit } from '../sim/fit';
 import { audio } from '../audio';
@@ -237,6 +239,7 @@ export class Results implements Screen {
       drawText(ctx, 'RANK', W - 34, 46, DIM, { align: 'center' });
     }
     r?.lines.forEach((l, k) => drawText(ctx, l, W / 2, 46 + k * 9, k ? DIM : INK, { align: 'center' }));
+    this.core(ctx);
     if (this.picks.length === 1) this.solo(ctx, this.picks[0]);
     else this.picks.forEach((p, i) => this.column(ctx, p, i));
     for (const s of this.sparks) {
@@ -246,6 +249,29 @@ export class Results implements Screen {
       ctx.fillRect(Math.round(s.x), Math.round(s.y), sz, sz);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** In the corner across from the rank: what each core took in from the fight, and how near it is to growing. */
+  private core(ctx: CanvasRenderingContext2D) {
+    this.run.crew.forEach((crew, i) => {
+      const fed = this.res.fed[i];
+      const c = crew.core;
+      const y = 12 + i * 22;
+      const a = clamp((this.t - 0.4 - i * 0.15) * 3, 0, 1);
+      if (!a) return;
+      ctx.globalAlpha = a;
+      coreBall(ctx, 20, y + 6, 6, this.t, { woke: c.woke?.temper });
+      let x = 32;
+      drawText(ctx, c.woke ? c.woke.name : 'THE CORE', x, y, c.woke ? VEIN_COLOR[c.woke.temper] : DIM);
+      for (const v of VEINS) {
+        if (!fed?.vein[v]) continue;
+        x += drawText(ctx, `+${fed.vein[v]}`, x, y + 9, VEIN_COLOR[v]) + 4;
+      }
+      if (x === 32) x += drawText(ctx, 'NOTHING NEW', x, y + 9, '#5a5068') + 4;
+      const label = c.growths ? 'IT GROWS' : grownCount(c) === c.tree.length ? 'FULL GROWN' : `${c.learnt}/${toGrow(grownCount(c) + c.growths)}`;
+      drawText(ctx, label, x + 2, y + 9, c.growths ? (Math.floor(this.t * 3) % 2 ? GOLD : INK) : '#5a5068');
+      ctx.globalAlpha = 1;
+    });
   }
 
   /** A card where it is in its turn: face down, turning, or face up (lifted when in focus). */

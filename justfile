@@ -8,9 +8,9 @@ default:
 install:
     npm install
 
-# run the game locally with hot reload (rebuilds the models first)
-dev: models
-    npm run dev
+# run the game locally with hot reload (rebuilds the models first); `just dev fixed` serves a frozen build instead
+dev mode="": models
+    {{ if mode == "fixed" { "npx vite build --logLevel warn && npx vite preview --port 5190 --open" } else { "npm run dev" } }}
 
 # just the dev server, without rebuilding the models
 serve:

@@ -26,10 +26,11 @@ import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
-import { GraftsView } from './grafts-view';
 import { ConvoyView } from './convoy-view';
 import { HeistView } from './heist-view';
-import { TraitsView } from './traits';
+import { TraitsView, type TraitHost } from './traits';
+import { GraftsView } from './grafts-view';
+import { CoreView } from './core-view';
 import { AFFIXES, AFFIX_COLOR, TRAITS, itemName, tierOf, type AffixId, type Tier } from '../game/loot';
 import { TIER_COLOR } from '../ui/widgets';
 import { HOT as HOT_TEXT } from '../ui/hud';
@@ -144,6 +145,8 @@ export class LevelView {
   private traits: TraitsView;
   /** The wreck grafts in flight (see grafts-view.ts). */
   private grafts: GraftsView;
+  /** The core in flight (see core-view.ts). */
+  private core: CoreView;
   private shields: Shields;
   /** An escort's haulers. */
   private convoy: ConvoyView | null = null;
@@ -279,7 +282,7 @@ export class LevelView {
         if (o.shove) this.shove(o.dx ?? 0, o.dz ?? 1, o.shove);
       },
     });
-    this.grafts = new GraftsView(lv, this.fx, {
+    const host: TraitHost = {
       pop: (text, x, z, color, big) => this.pop(text, x, z, color, big),
       unpop: (prefix) => (this.pops = this.pops.filter((p) => !p.text.startsWith(prefix))),
       bolt: (pts, col) => this.bolt(pts, col),
@@ -292,8 +295,10 @@ export class LevelView {
         }
         if (o.shove) this.shove(o.dx ?? 0, o.dz ?? 1, o.shove);
       },
-    });
+    };
+    this.grafts = new GraftsView(lv, this.fx, host);
     this.scene.add(this.grafts.group);
+    this.core = new CoreView(lv, this.fx, host);
     const disc = new THREE.CircleGeometry(0.5, 10);
     // the hitbox while focusing: a white dot ringed dark, the size the sim really uses
     lv.players.forEach((p) => {
@@ -346,6 +351,7 @@ export class LevelView {
     for (const e of events) {
       if (this.traits.handle(e)) continue;
       if (this.grafts.handle(e)) continue;
+      if (this.core.handle(e)) continue;
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
@@ -595,6 +601,9 @@ export class LevelView {
           // Vask's own: she draws breath for a screech, her wings creak up for a gust
           if (en?.boss?.move === 'screech') audio.play('shriek', { pan: en.x / HALF_W, pitch: 0.6, vol: 0.5 });
           else if (en?.boss?.move === 'gust') audio.play('wingbeat', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.5 });
+          // the Engine's: ice groaning as it shudders, a low toll as it's about to count
+          else if (en?.boss?.move === 'calve') audio.play('ice_crack', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.7 });
+          else if (en?.boss?.move === 'count') audio.play('toll', { pan: en.x / HALF_W, pitch: 0.5, vol: 0.8 });
           else if (en && (e.kind === 'torpedo' || e.kind === 'seekers')) {
             // (the lattice's lock is higher and colder)
             audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5, pitch: e.kind === 'seekers' ? 1.25 : 1 });
@@ -915,6 +924,7 @@ export class LevelView {
           this.hitstop = 10;
           audio.play('explode_big');
           audio.part(e.phase);
+          if (lv.spec.planet.id === 'glacis') audio.play('engine_wake', { pitch: e.phase >= 2 ? 1.12 : 1 });
           // what it sheds: the pieces burst off it (Vask's cage), and it says so
           const boss = lv.enemies.find((o) => o.boss && !o.dead);
           const v = boss && this.enemies.get(boss.id);
@@ -936,7 +946,16 @@ export class LevelView {
             audio.play('wingbeat', { pan: e.x / HALF_W });
             this.trauma = Math.min(1, this.trauma + 0.15);
             this.fx.ring(e.x, FLIGHT_Y, e.z + 3, 10, 0.3, true, 0xfff0d0);
-          }
+          } else if (e.move === 'count') {
+            // the Engine's count climbs the scale, a tone a beat; and a low one as it's done
+            const up = [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17];
+            audio.play('toll', { pan: e.x / HALF_W, pitch: e.k < 0 ? 0.5 : 2 ** (up[Math.min(e.k, up.length - 1)] / 12), vol: e.k < 0 ? 0.9 : 0.7 });
+            this.fx.ring(e.x, FLIGHT_Y, e.z, e.k < 0 ? 8 : 3, 0.2, true, 0xffd8a0);
+          } else if (e.move === 'scan' || e.move === 'cross') audio.play('toll', { pan: e.x / HALF_W, pitch: e.move === 'cross' ? 0.75 : 1.5, vol: 0.6 });
+          else if (e.move === 'calve') {
+            audio.play('ice_crack', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.15 });
+            this.shards(e.x, e.z, 10, 0xbfe8ff);
+          } else if (e.move === 'frost') audio.play('frost_breath', { pan: e.x / HALF_W, vol: 0.6 });
           break;
         case 'biome': {
           // named only as the level starts, not at every biome after
@@ -1621,6 +1640,7 @@ export class LevelView {
     this.updateDecoys();
     this.traits.update(dt, scrollDz);
     this.grafts.update(dt, scrollDz);
+    this.core.update(dt);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.hazards.update(dt);
@@ -2214,11 +2234,15 @@ export class LevelView {
         this.laserMeshes.push(m);
         this.scene.add(m);
       }
-      const dx = l.x2 - l.x;
-      const dz = l.z2 - l.z;
+      // (a beam that starts further out: drawn from there)
+      const len0 = Math.hypot(l.x2 - l.x, l.z2 - l.z) || 1;
+      const x0 = l.x + ((l.x2 - l.x) * (l.r0 ?? 0)) / len0;
+      const z0 = l.z + ((l.z2 - l.z) * (l.r0 ?? 0)) / len0;
+      const dx = l.x2 - x0;
+      const dz = l.z2 - z0;
       const len = Math.hypot(dx, dz);
       m.visible = true;
-      m.position.set(l.x + dx / 2, FLIGHT_Y + 0.9, l.z + dz / 2);
+      m.position.set(x0 + dx / 2, FLIGHT_Y + 0.9, z0 + dz / 2);
       m.rotation.y = Math.atan2(dx, dz);
       const mat = m.material as THREE.MeshBasicMaterial;
       if (l.warn > 0) {

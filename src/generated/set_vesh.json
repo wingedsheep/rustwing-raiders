@@ -111,6 +111,54 @@
   "mounts": [],
   "variant": 1
  },
+ "vesh_bone_tip#0": {
+  "colliders": [],
+  "kind": "vesh_bone_tip",
+  "max": [
+   2.928,
+   2.256,
+   1.293
+  ],
+  "min": [
+   -2.337,
+   -0.871,
+   -1.822
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_bone_tip#1": {
+  "colliders": [],
+  "kind": "vesh_bone_tip",
+  "max": [
+   2.956,
+   2.158,
+   3.018
+  ],
+  "min": [
+   -3.063,
+   -2.132,
+   -2.762
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_bone_tip#2": {
+  "colliders": [],
+  "kind": "vesh_bone_tip",
+  "max": [
+   2.711,
+   2.655,
+   1.732
+  ],
+  "min": [
+   -1.926,
+   -0.999,
+   -1.063
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "vesh_carcass#0": {
   "colliders": [],
   "kind": "vesh_carcass",
@@ -132,7 +180,7 @@
   "kind": "vesh_carcass",
   "max": [
    18.836,
-   8.046,
+   7.737,
    22.679
   ],
   "min": [
@@ -197,6 +245,54 @@
   "mounts": [],
   "variant": 1
  },
+ "vesh_conch#0": {
+  "colliders": [],
+  "kind": "vesh_conch",
+  "max": [
+   1.508,
+   1.808,
+   1.677
+  ],
+  "min": [
+   -2.31,
+   -0.317,
+   -2.414
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_conch#1": {
+  "colliders": [],
+  "kind": "vesh_conch",
+  "max": [
+   2.479,
+   0.586,
+   2.184
+  ],
+  "min": [
+   -1.784,
+   -0.158,
+   -1.623
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_conch#2": {
+  "colliders": [],
+  "kind": "vesh_conch",
+  "max": [
+   1.202,
+   1.046,
+   1.343
+  ],
+  "min": [
+   -1.202,
+   -0.06,
+   -1.343
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "vesh_coral_arch#0": {
   "colliders": [
    {
@@ -250,7 +346,7 @@
   ],
   "min": [
    -47.186,
-   -3.154,
+   -3.169,
    -7.204
   ],
   "mounts": [],
@@ -325,16 +421,64 @@
   "mounts": [],
   "variant": 1
  },
+ "vesh_coral_rubble#0": {
+  "colliders": [],
+  "kind": "vesh_coral_rubble",
+  "max": [
+   1.967,
+   0.605,
+   1.246
+  ],
+  "min": [
+   -2.055,
+   -0.33,
+   -2.41
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_coral_rubble#1": {
+  "colliders": [],
+  "kind": "vesh_coral_rubble",
+  "max": [
+   2.012,
+   0.564,
+   0.957
+  ],
+  "min": [
+   -2.431,
+   -0.288,
+   -1.867
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_coral_rubble#2": {
+  "colliders": [],
+  "kind": "vesh_coral_rubble",
+  "max": [
+   2.459,
+   0.841,
+   2.795
+  ],
+  "min": [
+   -2.387,
+   -0.326,
+   -1.945
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "vesh_giant_clam#0": {
   "colliders": [],
   "kind": "vesh_giant_clam",
   "max": [
-   16.489,
+   16.627,
    5.8,
    16.004
   ],
   "min": [
-   -16.834,
+   -16.129,
    -2.146,
    -16.484
   ],
@@ -361,14 +505,14 @@
   "colliders": [],
   "kind": "vesh_grotto",
   "max": [
-   24.454,
-   6.873,
-   24.525
+   19.312,
+   4.588,
+   21.381
   ],
   "min": [
-   -22.932,
-   -0.941,
-   -22.87
+   -20.038,
+   -1.77,
+   -20.548
   ],
   "mounts": [],
   "variant": 0
@@ -389,6 +533,86 @@
   "mounts": [],
   "variant": 1
  },
+ "vesh_jawbone#0": {
+  "colliders": [],
+  "kind": "vesh_jawbone",
+  "max": [
+   1.963,
+   2.067,
+   3.362
+  ],
+  "min": [
+   -3.074,
+   -0.25,
+   -3.413
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_jawbone#1": {
+  "colliders": [],
+  "kind": "vesh_jawbone",
+  "max": [
+   3.505,
+   2.757,
+   2.886
+  ],
+  "min": [
+   -3.252,
+   -0.572,
+   -4.314
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_kelp_mat#0": {
+  "colliders": [],
+  "kind": "vesh_kelp_mat",
+  "max": [
+   2.766,
+   0.3,
+   3.336
+  ],
+  "min": [
+   -2.278,
+   -0.257,
+   -3.721
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_kelp_mat#1": {
+  "colliders": [],
+  "kind": "vesh_kelp_mat",
+  "max": [
+   2.965,
+   0.3,
+   4.177
+  ],
+  "min": [
+   -4.429,
+   -0.296,
+   -4.621
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_kelp_mat#2": {
+  "colliders": [],
+  "kind": "vesh_kelp_mat",
+  "max": [
+   2.973,
+   0.48,
+   3.012
+  ],
+  "min": [
+   -2.761,
+   -0.235,
+   -3.401
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "vesh_mangrove_span#0": {
   "colliders": [
    {
@@ -405,11 +629,11 @@
   "kind": "vesh_mangrove_span",
   "max": [
    50.305,
-   21.696,
+   20.739,
    9.283
   ],
   "min": [
-   -50.744,
+   -50.496,
    -2.892,
    -9.828
   ],
@@ -431,65 +655,49 @@
   ],
   "kind": "vesh_mangrove_span",
   "max": [
-   49.956,
-   22.769,
-   7.916
+   50.309,
+   21.27,
+   8.114
   ],
   "min": [
-   -50.317,
+   -50.391,
    -2.804,
-   -8.385
+   -8.573
   ],
   "mounts": [],
   "variant": 1
  },
- "vesh_palm#0": {
+ "vesh_mussel_bed#0": {
   "colliders": [],
-  "kind": "vesh_palm",
+  "kind": "vesh_mussel_bed",
   "max": [
-   5.056,
-   5.861,
-   4.693
+   1.675,
+   0.98,
+   1.791
   ],
   "min": [
-   -3.197,
-   -0.238,
-   -3.403
+   -1.748,
+   -0.22,
+   -1.788
   ],
   "mounts": [],
   "variant": 0
  },
- "vesh_palm#1": {
+ "vesh_mussel_bed#1": {
   "colliders": [],
-  "kind": "vesh_palm",
+  "kind": "vesh_mussel_bed",
   "max": [
-   4.128,
-   6.261,
-   5.523
+   2.239,
+   0.98,
+   2.551
   ],
   "min": [
-   -4.458,
-   -0.293,
-   -5.445
+   -2.767,
+   -0.22,
+   -2.963
   ],
   "mounts": [],
   "variant": 1
- },
- "vesh_palm#2": {
-  "colliders": [],
-  "kind": "vesh_palm",
-  "max": [
-   2.137,
-   3.838,
-   2.834
-  ],
-  "min": [
-   -2.805,
-   -0.293,
-   -2.052
-  ],
-  "mounts": [],
-  "variant": 2
  },
  "vesh_pillar_coral#0": {
   "colliders": [],
@@ -549,11 +757,267 @@
   ],
   "min": [
    -14.03,
-   -1.371,
+   -1.449,
    -25.991
   ],
   "mounts": [],
   "variant": 0
+ },
+ "vesh_reef_head#0": {
+  "colliders": [],
+  "kind": "vesh_reef_head",
+  "max": [
+   2.958,
+   1.127,
+   3.008
+  ],
+  "min": [
+   -3.13,
+   -1.22,
+   -3.25
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_reef_head#1": {
+  "colliders": [],
+  "kind": "vesh_reef_head",
+  "max": [
+   4.264,
+   1.97,
+   3.858
+  ],
+  "min": [
+   -3.866,
+   -1.22,
+   -4.191
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_reef_head#2": {
+  "colliders": [],
+  "kind": "vesh_reef_head",
+  "max": [
+   3.041,
+   1.782,
+   2.902
+  ],
+  "min": [
+   -2.886,
+   -1.22,
+   -3.252
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "vesh_ribcage#0": {
+  "colliders": [],
+  "kind": "vesh_ribcage",
+  "max": [
+   7.302,
+   2.764,
+   5.575
+  ],
+  "min": [
+   -6.355,
+   -0.658,
+   -5.25
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_ribcage#1": {
+  "colliders": [],
+  "kind": "vesh_ribcage",
+  "max": [
+   6.184,
+   2.764,
+   6.201
+  ],
+  "min": [
+   -6.109,
+   -0.648,
+   -6.283
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_rimstone#0": {
+  "colliders": [],
+  "kind": "vesh_rimstone",
+  "max": [
+   3.469,
+   2.08,
+   3.611
+  ],
+  "min": [
+   -3.423,
+   -0.2,
+   -3.28
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_rimstone#1": {
+  "colliders": [],
+  "kind": "vesh_rimstone",
+  "max": [
+   4.237,
+   1.98,
+   3.691
+  ],
+  "min": [
+   -4.256,
+   -0.2,
+   -3.181
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_saltbush#0": {
+  "colliders": [],
+  "kind": "vesh_saltbush",
+  "max": [
+   2.584,
+   0.906,
+   2.138
+  ],
+  "min": [
+   -2.461,
+   -0.295,
+   -2.762
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_saltbush#1": {
+  "colliders": [],
+  "kind": "vesh_saltbush",
+  "max": [
+   2.747,
+   0.896,
+   1.746
+  ],
+  "min": [
+   -3.005,
+   -0.352,
+   -1.909
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_saltbush#2": {
+  "colliders": [],
+  "kind": "vesh_saltbush",
+  "max": [
+   1.385,
+   0.918,
+   2.13
+  ],
+  "min": [
+   -1.775,
+   -0.395,
+   -1.255
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "vesh_screwpine#0": {
+  "colliders": [],
+  "kind": "vesh_screwpine",
+  "max": [
+   3.285,
+   5.261,
+   2.172
+  ],
+  "min": [
+   -2.231,
+   -0.284,
+   -3.01
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_screwpine#1": {
+  "colliders": [],
+  "kind": "vesh_screwpine",
+  "max": [
+   3.193,
+   6.049,
+   2.05
+  ],
+  "min": [
+   -1.773,
+   -0.292,
+   -2.907
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_screwpine#2": {
+  "colliders": [],
+  "kind": "vesh_screwpine",
+  "max": [
+   1.63,
+   2.922,
+   1.67
+  ],
+  "min": [
+   -1.734,
+   -0.286,
+   -1.717
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "vesh_sea_grape#0": {
+  "colliders": [],
+  "kind": "vesh_sea_grape",
+  "max": [
+   1.652,
+   1.648,
+   1.888
+  ],
+  "min": [
+   -1.685,
+   0.024,
+   -1.474
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_sea_grape#1": {
+  "colliders": [],
+  "kind": "vesh_sea_grape",
+  "max": [
+   2.517,
+   1.843,
+   2.224
+  ],
+  "min": [
+   -2.448,
+   -0.127,
+   -2.481
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_sea_grape#2": {
+  "colliders": [],
+  "kind": "vesh_sea_grape",
+  "max": [
+   2.224,
+   1.176,
+   1.625
+  ],
+  "min": [
+   -1.456,
+   0.004,
+   -2.182
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "vesh_sea_stacks#0": {
   "colliders": [
@@ -580,14 +1044,14 @@
   ],
   "kind": "vesh_sea_stacks",
   "max": [
-   24.206,
-   25.368,
-   4.922
+   24.178,
+   24.567,
+   5.163
   ],
   "min": [
-   -23.51,
-   -3.166,
-   -6.138
+   -22.63,
+   -3.16,
+   -5.277
   ],
   "mounts": [],
   "variant": 0
@@ -612,17 +1076,65 @@
   ],
   "kind": "vesh_sea_stacks",
   "max": [
-   20.244,
-   24.808,
-   6.284
+   20.289,
+   23.992,
+   5.516
   ],
   "min": [
-   -19.883,
+   -19.586,
    -3.226,
-   -5.786
+   -5.205
   ],
   "mounts": [],
   "variant": 1
+ },
+ "vesh_seagrass#0": {
+  "colliders": [],
+  "kind": "vesh_seagrass",
+  "max": [
+   2.151,
+   0.55,
+   2.309
+  ],
+  "min": [
+   -2.736,
+   -0.232,
+   -2.591
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_seagrass#1": {
+  "colliders": [],
+  "kind": "vesh_seagrass",
+  "max": [
+   2.6,
+   1.38,
+   2.477
+  ],
+  "min": [
+   -2.487,
+   -0.231,
+   -2.572
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_seagrass#2": {
+  "colliders": [],
+  "kind": "vesh_seagrass",
+  "max": [
+   1.762,
+   0.57,
+   2.463
+  ],
+  "min": [
+   -2.104,
+   -0.335,
+   -1.923
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "vesh_shack#0": {
   "colliders": [],
@@ -652,6 +1164,38 @@
    -4.197,
    -0.2,
    -2.577
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_skiff#0": {
+  "colliders": [],
+  "kind": "vesh_skiff",
+  "max": [
+   1.81,
+   1.7,
+   1.62
+  ],
+  "min": [
+   -3.315,
+   -0.6,
+   -2.747
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_skiff#1": {
+  "colliders": [],
+  "kind": "vesh_skiff",
+  "max": [
+   1.995,
+   1.7,
+   3.609
+  ],
+  "min": [
+   -2.903,
+   -0.6,
+   -5.946
   ],
   "mounts": [],
   "variant": 1
@@ -692,7 +1236,7 @@
   "kind": "vesh_skull_gate",
   "max": [
    23.813,
-   25.641,
+   28.281,
    10.99
   ],
   "min": [
@@ -735,7 +1279,7 @@
   "min": [
    -22.773,
    -3.087,
-   -5.238
+   -5.206
   ],
   "mounts": [],
   "variant": 1
@@ -794,10 +1338,10 @@
   "max": [
    48.642,
    21.757,
-   7.95
+   7.782
   ],
   "min": [
-   -48.889,
+   -48.785,
    -7.398,
    -8.358
   ],
@@ -808,14 +1352,14 @@
   "colliders": [],
   "kind": "vesh_stalagmite",
   "max": [
-   1.992,
-   3.716,
-   1.315
+   1.778,
+   3.76,
+   1.858
   ],
   "min": [
-   -2.865,
-   -0.2,
-   -3.402
+   -1.681,
+   -0.259,
+   -1.628
   ],
   "mounts": [],
   "variant": 0
@@ -824,14 +1368,14 @@
   "colliders": [],
   "kind": "vesh_stalagmite",
   "max": [
-   1.562,
-   4.962,
-   1.983
+   1.74,
+   3.16,
+   2.006
   ],
   "min": [
-   -2.867,
-   -0.2,
-   -2.424
+   -1.722,
+   -0.25,
+   -1.591
   ],
   "mounts": [],
   "variant": 1
@@ -840,14 +1384,14 @@
   "colliders": [],
   "kind": "vesh_stalagmite",
   "max": [
-   2.045,
-   4.516,
-   3.025
+   2.1,
+   1.36,
+   2.159
   ],
   "min": [
-   -2.686,
-   -0.2,
-   -2.033
+   -1.608,
+   -0.251,
+   -1.653
   ],
   "mounts": [],
   "variant": 2
@@ -883,6 +1427,150 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "vesh_table_coral#0": {
+  "colliders": [],
+  "kind": "vesh_table_coral",
+  "max": [
+   3.422,
+   2.64,
+   4.264
+  ],
+  "min": [
+   -2.937,
+   -0.821,
+   -3.101
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_table_coral#1": {
+  "colliders": [],
+  "kind": "vesh_table_coral",
+  "max": [
+   3.83,
+   3.04,
+   3.694
+  ],
+  "min": [
+   -3.751,
+   -0.905,
+   -3.828
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_table_coral#2": {
+  "colliders": [],
+  "kind": "vesh_table_coral",
+  "max": [
+   3.588,
+   2.24,
+   3.965
+  ],
+  "min": [
+   -3.428,
+   -1.082,
+   -2.809
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "vesh_tide_pool#0": {
+  "colliders": [],
+  "kind": "vesh_tide_pool",
+  "max": [
+   2.708,
+   0.515,
+   2.65
+  ],
+  "min": [
+   -2.42,
+   -0.218,
+   -2.392
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_tide_pool#1": {
+  "colliders": [],
+  "kind": "vesh_tide_pool",
+  "max": [
+   3.217,
+   0.45,
+   2.641
+  ],
+  "min": [
+   -2.671,
+   -0.219,
+   -2.08
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_tide_pool#2": {
+  "colliders": [],
+  "kind": "vesh_tide_pool",
+  "max": [
+   4.011,
+   0.532,
+   4.025
+  ],
+  "min": [
+   -3.831,
+   -0.218,
+   -3.787
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "vesh_urchin#0": {
+  "colliders": [],
+  "kind": "vesh_urchin",
+  "max": [
+   2.334,
+   1.308,
+   2.409
+  ],
+  "min": [
+   -2.365,
+   -0.138,
+   -2.346
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "vesh_urchin#1": {
+  "colliders": [],
+  "kind": "vesh_urchin",
+  "max": [
+   1.825,
+   0.936,
+   1.983
+  ],
+  "min": [
+   -1.874,
+   -0.125,
+   -1.669
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "vesh_urchin#2": {
+  "colliders": [],
+  "kind": "vesh_urchin",
+  "max": [
+   1.812,
+   1.743,
+   1.804
+  ],
+  "min": [
+   -1.856,
+   -0.188,
+   -1.909
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "vesh_vertebra#0": {
   "colliders": [],
@@ -920,14 +1608,14 @@
   "colliders": [],
   "kind": "vesh_vertebra",
   "max": [
-   2.186,
-   4.606,
-   3.462
+   3.721,
+   3.942,
+   4.038
   ],
   "min": [
-   -2.249,
+   -3.619,
    -0.956,
-   -3.359
+   -4.098
   ],
   "mounts": [],
   "variant": 2

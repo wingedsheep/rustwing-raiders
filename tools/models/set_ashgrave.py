@@ -16,13 +16,15 @@ from kit import Model, animate, emitter, light
 from props_a_lib import hull
 from props_b_kit import M, collider, crystal, facet, flicker, jitter, limb, mark, new_faces, paint, root, xform
 from props_b_ashgrave import (ASH, BONE_WOOD, CHAR, DIRT, EYE, EYE_PALE, FIRE, GLASS, GLASS_TIP, HAZARD, HULL,
-                              HULL_DARK, RUST, STEEL, TARP, TARP_DARK, WAR_RED)
+                              HULL_DARK, RUST, STEEL, TARP, TARP_DARK, WAR_RED, IVORY, OXBLOOD, GUNMETAL,
+                              HOST_YELLOW, BOTTLE, SEAM, SEAM_PALE, FUSED)
 
 BRASS = ["#3a2e22", "#5e4a30", "#7e6640", "#a08a5a"]
 MOON = "#7ad8ff"                     # the woods' fungus, lit like the moon
 MOON_PALE = "#d0f4ff"
 LAMP = "#ffc860"
 GLASS_GLOW = ("#4aff8a", True)
+BOTTLE_S = ["#0a1c14", "#123224", "#1c4a34", "#2e6a4a"]
 
 
 # --- helpers ------------------------------------------------------------------------------
@@ -255,44 +257,63 @@ def titan_spine(v):
     m = Model(f"ashgrave_titan_spine_{v}", 2020 + v)
     H = HULL
     if v == 0:
-        n = 13
+        # a Concord titan's spine: vertebrae like bunkers, each a drum with a fin raised over it and
+        # wings out to the sides, discs between them (every third still lit), ribs curling down from
+        # the wings, cables looping under; propped at each end on splayed ribs out past the field
+        C = IVORY
+        n = 12
         prev = None
         for i in range(n):
-            x = -46 + i * 92 / (n - 1)
-            z = 16.2 + 1.2 * math.cos(x / 46 * math.pi / 2)
-            y = math.sin(x * 0.05) * 1.6
-            w = rng.uniform(4.2, 6.0)
-            _plate(m, (w, rng.uniform(5.6, 7.2), rng.uniform(3.0, 4.2)), (x, y, z), (rng.uniform(-0.08, 0.08), 0, rng.uniform(-0.15, 0.15)), H, taper=0.75)
-            if rng.random() < 0.7:
-                _plate(m, (2.0, 2.4, 2.6), (x, y + rng.uniform(1.5, 2.8), z + 2.4), (rng.uniform(0.3, 0.7), 0, rng.uniform(-0.3, 0.3)), H, taper=0.45)   # the spinous fin
-            elif rng.random() < 0.6:
-                _plate(m, (3.0, 2.0, 0.5), (x, y, z + 2.0), (0.2, 0.3, 0.4), RUST)   # a torn plate
-            m.box((2.6, 0.5, 0.5), (x, y - 3.3, z), EYE if i % 4 == 1 else HULL_DARK, glow=i % 4 == 1)
-            if prev:
-                limb(m, prev, (x, y, z), 1.6, 1.6, HULL_DARK, segs=6)
+            x = -44 + i * 88 / (n - 1)
+            z = 16.6 + 1.0 * math.cos(x / 44 * math.pi / 2)
+            y = math.sin(x * 0.05) * 1.4
+            yaw = rng.uniform(-0.08, 0.08)
+            st = mark(m)
+            m.cyl(2.3, 5.6, (x - 2.8, y, z), C[2], segs=7, r_top=2.0, rot=(0, math.pi / 2, yaw))   # the drum
+            m.box((1.0, 3.0, 3.6), (x + 0.3, y, z + 2.6), C[3], rot=(0, 0.35, yaw), taper=0.35)   # the fin
+            for sd in (-1, 1):                                                               # the wings
+                m.box((2.2, 4.2, 1.0), (x, y + sd * 3.9, z + 0.4), C[2], rot=(sd * 0.18, 0, yaw), taper=0.7)
+            facet(m, new_faces(m, st), C, noise=0.1)
+            if i % 3 == 1:
+                _plate(m, (3.4, 3.8, 0.6), (x, y, z + 2.2), (0, 0.1, yaw + 0.2), GUNMETAL)     # a Host plate bolted over
+                m.box((3.0, 0.5, 0.2), (x, y - 1.0, z + 2.55), HOST_YELLOW, rot=(0, 0.1, yaw + 0.2))
+            elif i % 3 == 2:
+                m.box((0.7, 3.1, 0.7), (x + 0.9, y, z + 3.2), OXBLOOD, rot=(0, 0.35, yaw))      # the old paint on its fin
+            if prev:                                                                         # the disc between
+                lit = i % 3 == 0
+                m.cyl(1.9, x - prev[0] - 5.2, (prev[0] + 2.6, (prev[1] + y) / 2, (prev[2] + z) / 2),
+                      C[1], segs=7, rot=(0, math.pi / 2, 0))
+                if lit:
+                    m.cyl(1.85, 0.5, ((prev[0] + x) / 2, (prev[1] + y) / 2, (prev[2] + z) / 2), EYE, segs=7,
+                          rot=(0, math.pi / 2, 0), glow=True)
             prev = (x, y, z)
-            # rib stubs curling down either side, cut off above the flight line
+            # ribs curling down from the wing tips, cut off above the flight line
             if 1 <= i <= n - 2:
-                for s in (-1, 1):
-                    if rng.random() < 0.3:
+                for sd in (-1, 1):
+                    if rng.random() < 0.25:
                         continue
-                    L = rng.uniform(0.6, 1.3)
-                    a = Vector((x, y + s * 3.0, z - 0.5))
-                    b = Vector((x + rng.uniform(-1.5, 1.5), y + s * 6.0 * L, z - 1.2 * L))
-                    c = Vector((x + rng.uniform(-2, 2), y + s * 7.4 * L, max(13.6, z - 3.2 * L)))
-                    limb(m, a, b, 0.9, 0.75, rng.choice((H[3], H[2], HULL_DARK)), segs=5)
-                    if L > 0.8:
-                        limb(m, b, c, 0.75, 0.4, H[3], segs=5)
-            if i % 3 == 2:
-                for k in range(2):
-                    cx = x + rng.uniform(-1.5, 1.5)
-                    limb(m, (cx, y - 1.5 + k * 3, z - 1.7), (cx + 0.5, y - 1.2 + k * 3, 13.2), 0.2, 0.2, "#1a1e1c", segs=4)
+                    L = rng.uniform(0.7, 1.2)
+                    a = Vector((x, y + sd * 5.8, z + 0.2))
+                    b = Vector((x + rng.uniform(-1, 1), y + sd * 7.6 * L, z - 1.0 * L))
+                    c = Vector((x + rng.uniform(-1.5, 1.5), y + sd * 8.4 * L, max(13.8, z - 2.6 * L)))
+                    st = mark(m)
+                    limb(m, a, b, 0.75, 0.62, C[2], segs=5)
+                    m.ball(0.66, tuple(b), C[2], subdiv=0)
+                    limb(m, b, c, 0.62, 0.3, C[3], segs=5)
+                    facet(m, new_faces(m, st), C, noise=0.1)
+            # cables looping under between the drums
+            if i % 2 == 1 and i < n - 1:
+                x2 = x + 88 / (n - 1)
+                for k, dy in enumerate((-1.3, 1.1)):
+                    lo = (x + x2) / 2
+                    limb(m, (x + 1, y + dy, z - 1.8), (lo, y + dy + 0.3, 13.4 + k * 0.4), 0.22, 0.22, "#1a1e1c", segs=4)
+                    limb(m, (lo, y + dy + 0.3, 13.4 + k * 0.4), (x2 - 1, y + dy, z - 1.8), 0.22, 0.22, "#1a1e1c", segs=4)
         # the ends rest on ribs splayed into the ash, out past the field
         for s in (-1, 1):
             for dy in (-4.5, 4.5):
                 st = mark(m)
-                limb(m, (s * 46, dy * 0.3, 16), (s * 43 + s * 2, dy, -3), 1.8, 1.4, H[3], segs=6)
-                facet(m, new_faces(m, st), H, noise=0.1)
+                limb(m, (s * 44, dy * 0.3, 16), (s * 43 + s * 2, dy, -3), 1.8, 1.4, C[3], segs=6)
+                facet(m, new_faces(m, st), C, noise=0.1)
                 collider(r, s * 44.5, dy * 0.6, 2.0)
             _mound(m, rng, (s * 45, 0, -1.0), (6, 7, 3))
         light(r, (-5, -3.6, 16), EYE, radius=8, intensity=0.6, flicker=0.4)
@@ -404,44 +425,79 @@ def glass_ship(v):
     r = root("ashgrave_glass_ship", v)
     rng = random.Random(2080 + v)
     m = Model(f"ashgrave_glass_ship_{v}", 2080 + v)
-    # the glass lake: lobed glowing slabs, darker toward the rim
-    for k, (sx, sy, z, col, glow) in enumerate(((30, 18, -0.2, GLASS[1], False), (25, 14, -0.1, GLASS[2], False),
-                                                 (17, 10, 0.0, "#2a8a4a", True), (9, 6, 0.05, "#4aff8a", True))):
+    # the glass lake: dark as a bottle, baked sand round its edge, light only in a seam and the cracks
+    for k, (sx, sy, z, col, glow) in enumerate(((31, 19, -0.25, FUSED[2], False), (29, 17.5, -0.2, BOTTLE[0], False),
+                                                 (24, 14, -0.1, BOTTLE[1], False), (17, 10, 0.0, BOTTLE[2], False))):
         pts = []
         for i in range(14):
             a = i / 14 * math.tau
-            kk = 1 + rng.uniform(-0.12, 0.12) + 0.1 * math.sin(a * 3 + k)
+            kk = 1 + rng.uniform(-0.08, 0.08) + 0.08 * math.sin(a * 3 + k)
             pts.append((math.cos(a) * sx * kk, math.sin(a) * sy * kk))
         m.slab(pts, z - 0.3, z + 0.12, col, glow=glow)
+    for k in range(9):                                                       # cracks, lit from under
+        a = rng.uniform(0, math.tau)
+        d = rng.uniform(8, 20)
+        m.box((rng.uniform(3, 6), 0.45, 0.1), (math.cos(a) * d, math.sin(a) * d * 0.6, 0.1), SEAM[0], rot=(0, 0, a + rng.uniform(-0.6, 0.6)), glow=True)
     if v == 0:
-        # the hull: a long faceted wedge, nose buried, tilted on its side
+        # the hull: a long faceted wedge, nose buried, lying a little on its side, its plating in bands
+        LIV = ["#2e3034", "#4a4c50", "#7a7a76", "#a8a69c", "#cfcbbe"]
+        LIV2 = ["#2a2420", "#4a3628", "#6e4e34", "#9a6e44", "#b88a58"]   # bands of rust-red livery
         st = mark(m)
         pts = []
-        for x, w, h in ((-22, 5.0, 4.0), (-14, 6.5, 6.0), (-2, 7.0, 7.0), (10, 6.0, 6.2), (19, 3.6, 4.0), (24, 1.0, 2.0)):
-            for s in (-1, 1):
-                pts.append((x, s * w, -1.5))
-                pts.append((x, s * w * 0.75, h * 0.7))
+        for x, w, h in ((-22, 5.0, 4.0), (-14, 6.5, 6.0), (-2, 7.0, 6.6), (10, 6.0, 6.0), (19, 3.6, 4.0), (24, 1.0, 2.0)):
+            for sd in (-1, 1):
+                pts.append((x, sd * w, -1.5))
+                pts.append((x, sd * w * 0.75, h * 0.7))
             pts.append((x, 0, h))
         f = hull(m, pts, STEEL[1])
-        facet(m, f, ["#2a2c30", "#3e4248", "#5a6066", "#7a8086", "#9aa0a4"], noise=0.1)
-        # hull plating lines and markings on the top
-        for x in (-16, -8, 0, 8, 15):
-            m.box((0.4, 9.0, 0.3), (x, 0, 6.3 - abs(x) * 0.05), "#24262a")
-        m.box((14, 1.4, 0.3), (-4, -2.5, 6.8), HAZARD)
-        m.box((6, 1.4, 0.3), (6, 2.0, 6.7), WAR_RED)
-        # the bridge tower, snapped and lying across the hull
-        _plate(m, (5, 5, 3), (-6, 1.0, 7.4), (0, 0, 0.3), STEEL + ["#9aa0a4"])
-        m.box((4.0, 0.3, 0.8), (-6.2, -1.5, 8.6), "#5affb0", glow=True)
-        _plate(m, (9, 3.4, 2.4), (2, 8.5, 1.6), (0.3, 0.2, 0.9), ["#2a2c30", "#3e4248", "#5a6066", "#7a8086"])
-        # engines at the tail, one still glowing
-        for y, lit in ((-3.6, True), (3.6, False)):
-            m.cyl(2.4, 4.0, (-21, y, 1.8), "#3e4248", segs=8, rot=(0, -math.pi / 2, 0))
-            m.cyl(1.7, 0.4, (-25.1, y, 1.8), "#ff8a3a" if lit else "#1a1a1e", segs=8, rot=(0, -math.pi / 2, 0), glow=lit)
-        # glass welling up over the bow and along the flanks
-        for x, y in ((20, 0), (14, -6.5), (14, 6.5), (4, -7.5), (-8, 7.2)):
+        facet(m, f, LIV, noise=0.08)
+        for fc in f:                                                          # the livery: every third band rust-red
+            c = fc.calc_center_median()
+            if int((c.x + 30) // 5) % 3 == 1 and fc.normal.z > 0.2:
+                d = fc.normal.dot(Vector((-0.45, 0.35, 0.82)))
+                fc.material_index = m._slot(LIV2[max(0, min(4, int((d + 1) / 2 * 5)))], False)
+        # plating seams across the top
+        for x in (-17, -12, -7, 9, 14, 18):
+            m.box((0.35, 9.4, 0.3), (x, 0, 6.0 - abs(x) * 0.08), "#24262a")
+        # the breach: plating burnt off amidships, the frames standing over the dark inside
+        m.box((9.0, 7.6, 0.5), (1.0, 0, 6.15), "#141518")
+        for k in range(5):
+            x = -2.6 + k * 1.8
             st = mark(m)
-            _chunk(m, rng, (x - 3.5, y - 2.5, -1), (x + 3.5, y + 2.5, rng.uniform(2.5, 4.0)), GLASS[:3], n=10)
-            facet(m, new_faces(m, st), GLASS, noise=0.25, bias=-0.1)
+            path_tube_ = [(x, -4.2, 4.6), (x, -2.4, 6.6), (x, 0, 7.1), (x, 2.4, 6.6), (x, 4.2, 4.6)]
+            for i in range(4):
+                if k == 2 and i == 2:
+                    continue                                                 # one frame broken through
+                limb(m, path_tube_[i], path_tube_[i + 1], 0.32, 0.32, STEEL[2], segs=4)
+            facet(m, new_faces(m, st), STEEL, noise=0.1)
+        m.box(( 8.0, 0.5, 0.5), (1.0, 0, 7.05), STEEL[1])                  # the keel beam over it
+        m.box((1.6, 1.2, 0.3), (2.5, -1.6, 6.5), "#5affb0", glow=True)    # glass that ran into the hull, still lit
+        # the dorsal spine aft, two turret rings on it, an antenna mast
+        _plate(m, (12, 1.6, 1.0), (-14, 0, 6.3), (0, -0.04, 0), LIV, taper=0.8)
+        for x in (-17, -11):
+            m.cyl(1.4, 0.5, (x, 1.8, 5.7), LIV[1], segs=8)
+            m.cyl(0.9, 0.55, (x, 1.8, 5.7), "#1a1c20", segs=8)
+        limb(m, (-19, -1.0, 6.4), (-19.5, -1.4, 8.3), 0.18, 0.12, STEEL[1], segs=4)
+        # the canopy at the bow, a dark wedge with a glint
+        m.box((4.0, 3.2, 1.0), (16.5, 0, 4.4), "#14201c", rot=(0, 0.22, 0), taper=0.6)
+        m.box((1.2, 1.4, 0.2), (16.0, -0.6, 5.0), SEAM_PALE[0], rot=(0, 0.22, 0), glow=True)
+        m.box((8, 1.3, 0.3), (-4, -3.0, 6.0), HAZARD)
+        # the bridge tower, snapped and lying across the flank in the glass
+        _plate(m, (9, 3.4, 2.4), (2, 8.5, 1.6), (0.3, 0.2, 0.9), LIV[:4])
+        m.box((3.0, 0.3, 0.6), (2.2, 7.0, 2.6), "#5affb0", glow=True, rot=(0.3, 0.2, 0.9))
+        # engines at the tail on their pylons, one still glowing
+        for y, lit in ((-4.2, True), (4.2, False)):
+            st = mark(m)
+            m.cyl(2.3, 5.0, (-20, y, 2.0), LIV[2], segs=8, rot=(0, -math.pi / 2, 0))
+            m.cyl(2.5, 0.6, (-22.0, y, 2.0), LIV[1], segs=8, rot=(0, -math.pi / 2, 0))
+            facet(m, new_faces(m, st), LIV, noise=0.08)
+            m.cyl(1.7, 0.4, (-25.1, y, 2.0), "#ff8a3a" if lit else "#1a1a1e", segs=8, rot=(0, -math.pi / 2, 0), glow=lit)
+            m.box((3.0, 2.0, 0.8), (-19, y * 0.6, 3.6), LIV[1])
+        # glass welling up over the bow and along the flanks, set in drips
+        for x, y in ((20, 0), (14, -6.5), (14, 6.5), (4, -7.5), (-8, 7.2), (-14, -7.0)):
+            st = mark(m)
+            _chunk(m, rng, (x - 3.0, y - 2.2, -1), (x + 3.0, y + 2.2, rng.uniform(2.0, 3.6)), BOTTLE, n=10)
+            facet(m, new_faces(m, st), BOTTLE[1:] + [SEAM], noise=0.2, bias=-0.15)
         light(r, (-26, -3.6, 2), "#ff8a3a", radius=8, intensity=0.9, flicker=0.3)
         m.build(r).scale = (1, 1, 0.9)
         return r
@@ -476,29 +532,33 @@ def glass_ship(v):
 
 
 def glass_bubble(v):
-    """Scenery: blisters in the glass, domes that cooled with gas inside; one cracked open, glowing."""
+    """Scenery: blisters in the glass, domes that cooled with gas inside, dark as bottles, sat on a
+    skirt of baked sand; one cracked open, glowing."""
     r = root("ashgrave_glass_bubble", v)
     rng = random.Random(2100 + v)
     m = Model(f"ashgrave_glass_bubble_{v}", 2100 + v)
-    spots = {0: [(0, 0, 2.0, False)], 1: [(0, 0, 1.4, True), (1.9, 0.9, 0.9, False), (-1.4, 1.3, 0.7, False)],
-             2: [(0, 0, 2.4, True)]}[v]
+    spots = {0: [(0, 0, 1.3, False), (1.5, -0.6, 0.6, False)],
+             1: [(0, 0, 1.0, True), (1.4, 0.7, 0.65, False), (-1.1, 1.0, 0.5, False), (-0.6, -1.2, 0.4, False)],
+             2: [(0, 0, 1.6, True), (-1.8, 0.4, 0.55, False)]}[v]
+    dark = [BOTTLE_S[0], BOTTLE_S[1], BOTTLE_S[2], BOTTLE_S[3]]
     for x, y, s, cracked in spots:
-        m.cyl(s * 1.25, 0.15, (x, y, -0.05), GLASS[1], segs=8)
+        m.cyl(s * 1.3, 0.12, (x, y, -0.05), "#5a5440", segs=8)
         st = mark(m)
-        m.ball(s, (x, y, -s * 0.25), GLASS[1], subdiv=1, scale=(1, 1, 0.7), jitter=0.06 * s)
+        m.ball(s, (x, y, -s * 0.25), dark[1], subdiv=1, scale=(1, 1, 0.75), jitter=0.06 * s)
         fs = new_faces(m, st)
         if cracked:
             for f in list(fs):
                 c = f.calc_center_median()
-                if c.z > s * 0.3 and (c.x - x) > -s * 0.2:
+                if c.z > s * 0.25 and (c.x - x) > -s * 0.2:
                     m.bm.faces.remove(f)
             fs = new_faces(m, st)
-            m.cyl(s * 0.75, 0.2, (x, y, 0), "#6affa0", segs=8, glow=True)
-            m.cyl(s * 0.35, 0.25, (x, y, 0), "#d0ffe0", segs=6, glow=True)
-        facet(m, fs, GLASS, noise=0.2, bias=-0.1)
+            m.cyl(s * 0.72, 0.2, (x, y, 0), "#2ac070", segs=8, glow=True)
+            m.cyl(s * 0.32, 0.25, (x, y, 0), "#c0ffd8", segs=6, glow=True)
+        facet(m, fs, dark, noise=0.2, bias=0.05)
+        m.ball(s * 0.22, (x - s * 0.4, y + s * 0.35, s * 0.42), "#8affb8", subdiv=0, glow=True)   # a glint
     m.build(r, rot_z=rng.uniform(0, math.tau))
     if v != 0:
-        light(r, (0, 0, 1), EYE, radius=5, intensity=0.6, halo=False)
+        light(r, (0, 0, 1), EYE, radius=4, intensity=0.5, halo=False)
     return r
 
 

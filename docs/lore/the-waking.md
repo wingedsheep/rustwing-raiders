@@ -62,7 +62,7 @@ Ideas for putting this in front of the player, a line at a time. None of it is b
 
 - [ ] **Dock gossip and biome cards** that hint: a Glacis card about lights under the ice; a dock line about titans moving on Ashgrave; Seffa saying a lantern is leaning.
 - [ ] **A Hoowae lane-reader event**: pay to hear which lantern leans least (the jump costs less fuel), or ignore her.
-- [ ] **Bosses that feel the Engine:** Khet's titan head acting against him in his last phase; ARU-0 pausing to listen; the Waking Engine's arc from half asleep to awake (already its top need in [`bosses/`](../bosses/waking-engine.md)).
+- [ ] **Bosses that feel the Engine:** Khet's titan head acting against him in his last phase; ARU-0 pausing to listen; the Waking Engine's arc from half asleep to awake (built: [`bosses/`](../bosses/waking-engine.md)).
 - [ ] **Words in the UI:** *kelter* for Mama's boys, *lantern* for gates in event text.
 - [ ] **The STRANGE SIGNAL event** names the tones as a count, not a song, once the player has met a Hoowae.
 - [ ] **A run's end:** the third sector's gate is **the Throat**, held by the Fourteenth Weight: a run is a crew crossing the Throne's margin to get out into the Spur. Or the third gate is Glacis's, where the whole Spur is converging.

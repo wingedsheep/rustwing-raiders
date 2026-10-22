@@ -46,6 +46,8 @@ export interface Strike {
   vz: number;
   /** Bit per player: already dealt with (hit, or dashed through). */
   hit: number;
+  /** Shells: shards it bursts into where it lands (the Engine's ice). */
+  shards: number;
   dead: boolean;
 }
 
@@ -75,6 +77,7 @@ export function strike(lv: Level, kind: StrikeKind, x: number, z: number, opts: 
     vx: 0,
     vz: 0,
     hit: 0,
+    shards: 0,
     dead: false,
     ...opts,
   };
@@ -114,6 +117,7 @@ export function updateStrikes(lv: Level, dz: number) {
     // landing
     if (was < s.warn && s.t >= s.warn && s.kind !== 'gate' && s.kind !== 'harpoon') {
       lv.emit({ type: 'strike', kind: s.kind, x: s.x, z: s.z, r: s.kind === 'wave' ? s.rMax : s.r });
+      for (let k = 0; k < s.shards; k++) lv.bullet(s.x, s.z, ((k + 0.5) / s.shards) * Math.PI * 2, 7, { color: s.color, kind: 'needle', r: 0.35 });
       if (s.kind === 'acid') {
         strike(lv, 'puddle', s.x, s.z, { r: s.r * 1.1, warn: 0, active: 2.5, color: s.color, owner: s.owner });
         s.dead = true;

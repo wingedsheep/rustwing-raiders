@@ -10,6 +10,7 @@
  */
 
 import { PLANETS, type Planet } from '../world/planets';
+import { factionOf } from './factions';
 import { HULL_STEP, type LevelSpec, type Mode } from './level';
 import { LOOT, startBuild, stats, type Build } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
@@ -17,6 +18,7 @@ import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
 import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
 import type { Grafts } from '../game/grafts';
+import { IMPRINTS, UNBENDING_HULL, WAYS, imprint, newCore, type Core, type ImprintId } from '../game/core';
 
 /** Sites where there's a fight to fly. */
 export const fights = (n: ChartNode) => n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'heist' || n.kind === 'gate';
@@ -42,7 +44,12 @@ export interface Crew {
   hull: number;
   /** Wreck grafts, one a verb (see game/grafts.ts): found this run, lost at its end. */
   grafts: Grafts;
+  /** The ship's core, and what it's learnt (see game/core.ts): this run's, lost at its end. */
+  core: Core;
 }
+
+/** A ship's whole hull: the frame's and its parts', and UNBENDING's if the core holds it. */
+export const crewHull = (c: Crew) => stats(c.build).hp + (c.core.held.includes('unbending') ? UNBENDING_HULL : 0);
 
 export const CARGO = 6;
 /** Parts a dealer lays out. */
@@ -96,6 +103,7 @@ export interface Snapshot {
   favours: string[];
   rep: Record<string, number>;
   boom: string;
+  owned: ImprintId[][];
 }
 
 export class Run {
@@ -141,9 +149,9 @@ export class Run {
   constructor(frames: string[], seed: number) {
     this.seed = seed;
     this.r = rng(seed ^ 0x5eed);
-    this.crew = frames.map((f) => {
+    this.crew = frames.map((f, i) => {
       const build = startBuild(f);
-      return { build, cargo: [], hull: stats(build).hp, grafts: {} };
+      return { build, cargo: [], hull: stats(build).hp, grafts: {}, core: newCore(seed * 7 + i) };
     });
     this.chart = new Chart(chartSeed(seed, 0), 0);
     this.chart.nodes[0].done = true;
@@ -161,7 +169,7 @@ export class Run {
     this.chart = new Chart(chartSeed(this.seed, this.sector), this.sector, this.seen.slice(-4), this.seenEvents);
     this.chart.nodes[0].done = true;
     // a breather between sectors, and the tanks topped up a little
-    for (const c of this.crew) c.hull = Math.min(stats(c.build).hp, c.hull + 2 * HULL_STEP);
+    for (const c of this.crew) c.hull = Math.min(crewHull(c), c.hull + 2 * HULL_STEP);
     this.fuel = Math.min(FUEL_MAX, Math.max(this.fuel + 2, 6));
     if (this.policy) this.notes.push('YOUR LANTERN MUTUAL POLICY HAS RUN OUT');
     if (this.contract) this.notes.push(`THE CRATE FOR ${this.planetName(this.contract.planet)} IS LOST TO YOU`);
@@ -275,7 +283,7 @@ export class Run {
   }
 
   maxHull(player: number) {
-    return stats(this.crew[player].build).hp;
+    return crewHull(this.crew[player]);
   }
 
   /** Damage everyone takes, `n` steps of hull (never down to nothing), with the insurance paying out. */
@@ -312,6 +320,14 @@ export class Run {
 
   mood(faction: string, d: number) {
     this.rep[faction] = clamp(this.moodOf(faction) + d, -3, 3);
+    // liked enough, the cores pick up their ways
+    const planet = PLANETS.find((p) => p.faction === faction);
+    if (d > 0 && this.moodOf(faction) >= 2 && planet) this.copy(WAYS[factionOf(planet)]);
+  }
+
+  /** The cores copy an imprint off someone you met (each pilot's, if it hasn't already). */
+  copy(id: ImprintId) {
+    for (const c of this.crew) imprint(c.core, id);
   }
 
   /** The Sweep held back (or, negative, egged on) by some watches. */
@@ -382,6 +398,7 @@ export class Run {
       favours: [...this.favours],
       rep: { ...this.rep },
       boom: this.boom ? `${this.boom.planet}:${this.boom.cls}` : '',
+      owned: this.crew.map((c) => [...c.core.owned]),
     };
   }
 
@@ -415,6 +432,9 @@ export class Run {
       const d = this.moodOf(k) - (s.rep[k] ?? 0);
       if (d) out.push({ text: `${k.toUpperCase()} ${d > 0 ? 'LIKE YOU MORE' : 'LIKE YOU LESS'}`, tone: d > 0 ? 'good' : 'bad' });
     }
+    // (a copy every pilot's core took is said once)
+    const copied = new Set(this.crew.flatMap((c, i) => c.core.owned.filter((id) => !s.owned[i]?.includes(id))));
+    for (const id of copied) out.push({ text: `THE CORE COPIES ${IMPRINTS[id].name}`, tone: 'good' });
     const boom = this.boom ? `${this.boom.planet}:${this.boom.cls}` : '';
     if (boom && boom !== s.boom) out.push({ text: `NEWS: ${this.boom!.cls.toUpperCase()}S FETCH ×3 ON ${this.planetName(this.boom!.planet)}`, tone: 'info' });
     return out;

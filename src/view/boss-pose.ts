@@ -9,7 +9,8 @@ import { clamp, damp } from '../util';
  *
  *  - Poses: `boss_<planet>_<move>_<state>`, else `boss_<planet>_<move>` (for its windup and
  *    attack), else `boss_<planet>_<state>`, else its idle. A windup goes into its pose and holds
- *    there; the rest loop. Cross-faded, so a boss without them just idles.
+ *    there; the rest loop. Cross-faded, so a boss without them just idles. A boss can idle
+ *    differently in each phase (`boss_<planet>_p<phase>`: the Engine stirring, awake; else its idle).
  *  - Facing: on a charge, a rake or a sky dive it turns to face where it's going (its aim while it
  *    winds up) and banks into the turn.
  *  - Shedding: a part tagged `shed` (a glTF extra) breaks off as that phase starts.
@@ -17,11 +18,14 @@ import { clamp, damp } from '../util';
 
 /** Moves it turns to face. */
 const TURNS = new Set(['charge', 'rake', 'skydive']);
+/** Moves it turns its gaze along (part of the way: a fortress doesn't spin round). */
+const LOOKS: Record<string, number> = { scan: 0.35 };
 const FADE = 0.18;
 
 /** What it says when it sheds, by planet and phase. */
 const SHED_LINE: Record<string, string[]> = {
   orutal: ['', 'THE CAGE CRACKS', 'SHE BREAKS FREE'],
+  glacis: ['', 'THE ICE BREAKS', 'IT IS AWAKE'],
 };
 
 export interface Shed {
@@ -52,17 +56,18 @@ export class BossPose {
     const b = e.boss!;
     const move = b.move;
     const state = e.state === 'windup' || e.state === 'attack' || e.state === 'recover' || e.state === 'stagger' ? e.state : null;
-    let next = this.idle;
+    let next = this.inst.actions.get(`${this.kind}_p${b.phase}`) ?? this.idle;
+    const rest = next;
     if (move && state) {
       const a = this.inst.actions;
       next =
         a.get(`${this.kind}_${move}_${state}`) ??
         (state === 'windup' || state === 'attack' ? a.get(`${this.kind}_${move}`) : undefined) ??
         a.get(`${this.kind}_${state}`) ??
-        this.idle;
+        rest;
     }
     // (the same windup again, as a sky dive lines up its next pass: from the top)
-    if (next !== this.cur || (state === 'windup' && e.stateT < dt * 1.5 && next !== this.idle)) this.play(next, state === 'windup');
+    if (next !== this.cur || (state === 'windup' && e.stateT < dt * 1.5 && next !== rest)) this.play(next, state === 'windup');
 
     // facing: down the line it's taking, banked into its turn
     const vx = Number.isNaN(this.lx) ? 0 : (e.x - this.lx) / Math.max(dt, 1e-3);
@@ -75,7 +80,7 @@ export class BossPose {
       if (state === 'attack' && fast) want = Math.atan2(vx, vz);
       else if (move === 'skydive') want = b.dir * (Math.PI / 2);
       else want = e.aim;
-    }
+    } else if (move && LOOKS[move] && (state === 'windup' || state === 'attack')) want = e.aim * LOOKS[move];
     const da = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
     this.yaw += da * clamp(dt * 7, 0, 1);
     // across its heading: lean into it (the sideways part of how it's moving)

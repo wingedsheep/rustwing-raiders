@@ -180,6 +180,7 @@ export const EVENTS: RunEvent[] = [
         outcome: (run) => {
           run.scrap += 70;
           run.bounty++;
+          run.copy('price');
           return { text: 'She calls the Syndicate. Of course she does. And the Syndicate puts a price on you.', fight: 'hunt' };
         },
       },
@@ -302,6 +303,7 @@ export const EVENTS: RunEvent[] = [
           }
           run.heal(p.bold ? 3 : 1);
           if (!run.favours.includes('doctor')) run.favours.push('doctor');
+          run.copy('brisk');
           return { text: 'She wakes, takes one look at your hull, and rolls up her sleeves. "I owe you one. When you\'re bleeding, call."' };
         },
       },
@@ -398,6 +400,7 @@ export const EVENTS: RunEvent[] = [
         outcome: (run) => {
           run.scrap += 150;
           run.debt += 150;
+          run.copy('luck');
           return { text: '"A big spender! Mama likes." Both goons crack their knuckles, warmly.' };
         },
       },
@@ -436,6 +439,7 @@ export const EVENTS: RunEvent[] = [
           const stake = p.bold && run.scrap >= 40 ? 40 : 15;
           const k = [0, 2, 5, 10][tier(p.score)];
           run.scrap += stake * k - stake;
+          if (p.bold && k) run.copy('sleeve');
           return {
             text: k === 0 ? '"Unlucky! Again?" Spoke sweeps your scrap into a bucket without looking.' : k === 10 ? 'THREE COGS. The den goes quiet. Spoke pays, very slowly, counting every piece twice.' : `"A winner!" Spoke pays ${stake * k}, and looks at you a little longer than before.`,
           };
@@ -550,6 +554,7 @@ export const EVENTS: RunEvent[] = [
         outcome: (run) => {
           run.scrap -= 60;
           run.policy = 30;
+          run.copy('policy');
           return { text: '"A connoisseur!" Pip throws in a calendar. Every month is a picture of a different explosion.' };
         },
       },
@@ -620,6 +625,7 @@ export const EVENTS: RunEvent[] = [
             run.hurt(p.bold ? 2 : 1);
             return { text: 'You hit the port at a bad angle. The Margarethe shrugs you off, and says "Welcome aboard" again.' };
           }
+          if (p.bold) run.copy('minute');
           const n = p.bold ? 2 : 1;
           for (let k = 0; k < n; k++) run.give(part(p.r, p.bold ? 'rare' : 'common'));
           run.addFuel(n);
@@ -720,6 +726,7 @@ export const EVENTS: RunEvent[] = [
             run.hurt(1);
             return { text: 'The hose gets away from you and paints your hull with burning fuel. Nell laughs until she cries.' };
           }
+          if (p.bold && got) run.copy('laugh');
           return { text: got ? `You catch ${got} cell${got > 1 ? 's' : ''} and most of your dignity.` : 'The hose wins. Nell keeps the ten.' };
         },
       },
@@ -807,6 +814,7 @@ export const EVENTS: RunEvent[] = [
         note: () => 'A HARD HUNT. WIN AND THE BOUNTY IS GONE',
         outcome: (run) => {
           run.bounty = 0;
+          run.copy('code');
           return { text: '"I hoped you\'d say that." His hunters come out of the moon\'s shadow.', fight: 'hunt', harder: 0.3 };
         },
       },

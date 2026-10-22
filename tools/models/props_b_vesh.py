@@ -8,7 +8,10 @@ import random
 
 from mathutils import Vector
 from kit import Model, light
+from props_a_lib import lump, tube
 from props_b_kit import (M, collider, facet, jitter, limb, mark, new_faces, paint, path_tube, root, sway, xform)
+
+V = Vector
 
 # coral, dark to light
 C_ORANGE = ["#b8482a", "#e0683a", "#ff8c4a", "#ffb878"]
@@ -164,90 +167,162 @@ def coral_tube(v):
 
 # --- the Sky-Whale Lagoon ------------------------------------------------------------------
 
+MANG = (["#173a30", "#1f5440", "#2d7050", "#4f9460"],            # old growth, deep and blue-green
+        ["#163e42", "#1e5a56", "#2c7a6a", "#58a88a"],            # sea-green, salt on the leaves
+        ["#2a5426", "#3e7a30", "#62a040", "#a8d060"])            # new growth, lime
+MANG_NEW = "#c8703a"                                                  # bronze young leaves
+PROPAGULE = "#cfe0a0"
+
+
+def _canopy(c, rng, ctr, rad, cols, lobes=4, squash=0.4, tips=2):
+    """A mangrove crown seen from above: a flat, broken mat of leaf, not a ball. A low dome with
+    lobes pushed out unevenly round its rim (some a little lower), so the outline is ragged and
+    the sun catches separate planes."""
+    x, y, z = ctr
+    st = mark(c)
+    c.ball(rad, (x, y, z), cols[1], subdiv=1, scale=(1.1, 0.95, squash), jitter=0.16 * rad)
+    a0 = rng.uniform(0, math.tau)
+    for k in range(lobes):
+        a = a0 + k / lobes * math.tau + rng.uniform(-0.45, 0.45)
+        d = rad * rng.uniform(0.75, 1.05)
+        lr = rad * rng.uniform(0.5, 0.7)
+        c.ball(lr, (x + math.cos(a) * d, y + math.sin(a) * d, z - rad * squash * rng.uniform(0.0, 0.5)), cols[1],
+               subdiv=1 if lr > 0.9 else 0, scale=(1.1, 1.0, squash * 1.1), jitter=0.14 * lr, rot=(0, 0, a))
+    facet(c, new_faces(c, st), cols, noise=0.18, bias=0.05)
+    for k in range(tips):                                                  # bronze new leaves or pale propagules
+        a = rng.uniform(0, math.tau)
+        d = rad * rng.uniform(0.2, 0.8)
+        c.ball(rng.uniform(0.26, 0.34), (x + math.cos(a) * d, y + math.sin(a) * d, z + rad * squash * 0.85),
+               MANG_NEW if cols is MANG[2] else PROPAGULE, subdiv=0, scale=(1.2, 1, 0.5))
+
+
+def _stilts(m, rng, base, n, out, s, z0=0.9):
+    """Prop roots: arching out and down from the trunk into the mud, each a little different."""
+    bx, by, bz = base
+    for k in range(n):
+        a = k / n * math.tau + rng.uniform(-0.35, 0.35)
+        o = out * rng.uniform(0.75, 1.15)
+        hz = bz + rng.uniform(-0.2, 0.5) * s
+        tube(m, [V((bx, by, hz)), V((bx + math.cos(a) * o * 0.45, by + math.sin(a) * o * 0.45, z0 * s + rng.uniform(0.2, 0.5))),
+                 V((bx + math.cos(a) * o, by + math.sin(a) * o, -0.35))],
+             [0.17 * s, 0.14 * s, 0.11 * s], MANGROVE_BARK[1], segs=5)
+
+
 def mangrove(v):
-    """A mangrove on its stilt roots in the shallows; its crown sways."""
+    """A mangrove in the shallows: a cage of prop roots, a short trunk splitting into boughs, and
+    flat ragged leaf-mats rather than a ball on a stick. v0 an old thicket spreading wide and low,
+    v1 a tall one with a tiered crown and roots dropping from its boughs, v2 a nursery of saplings."""
     r = root("mangrove", v)
     rng = random.Random(560 + v)
     m = Model(f"mangrove_{v}", 560 + v)
-    trunks = {0: [((0, 0), 3.0, 1.0)], 1: [((-0.9, 0.2), 3.4, 1.0), ((1.1, -0.3), 2.6, 0.85)], 2: [((0, 0), 2.0, 0.7)]}[v]
-    crowns = []
+    cols = MANG[v]
+    crowns = []                                                       # (centre, radius, lobes)
     st = mark(m)
-    for (x, y), h, s in trunks:
-        base = Vector((x, y, 1.0 * s))
-        limb(m, base, (x + 0.2, y, h), 0.3 * s, 0.22 * s, MANGROVE_BARK[1], segs=6)
-        for k in range(6):                                                  # the stilt roots
-            a = k / 6 * math.tau + rng.uniform(-0.3, 0.3)
-            out = rng.uniform(1.4, 1.9) * s
-            path_tube(m, [base + Vector((0, 0, 0.3 * s)),
-                          Vector((x + math.cos(a) * out * 0.45, y + math.sin(a) * out * 0.45, 1.3 * s)),
-                          Vector((x + math.cos(a) * out, y + math.sin(a) * out, -0.3))],
-                      [0.16 * s, 0.13 * s, 0.11 * s], MANGROVE_BARK[1], segs=5)
-        for k in range(3):                                                  # branches up into the crown
-            a = k / 3 * math.tau + rng.uniform(0, 1)
-            limb(m, (x + 0.2, y, h - 0.4), (x + math.cos(a) * 1.0 * s, y + math.sin(a) * 1.0 * s, h + 0.6 * s),
-                 0.15 * s, 0.1 * s, MANGROVE_BARK[1], segs=4)
-        crowns.append(((x + 0.2, y, h), s))
-    facet(m, new_faces(m, st), MANGROVE_BARK, noise=0.1)
-    # a mud bank round the roots, wet at the waterline
+    if v == 0:
+        top = V((0.2, -0.1, 2.3))
+        tube(m, [V((0, 0, 0.6)), V((0.1, 0, 1.5)), top], [0.38, 0.33, 0.3], MANGROVE_BARK[1], segs=6)
+        _stilts(m, rng, (0, 0, 1.3), 8, 2.3, 1.0)
+        for k, (a, d, z, rad) in enumerate(((0.3, 1.7, 3.3, 1.55), (2.4, 1.6, 3.0, 1.35), (4.3, 1.5, 3.5, 1.25))):
+            a += rng.uniform(-0.2, 0.2)
+            end = V((math.cos(a) * d, math.sin(a) * d, z - 0.3))
+            tube(m, [top, top.lerp(end, 0.5) + V((0, 0, 0.5)), end], [0.24, 0.18, 0.13], MANGROVE_BARK[1], segs=5)
+            if k != 1:                                                    # an aerial root dropping from the bough
+                drop = top.lerp(end, 0.7)
+                tube(m, [drop, V((drop.x * 1.1, drop.y * 1.1, 0.8)), V((drop.x * 1.15, drop.y * 1.15, -0.3))],
+                     [0.12, 0.11, 0.14], MANGROVE_BARK[0], segs=4)
+            crowns.append(((end.x, end.y, z), rad, 4))
+    elif v == 1:
+        for (x, y), h, s in (((-0.7, 0.2), 4.0, 1.0), ((1.0, -0.4), 3.0, 0.8)):
+            top = V((x + 0.3 * s, y + 0.1, h))
+            tube(m, [V((x, y, 0.7 * s)), V((x + 0.2, y, h * 0.55)), top], [0.32 * s, 0.27 * s, 0.22 * s], MANGROVE_BARK[1], segs=6)
+            _stilts(m, rng, (x, y, 1.3 * s), 6, 1.9 * s, s)
+            crowns.append(((top.x, top.y, h + 0.4 * s), 1.45 * s, 4))
+            a = rng.uniform(0, math.tau)                                 # a lower tier on one bough
+            low = V((x + math.cos(a) * 1.5 * s, y + math.sin(a) * 1.5 * s, h * 0.68))
+            tube(m, [V((x + 0.1, y, h * 0.5)), low], [0.18 * s, 0.12 * s], MANGROVE_BARK[1], segs=5)
+            tube(m, [low, V((low.x * 1.05, low.y * 1.05, -0.3))], [0.11, 0.13], MANGROVE_BARK[0], segs=4)
+            crowns.append(((low.x, low.y, low.z + 0.3), 1.0 * s, 3))
+    else:
+        for k, ((x, y), h) in enumerate((((0, 0), 2.4), ((1.4, 0.7), 1.7), ((-1.1, 1.0), 1.4), ((0.3, -1.4), 1.9))):
+            x += rng.uniform(-0.2, 0.2)
+            tube(m, [V((x, y, 0.3)), V((x + rng.uniform(-0.3, 0.3), y + rng.uniform(-0.3, 0.3), h))], [0.17, 0.12],
+                 MANGROVE_BARK[1], segs=5)
+            _stilts(m, rng, (x, y, 0.7), 4, 0.8, 0.6, z0=0.6)
+            crowns.append(((x, y, h + 0.25), rng.uniform(0.75, 0.95) * (1.1 if k == 0 else 1), 3))
+    facet(m, new_faces(m, st), MANGROVE_BARK, noise=0.12)
+    # the mud bank the roots have caught, wet at the waterline, a heron's worth of weed on it
     st = mark(m)
-    m.cyl(2.0 * max(s for _, _, s in trunks) + (1.0 if v == 1 else 0), 0.3, (0, 0, -0.25), SAND[0], segs=8, r_top=1.4)
-    jitter(m, new_faces(m, st), 0.15)
-    facet(m, new_faces(m, st), ["#8a7a5a", SAND[0], SAND[1]], noise=0.1)
+    R = {0: 2.9, 1: 3.0, 2: 2.3}[v]
+    m.cyl(R, 0.35, (0, 0, -0.3), SAND[0], segs=9, r_top=R * 0.72)
+    jitter(m, new_faces(m, st), 0.22, z=False)
+    xform(m, st, M(scale=(1.0, 0.85, 1.0)))
+    facet(m, new_faces(m, st), ["#6a5a40", "#8a7a5a", SAND[0]], noise=0.12)
+    for k in range(5):
+        a = rng.uniform(0, math.tau)
+        d = R * rng.uniform(0.75, 0.95)
+        m.ball(rng.uniform(0.28, 0.4), (math.cos(a) * d, math.sin(a) * d * 0.85, 0.0), rng.choice((WEED[0], WEED[1], BARNACLE)),
+               subdiv=0, scale=(1.3, 1, 0.5))
     m.build(r)
-    for i, ((cx, cy, cz), s) in enumerate(crowns):
-        c = Model(f"mangrove_{v}_crown{i}", 570 + v * 3 + i)
-        cst = mark(c)
-        c.ball(1.5 * s, (0, 0, 0.9 * s), LEAF[1], subdiv=1, scale=(1.1, 1.0, 0.6), jitter=0.15 * s)
-        for k in range(5):
-            a = k / 5 * math.tau + rng.uniform(-0.3, 0.3)
-            d = rng.uniform(1.1, 1.5) * s
-            c.ball(rng.uniform(0.85, 1.1) * s, (math.cos(a) * d, math.sin(a) * d, rng.uniform(0.4, 0.9) * s), LEAF[1],
-                   subdiv=1, scale=(1, 1, 0.65), jitter=0.12 * s)
-        facet(c, new_faces(c, cst), LEAF, noise=0.15)
-        for k in range(4):                                                  # pale flowers
-            a = rng.uniform(0, math.tau)
-            d = rng.uniform(0.5, 1.6) * s
-            c.ball(0.22, (math.cos(a) * d, math.sin(a) * d, 1.55 * s), "#f8f0b0", subdiv=0)
-        o = c.build(r, loc=(cx, cy, cz))
-        sway(o, f"mangrove_{v}_sway_idle", amp=0.035, period=5.0, phase=i * 1.7)
+    for i, (ctr, rad, lobes) in enumerate(crowns):
+        c = Model(f"mangrove_{v}_crown{i}", 570 + v * 7 + i)
+        _canopy(c, rng, (0, 0, 0), rad, cols, lobes=lobes, tips=1)
+        o = c.build(r, loc=ctr)
+        sway(o, f"mangrove_{v}_crown{i}_sway_idle", amp=0.03, period=5.0 + i * 0.4, phase=i * 1.7)
     return r
 
 
 def tide_rock(v):
-    """Reef rock worn by the tide: banded, crusted pink and weedy at the waterline, a pool on top."""
+    """Reef rock worn by the tide: banded, crusted pink and weedy at the waterline. v0 a mushroom
+    the sea has undercut, a cap of turf and gulls' crust on it; v1 a stepped stack with a pool on
+    top; v2 a low scatter of worn slabs; v3 a split boulder, starfish in the crack."""
     r = root("tide_rock", v)
     rng = random.Random(580 + v)
     m = Model(f"tide_rock_{v}", 580 + v)
-    if v == 0:
-        layers = [(1.3, 0.8), (1.9, 0.8), (2.2, 0.7), (1.9, 0.4)]   # undercut at the bottom: a mushroom
-    elif v == 1:
-        layers = [(1.6, 1.0), (1.5, 1.2), (1.3, 1.1), (1.1, 1.0), (0.9, 0.6)]
-    else:
-        layers = None
-    if layers:
+    foot = 1.6
+    if v in (0, 1):
+        layers = [(1.3, 0.8), (1.9, 0.8), (2.2, 0.6), (1.8, 0.35)] if v == 0 else [(1.6, 1.0), (1.5, 1.2), (1.3, 1.1), (1.05, 0.9), (0.85, 0.5)]
         z = -0.5
         for i, (rad, h) in enumerate(layers):
             st = mark(m)
-            m.cyl(rad, h, (0, 0, z), REEF_ROCK[1], segs=7, r_top=layers[i + 1][0] if i + 1 < len(layers) else rad * 0.8,
-                  rot=(0, 0, rng.uniform(0, 1)))
-            jitter(m, new_faces(m, st), 0.12)
+            nxt = layers[i + 1][0] if i + 1 < len(layers) else rad * 0.8
+            m.cyl(rad, h, (rng.uniform(-0.1, 0.1), rng.uniform(-0.1, 0.1), z), REEF_ROCK[1], segs=7, r_top=nxt, rot=(0, 0, rng.uniform(0, 1)))
+            jitter(m, new_faces(m, st), 0.14)
             facet(m, new_faces(m, st), REEF_ROCK if i % 2 else REEF_ROCK[1:] + ["#e0b0a0"], noise=0.12)
             z += h
         top_r = layers[-1][0] * 0.8
-        m.cyl(top_r * 0.7, 0.08, (0.1, 0.1, z), TIDE_POOL, segs=7, glow=True)
-        m.ball(0.3, (top_r * 0.5, -top_r * 0.6, z), "#ff7a90", subdiv=0)
-    else:
+        foot = layers[0][0]
+        if v == 0:                                                       # a cap of salt turf, a few shells
+            st = mark(m)
+            m.ball(top_r * 1.15, (0.1, 0, z - 0.05), WEED[1], subdiv=1, scale=(1.1, 1, 0.28), jitter=0.12)
+            facet(m, new_faces(m, st), [WEED[0], WEED[1], "#5a9a5a"], noise=0.15)
+            for k in range(3):
+                a = rng.uniform(0, math.tau)
+                m.ball(0.26, (math.cos(a) * top_r * 0.6, math.sin(a) * top_r * 0.6, z + 0.2), ("#f0e0c8", "#ff9a7a")[k % 2], subdiv=0)
+        else:                                                            # a pool, dark and deep, one glint
+            m.cyl(top_r * 0.75, 0.1, (0.1, 0.1, z - 0.02), "#e8c8b8", segs=7)
+            m.cyl(top_r * 0.6, 0.1, (0.1, 0.1, z), "#1f8a9a", segs=7)
+            m.ball(0.22, (0.3, -0.1, z + 0.08), TIDE_POOL, subdiv=0, glow=True)
+            m.ball(0.3, (top_r * 0.5, -top_r * 0.6, z), "#ff7a90", subdiv=0)
+    elif v == 2:
         for (x, y, s) in ((0, 0, 1.4), (1.8, 0.8, 0.9), (-1.4, 1.2, 0.8), (0.6, -1.6, 0.7)):
             st = mark(m)
-            m.cyl(s, 0.7 * s, (x, y, -0.4), REEF_ROCK[1], segs=7, r_top=s * 0.85)
-            jitter(m, new_faces(m, st), 0.12 * s)
+            m.cyl(s, 0.6 * s, (x, y, -0.4), REEF_ROCK[1], segs=6, r_top=s * 0.8, rot=(rng.uniform(-0.15, 0.15), 0, rng.uniform(0, 1)))
+            jitter(m, new_faces(m, st), 0.14 * s)
             facet(m, new_faces(m, st), REEF_ROCK[1:] + ["#e0b0a0"], noise=0.12)
-            if s > 0.8:
-                m.cyl(s * 0.5, 0.06, (x, y, 0.3 * s - 0.4 + 0.02 + 0.4 * s), TIDE_POOL, segs=7, glow=True)
+        m.cyl(0.55, 0.06, (0.1, 0.1, 0.45), "#1f8a9a", segs=6)
+    else:
+        for side in (-1, 1):                                             # two halves of one boulder
+            st = mark(m)
+            lump(m, rng, (side * 0.75, 0, 0.5), (1.1, 1.7, 1.3), REEF_ROCK[1], n=14, flat=0.5)
+            xform(m, st, M(rot=(0, side * 0.12, rng.uniform(-0.1, 0.1))))
+            facet(m, new_faces(m, st), REEF_ROCK, noise=0.12)
+        m.ball(0.55, (0, 0.2, 0.4), C_ORANGE[2], subdiv=0, scale=(1, 1, 0.4))     # a starfish wedged in the crack
+        m.ball(0.3, (0, 0.2, 0.55), C_ORANGE[3], subdiv=0)
+        foot = 1.8
     # a crust of barnacles and pink coral at the waterline, and some weed
-    for k in range(10):
+    for k in range(9):
         a = rng.uniform(0, math.tau)
-        d = (layers[0][0] if layers else 1.6) * rng.uniform(0.9, 1.15)
+        d = foot * rng.uniform(0.9, 1.15)
         m.ball(rng.uniform(0.25, 0.4), (math.cos(a) * d, math.sin(a) * d, rng.uniform(-0.1, 0.3)),
                rng.choice((BARNACLE, "#ff7a90", WEED[0], WEED[1])), subdiv=0)
     m.build(r, rot_z=rng.uniform(0, math.tau))
@@ -365,6 +440,7 @@ def build():
         coral_brain(v)
         coral_tube(v)
         mangrove(v)
+    for v in range(4):
         tide_rock(v)
     for v in range(2):
         giant_rib(v)

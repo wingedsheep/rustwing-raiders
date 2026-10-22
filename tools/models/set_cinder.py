@@ -9,11 +9,11 @@ import math
 import random
 
 from mathutils import Vector
-from kit import Model, animate, light
-from props_b_kit import (M, collider, facet, flicker, jitter, limb, mark, new_faces, paint, path_tube, pulse, ring,
+from kit import Model, animate, emitter, light
+from props_b_kit import (M, collider, crystal, facet, flicker, jitter, limb, mark, new_faces, paint, path_tube, pulse, ring,
                          root, xform)
-from props_b_cinder import (BRONZE, CHEM, CONCRETE, COPPER, FLAME, FRUIT, GLASS, GROW, HAZARD, ORANGE, PAINT, RED,
-                            SOOT, STEEL, VERDIGRIS)
+from props_b_cinder import (BRONZE, CHEM, CONCRETE, COPPER, CYAN, FLAME, FRUIT, GLASS, GROW, HAZARD, ORANGE, PAINT, RED,
+                            SOIL, SOOT, STEEL, VERDIGRIS, YOUNG, orchard_tree)
 
 RUST = ["#3a2420", "#5a3424", "#7a4a2e", "#9a6a44"]
 CHEM_LIGHT = "#e0a0ff"
@@ -96,27 +96,32 @@ def _pad(m, x, y, rad, z0=-3.0, z1=0.4, col=CONCRETE[1]):
 
 
 def _crown(m, rng, c, rad, squash=0.6, lobes=5, fruit=14):
-    """A copper tree's crown: a faceted mass of beaten-metal lobes, verdigris here and there, fruit."""
+    """A prize tree's crown: a rosette of beaten-copper leaf blades in two tiers round a dark heart,
+    each blade its own shade, a verdigris boss on top, ember fruit hung in a few heavy clusters."""
+    from props_b_cinder import OLD
     st = mark(m)
-    m.ball(rad, c, COPPER[2], subdiv=1, scale=(1, 1, squash), jitter=rad * 0.08)
-    for k in range(lobes):
-        a = k / lobes * math.tau + rng.uniform(-0.3, 0.3)
-        d = rad * rng.uniform(0.7, 0.95)
-        m.ball(rad * rng.uniform(0.45, 0.6), (c[0] + math.cos(a) * d, c[1] + math.sin(a) * d,
-                                              c[2] + rng.uniform(-0.2, 0.25) * rad * squash),
-               COPPER[2], subdiv=1, scale=(1, 1, squash * 1.1), jitter=rad * 0.06)
-    faces = new_faces(m, st)
-    facet(m, faces, COPPER[:4], noise=0.2, bias=-0.15)
-    vg = [m._slot(c_, False) for c_ in VERDIGRIS]
-    for f in faces:
-        if rng.random() < 0.06:
-            f.material_index = vg[1] if f.normal.z > 0.3 else vg[0]
-    for _ in range(fruit):
-        th = rng.uniform(0, math.tau)
-        ph = rng.uniform(-0.1, 1.0)
-        d = Vector((math.cos(th) * math.cos(ph), math.sin(th) * math.cos(ph), math.sin(ph) * squash))
-        p = Vector(c) + d * rad * rng.uniform(1.0, 1.25)
-        m.ball(rng.uniform(0.32, 0.45), tuple(p), FRUIT, subdiv=0, glow=True)
+    m.ball(rad * 0.55, c, OLD[1], subdiv=1, scale=(1, 1, squash * 1.2), jitter=rad * 0.05)
+    facet(m, new_faces(m, st), OLD, noise=0.15)
+    tones = [COPPER[:4], [COPPER[1], COPPER[2], COPPER[3], COPPER[4]], OLD]
+    for t, (rr, dz, n, ln, tilt) in enumerate(((rad * 0.62, -0.1, lobes * 2, rad * 0.62, 0.32),
+                                                (rad * 0.32, rad * squash * 0.55, lobes + 1, rad * 0.5, 0.45))):
+        for k in range(n):
+            a = k / n * math.tau + rng.uniform(-0.12, 0.12) + t * 0.4
+            p = (c[0] + math.cos(a) * rr, c[1] + math.sin(a) * rr, c[2] + dz + rng.uniform(-0.2, 0.2))
+            st = mark(m)
+            m.ball(1.0, (0, 0, 0), COPPER[2], subdiv=0, scale=(ln, ln * 0.42, ln * 0.16), jitter=0.04)
+            xform(m, st, M(p, (0, tilt + rng.uniform(-0.08, 0.08), a)))
+            facet(m, new_faces(m, st), tones[(k + t) % 3], noise=0.1, bias=-0.05)
+    st = mark(m)
+    m.ball(rad * 0.28, (c[0], c[1], c[2] + rad * squash * 0.95), VERDIGRIS[1], subdiv=1, scale=(1, 1, 0.6),
+           jitter=0.1)
+    facet(m, new_faces(m, st), VERDIGRIS, noise=0.1)
+    for q in range(max(2, fruit // 5)):
+        a = q / max(2, fruit // 5) * math.tau + rng.uniform(0, 0.6)
+        base = Vector((c[0] + math.cos(a) * rad * 0.95, c[1] + math.sin(a) * rad * 0.95, c[2] - 0.4))
+        for k in range(3):
+            off = Vector((rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5), -k * 0.45))
+            m.ball(rng.uniform(0.45, 0.6), tuple(base + off), FRUIT, subdiv=0, glow=True)
 
 
 # --- the Copper Orchards ---------------------------------------------------------------------
@@ -389,6 +394,294 @@ def sapling_row(v):
         if rng.random() < 0.5:
             m.ball(0.2, (0.5, y, 0.9 + h), FRUIT, subdiv=0, glow=True)
         m.box((0.3, 0.1, 0.2), (0.52, y, 0.25), "#7aff9a" if i % 2 else RED, glow=True)    # moisture tags
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+# --- orchard scenery: the crop in rows, and the people and machines who work it ----------------
+
+def _bed(m, rng, w, l, h=0.3, col=None):
+    """A raised planting bed of dark tilled soil, edged in company-white kerb."""
+    st = mark(m)
+    m.box((w, l, h), (0, 0, h / 2 - 0.1), col or SOIL[1])
+    jitter(m, new_faces(m, st), 0.04)
+    facet(m, new_faces(m, st), SOIL, noise=0.15)
+    for s in (-1, 1):
+        m.box((0.22, l + 0.2, h + 0.08), (s * (w / 2 + 0.05), 0, (h + 0.08) / 2 - 0.1), PAINT[1])
+
+
+def _drip(m, x, y0, y1, heads, z=0.32):
+    """An irrigation line along y, white, with a cyan-lit dripper at each tree."""
+    limb(m, (x, y0, z), (x, y1, z), 0.13, 0.13, PAINT[3], segs=5)
+    for y in heads:
+        m.box((0.3, 0.3, 0.2), (x, y, z + 0.08), CYAN, glow=True)
+
+
+def _row_post(m, x, y, n):
+    """A row-end post: white, a warning-orange plate on top with the row's cyan status light."""
+    m.box((0.32, 0.32, 1.7), (x, y, 0.85), PAINT[3])
+    m.box((0.8, 0.5, 0.36), (x, y, 1.8), ORANGE)
+    m.box((0.22 + 0.12 * (n % 3), 0.52, 0.06), (x - 0.1, y, 2.0), PAINT[3])           # its number, roughly
+    m.cyl(0.18, 0.18, (x + 0.25, y, 1.98), CYAN, segs=5, glow=True)
+
+
+def _bin(m, rng, x, y, z=0.0, full=True, rot=0.0):
+    """A fruit bin: a white ceramic crate heaped with glowing ember fruit."""
+    m.box((1.05, 1.05, 0.7), (x, y, z + 0.35), PAINT[2], rot=(0, 0, rot))
+    m.box((1.1, 0.12, 0.2), (x, y, z + 0.6), ORANGE, rot=(0, 0, rot))
+    if full:
+        m.box((0.85, 0.85, 0.12), (x, y, z + 0.66), "#7a3aa8", rot=(0, 0, rot))
+        for k in range(4):
+            a = rot + k * math.pi / 2 + 0.6
+            m.ball(0.24, (x + math.cos(a) * 0.24, y + math.sin(a) * 0.24, z + 0.8), FRUIT, subdiv=0, glow=True)
+
+
+def _tree_row(m, rng, x, n, gap, stage_of, style_of, fruit_of=None, bed=True):
+    """One planted row along y at x: a bed, its trees, the drip line, a post at the end."""
+    L = gap * n
+    if bed:
+        st = mark(m)
+        m.box((1.9, L, 0.3), (x, 0, 0.05), SOIL[1])
+        jitter(m, new_faces(m, st), 0.04)
+        facet(m, new_faces(m, st), SOIL, noise=0.15)
+    ys = [-L / 2 + gap * (i + 0.5) for i in range(n)]
+    for i, y in enumerate(ys):
+        stage = stage_of(i)
+        if stage is None:                                                         # grubbed out: a stump
+            limb(m, (x, y, 0.15), (x, y, 0.5), 0.3, 0.28, BRONZE[2], segs=6)
+            m.cyl(0.26, 0.05, (x, y, 0.5), COPPER[3], segs=6)
+            continue
+        orchard_tree(m, rng, x + rng.uniform(-0.12, 0.12), y + rng.uniform(-0.1, 0.1), stage, style_of(i), z0=0.2,
+                     collar=False, fruit=fruit_of(i) if fruit_of else None)
+    _drip(m, x + 0.7, -L / 2, L / 2, [y for i, y in enumerate(ys) if stage_of(i) is not None])
+    return ys
+
+
+def orchard_row(v):
+    """The crop, a plot at a time (the scatter turns each plot its own way; within one, it's rows).
+    v0 three bearing rows; v1 a block of young vase-pruned trees; v2 two espaliers trained flat
+    along trellises; v3 rows half-picked, bins at their foot, a tree grubbed out."""
+    r = root("cinder_orchard_row", v)
+    rng = random.Random(3700 + v)
+    m = Model(f"cinder_orchard_row_{v}", 3700 + v)
+    if v == 0:
+        old = rng.randrange(12)
+        for j, x in enumerate((-3.2, 0, 3.2)):
+            _tree_row(m, rng, x, 4, 2.7, lambda i, j=j: 3 if j * 4 + i == old else 2,
+                      lambda i, j=j: "round" if (i + j) % 3 else "vase")
+        _row_post(m, -3.2, -6.0, 1)
+        _row_post(m, 3.2, -6.0, 3)
+    elif v == 1:
+        gap = 2.6
+        st = mark(m)
+        m.box((8.4, 8.4, 0.16), (0, 0, -0.02), "#7a6238")                             # a mulched plot
+        jitter(m, new_faces(m, st), 0.04)
+        facet(m, new_faces(m, st), ["#5e4a2c", "#7a6238", "#8e7444"], noise=0.15)
+        for i in range(3):
+            for j in range(3):
+                x, y = (i - 1) * gap, (j - 1) * gap
+                stage = 1 if (i + j) % 3 else 0
+                orchard_tree(m, rng, x + rng.uniform(-0.1, 0.1), y, stage, "vase" if stage else "round", z0=0.14)
+            _drip(m, (i - 1) * gap + 0.65, -4.0, 4.0, [(j - 1) * gap for j in range(3)], z=0.2)
+        for sx, sy in ((-1, -1), (1, 1)):
+            _row_post(m, sx * 4.4, sy * 4.4, 2)
+    elif v == 2:
+        # the prize block, under the company's hail lattice: white ceramic hexes on posts, the
+        # bearing trees showing through
+        for j, x in enumerate((-2.7, 0, 2.7)):
+            _tree_row(m, rng, x, 3, 2.8, lambda i: 2, lambda i, j=j: "vase" if (i + j) % 2 else "round",
+                      lambda i: 3)
+        H, R = 4.6, 1.75
+        cells = []
+        for q in range(-2, 3):
+            for k in range(-2, 3):
+                cx, cy = q * R * 1.5, (k + (q % 2) * 0.5) * R * math.sqrt(3)
+                if abs(cx) <= 4.6 and abs(cy) <= 5.2:
+                    cells.append((cx, cy))
+        edges = set()
+        for cx, cy in cells:
+            pts = [(round(cx + math.cos(a * math.pi / 3) * R, 2), round(cy + math.sin(a * math.pi / 3) * R, 2)) for a in range(6)]
+            for a, b in zip(pts, pts[1:] + pts[:1]):
+                edges.add(tuple(sorted((a, b))))
+        for a, b in edges:
+            m.plank_line((a[0], a[1], H), (b[0], b[1], H), 0.26, 0.2, PAINT[3])
+        for x, y in ((-4.6, -4.6), (4.6, -4.6), (-4.6, 4.6), (4.6, 4.6), (0, -5.0), (0, 5.0)):
+            m.box((0.3, 0.3, H), (x, y, H / 2), PAINT[2])
+            m.cyl(0.2, 0.18, (x, y, H), CYAN, segs=5, glow=True)
+        _row_post(m, -2.7, -5.3, 4)
+    else:
+        ys = _tree_row(m, rng, -1.7, 4, 2.7, lambda i: None if i == 1 else 2, lambda i: "round",
+                       lambda i: (0, 0, 1, 2)[i])
+        _tree_row(m, rng, 1.7, 4, 2.7, lambda i: 2, lambda i: "vase" if i % 2 else "round", lambda i: (3, 4, 2, 3)[i])
+        orchard_tree(m, rng, -1.2, ys[1] + 0.5, 0, "round", z0=0.2, collar=False)              # its replacement
+        for k, (x, y) in enumerate(((-3.6, -2.6), (-3.6, -1.4), (-3.7, 1.4), (-4.8, -2.0))):
+            _bin(m, rng, x, y, full=k != 2, rot=rng.uniform(-0.2, 0.2))
+        for s in (-1, 1):                                                             # a picking ladder
+            limb(m, (-2.7 + s * 0.35, ys[2] - 0.8, 0), (-2.25, ys[2] - 0.2 + s * 0.2, 2.4), 0.09, 0.09, ORANGE, segs=4)
+        _row_post(m, -1.7, -6.0, 3)
+    m.build(r)
+    return r
+
+
+def crop_bed(v):
+    """Ground cover between the orchard blocks. v0 two clipped copper hedgerows (windbreak);
+    v1 white hydroponic troughs of seedlings over cyan-lit feed; v2 a cover crop, verdigris-blue,
+    in mounded drills."""
+    r = root("cinder_crop_bed", v)
+    rng = random.Random(3720 + v)
+    m = Model(f"cinder_crop_bed_{v}", 3720 + v)
+    if v == 0:
+        for x in (-3.0, 0.0, 3.0):
+            st = mark(m)
+            for i in range(5):
+                y = -4.4 + i * 2.2
+                m.box((1.3, 2.4, 0.9 + rng.uniform(-0.1, 0.15)), (x, y, 0.45), COPPER[2], taper=0.8)
+            m.box((1.3, 10.8, 0.4), (x, 0, 0.2), COPPER[1])
+            jitter(m, new_faces(m, st), 0.1)
+            facet(m, new_faces(m, st), [COPPER[0], COPPER[1], VERDIGRIS[0], COPPER[2], COPPER[3]], noise=0.25, bias=-0.1)
+        for x in (-1.5, 1.5):
+            m.box((1.4, 11.0, 0.06), (x, 0, 0.0), SOIL[2])
+    elif v == 1:
+        for i, x in enumerate((-3.2, -1.6, 0, 1.6, 3.2)):
+            st = mark(m)
+            m.box((1.1, 8.0, 0.55), (x, 0, 0.27), PAINT[2])
+            facet(m, new_faces(m, st), PAINT, noise=0.04)
+            m.box((0.7, 7.6, 0.06), (x, 0, 0.55), "#2a6a7a")
+            m.box((0.22, 7.6, 0.08), (x, 0, 0.56), CYAN, glow=True)
+            for j in range(8):
+                y = -3.4 + j * 0.97
+                st = mark(m)
+                if (j + i) % 4 == 3:
+                    continue
+                m.cyl(0.32, 0.5 + 0.08 * (j % 3), (x, y, 0.55), YOUNG[2], segs=5, r_top=0.05, rot=(0, 0, j))
+                facet(m, new_faces(m, st), YOUNG, noise=0.1)
+        m.box((7.8, 0.6, 0.9), (0, -4.4, 0.45), STEEL[2])                              # the feed pump
+        m.box((0.8, 0.12, 0.3), (-1.2, -4.72, 0.6), CYAN, glow=True)
+    else:
+        for i in range(6):
+            x = -4.0 + i * 1.6
+            st = mark(m)
+            m.box((1.0, 9.0, 0.25), (x, 0, 0.1), SOIL[1])
+            facet(m, new_faces(m, st), SOIL, noise=0.15)
+            st = mark(m)
+            for j in range(7):
+                y = -3.9 + j * 1.3 + rng.uniform(-0.2, 0.2)
+                if rng.random() < 0.15:
+                    continue
+                m.ball(rng.uniform(0.5, 0.7), (x + rng.uniform(-0.1, 0.1), y, 0.35), VERDIGRIS[1], subdiv=0,
+                       scale=(1, 1.3, 0.7), jitter=0.06)
+            facet(m, new_faces(m, st), [OLIVE[1], VERDIGRIS[0], VERDIGRIS[1], VERDIGRIS[2]], noise=0.2)
+    m.build(r)
+    return r
+
+
+def work_shed(v):
+    """Where the orchard is worked from. v0 a workers' shed: white ceramic, a cyan skylight, crates
+    under the awning; v1 a pump house under its water tower; v2 a picker-drone dock, two drones
+    parked on the pad and charging."""
+    r = root("cinder_shed", v)
+    rng = random.Random(3740 + v)
+    m = Model(f"cinder_shed_{v}", 3740 + v)
+    m.box((5.2, 4.6, 0.2), (0, 0, 0.1), CONCRETE[1])
+    if v == 0:
+        st = mark(m)
+        m.box((3.6, 2.6, 2.0), (-0.4, 0.5, 1.2), PAINT[2])
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        m.gable((3.9, 3.0, 0.8), (-0.4, 0.5, 2.15), PAINT[3], overhang=0.2)
+        m.box((3.95, 0.3, 0.25), (-0.4, 0.5, 2.98), ORANGE)                           # the ridge
+        m.box((0.8, 0.9, 0.12), (-1.3, 0.1, 2.6), CYAN, glow=True, rot=(0.45, 0, 0))   # skylight
+        m.box((0.9, 0.1, 1.5), (0.6, -0.82, 0.95), STEEL[1])                          # the door
+        m.box((1.4, 0.1, 0.5), (-1.2, -0.82, 1.4), CYAN, glow=True)                   # a lit window
+        # the awning on the side, crates and a water drum under it
+        m.box((1.6, 2.8, 0.12), (2.2, 0.5, 2.0), ORANGE, rot=(0, -0.2, 0))
+        for y in (-0.5, 1.5):
+            m.box((0.15, 0.15, 1.9), (2.9, y, 0.95), PAINT[3])
+        _bin(m, rng, 2.1, 1.3)
+        _bin(m, rng, 2.1, 0.1, full=False)
+        m.cyl(0.4, 0.9, (2.0, -1.5, 0.2), VERDIGRIS[0], segs=7)
+        m.box((1.6, 0.5, 0.45), (-0.6, -1.5, 0.42), BRONZE[2])                        # a bench
+    elif v == 1:
+        st = mark(m)
+        m.box((2.4, 2.2, 1.6), (-1.2, -0.8, 0.95), PAINT[2])
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        m.box((2.6, 2.4, 0.2), (-1.2, -0.8, 1.85), ORANGE)
+        m.cyl(0.45, 0.3, (-1.6, -1.2, 1.9), STEEL[1], segs=6)
+        # the tower: four legs, a copper tank, a cyan level gauge
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                limb(m, (1.2 + sx * 1.1, 1.0 + sy * 1.1, 0.2), (1.2 + sx * 0.8, 1.0 + sy * 0.8, 3.6), 0.12, 0.12, STEEL[2],
+                     segs=4)
+        st = mark(m)
+        m.cyl(1.35, 1.5, (1.2, 1.0, 3.6), COPPER[2], segs=8)
+        facet(m, new_faces(m, st), COPPER, noise=0.06)
+        m.cyl(1.4, 0.5, (1.2, 1.0, 5.1), PAINT[3], segs=8, r_top=0.3)
+        m.cyl(1.38, 0.2, (1.2, 1.0, 4.0), PAINT[3], segs=8)
+        m.box((0.2, 0.14, 1.2), (1.2, -0.38, 4.2), CYAN, glow=True)
+        limb(m, (1.2, 1.0, 3.6), (-0.6, -0.2, 1.8), 0.16, 0.16, PAINT[3], segs=5)
+        limb(m, (-1.2, -2.0, 0.35), (-1.2, -4.5, 0.35), 0.18, 0.18, PAINT[3], segs=5)   # out to the rows
+    else:
+        st = mark(m)
+        m.cyl(2.3, 0.4, (0, 0, 0.2), PAINT[2], segs=6)
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        ring(m, 1.9, 0.2, 0.6, CYAN, n=6, h=0.06, glow=True)
+        m.box((1.0, 0.8, 1.4), (2.0, -1.9, 0.7), STEEL[1])                            # the charger
+        m.box((0.6, 0.1, 0.4), (2.0, -2.32, 1.0), CYAN, glow=True)
+        for k, (x, y) in enumerate(((-0.8, 0.5), (0.9, -0.4))):
+            m.cyl(0.55, 0.35, (x, y, 0.62), PAINT[3], segs=6)
+            m.cyl(0.25, 0.12, (x, y, 0.97), CYAN, segs=5, glow=True)
+            for a in range(4):
+                aa = a * math.pi / 2 + 0.785 + k * 0.3
+                px, py = x + math.cos(aa) * 0.75, y + math.sin(aa) * 0.75
+                limb(m, (x, y, 0.8), (px, py, 0.85), 0.07, 0.07, STEEL[1], segs=4)
+                m.cyl(0.32, 0.06, (px, py, 0.9), STEEL[0], segs=6)
+            m.box((0.5, 0.5, 0.3), (x, y, 0.42), "#7a3aa8")                           # its basket
+        _bin(m, rng, -1.6, -1.8)
+        _bin(m, rng, -0.4, -2.0, rot=0.3)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def picker(v):
+    """Orchard machinery. v0 a tracked picking robot reaching into the canopy with its basket; v1 a
+    little orange tug towing a trailer of fruit bins."""
+    r = root("cinder_picker", v)
+    rng = random.Random(3760 + v)
+    m = Model(f"cinder_picker_{v}", 3760 + v)
+    if v == 0:
+        for s in (-1, 1):
+            m.box((0.5, 2.0, 0.55), (s * 0.7, 0, 0.28), SOOT)
+            for y in (-0.7, 0, 0.7):
+                m.box((0.56, 0.2, 0.06), (s * 0.7, y, 0.57), STEEL[1])
+        st = mark(m)
+        m.box((1.2, 1.5, 0.9), (0, -0.1, 1.0), PAINT[2], taper=0.8)
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        m.box((0.9, 0.12, 0.3), (0, -0.88, 1.15), CYAN, glow=True)                     # its sensor bar
+        m.cyl(0.35, 0.3, (0, 0.2, 1.45), STEEL[1], segs=6)
+        limb(m, (0, 0.2, 1.7), (0.2, 1.3, 3.0), 0.16, 0.14, ORANGE, segs=5)
+        limb(m, (0.2, 1.3, 3.0), (0.3, 2.3, 2.5), 0.13, 0.11, ORANGE, segs=5)
+        m.box((0.7, 0.7, 0.45), (0.3, 2.5, 2.3), PAINT[3])
+        m.ball(0.22, (0.3, 2.5, 2.6), FRUIT, subdiv=0, glow=True)
+        m.box((1.0, 0.7, 0.5), (0, 0.85, 0.85), "#7a3aa8")                            # its hopper
+        for k in range(3):
+            m.ball(0.22, (-0.3 + k * 0.3, 0.85, 1.15), FRUIT, subdiv=0, glow=True)
+        # and a young tree it is working
+        orchard_tree(m, rng, 0.4, 3.1, 1, "round", collar=True, fruit=2)
+    else:
+        st = mark(m)
+        m.box((1.4, 1.6, 0.9), (0, 2.2, 0.75), ORANGE)
+        m.box((1.2, 0.9, 0.7), (0, 2.0, 1.5), PAINT[3])
+        facet(m, new_faces(m, st), [ORANGE, "#f09a4a"], noise=0.05)
+        m.box((1.0, 0.12, 0.4), (0, 2.46, 1.55), CYAN, glow=True)
+        for s in (-1, 1):
+            for y in (1.7, 2.7):
+                m.cyl(0.38, 0.3, (s * 0.85, y, 0.38), SOOT, segs=6, rot=(0, math.pi / 2, 0))
+        m.box((0.2, 0.9, 0.2), (0, 1.0, 0.45), STEEL[1])
+        m.box((1.7, 3.6, 0.25), (0, -1.3, 0.55), STEEL[2])
+        for s in (-1, 1):
+            for y in (-2.4, -0.3):
+                m.cyl(0.33, 0.28, (s * 0.95, y, 0.33), SOOT, segs=6, rot=(0, math.pi / 2, 0))
+        for k, y in enumerate((-2.4, -1.25, -0.1)):
+            _bin(m, rng, 0, y, z=0.68, full=k != 1)
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
 
@@ -1130,6 +1423,580 @@ def sludge_vent(v):
     return r
 
 
+# --- works scenery: Refinery Nine's plant, the canyon's pipe crews, the lake's run-off --------------
+
+ROCK = ["#5a3a26", "#7a5236", "#9a6c48", "#b88a62"]
+SCAR = "#3a2a20"
+CRUST = ["#8a8a70", "#c8c49a", "#ecead0"]
+SULPHUR = ["#a8b02a", "#dce83a", "#f6ff8a"]
+
+
+def _vessel_x(m, x0, x1, y, z, rad, cols, caps=ORANGE):
+    """A horizontal vessel along x with domed ends, faceted."""
+    st = mark(m)
+    m.cyl(rad, x1 - x0, (x0, y, z), cols[1], segs=8, rot=(0, math.pi / 2, 0))
+    for x in (x0, x1):
+        m.ball(rad, (x, y, z), cols[1], subdiv=1, scale=(0.5, 1, 1))
+    facet(m, new_faces(m, st), cols, noise=0.04)
+    for x in (x0 + 0.3, x1 - 0.5):
+        m.cyl(rad + 0.06, 0.2, (x, y, z), caps, segs=8, rot=(0, math.pi / 2, 0))
+
+
+def _wheel(m, x, y, z, col=RED):
+    m.cyl(0.12, 0.4, (x, y, z), STEEL[1], segs=4)
+    ring(m, 0.36, 0.1, z + 0.4, col, n=6, h=0.1, loc=(x, y))
+
+
+def process_unit(v):
+    """Refinery plant on its own pad. v0 a heat-exchanger skid; v1 a reactor in its platform ring,
+    the fired heater beside it glowing through its louvres; v2 a loading bay, a tanker under the arm."""
+    r = root("cinder_process_unit", v)
+    rng = random.Random(3800 + v)
+    m = Model(f"cinder_process_unit_{v}", 3800 + v)
+    st = mark(m)
+    m.box((7.0, 6.0, 0.3), (0, 0, 0.1), CONCRETE[1])
+    facet(m, new_faces(m, st), CONCRETE, noise=0.04)
+    m.box((7.0, 0.3, 0.06), (0, -2.85, 0.27), HAZARD)
+    if v == 0:
+        for y, cols in ((-1.3, PAINT), (1.0, [COPPER[1], COPPER[2], COPPER[3], COPPER[4]])):
+            for x in (-2.0, 1.4):
+                m.box((0.6, 1.4, 1.0), (x, y, 0.75), CONCRETE[2])                    # saddles
+            _vessel_x(m, -2.9, 2.4, y, 1.7, 0.85, cols)
+        limb(m, (2.6, -1.3, 1.7), (3.1, -1.3, 1.7), 0.35, 0.35, STEEL[2], segs=6)
+        limb(m, (3.1, -1.3, 1.7), (3.1, 1.0, 3.0), 0.3, 0.3, STEEL[2], segs=6)
+        limb(m, (3.1, 1.0, 3.0), (2.6, 1.0, 1.9), 0.3, 0.3, STEEL[2], segs=6)
+        limb(m, (-3.1, 1.0, 1.7), (-3.1, 2.6, 0.5), 0.3, 0.3, COPPER[2], segs=6)
+        m.box((1.4, 0.9, 0.8), (-1.4, 2.5, 0.65), STEEL[1])                           # the pump and motor
+        m.cyl(0.4, 0.8, (-0.6, 2.5, 0.65), PAINT[3], segs=6, rot=(0, math.pi / 2, 0))
+        m.box((0.4, 0.1, 0.25), (-1.4, 2.03, 0.8), CYAN, glow=True)
+        _wheel(m, 0.2, -1.3, 2.5)
+        _wheel(m, -1.0, 1.0, 2.5, HAZARD)
+    elif v == 1:
+        st = mark(m)
+        m.cyl(1.25, 4.4, (-1.0, 0.3, 0.25), COPPER[2], segs=10)
+        m.ball(1.25, (-1.0, 0.3, 4.65), COPPER[3], subdiv=1, scale=(1, 1, 0.55))
+        facet(m, new_faces(m, st), COPPER, noise=0.05)
+        m.cyl(0.35, 0.5, (-1.0, 0.3, 5.2), STEEL[1], segs=6)
+        ring(m, 1.75, 0.8, 3.0, STEEL[0], n=10, h=0.15)                               # the platform
+        ring(m, 2.1, 0.12, 3.5, HAZARD, n=10, h=0.12)
+        for k in range(3):
+            a = k / 3 * math.tau + 0.4
+            limb(m, (-1.0 + math.cos(a) * 1.9, 0.3 + math.sin(a) * 1.9, 0.25),
+                 (-1.0 + math.cos(a) * 1.9, 0.3 + math.sin(a) * 1.9, 3.0), 0.1, 0.1, STEEL[1], segs=4)
+        m.box((0.6, 0.25, 3.0), (-1.0, -1.85, 1.75), STEEL[2])                        # the ladder
+        # the fired heater: a box furnace, its louvres glowing, a short stack
+        st = mark(m)
+        m.box((2.6, 3.2, 2.2), (2.0, 0.6, 1.35), PAINT[1])
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        for k in range(3):
+            m.box((2.66, 0.35, 0.18), (2.0, -0.4 + k * 0.7, 0.9 + 0.0), FLAME[1], glow=True)
+        m.box((0.12, 2.6, 0.5), (3.32, 0.6, 1.2), FLAME[0], glow=True)
+        m.cyl(0.45, 2.4, (2.4, 1.4, 2.45), SOOT, segs=6)
+        m.cyl(0.5, 0.25, (2.4, 1.4, 4.6), RED, segs=6)
+        limb(m, (0.7, 0.6, 1.8), (-0.0, 0.4, 2.3), 0.28, 0.28, STEEL[2], segs=6)
+        light(r, (3.6, 0.6, 1.2), FLAME[1], radius=4, intensity=0.6, flicker=0.3, halo=False)
+        emitter(r, (2.4, 1.4, 5.0), "smoke")
+    else:
+        # a tanker at the loading arm
+        for s in (-1, 1):
+            for y in (-2.0, -1.0, 1.8):
+                m.cyl(0.38, 0.35, (s * 1.0 - (0.18 if s < 0 else 0.0) + (0.0 if s < 0 else -0.17), y, 0.62), SOOT, segs=6,
+                      rot=(0, math.pi / 2, 0))
+        m.box((1.9, 5.2, 0.3), (0, -0.2, 0.8), STEEL[0])
+        st = mark(m)
+        m.cyl(0.95, 4.0, (0, -2.6, 1.9), PAINT[2], segs=8, rot=(-math.pi / 2, 0, 0))
+        facet(m, new_faces(m, st), PAINT, noise=0.04)
+        m.cyl(1.0, 0.3, (0, -0.8, 1.9), ORANGE, segs=8, rot=(-math.pi / 2, 0, 0))
+        m.box((0.6, 0.6, 0.2), (0, -1.4, 2.9), STEEL[1])                              # the hatch
+        st = mark(m)
+        m.box((1.9, 1.6, 1.6), (0, 2.3, 1.65), ORANGE)
+        facet(m, new_faces(m, st), [ORANGE, "#f09a4a"], noise=0.04)
+        m.box((1.6, 0.12, 0.5), (0, 3.12, 2.0), CYAN, glow=True)
+        # the gantry and its arm swung over the hatch
+        m.box((0.6, 0.6, 4.4), (2.4, -1.4, 2.4), PAINT[2])
+        m.box((2.2, 2.2, 0.25), (2.4, -1.4, 4.4), STEEL[0])
+        m.box((2.3, 0.15, 0.4), (2.4, -2.45, 4.6), HAZARD)
+        limb(m, (2.4, -1.4, 4.0), (0.3, -1.4, 4.2), 0.2, 0.2, COPPER[2], segs=5)
+        limb(m, (0.3, -1.4, 4.2), (0, -1.4, 3.1), 0.2, 0.2, COPPER[2], segs=5)
+        limb(m, (2.4, -1.4, 0.3), (3.3, 2.5, 0.3), 0.3, 0.3, COPPER[1], segs=6)
+        m.cyl(0.25, 0.2, (2.4, -1.4, 4.55), RED, segs=5, glow=True)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def control_hut(v):
+    """v0 the unit's control room: white ceramic modules, a long cyan window band, roof plant and a
+    radio mast; v1 a substation: transformers, insulators, a fence round it, a hazard board."""
+    r = root("cinder_control_hut", v)
+    rng = random.Random(3820 + v)
+    m = Model(f"cinder_control_hut_{v}", 3820 + v)
+    if v == 0:
+        m.box((6.6, 4.4, 0.3), (0, 0, 0.1), CONCRETE[1])
+        st = mark(m)
+        m.box((5.6, 3.0, 2.4), (0, 0.3, 1.45), PAINT[2])
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        m.box((5.8, 3.2, 0.25), (0, 0.3, 2.75), PAINT[3])
+        m.box((5.0, 0.12, 0.55), (0, -1.22, 1.8), CYAN, glow=True)
+        m.box((5.62, 0.14, 0.2), (0, -1.22, 1.25), ORANGE)
+        for x in (-1.6, 0.4):
+            m.box((1.4, 1.2, 0.6), (x, 0.6, 3.15), STEEL[2])
+            m.cyl(0.4, 0.1, (x, 0.6, 3.46), SOOT, segs=8)
+        limb(m, (2.2, 1.2, 2.8), (2.2, 1.2, 6.6), 0.1, 0.06, STEEL[2], segs=4)
+        m.ball(0.22, (2.2, 1.2, 6.7), RED, subdiv=0, glow=True)
+        for k in range(4):                                                           # the stair
+            m.box((0.9, 0.4, 0.15), (3.0, -0.8 + k * 0.4, 0.4 + k * 0.5), STEEL[1])
+        light(r, (0, -2.0, 1.8), CYAN, radius=4, intensity=0.5, halo=False)
+    else:
+        m.box((6.0, 5.0, 0.2), (0, 0, 0.08), "#4a4846")
+        for s in (-1, 1):
+            m.box((6.0, 0.12, 1.1), (0, s * 2.45, 0.6), STEEL[2])
+            m.box((0.12, 5.0, 1.1), (s * 2.95, 0, 0.6), STEEL[2])
+        for k, x in enumerate((-1.5, 1.2)):
+            st = mark(m)
+            m.box((1.8, 1.6, 1.8), (x, 0.4, 1.0), "#4a5a52")
+            for i in range(4):
+                m.box((0.12, 1.9, 1.3), (x - 0.8 + i * 0.53, 0.4, 0.9), "#3a4842")
+            facet(m, new_faces(m, st), ["#2e3a34", "#4a5a52", "#6a7a70"], noise=0.05)
+            for i in range(3):
+                x2 = x - 0.55 + i * 0.55
+                m.cyl(0.14, 0.9, (x2, 0.4, 1.9), "#c8b89a", segs=5)
+                for z in (2.1, 2.4, 2.7):
+                    m.cyl(0.24, 0.08, (x2, 0.4, z), "#e8dcc0", segs=5)
+        m.box((1.2, 0.12, 0.8), (0, -2.55, 1.0), HAZARD)
+        m.box((0.6, 0.14, 0.4), (0, -2.6, 1.0), SOOT)
+        m.cyl(0.18, 0.18, (2.7, -2.2, 1.15), CYAN, segs=5, glow=True)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def manifold(v):
+    """A self-contained knot of pipeline: v0 risers out of the ground into a header, valve wheels
+    on each; v1 a pig trap, the fat orange barrel and its door on saddles, a gauge on a post."""
+    r = root("cinder_manifold", v)
+    rng = random.Random(3840 + v)
+    m = Model(f"cinder_manifold_{v}", 3840 + v)
+    st = mark(m)
+    m.box((6.0, 4.4, 0.3), (0, 0, 0.1), CONCRETE[1])
+    facet(m, new_faces(m, st), CONCRETE, noise=0.04)
+    if v == 0:
+        _pipe_x(m, -2.8, 2.8, 0.9, 1.6, 0.45, COPPER[1:], flanges=2.0)
+        for i, x in enumerate((-2.0, -0.4, 1.2, 2.4)):
+            col = (PAINT[2], COPPER[2], STEEL[2], ORANGE)[i]
+            limb(m, (x, -1.6, 0.2), (x, -1.6, 1.2), 0.3, 0.3, col, segs=6)
+            limb(m, (x, -1.6, 1.2), (x, 0.6, 1.4), 0.3, 0.3, col, segs=6)
+            m.cyl(0.42, 0.25, (x, -1.6, 0.7), STEEL[0], segs=6)
+            _wheel(m, x, -0.5, 1.4, RED if i % 2 else HAZARD)
+        m.box((0.7, 0.5, 1.1), (-2.6, -1.8, 0.75), PAINT[3])
+        m.box((0.4, 0.1, 0.3), (-2.6, -2.06, 1.0), CYAN, glow=True)
+    else:
+        for x in (-1.6, 1.2):
+            m.box((0.5, 1.2, 0.9), (x, 0, 0.7), CONCRETE[2])
+        st = mark(m)
+        m.cyl(0.8, 4.0, (-2.4, 0, 1.6), ORANGE, segs=8, rot=(0, math.pi / 2, 0))
+        facet(m, new_faces(m, st), [RUST[3], ORANGE, "#f09a4a"], noise=0.05)
+        m.cyl(0.55, 1.6, (1.6, 0, 1.6), STEEL[2], segs=8, rot=(0, math.pi / 2, 0))
+        m.cyl(1.0, 0.35, (-2.75, 0, 1.6), STEEL[1], segs=8, rot=(0, math.pi / 2, 0))   # the closure
+        m.box((0.2, 0.9, 0.2), (-2.95, 0, 2.3), HAZARD)
+        limb(m, (0.2, 0, 2.2), (0.2, 0, 2.9), 0.15, 0.15, STEEL[1], segs=4)
+        m.cyl(0.35, 0.15, (0.2, 0, 2.9), PAINT[3], segs=6)
+        m.cyl(0.2, 0.06, (0.2, 0, 3.05), CYAN, segs=6, glow=True)
+        limb(m, (3.0, 0, 1.6), (3.0, 0, 0.0), 0.5, 0.5, STEEL[2], segs=6)
+        _wheel(m, 0.9, 0, 2.15)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def rubble(v):
+    """Blast rock from cutting the canyon: angular slabs and chunks heaped where they fell, drill
+    holes in the faces, survey paint. v0 a heap, v1 a split slab tipped up, v2 a scatter of chunks."""
+    r = root("cinder_rubble", v)
+    rng = random.Random(3860 + v)
+    m = Model(f"cinder_rubble_{v}", 3860 + v)
+    spots = ([(0, 0, 1.6, 1.4), (1.6, 0.8, 1.0, 0.9), (-1.4, 1.0, 0.9, 0.8), (0.4, -1.6, 0.8, 0.6), (-1.2, -1.2, 0.6, 0.5)],
+             [(0, 0, 1.0, 1.0), (2.0, 1.0, 0.7, 0.6), (-1.8, -1.2, 0.5, 0.4)],
+             [(rng.uniform(-3, 3), rng.uniform(-3, 3), rng.uniform(0.4, 0.8), 0.5) for _ in range(7)])[v]
+    for i, (x, y, rad, h) in enumerate(spots):
+        st = mark(m)
+        if v == 1 and i == 0:
+            m.box((3.6, 1.0, 2.6), (x, y, 1.0), ROCK[2], rot=(0.25, 0.3, rng.uniform(0, 1)))
+        else:
+            m.ball(rad, (x, y, h * 0.35), ROCK[2], subdiv=0, scale=(1.2, 1, h / rad), jitter=rad * 0.15,
+                   rot=(0, 0, rng.uniform(0, math.tau)))
+        facet(m, new_faces(m, st), ROCK, noise=0.12)
+    if v == 1:
+        for k in range(3):                                                             # drill holes, half-pipes
+            m.box((0.3, 0.3, 2.2), (-1.0 + k * 1.0, -0.42, 1.2), SCAR, rot=(0.25, 0.3, 0))
+    for k in range(3 if v != 2 else 1):                                                # the survey stake
+        a = rng.uniform(0, math.tau)
+        sx, sy = math.cos(a) * 3.0, math.sin(a) * 3.0
+        if k == 0:
+            m.box((0.18, 0.18, 1.4), (sx, sy, 0.7), PAINT[3])
+            m.box((0.4, 0.2, 0.3), (sx, sy, 1.3), ORANGE)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def racer(v):
+    """The night racers' canyon. v0 a racer that didn't make the bend, nose-down and burnt out;
+    v1 a checkpoint they built from a pipe offcut and stolen lamps, chequer board on top."""
+    r = root("cinder_racer", v)
+    rng = random.Random(3880 + v)
+    m = Model(f"cinder_racer_{v}", 3880 + v)
+    if v == 0:
+        st = mark(m)
+        m.prism([(-0.5, 0), (0.5, 0), (0.3, 0.7), (-0.3, 0.7)], 4.6, (0, 0, 0), "#3a3a44")
+        xform(m, st, M((0, 0, 0.1), (0.18, 0, 0.3)))
+        facet(m, new_faces(m, st), ["#24242a", "#3a3a44", "#5a5a66"], noise=0.05)
+        for s in (-1, 1):
+            st = mark(m)
+            m.box((1.9, 1.2, 0.15), (s * 1.3, 0.2, 0.35), "#a8342a", rot=(0, s * 0.3, 0.3))
+            facet(m, new_faces(m, st), ["#6a2420", "#a8342a", "#d85a3a"], noise=0.05)
+        m.box((0.7, 0.4, 0.4), (-0.6, -1.9, 0.5), SOOT, rot=(0, 0, 0.3))
+        m.box((2.4, 0.5, 0.12), (-0.4, 1.6, 0.4), HAZARD, rot=(0, 0, 0.3))           # its racing stripe
+        m.slab([(-1.4, 2.0), (0.4, 1.2), (2.2, 2.6), (1.0, 4.6), (-1.6, 4.0)], -0.02, 0.04, SOOT)   # the scorch
+        for k in range(3):                                                             # the furrow it ploughed
+            m.box((0.5, 1.6, 0.18), (0.6 + k * 0.25, -3.2 - k * 1.5, 0.05), ROCK[1], rot=(0, 0, 0.3))
+        m.ball(0.35, (0.2, 1.0, 0.8), FLAME[1], subdiv=0, glow=True)
+        light(r, (0.2, 1.0, 1.2), FLAME[1], radius=3, intensity=0.5, flicker=0.4, halo=False)
+        emitter(r, (0.2, 1.0, 1.4), "smoke")
+    else:
+        st = mark(m)
+        m.cyl(0.8, 2.6, (0, 0, 0), RUST[2], segs=7)
+        facet(m, new_faces(m, st), RUST, noise=0.1)
+        m.cyl(0.85, 0.3, (0, 0, 1.0), ORANGE, segs=7)
+        for i in range(4):                                                             # a chequer board
+            for j in range(2):
+                m.box((0.55, 0.12, 0.55), (-0.82 + i * 0.55, 0, 3.0 + j * 0.55),
+                      "#f4f2ea" if (i + j) % 2 else SOOT)
+        limb(m, (0, 0, 2.6), (0, 0, 3.3), 0.1, 0.1, STEEL[2], segs=4)
+        for k in range(3):
+            a = k / 3 * math.tau
+            x, y = math.cos(a) * 2.2, math.sin(a) * 2.2
+            m.box((0.5, 0.5, 0.5), (x, y, 0.25), "#3a3a44", rot=(0, 0, a))
+            m.cyl(0.2, 0.2, (x, y, 0.5), ORANGE if k else CYAN, segs=5, glow=True)
+        m.slab([(-0.7, -2.5), (0.7, -2.5), (0.7, 2.5), (-0.7, 2.5)], -0.02, 0.04, "#d8d0b8")   # a painted line
+        light(r, (0, 0, 3.4), ORANGE, radius=5, intensity=0.6, flicker=0.15)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def pipe_spool(v):
+    """The pipe crews' laydown: v0 new pipe sections stacked on timbers, end caps in company orange;
+    v1 a cable drum and a welding rig, the arc lit cyan-white."""
+    r = root("cinder_pipe_spool", v)
+    rng = random.Random(3900 + v)
+    m = Model(f"cinder_pipe_spool_{v}", 3900 + v)
+    if v == 0:
+        for x in (-2.0, 0.0, 2.0):
+            m.box((0.4, 4.0, 0.3), (x, 0, 0.15), BRONZE[2])
+        for layer, (n, z) in enumerate(((4, 0.75), (3, 1.6), (2, 2.45))):
+            for i in range(n):
+                y = (i - (n - 1) / 2) * 0.95
+                st = mark(m)
+                m.cyl(0.45, 6.0, (-3.0, y, z), STEEL[2], segs=7, rot=(0, math.pi / 2, 0))
+                facet(m, new_faces(m, st), [STEEL[1], STEEL[2], STEEL[3]] if (i + layer) % 3 else COPPER[1:4],
+                      noise=0.05)
+                for x in (-3.05, 3.0):
+                    m.cyl(0.48, 0.1, (x, y, z), ORANGE, segs=7, rot=(0, math.pi / 2, 0))
+    else:
+        st = mark(m)
+        m.cyl(1.3, 1.1, (-1.2, 0, 1.3), BRONZE[2], segs=10, rot=(math.pi / 2, 0, 0))
+        facet(m, new_faces(m, st), BRONZE, noise=0.05)
+        m.cyl(1.0, 1.15, (-1.2, 0, 1.3), "#2a2a30", segs=10, rot=(math.pi / 2, 0, 0))
+        m.box((0.4, 1.4, 0.4), (-1.2, 0, 0.2), STEEL[1])
+        limb(m, (-1.2, 0.0, 2.3), (2.8, 1.6, 0.2), 0.12, 0.12, "#2a2a30", segs=4)
+        m.box((1.6, 1.0, 1.0), (1.6, -1.4, 0.5), HAZARD)                             # the welder
+        m.box((1.0, 0.1, 0.4), (1.6, -1.92, 0.7), SOOT)
+        m.cyl(0.42, 2.4, (0.6, 1.6, 0.42), STEEL[2], segs=7, rot=(0, math.pi / 2, 0))
+        m.cyl(0.42, 2.0, (3.0, 1.6, 0.42), STEEL[2], segs=7, rot=(0, math.pi / 2, 0))
+        m.ball(0.3, (3.0, 1.6, 0.85), "#e8faff", subdiv=0, glow=True)
+        light(r, (3.0, 1.6, 1.0), CYAN, radius=3, intensity=0.8, flicker=0.6, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def outfall(v):
+    """Where Refinery Nine's run-off reaches the lake: v0 a fat pipe on an apron pouring violet
+    sludge down a stained fan; v1 a settling tank, cracked, crusted, overflowing."""
+    r = root("cinder_outfall", v)
+    rng = random.Random(3920 + v)
+    m = Model(f"cinder_outfall_{v}", 3920 + v)
+    if v == 0:
+        st = mark(m)
+        m.box((4.0, 3.0, 1.2), (0, -2.0, 0.4), CONCRETE[1], taper=0.85)
+        facet(m, new_faces(m, st), CONCRETE, noise=0.05)
+        st = mark(m)
+        m.cyl(1.0, 5.0, (0, -5.6, 1.6), RUST[2], segs=8, rot=(-math.pi / 2, 0, 0))
+        facet(m, new_faces(m, st), RUST, noise=0.1)
+        m.cyl(1.2, 0.4, (0, -0.8, 1.6), STEEL[1], segs=8, rot=(-math.pi / 2, 0, 0))
+        m.cyl(0.75, 0.1, (0, -0.42, 1.6), CHEM_LIGHT, segs=8, rot=(-math.pi / 2, 0, 0), glow=True)
+        # the pour and the fan it has stained
+        m.box((1.0, 1.4, 0.22), (0, 0.1, 1.0), CHEM, glow=True, rot=(-0.9, 0, 0))
+        m.slab([(-0.8, 0.4), (0.8, 0.4), (2.6, 3.2), (1.2, 5.4), (-1.6, 5.0), (-2.6, 2.8)], -0.05, 0.06, CHEM, glow=True)
+        m.slab([(-1.9, 0.0), (1.9, 0.0), (3.8, 3.4), (2.4, 6.4), (-2.8, 6.0), (-3.9, 3.0)], -0.08, 0.03, "#6a4a7a")
+        for k in range(5):
+            a = rng.uniform(0, math.tau)
+            m.ball(rng.uniform(0.3, 0.5), (math.cos(a) * 2.6, 3.0 + math.sin(a) * 2.2, 0.1), CRUST[2], subdiv=0,
+                   scale=(1, 1, 0.5))
+        m.box((1.5, 0.12, 1.0), (1.6, -0.5, 1.5), HAZARD)
+        m.box((0.6, 0.14, 0.5), (1.6, -0.56, 1.5), SOOT)
+        light(r, (0, 1.5, 1.0), CHEM, radius=5, intensity=0.7, halo=False)
+    else:
+        st = mark(m)
+        m.cyl(2.6, 1.6, (0, 0, 0), CONCRETE[1], segs=10)
+        jitter(m, new_faces(m, st), 0.08)
+        facet(m, new_faces(m, st), CONCRETE, noise=0.06)
+        m.cyl(2.25, 0.1, (0, 0, 1.45), CHEM, segs=10, glow=True)
+        for k in range(6):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0.4, 1.8)
+            m.ball(rng.uniform(0.3, 0.55), (math.cos(a) * d, math.sin(a) * d, 1.55), rng.choice(CRUST + SULPHUR[1:]),
+                   subdiv=0, scale=(1, 1, 0.4))
+        m.box((0.4, 1.8, 1.7), (2.4, 0.4, 0.8), SCAR, rot=(0, 0, 0.2))               # the crack
+        m.slab([(2.2, -0.6), (4.8, -1.0), (5.6, 1.4), (3.8, 2.6), (2.3, 1.4)], -0.03, 0.06, CHEM, glow=True)
+        for k in range(4):
+            a = k / 4 * math.tau + 0.3
+            m.box((0.6, 0.6, 0.3), (math.cos(a) * 2.6, math.sin(a) * 2.6, 1.65), STEEL[1], rot=(0, 0, a))
+        limb(m, (-2.6, 0, 1.2), (-6.0, 0, 1.2), 0.4, 0.4, RUST[2], segs=6)
+        light(r, (0, 0, 2.0), CHEM, radius=4, intensity=0.6, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def crust(v):
+    """Tailings dried out on the shore: v0 white salt pans in terraced rims; v1 sulphur-yellow crust
+    heaved into blisters; v2 violet crystal that grew out of the run-off, glowing at the heart."""
+    r = root("cinder_crust", v)
+    rng = random.Random(3940 + v)
+    m = Model(f"cinder_crust_{v}", 3940 + v)
+    if v == 0:
+        # evaporation terraces stepping down to one side, like rice paddies of salt
+        cx = 0.0
+        for k in range(4):
+            rad = 2.4 - k * 0.45
+            cx += rng.uniform(0.3, 0.6)
+            st = mark(m)
+            m.cyl(rad, 0.18, (cx, rng.uniform(-0.3, 0.3), k * 0.13), CRUST[1], segs=7)
+            jitter(m, new_faces(m, st), 0.18, z=False)
+            facet(m, new_faces(m, st), ["#6e6c60", "#9a9684", "#bcb8a0"], noise=0.12)
+        m.cyl(0.5, 0.05, (cx, 0, 0.52), "#6a4a8a", segs=6)
+    elif v == 1:
+        for k in range(7):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0, 2.2)
+            st = mark(m)
+            m.ball(rng.uniform(0.5, 0.95), (math.cos(a) * d, math.sin(a) * d, 0.0), SULPHUR[1], subdiv=1,
+                   scale=(1, 1, 0.55), jitter=0.08)
+            facet(m, new_faces(m, st), SULPHUR, noise=0.15)
+    else:
+        for k in range(6):
+            a = k / 6 * math.tau + rng.uniform(-0.3, 0.3)
+            tilt = rng.uniform(0.25, 0.6)
+            ln = rng.uniform(1.2, 2.4)
+            d = Vector((math.cos(a) * math.sin(tilt), math.sin(a) * math.sin(tilt), math.cos(tilt)))
+            st = mark(m)
+            crystal(m, (math.cos(a) * 0.5, math.sin(a) * 0.5, -0.1), d, rng.uniform(0.3, 0.45), ln, 0.5, CHEM, segs=5)
+            facet(m, new_faces(m, st), ["#5a2a8a", "#8a4ad0", (CHEM, True), (CHEM_LIGHT, True)], noise=0.15)
+        st = mark(m)
+        m.ball(1.4, (0, 0, 0), CRUST[0], subdiv=1, scale=(1.2, 1, 0.35), jitter=0.1)
+        facet(m, new_faces(m, st), ["#4a4a40", CRUST[0], CRUST[1]], noise=0.12)
+        light(r, (0, 0, 1.5), CHEM, radius=4, intensity=0.5, halo=False)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def blighted_tree(v):
+    """An orchard the run-off reached first: a copper tree gone to verdigris, leaves stripped to a
+    few green-crusted plates, its company collar still on. v1 has fallen over."""
+    r = root("cinder_blighted_tree", v)
+    rng = random.Random(3960 + v)
+    m = Model(f"cinder_blighted_tree_{v}", 3960 + v)
+    m.cyl(0.6, 0.3, (0, 0, -0.05), CRUST[1], segs=6)
+    m.cyl(0.65, 0.12, (0, 0, 0.25), RUST[2], segs=6)
+    if v == 0:
+        st = mark(m)
+        limb(m, (0, 0, 0), (0.1, 0, 1.8), 0.3, 0.2, BRONZE[1], segs=5)
+        tips = []
+        for k in range(4):
+            a = k / 4 * math.tau + rng.uniform(0, 0.8)
+            tip = (math.cos(a) * 1.4, math.sin(a) * 1.4, 2.6 + rng.uniform(-0.3, 0.5))
+            limb(m, (0.1, 0, 1.5), tip, 0.15, 0.06, BRONZE[1], segs=4)
+            tips.append(tip)
+        facet(m, new_faces(m, st), [VERDIGRIS[0], BRONZE[1], BRONZE[2]], noise=0.2)
+        for tip in tips[:3]:
+            st = mark(m)
+            m.ball(0.55, tip, VERDIGRIS[1], subdiv=0, scale=(1.2, 1, 0.5), jitter=0.06)
+            facet(m, new_faces(m, st), VERDIGRIS, noise=0.15)
+    else:
+        st = mark(m)
+        limb(m, (0, 0, 0.3), (0.3, 3.4, 0.6), 0.28, 0.18, BRONZE[1], segs=5)
+        for k in range(3):
+            limb(m, (0.2, 2.6, 0.5), (rng.uniform(-1.3, 1.5), 3.6 + rng.uniform(0, 0.8), rng.uniform(0.3, 1.2)), 0.13, 0.06,
+                 BRONZE[1], segs=4)
+        limb(m, (0, 0, 0.2), (0.6, -0.6, 0.6), 0.2, 0.08, BRONZE[2], segs=4)                    # torn roots
+        facet(m, new_faces(m, st), [VERDIGRIS[0], BRONZE[1], BRONZE[2]], noise=0.2)
+        m.slab([(-1.2, 1.4), (1.6, 1.0), (2.2, 4.4), (-1.4, 4.8)], -0.04, 0.03, "#4a4a3a")
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def sampler(v):
+    """Company monitoring on the shore: v0 a sampling post, a cyan readout and a hose into the
+    lake; v1 a floating-boom anchor, the boom's orange floats trailing off it."""
+    r = root("cinder_sampler", v)
+    rng = random.Random(3980 + v)
+    m = Model(f"cinder_sampler_{v}", 3980 + v)
+    m.box((1.8, 1.8, 0.3), (0, 0, 0.1), CONCRETE[1])
+    if v == 0:
+        st = mark(m)
+        m.box((0.8, 0.6, 2.2), (0, 0, 1.3), PAINT[2])
+        facet(m, new_faces(m, st), PAINT, noise=0.03)
+        m.box((0.6, 0.12, 0.5), (0, -0.32, 1.8), CYAN, glow=True)
+        m.box((0.9, 0.7, 0.18), (0, 0, 2.45), ORANGE)
+        limb(m, (0, 0.3, 2.5), (0, 0.3, 3.6), 0.06, 0.06, STEEL[2], segs=4)
+        m.ball(0.18, (0, 0.3, 3.65), RED, subdiv=0, glow=True)
+        _hose(m, (0.3, 0.4, 0.6), (0.6, 4.5, -0.5), 0.3, 0.12, "#2a2a30")
+    else:
+        m.box((0.5, 0.5, 1.6), (0, 0, 0.9), STEEL[2])
+        m.cyl(0.4, 0.2, (0, 0, 1.7), HAZARD, segs=6)
+        for k in range(6):
+            p = (0.3 + k * 1.15, 0.6 + math.sin(k * 0.9) * 0.6, 0.15)
+            m.cyl(0.4, 0.45, (p[0], p[1], 0), ORANGE if k % 2 == 0 else PAINT[3], segs=6, rot=(0, math.pi / 2, 0))
+        limb(m, (0, 0, 1.0), (6.5, 0.9, 0.2), 0.08, 0.08, SOOT, segs=4)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def rack_bay(v):
+    """A bay of ground pipe rack: two steel bents carrying a deck of pipes, cable tray on top. v0
+    straight, a pipe dropping off to the ground at one end; v1 a corner where the run turns, its
+    valve platform lit."""
+    r = root("cinder_rack_bay", v)
+    rng = random.Random(4000 + v)
+    m = Model(f"cinder_rack_bay_{v}", 4000 + v)
+    L, W, z = 9.0, 3.4, 3.4
+    cols = [COPPER[1:], PAINT, STEEL[1:], [ORANGE, ORANGE, "#f09a4a"], VERDIGRIS]
+    for y in (-L / 2 + 0.8, L / 2 - 0.8) if v == 0 else (-L / 2 + 0.8, 0.6):
+        for x in (-W / 2, W / 2):
+            m.box((0.3, 0.3, z), (x, y, z / 2), HAZARD if v else STEEL[2])
+            m.box((0.7, 0.7, 0.3), (x, y, 0.15), CONCRETE[1])
+        m.box((W + 0.6, 0.35, 0.3), (0, y, z), STEEL[1])
+        m.box((W + 0.6, 0.3, 0.25), (0, y, z - 1.5), STEEL[1])
+    if v == 0:
+        for i, x in enumerate((-1.2, -0.4, 0.4, 1.2)):
+            rad = (0.36, 0.3, 0.42, 0.26)[i]
+            st = mark(m)
+            m.cyl(rad, L, (x, -L / 2, z + 0.15 + rad), cols[i][1], segs=7, rot=(-math.pi / 2, 0, 0))
+            facet(m, new_faces(m, st), cols[i][:3], noise=0.05, bias=-0.15)
+        for x in (-0.9, 0.9):
+            m.box((0.5, L, 0.12), (x, 0, z - 1.35), "#2a2a30")                         # cable tray
+        limb(m, (0.4, L / 2 - 0.3, z + 0.57), (0.4, L / 2 + 1.0, z + 0.57), 0.42, 0.42, STEEL[2], segs=7)
+        limb(m, (0.4, L / 2 + 1.0, z + 0.57), (0.4, L / 2 + 1.0, 0.0), 0.42, 0.42, STEEL[2], segs=7)
+        _wheel(m, 0.4, L / 2 + 1.0, z + 1.0, RED)
+    else:
+        # the run comes in along y and turns off along x
+        for i, x in enumerate((-1.2, -0.4, 0.4)):
+            rad = (0.36, 0.3, 0.42)[i]
+            st = mark(m)
+            m.cyl(rad, L / 2 + 0.6 + x, (x, -L / 2, z + 0.15 + rad), cols[i][1], segs=7, rot=(-math.pi / 2, 0, 0))
+            m.cyl(rad, 4.6 - x, (x, 0.6 + x, z + 0.15 + rad), cols[i][1], segs=7, rot=(0, math.pi / 2, 0))
+            m.ball(rad, (x, 0.6 + x, z + 0.15 + rad), cols[i][1], subdiv=1)
+            facet(m, new_faces(m, st), cols[i][:3], noise=0.05, bias=-0.15)
+        for y in (0.6,):
+            for x in (3.4,):
+                m.box((0.3, 0.3, z), (x, y, z / 2), HAZARD)
+        m.box((1.8, 1.8, 0.15), (2.2, -1.6, 2.0), STEEL[0])                           # the valve platform
+        m.box((1.9, 0.12, 0.5), (2.2, -2.5, 2.3), HAZARD)
+        _wheel(m, 2.2, -1.6, 2.1, RED)
+        m.cyl(0.2, 0.15, (3.0, -0.9, 2.1), CYAN, segs=5, glow=True)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def slick_boom(v):
+    """WATER. A containment boom on the tailings: a ring of orange floats on its skirt holding in a
+    slick, glossy-dark with a violet sheen; v1 a boom strung off a buoy, half-sunk and drifting."""
+    r = root("cinder_slick_boom", v)
+    rng = random.Random(4020 + v)
+    m = Model(f"cinder_slick_boom_{v}", 4020 + v)
+    if v == 0:
+        n, R = 14, 4.2
+        pts = []
+        for k in range(n):
+            a = k / n * math.tau
+            rr = R * (1 + 0.12 * math.sin(a * 3 + 0.7))
+            pts.append((math.cos(a) * rr * 1.2, math.sin(a) * rr))
+        m.slab(pts, -0.05, 0.03, "#3e2456")
+        inner = [(x * 0.7, y * 0.7) for x, y in pts]
+        m.slab(inner, 0.02, 0.05, "#5a2a7a")
+        for k in range(4):
+            a = rng.uniform(0, math.tau)
+            m.slab([(math.cos(a) * 1.5 + dx, math.sin(a) * 1.2 + dy) for dx, dy in ((-0.8, -0.3), (0.6, -0.4), (0.9, 0.3), (-0.5, 0.4))],
+                   0.05, 0.07, CHEM, glow=True)
+        for k, (x, y) in enumerate(pts):
+            a = math.atan2(y, x)
+            m.box((0.55, 2.0, 0.4), (x, y, 0.1), ORANGE if k % 3 else PAINT[3], rot=(0, 0, a))
+        m.box((0.7, 0.7, 0.9), (pts[0][0] + 0.6, pts[0][1], 0.3), HAZARD)
+        m.cyl(0.2, 0.2, (pts[0][0] + 0.6, pts[0][1], 0.75), CYAN, segs=5, glow=True)
+    else:
+        m.cyl(0.7, 1.0, (0, 0, -0.4), RED, segs=7)
+        m.cyl(0.5, 0.6, (0, 0, 0.6), PAINT[3], segs=7, r_top=0.2)
+        m.ball(0.2, (0, 0, 1.3), CYAN, subdiv=0, glow=True)
+        for k in range(7):
+            t = k / 6
+            x = 1.2 + t * 7.0
+            y = math.sin(t * 3.0) * 1.4
+            m.box((0.5, 1.4, 0.35 - 0.03 * k), (x, y, 0.05 - 0.03 * k), ORANGE, rot=(0, 0.15 * (k % 2), 1.4 + math.cos(t * 3) * 0.4))
+        m.slab([(1.0, -1.6), (5.0, -2.4), (8.8, -0.6), (6.4, 1.8), (2.0, 1.4)], -0.05, 0.03, "#3e2456")
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    if v == 0:
+        light(r, (0, 0, 0.8), CHEM, radius=4, intensity=0.4, halo=False)
+    return r
+
+
+def sludge_raft(v):
+    """WATER. v0 a skimmer barge: a pontoon deck, its pump and tank, a drum boom swung out, work
+    lights in company cyan; v1 a raft of crusted sludge foam, bubbles glowing where it splits."""
+    r = root("cinder_sludge_raft", v)
+    rng = random.Random(4040 + v)
+    m = Model(f"cinder_sludge_raft_{v}", 4040 + v)
+    if v == 0:
+        for s in (-1, 1):
+            st = mark(m)
+            m.cyl(0.6, 6.0, (s * 1.5, -3.0, 0.1), ORANGE, segs=7, rot=(-math.pi / 2, 0, 0))
+            facet(m, new_faces(m, st), [RUST[3], ORANGE, "#f09a4a"], noise=0.05)
+        st = mark(m)
+        m.box((4.0, 5.4, 0.25), (0, 0, 0.75), STEEL[1])
+        facet(m, new_faces(m, st), STEEL, noise=0.05)
+        st = mark(m)
+        m.cyl(1.0, 1.6, (0, 1.2, 0.85), PAINT[2], segs=8)
+        facet(m, new_faces(m, st), PAINT, noise=0.04)
+        m.cyl(1.04, 0.25, (0, 1.2, 1.9), ORANGE, segs=8)
+        m.box((1.4, 1.2, 1.1), (-0.9, -1.4, 1.4), PAINT[3])
+        m.box((1.0, 0.12, 0.35), (-0.9, -2.02, 1.6), CYAN, glow=True)
+        limb(m, (0.8, -1.2, 1.0), (2.6, -3.6, 1.8), 0.14, 0.14, HAZARD, segs=4)
+        m.cyl(0.4, 0.8, (2.6, -3.9, 0.0), STEEL[2], segs=6)                           # the skimmer head
+        m.cyl(0.5, 0.06, (2.6, -3.9, 0.02), CHEM, segs=7, glow=True)
+        for x, y in ((-1.8, 2.5), (1.8, -2.5)):
+            m.cyl(0.18, 0.2, (x, y, 0.9), CYAN, segs=5, glow=True)
+        light(r, (0, 0, 2.5), CYAN, radius=4, intensity=0.5, halo=False)
+    else:
+        for k in range(9):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0, 2.6)
+            st = mark(m)
+            m.ball(rng.uniform(0.7, 1.2), (math.cos(a) * d * 1.3, math.sin(a) * d, 0.0), CRUST[1], subdiv=0,
+                   scale=(1.2, 1, 0.3), jitter=0.12)
+            facet(m, new_faces(m, st), ["#5a5048", "#8a8070", "#b0a890"], noise=0.15)
+        for k in range(4):
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(0.5, 2.0)
+            m.ball(rng.uniform(0.25, 0.4), (math.cos(a) * d * 1.3, math.sin(a) * d, 0.25), CHEM_LIGHT, subdiv=0, glow=True)
+        m.cyl(0.3, 1.0, (0.8, -0.4, 0.0), RUST[2], segs=6, rot=(0.5, 0.3, 0))           # a drum caught in it
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
 def build():
     for v in range(2):
         irrigator(v)
@@ -1151,3 +2018,23 @@ def build():
     tanker(0)
     for v in range(3):
         barrels(v)
+        crop_bed(v)
+        work_shed(v)
+    for v in range(4):
+        orchard_row(v)
+    for v in range(2):
+        picker(v)
+        control_hut(v)
+        manifold(v)
+        racer(v)
+        pipe_spool(v)
+        outfall(v)
+        blighted_tree(v)
+        sampler(v)
+        rack_bay(v)
+        slick_boom(v)
+        sludge_raft(v)
+    for v in range(3):
+        process_unit(v)
+        rubble(v)
+        crust(v)

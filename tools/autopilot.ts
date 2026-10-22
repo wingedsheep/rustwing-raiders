@@ -16,6 +16,8 @@
  *   just autopilot --noboost                      a pilot that never boosts (is it the layout, or the speed?)
  *   just autopilot --foes rook,halo               the level's waves are these kinds, in turn (as &foes= in the browser)
  *   just autopilot --grafts ramline,halo,spindle   wreck grafts on the ship (as &grafts= in the browser)
+ *   just autopilot --core laugh,creed,chain      imprints held and knacks grown on the core (as &core=)
+ *   just autopilot --woke steel --call 2          the core awake, and the Engine calling at the boss
  *
  * Runs are shared out over every core (--cores to say how many). Exits non-zero if any run fails.
  */
@@ -29,6 +31,7 @@ import { frameById, partById } from '../src/game/parts';
 import { newPilot, pilot } from '../src/sim/pilot';
 import { PLANETS } from '../src/world/planets';
 import { GRAFTS, type GraftId, type Grafts } from '../src/game/grafts';
+import { IMPRINTS, KNACKS, ROOM, VEINS, type CoreKit, type ImprintId, type KnackId, type Vein } from '../src/game/core';
 
 interface Job {
   planet: string;
@@ -41,6 +44,9 @@ interface Job {
   noboost: boolean;
   foes?: string;
   grafts?: string;
+  core?: string;
+  woke?: string;
+  call: number;
   verbose: boolean;
 }
 
@@ -83,6 +89,8 @@ interface Result extends Job {
   bonus: number;
   /** What the grafts did (their events, by graft), and wrecks taken / lost. */
   grafted: Record<string, number>;
+  /** What the core took in (nerve, steel, grease points), summed over the ships. */
+  fed: number[];
   wrecks: string;
   hull: string;
   progress: number;
@@ -160,7 +168,14 @@ function fly(job: Job): Result {
   const spec = levelSpec(planet, job.mode, job.seed, job.difficulty);
   const builds = (job.coop ? [0, 1] : [0]).map(() => loadout(job.loadout, job.frame));
   const grafts: Grafts = Object.fromEntries((job.grafts ?? '').split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as GraftId].verb, id]));
-  const lv = new Level(spec, builds, undefined, builds.map(() => grafts));
+  const ids = (job.core ?? '').split(',');
+  const kit: CoreKit = {
+    held: ids.filter((id): id is ImprintId => id in IMPRINTS),
+    knacks: ids.filter((id): id is KnackId => id in KNACKS),
+    room: ROOM + 1,
+    woke: job.woke ? { name: 'WHISKER', temper: job.woke as Vein } : null,
+  };
+  const lv = new Level(spec, builds, undefined, builds.map(() => grafts), builds.map(() => kit), job.call);
   const grafted: Record<string, number> = {};
   let wrecksLost = 0;
   if (job.foes) lv.director.only(job.foes.split(','));
@@ -176,6 +191,7 @@ function fly(job: Job): Result {
       if (e.type === 'haulerHit') hhit[e.cause] = (hhit[e.cause] ?? 0) + e.dmg;
       if (e.type === 'hot' && (e.state === 'open' || e.state === 'blown' || e.state === 'lost')) crates += e.state[0];
       if (e.type === 'graft') grafted[`${e.graft}:${e.what}`] = (grafted[`${e.graft}:${e.what}`] ?? 0) + 1;
+      if (e.type === 'core') grafted[`core:${e.what}`] = (grafted[`core:${e.what}`] ?? 0) + 1;
       if (e.type === 'bond') grafted[`bond:${e.faction}`] = (grafted[`bond:${e.faction}`] ?? 0) + 1;
       if (e.type === 'wreck' && e.lost) wrecksLost++;
       if (!job.verbose) continue;
@@ -233,6 +249,7 @@ function fly(job: Job): Result {
     rank: lv.rank ?? '-',
     bonus: lv.parBonus,
     grafted,
+    fed: VEINS.map((v) => lv.players.reduce((s, p) => s + lv.mind.fed(p).vein[v], 0)),
     wrecks: `${lv.wrecks.length}/${lv.wrecks.length + wrecksLost}`,
     hull: lv.players.map((p) => `${p.hp}/${p.stats.hp}`).join(' '),
     progress: lv.progress,
@@ -278,6 +295,9 @@ if (!isMainThread) {
           noboost: !!args.noboost,
           foes: args.foes,
           grafts: args.grafts,
+          core: args.core,
+          woke: args.woke,
+          call: Number(args.call ?? 0),
           verbose: !!args.verbose || jobs.length === 0 && !!args.seed,
         });
   const cores = Math.min(Number(args.cores ?? cpus().length), jobs.length);
@@ -297,7 +317,7 @@ if (!isMainThread) {
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
             `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}  welds ${r.welds}${r.weldsLost ? ` (lost ${r.weldsLost})` : ''}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
-            `  ${r.rank} +${r.bonus}  scrap ${r.scrap}  wrecks ${r.wrecks}${r.convoy ? `  convoy ${r.convoy}` : ''}` +
+            `  ${r.rank} +${r.bonus}  scrap ${r.scrap}  fed ${r.fed.join('/')}  wrecks ${r.wrecks}${r.convoy ? `  convoy ${r.convoy}` : ''}` +
             (Object.keys(r.grafted).length ? `\n    grafts: ${Object.entries(r.grafted).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''),
         );
         for (const l of r.log) console.log('    ' + l);
@@ -324,7 +344,8 @@ if (!isMainThread) {
       `full clears ${results.filter((r) => r.fullClear).length}/${results.length}, ` +
       `killed ${Math.round((results.reduce((s, r) => s + r.killShare, 0) / results.length) * 100)}%, ` +
       `bounties ${results.reduce((s, r) => s + Number(r.bounties.split('/')[0]), 0)}/${results.reduce((s, r) => s + Number(r.bounties.split('/')[1]), 0)}, ` +
-      `scrap ${(results.reduce((s, r) => s + r.scrap, 0) / results.length).toFixed(0)}. ` +
+      `scrap ${(results.reduce((s, r) => s + r.scrap, 0) / results.length).toFixed(0)}, ` +
+      `core fed ${[0, 1, 2].map((k) => (results.reduce((s, r) => s + r.fed[k], 0) / results.length).toFixed(1)).join('/')} (nerve/steel/grease). ` +
       `Ranks ${['S', 'A', 'B', 'C', '-'].map((k) => `${k} ${results.filter((r) => r.rank === k).length}`).join(' ')}. ` +
       `What hit: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`,
   );

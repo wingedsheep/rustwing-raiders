@@ -253,38 +253,6 @@
   "mounts": [],
   "variant": 1
  },
- "halcyon_cargo_pile#0": {
-  "colliders": [],
-  "kind": "halcyon_cargo_pile",
-  "max": [
-   3.318,
-   3.25,
-   2.514
-  ],
-  "min": [
-   -2.535,
-   -0.3,
-   -2.486
-  ],
-  "mounts": [],
-  "variant": 0
- },
- "halcyon_cargo_pile#1": {
-  "colliders": [],
-  "kind": "halcyon_cargo_pile",
-  "max": [
-   3.458,
-   3.25,
-   3.313
-  ],
-  "min": [
-   -3.246,
-   -0.3,
-   -3.23
-  ],
-  "mounts": [],
-  "variant": 1
- },
  "halcyon_cargo_pod#0": {
   "colliders": [],
   "kind": "halcyon_cargo_pod",
@@ -510,6 +478,38 @@
   "mounts": [],
   "variant": 1
  },
+ "halcyon_kelp_rack#0": {
+  "colliders": [],
+  "kind": "halcyon_kelp_rack",
+  "max": [
+   2.165,
+   2.512,
+   3.059
+  ],
+  "min": [
+   -2.385,
+   -0.026,
+   -2.674
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_kelp_rack#1": {
+  "colliders": [],
+  "kind": "halcyon_kelp_rack",
+  "max": [
+   2.295,
+   2.925,
+   2.935
+  ],
+  "min": [
+   -3.277,
+   -0.3,
+   -1.788
+  ],
+  "mounts": [],
+  "variant": 1
+ },
  "halcyon_lantern_kelp#0": {
   "colliders": [],
   "kind": "halcyon_lantern_kelp",
@@ -564,12 +564,12 @@
   "max": [
    2.408,
    6.45,
-   2.4
+   2.096
   ],
   "min": [
-   -2.4,
+   -2.298,
    -0.139,
-   -2.4
+   -2.096
   ],
   "mounts": [],
   "variant": 0
@@ -580,12 +580,12 @@
   "max": [
    2.408,
    5.05,
-   2.4
+   2.143
   ],
   "min": [
-   -2.4,
+   -2.355,
    -0.139,
-   -2.4
+   -2.096
   ],
   "mounts": [],
   "variant": 1
@@ -596,12 +596,60 @@
   "max": [
    2.408,
    8.05,
-   2.4
+   2.096
   ],
   "min": [
-   -2.4,
+   -2.339,
    -0.139,
-   -2.4
+   -2.096
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "halcyon_marsh_reed#0": {
+  "colliders": [],
+  "kind": "halcyon_marsh_reed",
+  "max": [
+   3.368,
+   1.892,
+   3.357
+  ],
+  "min": [
+   -2.901,
+   -0.022,
+   -3.069
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_marsh_reed#1": {
+  "colliders": [],
+  "kind": "halcyon_marsh_reed",
+  "max": [
+   3.253,
+   1.823,
+   3.262
+  ],
+  "min": [
+   -3.533,
+   -0.021,
+   -4.045
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_marsh_reed#2": {
+  "colliders": [],
+  "kind": "halcyon_marsh_reed",
+  "max": [
+   3.192,
+   0.581,
+   2.513
+  ],
+  "min": [
+   -2.058,
+   -0.045,
+   -2.734
   ],
   "mounts": [],
   "variant": 2
@@ -653,6 +701,134 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "halcyon_settler_marker#0": {
+  "colliders": [],
+  "kind": "halcyon_settler_marker",
+  "max": [
+   2.778,
+   1.205,
+   2.788
+  ],
+  "min": [
+   -2.827,
+   -0.12,
+   -2.785
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_settler_marker#1": {
+  "colliders": [],
+  "kind": "halcyon_settler_marker",
+  "max": [
+   2.155,
+   3.39,
+   1.502
+  ],
+  "min": [
+   -1.508,
+   -0.02,
+   -2.367
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_shore_thrift#0": {
+  "colliders": [],
+  "kind": "halcyon_shore_thrift",
+  "max": [
+   2.058,
+   1.38,
+   2.783
+  ],
+  "min": [
+   -2.275,
+   -0.324,
+   -2.024
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_shore_thrift#1": {
+  "colliders": [],
+  "kind": "halcyon_shore_thrift",
+  "max": [
+   1.917,
+   0.607,
+   2.345
+  ],
+  "min": [
+   -2.35,
+   -0.041,
+   -1.914
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_shore_thrift#2": {
+  "colliders": [],
+  "kind": "halcyon_shore_thrift",
+  "max": [
+   1.65,
+   0.302,
+   2.539
+  ],
+  "min": [
+   -1.601,
+   -0.12,
+   -2.737
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "halcyon_shore_thrift#3": {
+  "colliders": [],
+  "kind": "halcyon_shore_thrift",
+  "max": [
+   1.597,
+   0.508,
+   1.699
+  ],
+  "min": [
+   -1.876,
+   -0.295,
+   -1.616
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "halcyon_solar_wing#0": {
+  "colliders": [],
+  "kind": "halcyon_solar_wing",
+  "max": [
+   3.131,
+   1.615,
+   4.017
+  ],
+  "min": [
+   -4.263,
+   -0.13,
+   -3.465
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_solar_wing#1": {
+  "colliders": [],
+  "kind": "halcyon_solar_wing",
+  "max": [
+   3.616,
+   1.449,
+   4.251
+  ],
+  "min": [
+   -4.482,
+   -0.06,
+   -4.528
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "halcyon_stilt_towers#0": {
   "colliders": [
@@ -723,6 +899,54 @@
   "mounts": [],
   "variant": 1
  },
+ "halcyon_storm_lichen#0": {
+  "colliders": [],
+  "kind": "halcyon_storm_lichen",
+  "max": [
+   2.379,
+   0.418,
+   2.422
+  ],
+  "min": [
+   -2.373,
+   -0.025,
+   -2.385
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_storm_lichen#1": {
+  "colliders": [],
+  "kind": "halcyon_storm_lichen",
+  "max": [
+   2.12,
+   0.305,
+   2.303
+  ],
+  "min": [
+   -2.27,
+   -0.035,
+   -2.199
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_storm_lichen#2": {
+  "colliders": [],
+  "kind": "halcyon_storm_lichen",
+  "max": [
+   2.081,
+   0.278,
+   1.783
+  ],
+  "min": [
+   -1.88,
+   -0.105,
+   -1.619
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "halcyon_storm_pylons#0": {
   "colliders": [
    {
@@ -781,6 +1005,125 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "halcyon_storm_shard#0": {
+  "colliders": [],
+  "kind": "halcyon_storm_shard",
+  "max": [
+   2.917,
+   4.034,
+   0.896
+  ],
+  "min": [
+   -2.422,
+   -0.434,
+   -1.985
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_storm_shard#1": {
+  "colliders": [],
+  "kind": "halcyon_storm_shard",
+  "max": [
+   2.309,
+   2.12,
+   2.204
+  ],
+  "min": [
+   -2.254,
+   -0.261,
+   -1.867
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_storm_shard#2": {
+  "colliders": [],
+  "kind": "halcyon_storm_shard",
+  "max": [
+   2.383,
+   1.571,
+   2.292
+  ],
+  "min": [
+   -2.738,
+   -0.209,
+   -2.197
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "halcyon_storm_stack#0": {
+  "colliders": [
+   {
+    "r": 2.99,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "halcyon_storm_stack",
+  "max": [
+   4.425,
+   19.05,
+   3.291
+  ],
+  "min": [
+   -4.838,
+   -3.0,
+   -5.247
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "halcyon_storm_stack#1": {
+  "colliders": [
+   {
+    "r": 2.53,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "halcyon_storm_stack",
+  "max": [
+   4.402,
+   21.05,
+   4.538
+  ],
+  "min": [
+   -2.093,
+   -3.0,
+   -1.954
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "halcyon_storm_stack#2": {
+  "colliders": [
+   {
+    "r": 2.3,
+    "x": -1.2,
+    "z": -0.0
+   },
+   {
+    "r": 2.07,
+    "x": 1.6,
+    "z": -0.4
+   }
+  ],
+  "kind": "halcyon_storm_stack",
+  "max": [
+   4.589,
+   16.7,
+   4.028
+  ],
+  "min": [
+   -3.65,
+   -3.0,
+   -4.108
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "halcyon_storm_towers#0": {
   "colliders": [
@@ -851,34 +1194,34 @@
   "mounts": [],
   "variant": 1
  },
- "halcyon_tank_tower#0": {
+ "halcyon_weather_station#0": {
   "colliders": [],
-  "kind": "halcyon_tank_tower",
+  "kind": "halcyon_weather_station",
   "max": [
-   1.829,
-   7.0,
-   1.829
+   2.926,
+   4.36,
+   3.814
   ],
   "min": [
-   -1.829,
-   -0.316,
-   -1.829
+   -2.853,
+   -0.18,
+   -2.56
   ],
   "mounts": [],
   "variant": 0
  },
- "halcyon_tank_tower#1": {
+ "halcyon_weather_station#1": {
   "colliders": [],
-  "kind": "halcyon_tank_tower",
+  "kind": "halcyon_weather_station",
   "max": [
-   2.68,
-   6.2,
-   4.017
+   3.085,
+   5.45,
+   3.004
   ],
   "min": [
-   -1.843,
-   -0.319,
-   -1.909
+   -2.388,
+   -0.16,
+   -2.383
   ],
   "mounts": [],
   "variant": 1

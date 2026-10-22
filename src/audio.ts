@@ -29,15 +29,17 @@ export type Sfx =
   | 'ui_move' | 'ui_select' | 'ui_back' | 'ui_error' | 'ui_place' | 'ui_buy'
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
+  | 'core_hum' | 'core_feed' | 'core_grow' | 'core_wake' | 'imprint' | 'shaken' | 'engine_call' | 'core_refuse' | 'core_bark'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
+  | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class';
 export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder';
 
 // ================================================================================================
 // Engine state
@@ -675,6 +677,42 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.42;
   }, 0.15, 2, { rev: 0.15 }),
 
+  // the Waking Engine counting: a click, then a clean struck tone (a bell's partials, no wobble)
+  toll: S((t, p, o) => {
+    tone(o, t, 'square', 3200 * p, 2400 * p, 0.012, 0.05, 0.001);
+    tone(o, t + 0.01, 'sine', 494 * p, 494 * p, 1.3, 0.14, 0.003, 1.3);
+    tone(o, t + 0.01, 'sine', 988 * p, 988 * p, 0.6, 0.05, 0.003);
+    tone(o, t + 0.01, 'sine', 1363 * p, 1363 * p, 0.35, 0.035, 0.002);
+    tone(o, t + 0.01, 'triangle', 247 * p, 247 * p, 0.9, 0.05, 0.01);
+    return 1.35;
+  }, 0.05, 6, { tuned: true, rev: 0.4 }),
+
+  // ice breaking off it: sharp cracks over a deep groan
+  ice_crack: S((t, p, o) => {
+    for (const [at, f] of [[0, 4200], [0.05, 3100], [0.13, 5200]] as const) noise(o, t + at, 0.05, 'highpass', f * p, f * p, 0.8, 0.3, 0.001);
+    noise(o, t + 0.02, 0.5, 'bandpass', 1300 * p, 400 * p, 1.2, 0.14, 0.01);
+    tone(o, t, 'sine', 70 * p, 46 * p, 0.6, 0.26, 0.02);
+    return 0.65;
+  }, 0.12, 3, { rev: 0.35 }),
+
+  // half asleep, it breathes out frost: a long cold hiss and a faint shimmer
+  frost_breath: S((t, p, o) => {
+    noise(o, t, 1.1, 'bandpass', 2600 * p, 900 * p, 0.9, 0.06, 0.35);
+    tone(o, t + 0.1, 'sine', 2093 * p, 2217 * p, 0.9, 0.012, 0.3);
+    tone(o, t, 'sine', 98 * p, 82 * p, 1.0, 0.05, 0.4);
+    return 1.2;
+  }, 0.5, 1, { rev: 0.4 }),
+
+  // the Engine coming awake: a vast machine groan rising through a chord, and a toll on top
+  engine_wake: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 900);
+    for (const [f, v] of [[49, 0.12], [73.5, 0.08], [98, 0.06]] as const) tone(lp, t, 'sawtooth', f * 0.75 * p, f * p, 1.8, v, 0.4, 1.4);
+    noise(o, t, 1.6, 'lowpass', 300 * p, 900 * p, 1, 0.16, 0.5);
+    tone(o, t + 1.2, 'sine', 988 * p, 988 * p, 1.4, 0.08, 0.003);
+    tone(o, t + 1.2, 'sine', 1481 * p, 1481 * p, 1.0, 0.04, 0.003);
+    return 2.6;
+  }, 1, 1, { rev: 0.5 }),
+
   // heists: an engine on the runner blows, and its turbine winds down
   engine_out: S((t, p, o) => {
     boom(o, t, p * 0.8, 1.3, 0.32);
@@ -1209,6 +1247,88 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.6, 1.4, 'highpass', 6000, 12000, 0.6, 0.03, 0.2);
     return 2.2;
   }, 1, 1, { tuned: true, rev: 0.55 }),
+
+  // --- the core -------------------------------------------------------------------------------
+
+  // the core on its bench: a low, wet breath of mould and a far-off hum
+  core_hum: S((t, p, o) => {
+    tone(o, t, 'sine', 55 * p, 58 * p, 1.6, 0.12, 0.6);
+    tone(filt(o, 'lowpass', 600), t, 'triangle', 110 * p, 112 * p, 1.6, 0.04, 0.6);
+    noise(o, t, 1.4, 'bandpass', 300, 500, 1.2, 0.04, 0.5);
+    return 1.8;
+  }, 1, 1, { tuned: true, rev: 0.6 }),
+
+  // a point of learning lands: a soft, glassy drip (pitched up as the meter fills)
+  core_feed: S((t, p, o) => {
+    tone(o, t, 'sine', 880 * p, 1320 * p, 0.12, 0.05, 0.002, 0.03);
+    tone(o, t + 0.01, 'triangle', 1760 * p, 1760 * p, 0.18, 0.015, 0.002);
+    return 0.2;
+  }, 0.025, 6, { tuned: true, rev: 0.4 }),
+
+  // a knot grows: a wet creak of something stretching, then a swell
+  core_grow: S((t, p, o) => {
+    tone(filt(o, 'bandpass', 700 * p, 3), t, 'sawtooth', 90 * p, 180 * p, 0.5, 0.06, 0.05);
+    noise(o, t, 0.5, 'bandpass', 400 * p, 1600 * p, 2, 0.05, 0.1);
+    [0, 4, 7].forEach((n, i) => tone(o, t + 0.25 + i * 0.05, 'triangle', mtof(64 + n) * p, mtof(64 + n) * p, 0.6, 0.03, 0.01));
+    return 0.9;
+  }, 0.1, 2, { tuned: true, rev: 0.5 }),
+
+  // the core wakes: a breath in, a heartbeat, and a chord that opens all the way
+  core_wake: S((t, p, o) => {
+    noise(o, t, 0.8, 'bandpass', 200, 3000, 1, 0.08, 0.7);
+    tone(o, t + 0.6, 'sine', 70 * p, 40 * p, 0.25, 0.4, 0.002);
+    tone(o, t + 0.9, 'sine', 70 * p, 40 * p, 0.25, 0.3, 0.002);
+    [0, 7, 12, 16, 19, 24].forEach((n, i) => {
+      const f = mtof(50 + n) * p;
+      tone(o, t + 1.2 + i * 0.07, 'triangle', f, f, 2.4, 0.05, 0.05);
+      tone(o, t + 1.2 + i * 0.07, 'sawtooth', f, f * 1.003, 2.0, 0.012, 0.2);
+    });
+    noise(o, t + 1.2, 2.2, 'highpass', 6000, 12000, 0.6, 0.03, 0.4);
+    return 3.6;
+  }, 2, 1, { tuned: true, rev: 0.7, duck: [3, 0.35] }),
+
+  // an imprint taken: a seal pressed into wax, and a little bell
+  imprint: S((t, p, o) => {
+    tone(o, t, 'sine', 160 * p, 70 * p, 0.12, 0.18, 0.001);
+    noise(o, t, 0.06, 'lowpass', 1800, 400, 0.8, 0.12, 0.001);
+    tone(o, t + 0.06, 'triangle', 1320 * p, 1320 * p, 0.5, 0.04, 0.002);
+    tone(o, t + 0.1, 'triangle', 1980 * p, 1980 * p, 0.4, 0.025, 0.002);
+    return 0.6;
+  }, 0.06, 2, { tuned: true, rev: 0.4 }),
+
+  // an imprint shaken loose: a seal cracking off, falling away
+  shaken: S((t, p, o) => {
+    noise(o, t, 0.08, 'bandpass', 3000 * p, 1200 * p, 2, 0.16, 0.001);
+    tone(o, t, 'triangle', 1320 * p, 330 * p, 0.45, 0.06, 0.002);
+    tone(o, t + 0.05, 'square', 220 * p, 110 * p, 0.1, 0.05, 0.001);
+    return 0.5;
+  }, 0.2, 1, { tuned: true, rev: 0.4 }),
+
+  // the Waking Engine calls: a slow, enormous tone from everywhere at once
+  engine_call: S((t, p, o) => {
+    tone(o, t, 'sine', 36 * p, 36 * p, 2.4, 0.3, 0.6);
+    tone(filt(o, 'lowpass', 900), t, 'sawtooth', 72 * p, 71 * p, 2.4, 0.06, 0.8);
+    tone(o, t + 0.2, 'sine', 108 * p, 107 * p, 2.0, 0.04, 0.8);
+    noise(o, t, 2.4, 'bandpass', 120, 260, 1.5, 0.08, 1);
+    return 2.8;
+  }, 2, 1, { tuned: true, rev: 0.8, duck: [2.4, 0.4] }),
+
+  // a woken core says no: the call cut short, and a bright bark back
+  core_refuse: S((t, p, o) => {
+    noise(o, t, 0.12, 'lowpass', 4000, 300, 0.8, 0.2, 0.001);
+    tone(o, t, 'square', 220 * p, 440 * p, 0.12, 0.08, 0.001);
+    [0, 4, 7, 12].forEach((n, i) => tone(o, t + 0.08 + i * 0.04, 'triangle', mtof(69 + n) * p, mtof(69 + n) * p, 0.5, 0.05, 0.002));
+    return 0.8;
+  }, 0.5, 1, { tuned: true, rev: 0.5 }),
+
+  // the core says something: a chirp of mould-voice
+  core_bark: S((t, p, o) => {
+    for (let k = 0; k < 4; k++) {
+      const f = (500 + Math.random() * 500) * p;
+      tone(filt(o, 'bandpass', f * 2, 4), t + k * 0.05, 'sawtooth', f, f * 1.2, 0.04, 0.03, 0.002);
+    }
+    return 0.25;
+  }, 0.2, 1, { tuned: true, rev: 0.3 }),
 
   // --- legendary traits in flight -----------------------------------------------------------
 
@@ -2132,9 +2252,10 @@ interface TrackDef {
   dly?: Partial<Record<Chan, number>>;
   /**
    * A boss theme's band in each of its fights' parts (its phases, then its last stand): what
-   * changes from the part before, taken up on the next bar (see `audio.part`).
+   * changes from the part before, taken up on the next bar (see `audio.part`). (The tune itself
+   * is written once, from the track, so how busy it is can't change by part.)
    */
-  parts?: Partial<Pick<TrackDef, 'lead' | 'leadOct' | 'dbl' | 'density' | 'pad' | 'arp' | 'arpOct' | 'arpRate' | 'arpAt' | 'arpStyle' | 'drums' | 'fill' | 'kick'>>[];
+  parts?: Partial<Pick<TrackDef, 'lead' | 'leadOct' | 'dbl' | 'bass' | 'pad' | 'padOct' | 'arp' | 'arpOct' | 'arpRate' | 'arpAt' | 'arpStyle' | 'drums' | 'fill' | 'kick' | 'crash'>>[];
 }
 
 const SC = {
@@ -2220,7 +2341,7 @@ const TRACKS: Record<Track, TrackDef> = {
     parts: [
       {},
       {
-        lead: 'flute', density: 0.6, arp: 'marimba', arpAt: 0.5, arpStyle: 'broken',
+        lead: 'flute', arp: 'marimba', arpAt: 0.5, arpStyle: 'broken',
         drums: {
           kick: '0...0...0...0.2.', metal: '......1.......1.', tomLo: '0..1..0...0.1...', tomHi: '........0.....1.',
           conga: '..1..1.....1..1.', snare: '....0.......0...', hat: '1313131313131313',
@@ -2228,7 +2349,7 @@ const TRACKS: Record<Track, TrackDef> = {
         fill: { tomHi: '........0.0.0.00', tomLo: '0.0.0.0.0.0.....' },
       },
       {
-        lead: 'flute', dbl: true, density: 0.7, pad: 'warm', arp: 'marimba', arpRate: 1, arpAt: 0.5, arpStyle: 'broken',
+        lead: 'flute', dbl: true, pad: 'warm', arp: 'marimba', arpRate: 1, arpAt: 0.5, arpStyle: 'broken',
         drums: {
           kick: '0...0...0...0...', tomLo: '0.10..0.0.10..0.', tomHi: '....0.....0.0.0.', conga: '.1.1..1..1.1..1.',
           clap: '....1.......1...', shaker: '2222222222222222',
@@ -2236,11 +2357,52 @@ const TRACKS: Record<Track, TrackDef> = {
         fill: { tomHi: '........0.0.0.00', tomLo: '0.0.0.0.0.0.....' },
       },
       {
-        lead: 'flute', dbl: true, density: 0.75, pad: 'dark', arp: 'pulse12', arpRate: 1, arpAt: 0.4, arpStyle: 'up',
+        lead: 'flute', dbl: true, pad: 'dark', arp: 'pulse12', arpRate: 1, arpAt: 0.4, arpStyle: 'up',
         drums: {
           kick: '0...0...0...0.0.', tomLo: '0.10..0.0.10..0.', tomHi: '....0.....0.0.0.', metal: '0.1.0.1.0.1.0.1.',
           clap: '....1.......1...', shaker: '2222222222222222',
         },
+      },
+    ],
+  },
+  // The Waking Engine, The Level-Keeper: B minor at 120, a beat every half second (its count and
+  // its beams land on it). Half asleep, a clock in the ice: a ticking rim, a held thrum of sub, a
+  // music-box bell now and then, a click of metal at the end of the bar. Stirring, a pulse bass
+  // and hats come up and the bells count upward. Awake: four on the floor, a cold saw lead doubled
+  // over the bells. Its last stand: the bells take the lead back and metal clicks every sixteenth,
+  // a ledger being run.
+  boss_glacis: {
+    bpm: 120, root: 35, scale: SC.aeolian, progA: [0, 5, 3, 4], progB: [5, 6, 0, 4, 5, 6, 3, 4],
+    lead: 'bell', leadOct: 36, density: 0.5,
+    bass: 'sub', bassStyle: 'pulse8', pad: 'cold', padOct: 24,
+    arp: null, arpOct: 36, arpRate: 2, arpAt: 0.5, arpStyle: 'up',
+    drums: { rim: '0...0...0...0...', kick: '0...............', metal: '..............1.' },
+    kick: [100, 36, 0.5], minI: 0.6, mix: { lead: 0.14, pad: 0.09 }, rev: { lead: 0.5, arp: 0.45, snr: 0.5 },
+    parts: [
+      {},
+      {
+        bass: 'bpulse', arp: 'bell', crash: true,
+        drums: {
+          kick: '0.....0...0.....', rim: '0...0...0...0...', snare: '....1.......1...',
+          hat: '2.2.2.2.2.2.2.2.', metal: '...1.......1....',
+        },
+        fill: { snare: '....1.......1111' },
+      },
+      {
+        bass: 'dist', lead: 'saw', leadOct: 24, dbl: true, arp: 'pulse12', arpRate: 1, arpStyle: 'up', pad: 'dark', padOct: 12,
+        drums: {
+          kick: '0...0...0...0...', snare: '....0.......0...', clap: '....1.......1...',
+          hat: '1212121212121212', ohat: '..2...2...2...2.', rim: '0...0...0...0...',
+        },
+        fill: { snare: '....0...0.0.0000', tomLo: '..........0..0..' },
+      },
+      {
+        bass: 'dist', lead: 'bell', leadOct: 36, dbl: true, arp: 'bell', arpRate: 1, arpStyle: 'updown', pad: 'dark', padOct: 12,
+        drums: {
+          kick: '0...0...0...0.0.', snare: '....0.......0...', clap: '....1.......1...',
+          hat: '1212121212121212', metal: '1111111111111111', rim: '0...0...0...0...',
+        },
+        fill: { snare: '....0...00000000', tomLo: '..........0..0..' },
       },
     ],
   },

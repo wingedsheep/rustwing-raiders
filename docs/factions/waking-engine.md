@@ -44,4 +44,4 @@ Every power in the Spur. The [Throne](qaushen-throne.md) has been trying to grow
 ## In the game
 
 - Glacis's enemies and boss.
-- [ ] Its boss arc from half asleep to awake ([bosses](../bosses/waking-engine.md)).
+- Its boss fights from half asleep to awake: dozing in the ice, the ice breaking, awake ([bosses](../bosses/waking-engine.md)).

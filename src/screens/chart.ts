@@ -4,7 +4,6 @@ import type { Run } from '../sim/run';
 import { EDGE, type ChartNode, type NodeKind, type Reward } from '../sim/chart';
 import { DANGER_PAY, FUEL_MAX, SECTORS, fights, threatTier, type Run as RunT } from '../sim/run';
 import { eventById } from '../sim/events';
-import { stats } from '../sim/build';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, HEIST, INK, RED, W, frame, hex } from '../ui/hud';
@@ -15,7 +14,8 @@ import { EncounterPreview } from '../view/encounter-preview';
 import { flat, GEO, part, toon } from '../render/toon';
 import { drawArt } from './art';
 import { land, toChart, toHangar, caught } from '../game/flow';
-import { CARGO } from '../sim/run';
+import { CoreScreen } from './core';
+import { CARGO, crewHull } from '../sim/run';
 import { convoyRoles, ROLES } from '../sim/convoy';
 import { clamp, hashStr, lerp, noise2, rng, smoothstep } from '../util';
 
@@ -348,6 +348,11 @@ export class ChartScreen implements Screen {
     if (m.alt) {
       audio.play('ui_select');
       toHangar(this.game, () => toChart(this.game));
+      return;
+    }
+    if (m.start) {
+      audio.play('ui_select');
+      this.game.go(new CoreScreen(this.game, this.run, null, null, () => toChart(this.game)));
       return;
     }
     if (m.back) {
@@ -792,7 +797,7 @@ export class ChartScreen implements Screen {
     let ty = y + 4;
     run.crew.forEach((cr, i) => {
       drawText(ctx, `P${i + 1}`, px + 6, ty, hex(LIVERY[i][2]));
-      hullGauge(ctx, cr.hull, stats(cr.build).hp, px + 24, ty, 40);
+      hullGauge(ctx, cr.hull, crewHull(cr), px + 24, ty, 40);
       drawText(ctx, `${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, DIM, { align: 'right' });
       ty += 10;
     });
@@ -826,7 +831,7 @@ export class ChartScreen implements Screen {
     }
     if (this.stuck) hints(ctx, dev, [['confirm', 'FIGHT OUT']], px + pw / 2, H - 20, 'center');
     else if (!this.anim) {
-      hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'JUMP']], px + pw / 2, H - 30, 'center');
+      hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'JUMP'], ['start', 'CORE']], px + pw / 2, H - 30, 'center');
       hints(ctx, dev, [['alt', 'HANGAR'], ['back', this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH']], px + pw / 2, H - 15, 'center');
     }
   }

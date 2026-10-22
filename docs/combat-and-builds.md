@@ -1,4 +1,4 @@
-# Combat and builds: Ship, Pilot, Wreck
+# Combat and builds: Ship, Core, Wreck
 
 The plan for making combat more than dodge-and-shoot, and every run its own. Agreed with Vincent on 2026-10-22. Built in slices; each slice is playable on its own.
 
@@ -23,11 +23,11 @@ The plan for making combat more than dodge-and-shoot, and every run its own. Agr
 |---|---|---|---|
 | **Ship** | Parts: four tools on hardpoints (trigger, heavy, aux, special) and a few fittings round them | Loot cards, the dealer (3 a stall) | The run |
 | **Wreck** | Grafts: an enemy's move bolted onto one of your verbs | Taking down elites and bosses | The run |
-| **Pilot** | Tokens on the charm string: rules you hang in the cockpit | Events, CLEAN boss phases, faction gifts, hidden caches, rank-ups | The run |
+| **Core** | The ship's mind: knots it grows from how you fly, imprints it copies off the people you meet | Every fight (it learns), events, factions that like you | The run |
 
 On top of these, in every fight: **Plating → Open → Takedown**, and healing with the **Weld**.
 
-Every run starts the same: one frame and its starter parts, three empty hooks, no grafts. What you end up with depends on the sector.
+Every run starts the same: one frame and its starter parts, a sleeping core with room for three, no grafts. What you end up with depends on the sector.
 
 ---
 
@@ -100,38 +100,50 @@ A graft rides its verb: an aux graft on a ship with no aux sleeps (the card and 
 
 ---
 
-## 4. Pilot: tokens on the charm string
+## 4. The Core: it learns how you fly
 
-- Raiders hang lucky charms in the cockpit. Yours hang on a **charm string** with hooks. Each token weighs 1–3 hooks; you start with 3.
-- **Pilot rank** (from takedowns, edge crits, CLEAN phases) gives a hook, or 1 of 3 random tokens. Rank-ups happen at the results, never mid-fight.
-- **Found during the run, lost at its end.** Sources: events (Mama Ruzz, Kaspar, Lantern Mutual), a CLEAN boss phase, a faction that likes you, hidden caches in levels.
-- **Re-hang them at any stop, free.**
-- **Each token changes a rule**, never a percentage.
-- **Overstrung**: you may hang one token past the string's hooks. Then every hit you take knocks the last-hung token off for the rest of the level.
-- The string hangs in the HUD's corner and swings when you dash or take a hit.
+Every rustwing runs on a core: Tonkva mould that learns, and copies what it touches (see the lore). Yours starts the run asleep. It is the pilot layer: the ship you build, the moves you take off wrecks, and the mind that grows out of how you fly them.
 
-First tokens:
+**It learns.** Each fight feeds its three veins:
 
-| Token | Hooks | What it does |
+| Vein | What it's about | Fed by |
 |---|---|---|
-| Welder's Glove | 1 | The weld takes 0.6 s |
-| Hula Pilot | 1 | Grazes fill the Weld |
-| Brass Casing | 1 | Your heavy holds a round more |
-| Spore Locket | 1 | Welding throws out a cloud of spores |
-| Cracked Compass | 2 | A perfect dash breaks the plating of what it passes |
-| Lantern Mutual Policy | 2 | The blow that would down you breaks the policy instead (once) |
-| Wanted Poster | 2 | Enemies come for you harder; takedowns fill half the Weld |
-| Faction Badge | 2 | Counts as a graft of its faction toward a bond |
-| Iron Medal | 3 | +1 hull, but weighs as much as a part |
-| Ruzz's Loaded Die | 3 | Each level, one hardpoint runs at 200%, another at 50% |
+| **Nerve** | The dash and the read | Perfects, grazes, CLEAN boss phases, a fight without a scratch |
+| **Steel** | Blows and takedowns | Takedowns (big ones more), edge crits, a full clear |
+| **Grease** | The Weld and the hull | Welds, revives, scrap scooped |
 
-Named pairs light up when both are hung (Hula Pilot + Welder's Glove; Spore Locket + Wanted Poster).
+After the results the core screen tallies the fight, each line flying into its vein, and the meter round the core fills. Full, it **grows a knot**. Each knot costs more than the last (7, then 10, 13...), so a core grows about one knot every fight or two.
+
+**It grows where you fed it.** The tree is three veins of five knots: one, then one, then a fork of two, then a **talisman** at the foot. A knot can only grow on a vein you fed since the last growth. That's attention, not desire: you steer the core by how you fly, not by picking from a menu. Fly NIMBLE and it grows nerve.
+
+Knots are:
+
+- **Knacks**: a rule changed, never a percentage (Cold Blood: a perfect dash fills the Burn. Follow Through: a takedown loads every heavy. Hot Rivets: a finished weld loads the heavies and readies the aux).
+- **Talismans** at each foot, the big ones (The Long Second slows every bullet after a perfect; Chain Breaker's takedown kill breaks all plating near; Spare Tank holds two Welds).
+- **Room**: it can hold one more imprint.
+- **Imprint**: it copies one of three imprints, there and then.
+
+Each run rolls its own tree: which two of a vein's three knacks, which of its two talismans, and where room and imprint knots sit. A knack is always in the top two.
+
+**Imprints** are habits copied off people and things: Nell's Laugh (grazes fill the Weld), Spoke's Sleeve (every heavy holds a round more), Mama's Luck (one hardpoint at 200%, another at 50%). Each weighs 1–3 room. The core starts with room for 3.
+
+- **Copied from the people you meet**: Pip Hollow's gold policy, Mama Ruzz's big loan, a win on Spoke's fast reels, Kaspar when you fight him, Big Nell's hose at full pressure, the Margarethe's port taken fast, Dr Varga's pod. A faction that likes you (mood 2) gives its **ways**, which count toward that faction's bond.
+- **Held or let go** from the core screen, at the results or from the chart (start / P). Free, any time out of a fight.
+- **Leaning**: it may hold one imprint past its room. Then every hit you take shakes the newest one loose for the rest of the level.
+- **Agreements**: two imprints that agree add a rule while both are held (Nell's Laugh + Ferrule's Creed: WELD DANCE, a graze while welding throws burning sparks).
+- Pip's Policy and Kaspar's Code are given, never grown into; the policy is gone once it pays out.
+
+**It wakes.** The sixth knot wakes the core. It's a **nemva** now: it names itself after the vein you fed most (WHISKER, RIVET, SOLDER...), burns in that colour, and talks in flight, a line now and then on a perfect, a takedown, a weld, a hit.
+
+**The Waking Engine calls.** At a Warden's phases (once in sector 1, twice after), the Engine calls every core. A sleeping core answers it: it goes quiet for 5–8 s (no knacks, no imprints) and drops any weld in progress. A woken core **refuses**: it shouts back, and the Weld, the special and every heavy fill, with four seconds of DEADEYE. Waking before the later Wardens is worth it.
+
+In the HUD the core sits beside the pilot's plate: it breathes, jolts when you're hit, hums when it's leaning, goes cold blue while it answers, and carries what it holds as beads.
 
 ---
 
 ## How the layers pull on each other
 
-A run: you take down a Ramjack and graft its ram onto your dash. You find a Cracked Compass, so every perfect dash breaks plating and the ram goes straight through for the takedown, which fills the Weld. Staying NIMBLE now matters, so you sell the heavy plate. The next dealer has a light Scattergun...
+A run: you take down a Ramjack and graft its ram onto your dash. Your core copies Seffa's Sight at an imprint knot, so every perfect dash breaks plating and the ram goes straight through for the takedown. You're dashing a lot now, so the core feeds nerve and steel and grows Cold Blood, then Follow Through. Staying NIMBLE now matters, so you sell the heavy plate. The next dealer has a light Scattergun...
 
 ## Randomness
 
@@ -139,15 +151,15 @@ A run: you take down a Ramjack and graft its ram onto your dash. You find a Crac
 |---|---|---|
 | Ship | Cards, the dealer's three, item rolls | What you take and where it goes |
 | Wreck | Which elites a planet fields; the two grafts a wreck offers | Which elites you hunt, and taking them down |
-| Pilot | Which tokens turn up, rank-up offers | What you hang, whether you overstring |
+| Core | The tree it rolls, the three an imprint knot lays out, who you meet | How you fly (which veins it feeds), which knot it grows, what it holds, whether it leans |
 | Weld | Nothing | Everything |
 
-Rare things stay rare (legendaries, boss grafts, bonds, named pairs), so a run where it all clicks feels like luck.
+Rare things stay rare (legendaries, boss grafts, bonds, talismans, agreements), so a run where it all clicks feels like luck.
 
 ## Slices
 
 1. **Plating → Open → Takedown, and the Weld.** Works with today's builds.
 2. **Hardpoints**, the part cut, the 3-part dealer.
 3. **Grafts**: the first eight and three boss signatures, then bonds.
-4. **Tokens**: the charm string, rank, the first ten, overstrung.
-5. More grafts and tokens, named pairs, balance on the autopilot bench.
+4. **The Core**: the three veins and the knots, imprints and room, leaning, the core screen.
+5. Imprints from events and factions, agreements, the Waking and the Engine's call, balance on the autopilot bench (`just autopilot --core laugh,chain --woke steel --call 2`).

@@ -50,6 +50,10 @@ export type BossMove =
   | 'rake'
   | 'screech'
   | 'gust'
+  | 'scan'
+  | 'calve'
+  | 'count'
+  | 'grasp'
   // the signatures: one each
   | 'skydive'
   | 'crane'
@@ -123,6 +127,8 @@ export interface BossState {
   comboed: boolean;
   /** The phase from which it has no guns left (see BARE). */
   bare: number;
+  /** How slowly it moves, by phase and in its last stand (see TEMPO). */
+  tempo: number[];
 }
 
 /** What it notices about how you fly. */
@@ -138,6 +144,25 @@ export const READ_LINE: Record<Read, string> = {
   dash: 'IS BAITING YOUR DASH',
 };
 
+/** A boss with its own way of saying it (the Engine doesn't see you: it logs you). */
+const READ_OWN: Record<string, Partial<Record<Read, string>>> = {
+  glacis: {
+    back: 'LOGS: HANGING BACK',
+    still: 'LOGS: STATIONARY',
+    side: 'LOGS: LISTING',
+    boost: 'LOGS: EXCESS VELOCITY',
+    close: 'LOGS: INSIDE TOLERANCE',
+    dash: 'LOGS: UNWITNESSED CROSSINGS',
+  },
+};
+
+/** What a boss says it read, under its bar. */
+export function readLine(planet: string, read: Read, side: number) {
+  const own = READ_OWN[planet]?.[read];
+  if (own) return read === 'side' ? `${own} ${side < 0 ? 'LEFT' : 'RIGHT'}` : own;
+  return read === 'side' ? `SEES YOU HUGGING THE ${side < 0 ? 'LEFT' : 'RIGHT'}` : READ_LINE[read];
+}
+
 /** Which reads each move answers. */
 const ANSWERS: Record<BossMove, Read[]> = {
   charge: ['back', 'still'],
@@ -145,6 +170,10 @@ const ANSWERS: Record<BossMove, Read[]> = {
   rake: ['back', 'still'],
   screech: ['close', 'still'],
   gust: ['close', 'side'],
+  scan: ['back', 'close'],
+  calve: ['still', 'back'],
+  count: ['side', 'still'],
+  grasp: ['side', 'still'],
   slam: ['close', 'still'],
   sweep: ['side', 'still'],
   gate: ['side', 'back'],
@@ -169,9 +198,9 @@ const READ_SAY = 0.55;
 /** How often it strings another move on, by phase (none in the first: it's learnt in order). */
 const COMBO = [0, 0.35, 0.6];
 
-type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves';
+type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost';
 
-const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4 };
+const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2 };
 
 /** Bosses lean on patterns that suit them. */
 const FAVOURITES: Record<string, Pattern[]> = {
@@ -210,13 +239,31 @@ const MOVES: Record<BossStyle, BossMove[][]> = {
  */
 const OWN: Record<string, BossMove[][]> = {
   orutal: [['rake', 'screech'], ['rake', 'gust', 'summon', 'screech'], ['rake', 'screech', 'gust']],
+  // The Engine: half asleep, it scans, crosses and sheds its ice; stirring, it starts to count and
+  // calls its menders; awake, the ice is gone (no calving), its arms are free and it grasps
+  glacis: [['scan', 'calve'], ['scan', 'count', 'summon', 'calve'], ['scan', 'count', 'grasp']],
 };
+
+/**
+ * A boss's own filler, a list a phase, in place of its planet's favourites. The Engine's guns are
+ * frozen while it dozes: all it does between moves is breathe out frost.
+ */
+const FILLER: Record<string, Pattern[][]> = {
+  glacis: [['frost'], ['lasers', 'rings'], ['spiral', 'walls']],
+};
+
+/**
+ * How slowly it moves, by phase (its tells and its moves take this much longer); the last stand
+ * is the last entry. The Engine is half asleep, then stirring, then wide awake. (A lattice tell is
+ * never under a second, however awake.)
+ */
+const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85] };
 
 /** The phase from which a boss has no guns left: no patterns, just its moves (Vask, free). */
 const BARE: Record<string, number> = { orutal: 2 };
 
 /** The beat of a boss's theme (its rings and wing beats land on it). */
-const BEAT: Record<string, number> = { orutal: 60 / 140 };
+const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120 };
 
 const KIND: Record<BossMove, AttackKind> = {
   charge: 'charge',
@@ -224,6 +271,10 @@ const KIND: Record<BossMove, AttackKind> = {
   rake: 'charge',
   screech: 'slam',
   gust: 'pulse',
+  scan: 'beam',
+  calve: 'shell',
+  count: 'beam',
+  grasp: 'slam',
   slam: 'slam',
   sweep: 'sweep',
   gate: 'gate',
@@ -261,6 +312,7 @@ export const MOVE_NAME: Partial<Record<BossMove, string>> = {
   eye: 'TITAN EYE',
   breath: 'DEEP BREATH',
   repossess: 'REPOSSESSION',
+  count: 'THE COUNT',
 };
 
 /** Damage that breaks its poise (a share of its hull), and how fast poise comes back. */
@@ -273,7 +325,7 @@ const LAST = 0.08;
  * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
  * teach something, so each needs time: half again as long.
  */
-const HULL: Record<string, number> = { orutal: 2.6 };
+const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4 };
 export const bossHull = (planet: string) => HULL[planet] ?? 1;
 
 /** Who comes when it calls. */
@@ -313,7 +365,7 @@ export function makeBoss(planet: string): BossState {
     guns,
     weak,
     // fewer patterns at once: the last phase no longer stacks a third on
-    patterns: [[fav[0], fav[1]], [fav[1], fav[2]], [fav[2], fav[3]]],
+    patterns: FILLER[planet] ?? [[fav[0], fav[1]], [fav[1], fav[2]], [fav[2], fav[3]]],
     moves,
     current: 0,
     pt: 0,
@@ -352,14 +404,15 @@ export function makeBoss(planet: string): BossState {
     perfects: 0,
     comboed: false,
     bare: BARE[planet] ?? 9,
+    tempo: TEMPO[planet] ?? [1, 1, 1, 1],
   };
 }
 
 /** How near its poise is to breaking, 0..1 (1 while it's staggered). */
 export const poiseOf = (e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.poise / (e.max * POISE), 0, 1));
 
-/** The name of the signature it's making, if it is. */
-export const sigName = (e: Enemy) => (e.boss && e.boss.move === e.boss.sig && (e.state === 'windup' || e.state === 'attack') ? MOVE_NAME[e.boss.sig] : undefined);
+/** The name of the move it's making, if it has one (its signature, and a few others). */
+export const sigName = (e: Enemy) => (e.boss?.move && (e.state === 'windup' || e.state === 'attack') ? MOVE_NAME[e.boss.move] : undefined);
 
 /** A perfect dash through its attack: a read. It wears its poise half through; through its signature, it breaks it. */
 export function bossRead(lv: Level, e: Enemy) {
@@ -600,6 +653,34 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
     case 'gust':
       go(lv, e, 'windup', 0.9, 'pulse', { shape: 'ring', x: e.x, z: e.z, r: 12, w: 3 });
       break;
+    case 'scan': {
+      // its eye opens and reads the field: a beam that will sweep across from the side away from
+      // you, broken at one distance (the reading ring, drawn: be on it as the beam goes by)
+      b.k = 0;
+      b.dir = px > e.x ? -1 : 1;
+      b.ms = Math.hypot(px - e.x, pz - e.z) < 22 ? SCAN_FAR : SCAN_NEAR;
+      e.aim = b.dir * SCAN_A;
+      const warn = 1.25 * slow(b);
+      scanBeams(lv, e, b, warn);
+      go(lv, e, 'windup', warn, 'beam', scanRing(e, b));
+      break;
+    }
+    case 'calve':
+      // it shudders: ice cracks off it (the chunks are drawn where they'll land as they're thrown)
+      go(lv, e, 'windup', 0.9 * slow(b), 'shell', { shape: 'ring', x: e.x, z: e.z, r: 9, w: 2 });
+      break;
+    case 'count':
+      // its antennae lift: it's about to count the field
+      go(lv, e, 'windup', Math.max(1, 1.1 * slow(b)), 'beam', { shape: 'ring', x: e.x, z: e.z, r: 6, w: 1.5 });
+      break;
+    case 'grasp': {
+      // its arms reach out to both edges of your row: claws drawn all along it, closing on you
+      const z = clamp(pz, lv.scroll - HALF_H + 6, lv.scroll + HALF_H - 4);
+      const warn = Math.max(1, 1.15 * slow(b));
+      graspRow(lv, e, px, z, warn);
+      go(lv, e, 'windup', warn, 'slam', null);
+      break;
+    }
     default:
       startSig(lv, e, b, px, pz);
   }
@@ -672,7 +753,8 @@ const lane = (lv: Level, z: number) => clamp(z - lv.scroll, -HALF_H + 7, HALF_H 
 function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
   const m = b.move!;
   const col = e.skin.colors[2];
-  const fast = b.last ? 0.75 : b.phase >= 2 ? 0.88 : 1;
+  // (a boss with its own tempo goes by that)
+  const fast = b.tempo[0] === 1 ? (b.last ? 0.75 : b.phase >= 2 ? 0.88 : 1) : slow(b);
   switch (m) {
     case 'skydive': {
       // she picks your lane, flies out to the far side of it, and the lane is drawn across
@@ -737,8 +819,9 @@ const CRANE_A = 1.15;
 const craneLen = (b: BossState) => 16 + b.phase * 1.5;
 const craneSwings = (b: BossState) => (b.last ? 4 : b.phase >= 2 ? 3 : 2);
 const CRANE_P = 1.3;
-const crossBeams = (b: BossState) => (b.last ? 6 : 4);
-const crossTime = (b: BossState) => 3.4 + b.phase * 0.4;
+/** Half asleep, one bar (two beams); stirring, the cross; in its last stand, six. */
+const crossBeams = (b: BossState) => (b.last ? 6 : b.phase >= 1 ? 4 : 2);
+const crossTime = (b: BossState) => (3.4 + b.phase * 0.4) * slow(b);
 const eyeTime = (b: BossState) => 3 + b.phase * 0.5;
 const BREATH_R = 34;
 /** Its signature, at least every this many moves (after the first phase). */
@@ -758,6 +841,67 @@ const GUST_T = 0.3;
 const beatOf = (lv: Level) => BEAT[lv.spec.planet.id] ?? 0.45;
 const repoShots = (b: BossState) => 2 + b.phase + (b.last ? 1 : 0);
 const divePasses = (b: BossState) => (b.last ? 3 : b.phase >= 2 ? 2 : 1);
+
+/** How slowly it moves now (see TEMPO). */
+const slow = (b: BossState) => b.tempo[b.last ? 3 : b.phase] ?? 1;
+
+/** The Engine's scan: how wide it sweeps (each side of straight down), the reading ring's two distances and its half-width. */
+const SCAN_A = 1.2;
+const SCAN_NEAR = 15;
+const SCAN_FAR = 29;
+const scanGap = (b: BossState) => (b.phase >= 2 ? 2.8 : b.phase >= 1 ? 3.2 : 3.6);
+const scanPasses = (b: BossState) => (b.last ? 3 : b.phase >= 1 ? 2 : 1);
+const scanSweep = (b: BossState) => 1.75 * slow(b);
+/** Between passes it rests at the edge for a full second while the ring is drawn again. */
+const SCAN_REST = 1.05;
+const scanRing = (e: Enemy, b: BossState): Tele => ({ shape: 'ring', x: e.x, z: e.z, r: b.ms + scanGap(b), w: scanGap(b) * 2 });
+
+/** Its scan beam at angle e.aim: in two pieces, either side of the reading ring. */
+function scanBeams(lv: Level, e: Enemy, b: BossState, warn: number) {
+  for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+  const g = scanGap(b);
+  const col = e.skin.colors[2];
+  const sx = Math.sin(e.aim);
+  const cz = Math.cos(e.aim);
+  lv.lasers.push({ x: e.x, z: e.z, x2: e.x + sx * (b.ms - g), z2: e.z + cz * (b.ms - g), warn, on: 99, color: col, owner: e.id });
+  lv.lasers.push({ x: e.x, z: e.z, x2: e.x + sx * 80, z2: e.z + cz * 80, r0: b.ms + g, warn, on: 99, color: col, owner: e.id });
+}
+
+/** Ice chunks thrown off it: one on you, the rest about; each bursts into shards where it lands. */
+function calveVolley(lv: Level, e: Enemy, b: BossState) {
+  const p = lv.nearest(e.x, e.z);
+  const px = p?.x ?? 0;
+  const pz = p?.z ?? lv.bottom - 8;
+  const n = 5;
+  const a0 = lv.rand() * Math.PI * 2;
+  for (let k = 0; k < n; k++) {
+    const a = a0 + (k / (n - 1)) * Math.PI * 2;
+    const off = k === 0 ? 0 : 7.5;
+    const x = clamp(px + Math.cos(a) * off, -HALF_W + 3, HALF_W - 3);
+    const z = clamp(pz + Math.sin(a) * off, lv.scroll - HALF_H + 4, lv.scroll + HALF_H - 3);
+    strike(lv, 'shell', x, z, { r: 2.7, warn: 1.15 * slow(b) + k * 0.12, active: 0.15, sx: e.x + (lv.rand() - 0.5) * 6, sz: e.z, owner: e.id, color: ICE, air: true, shards: b.phase >= 1 ? 8 : 6 });
+  }
+}
+const ICE = 0xbfe8ff;
+
+/** How many it counts (its beams, from the outside in), and how many after are on you. */
+const countAmps = (b: BossState) => (b.phase >= 2 ? [0.82, 0.58, 0.34, 0.1] : [0.8, 0.5, 0.2]);
+const countAimed = (b: BossState) => (b.last ? 2 : b.phase >= 2 ? 1 : 0);
+const countN = (b: BossState) => countAmps(b).length * 2 + countAimed(b);
+/** Beats it holds the count, all lit, before they go out. */
+const COUNT_HOLD = 1.5;
+
+/** Claws all along a row, from both edges in, meeting at x. */
+function graspRow(lv: Level, e: Enemy, x: number, z: number, warn: number) {
+  for (const side of [-1, 1]) {
+    const edge = side * (HALF_W - 3);
+    const steps = Math.max(1, Math.floor(Math.abs(edge - x) / 4.4));
+    for (let i = 0; i <= steps; i++) {
+      const cx = lerp(edge, x, i / steps);
+      strike(lv, 'slam', cx, z, { r: 2.6, warn: warn + i * (0.42 / steps), active: 0.2, air: true, owner: e.id, color: e.skin.colors[2] });
+    }
+  }
+}
 
 /** A rake turns where it ended up and comes back at you: the same line, a shorter tell. */
 function rakeAgain(lv: Level, e: Enemy, b: BossState) {
@@ -936,6 +1080,10 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     case 'breath':
     case 'screech':
     case 'gust':
+    case 'scan':
+    case 'calve':
+    case 'count':
+    case 'grasp':
       sigAttack(lv, e, b);
       break;
     default:
@@ -965,6 +1113,9 @@ function sigWindup(lv: Level, e: Enemy, b: BossState) {
     case 'bloom':
     case 'cross':
     case 'breath':
+    case 'scan':
+    case 'calve':
+    case 'count':
       if (tl && (tl.shape === 'sweep' || tl.shape === 'ring')) {
         tl.x = e.x;
         tl.z = e.z;
@@ -1066,6 +1217,33 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
       b.k = 0;
       go(lv, e, 'attack', BREATH_IN, 'pulse');
       return true;
+    case 'scan': {
+      const n = scanPasses(b);
+      go(lv, e, 'attack', n * scanSweep(b) + (n - 1) * SCAN_REST, 'beam');
+      return true;
+    }
+    case 'calve': {
+      // a second volley a second later, once it's stirring
+      b.k = 0;
+      b.fire = 0;
+      go(lv, e, 'attack', b.phase >= 1 ? 1.1 : 0.1, 'shell');
+      e.tele = null;
+      return true;
+    }
+    case 'count': {
+      // a beat for each it counts, two more for the last to be drawn and burn, then it holds them
+      // a moment before they all go out
+      b.k = 0;
+      b.fire = 0;
+      b.dir = px > e.x ? 1 : -1;
+      const beat = beatOf(lv);
+      go(lv, e, 'attack', (countN(b) + 1 + COUNT_HOLD) * beat, 'beam');
+      e.tele = null;
+      return true;
+    }
+    case 'grasp':
+      go(lv, e, 'attack', 0.75, 'slam');
+      return true;
     case 'screech':
     case 'gust': {
       // the first beat straight away, the rest on the beat after it
@@ -1149,9 +1327,20 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       break;
     }
     case 'cross': {
+      // half asleep, a slow quarter turn; awake, it stops halfway for a beat (a click) and turns
+      // most of the way back
       const n = crossBeams(b);
       const turn = Math.PI / 2 + b.phase * (Math.PI / 6);
-      aimBeams(lv, e, b.angle + b.dir * turn * clamp(e.stateT / e.stateDur, 0, 1), n);
+      const u = clamp(e.stateT / e.stateDur, 0, 1);
+      let f = u;
+      if (b.phase >= 2) {
+        f = u < 0.45 ? u / 0.45 : u < 0.55 ? 1 : 1 - ((u - 0.55) / 0.45) * 0.7;
+        if (b.k === 0 && u >= 0.45) {
+          b.k = 1;
+          lv.emit({ type: 'bossBeat', enemy: e.id, move: 'cross', k: 0, x: e.x, z: e.z });
+        }
+      }
+      aimBeams(lv, e, b.angle + b.dir * turn * f, n);
       if (over(e)) {
         for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
         endMove(lv, e, b, 1.9);
@@ -1209,6 +1398,86 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         }
       }
       if (over(e)) endMove(lv, e, b, 1.8);
+      break;
+    }
+    case 'scan': {
+      // across, and (stirring) back: between passes it rests at the edge for a full second while
+      // the ring is drawn again somewhere else (near to far, far to near)
+      const sw = scanSweep(b);
+      const per = sw + SCAN_REST;
+      const n = scanPasses(b);
+      const pass = Math.min(n - 1, Math.floor(e.stateT / per));
+      const local = e.stateT - pass * per;
+      const from = (pass % 2 ? -1 : 1) * b.dir * SCAN_A;
+      e.aim = local <= sw ? lerp(from, -from, smooth(clamp(local / sw, 0, 1))) : -from;
+      if (local > sw && pass < n - 1 && b.k === pass) {
+        b.k = pass + 1;
+        b.ms = b.ms === SCAN_NEAR ? SCAN_FAR : SCAN_NEAR;
+        scanBeams(lv, e, b, SCAN_REST - (local - sw));
+        e.tele = scanRing(e, b);
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'scan', k: b.k, x: e.x, z: e.z });
+      }
+      const g = scanGap(b);
+      let i = 0;
+      for (const l of lv.lasers)
+        if (l.owner === e.id) {
+          const len = i++ === 0 ? b.ms - g : 80;
+          l.x2 = l.x + Math.sin(e.aim) * len;
+          l.z2 = l.z + Math.cos(e.aim) * len;
+        }
+      if (e.tele && e.tele.shape === 'ring') {
+        e.tele.x = e.x;
+        e.tele.z = e.z;
+      }
+      if (over(e)) {
+        for (let k = lv.lasers.length - 1; k >= 0; k--) if (lv.lasers[k].owner === e.id) lv.lasers.splice(k, 1);
+        e.tele = null;
+        endMove(lv, e, b, 1.7);
+      }
+      break;
+    }
+    case 'calve': {
+      b.fire -= DT;
+      if (b.fire <= 0 && b.k < (b.phase >= 1 ? 2 : 1)) {
+        b.fire += 1;
+        b.k++;
+        calveVolley(lv, e, b);
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'calve', k: b.k - 1, x: e.x, z: e.z });
+      }
+      if (over(e)) endMove(lv, e, b, 1.6);
+      break;
+    }
+    case 'count': {
+      // a beam for every beat, outside in, one side then the other: each drawn two beats (a second)
+      // before it burns, and each burns on until the count is done. Awake, it counts you last.
+      const beat = beatOf(lv);
+      const amps = countAmps(b);
+      const n = countN(b);
+      const col = e.skin.colors[2];
+      b.fire -= DT;
+      if (b.fire <= 0 && b.k < n) {
+        b.fire += beat;
+        const k = b.k++;
+        const a = k < amps.length * 2 ? (k % 2 ? -1 : 1) * b.dir * amps[k >> 1] : lv.aim(e.x, e.z);
+        lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, warn: 2 * beat, on: 99, color: col, owner: e.id });
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'count', k, x: e.x, z: e.z });
+      }
+      if (over(e)) {
+        for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'count', k: -1, x: e.x, z: e.z });
+        endMove(lv, e, b, 1.8);
+      }
+      break;
+    }
+    case 'grasp': {
+      // in its last stand it reaches again, a row on from wherever you went
+      if (b.last && b.k === 0 && e.stateT > 0.3) {
+        b.k = 1;
+        const p = lv.nearest(e.x, e.z);
+        graspRow(lv, e, p?.x ?? 0, clamp(p?.z ?? lv.bottom - 8, lv.scroll - HALF_H + 6, lv.scroll + HALF_H - 4), 1);
+        e.stateDur += 1.2;
+      }
+      if (over(e)) endMove(lv, e, b, 2);
       break;
     }
     case 'breath': {
@@ -1314,6 +1583,15 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
       lv.bullet(p.x, p.z, lv.aim(p.x, p.z) + (lv.rand() - 0.5) * 0.6, 7.5, { kind: 'big', r: 1, life: 1.3, split: 8 + b.phase * 2, color: col });
       lv.emit({ type: 'enemyShot', x: p.x, z: p.z, color: col });
       b.fire = 0.9;
+      break;
+    }
+    case 'frost': {
+      // half asleep: it breathes out a slow ring of frost, and breathes in
+      const n = 12;
+      const off = (b.shots % 2) * (Math.PI / n);
+      for (let k = 0; k < n; k++) lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 6, { color: ICE, kind: 'needle', r: 0.4 });
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'frost', k: b.shots, x: e.x, z: e.z });
+      b.fire = 1.6;
       break;
     }
     case 'curves': {

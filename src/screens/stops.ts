@@ -1,11 +1,10 @@
 import type { Game, Screen } from '../game/game';
-import { CARGO, FUEL_MAX, FUEL_PRICE, REPAIR, Run, type ShopItem, type Snapshot } from '../sim/run';
+import { CARGO, FUEL_MAX, FUEL_PRICE, REPAIR, Run, crewHull, type ShopItem, type Snapshot } from '../sim/run';
 import { HULL_STEP } from '../sim/level';
 import type { ChartNode } from '../sim/chart';
 import type { Choice, Result, RunEvent } from '../sim/events';
 import type { Planet } from '../world/planets';
 import { partById } from '../game/parts';
-import { stats } from '../sim/build';
 import { audio } from '../audio';
 import { input } from '../input';
 import { drawText, wrap } from '../ui/font';
@@ -34,7 +33,7 @@ function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
   ty += 10;
   run.crew.forEach((c, i) => {
     drawText(ctx, `P${i + 1}`, x - 126, ty, hex(LIVERY[i][2]));
-    hullGauge(ctx, c.hull, stats(c.build).hp, x - 108, ty, 40);
+    hullGauge(ctx, c.hull, crewHull(c), x - 108, ty, 40);
     ty += 10;
   });
   if (run.bounty) {
@@ -138,10 +137,10 @@ export class Shop implements Screen {
         audio.play('ui_buy');
         break;
       case 'repair':
-        if (crew.hull >= stats(crew.build).hp) return this.say('HULL IS SOUND');
+        if (crew.hull >= crewHull(crew)) return this.say('HULL IS SOUND');
         if (run.scrap < REPAIR) return this.say('NOT ENOUGH SCRAP');
         run.scrap -= REPAIR;
-        crew.hull = Math.min(stats(crew.build).hp, crew.hull + HULL_STEP);
+        crew.hull = Math.min(crewHull(crew), crew.hull + HULL_STEP);
         audio.play('heal');
         break;
       case 'fuel':
@@ -261,7 +260,7 @@ export class Shop implements Screen {
       const cy = 64 + i * 34;
       frame(ctx, rx, cy, 260, 28, i === this.who ? '#2c2240' : '#1c1526', i === this.who ? hex(LIVERY[i][2]) : '#3a2e48');
       drawText(ctx, `P${i + 1}`, rx + 6, cy + 5, hex(LIVERY[i][2]));
-      hullGauge(ctx, c.hull, stats(c.build).hp, rx + 26, cy + 5, 60);
+      hullGauge(ctx, c.hull, crewHull(c), rx + 26, cy + 5, 60);
       drawText(ctx, `HOLD ${c.cargo.length}/${CARGO}`, rx + 254, cy + 16, c.cargo.length >= CARGO ? GOLD : DIM, { align: 'right' });
       if (i === 0) drawText(ctx, `SCRAP ${run.scrap}  FUEL ${run.fuel}`, rx + 6, cy + 16, GOLD);
     });
@@ -294,7 +293,7 @@ export class Dock implements Screen {
     private onDone: () => void,
   ) {
     this.before = run.snapshot();
-    run.crew.forEach((c) => (c.hull = stats(c.build).hp));
+    run.crew.forEach((c) => (c.hull = crewHull(c)));
     const r = rng(run.chart.seed + run.chart.time);
     const c = run.chart;
     const lines = [

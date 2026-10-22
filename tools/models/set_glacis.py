@@ -1,9 +1,11 @@
 """GLACIS's set pieces: bridges of ice and a frozen cable car across the shelf's
 crevasses, a mammoth frozen in a glacier, terraced springs the size of hills under an arch of
 ice, frost-shattered teeth and a buried engine on the tundra, and in Engine City pipe racks and
-gantries to fly under and a turbine turning in the floor. Plus new scenery: travertine pools and
-frozen reeds for the springs, golden larches and lichen boulders for the tundra, and vents for the
-engine floor."""
+gantries to fly under and a turbine turning in the floor. Plus the scenery that
+grows or lies about between them: penitentes, sastrugi, humming crystals and Engine relics on the
+shelf; rimstone pools, steam-reeds, mistwillows and blushcaps at the springs; bellcrowns,
+emberroots, sedge, bones and lichen boulders on the tundra; heat sinks, cables, cracked ice over
+the furnace, hex cells and vents in Engine City."""
 from __future__ import annotations
 
 import math
@@ -14,13 +16,12 @@ import bmesh
 from mathutils import Vector
 from kit import Model, animate, emitter, light
 from props_a_lib import hull, lump
-from props_b_kit import M, collider, facet, jitter, limb, mark, new_faces, paint, pulse, ring, root, xform
+from props_b_kit import M, collider, facet, jitter, limb, mark, new_faces, paint, path_tube, pulse, ring, root, xform
 from props_b_glacis import (AURORA, CRUST, HOT, HOT_DEEP, HOT_PALE, ICE, ICE_LOW, METAL, PINE, PINE_LIGHT, POOL,
                             ROCK, SNOW, ALGAE)
 
 IVORY = ["#8a7a5a", "#b8a47a", "#dccaa0", "#f4e8c8"]
 FUR = ["#3a2220", "#5a3428", "#7a4a32", "#9a6440"]
-LARCH = ["#7a3a14", "#b0601e", "#e0902a", "#f8c04a"]
 LICHEN = ["#c86a2a", "#e8a03a", "#8aa04a"]
 TRAV = ["#b88478", "#e4c4b4", "#f6e8de", "#fffaf4"]   # travertine, near white, against the rosy ground
 CAB = ["#8a2a24", "#b8402e", "#e0603a"]            # the cable car's cabins: the one warm thing on the shelf
@@ -354,6 +355,186 @@ def mammoth_ice(v):
     return r
 
 
+# --- Aurora Shelf scenery ------------------------------------------------------------------------
+
+AUR_ICE = ["#2a4a9a", "#3e68c0", "#6a98e0", "#a8d0f8", "#e0f4ff"]
+AUR_VIOLET = "#b48aff"
+BLADE = [ICE[2], ICE[3], ICE[4], SNOW[1], SNOW[2]]
+
+
+def _blade(m, rng, x, y, h, w, heading, lean=0.25):
+    """A penitent: a thin blade of snow-ice standing on edge, its point leaning toward the sun."""
+    ca, sa = math.cos(heading), math.sin(heading)
+    t = w * 0.32
+    pts = []
+    for s_ in (-1, 1):
+        for q in (-1, 1):
+            pts.append((x + ca * w / 2 * s_ - sa * t * q, y + sa * w / 2 * s_ + ca * t * q, -0.2))
+    for s_ in (-0.3, 0.25):
+        pts.append((x + ca * w * s_ + sa * lean * h * 0.5, y + sa * w * s_ - ca * lean * h * 0.5, h * 0.55))
+    pts.append((x + ca * w * rng.uniform(-0.15, 0.15) + sa * lean * h, y + sa * w * 0.1 - ca * lean * h, h))
+    facet(m, hull(m, pts, BLADE[0]), BLADE, noise=0.15, bias=-0.15)
+
+
+def penitents(v):
+    """Scenery (shelf): penitentes, fields of snow blades the sun has carved, all leaning one way, in
+    ranks (v0), a dense crowd (v1), one tall rank with stragglers (v2)."""
+    r = root("glacis_penitents", v)
+    rng = random.Random(1400 + v)
+    m = Model(f"glacis_penitents_{v}", 1400 + v)
+    hd = rng.uniform(-0.15, 0.15)
+    if v == 0:
+        spots = [(c * 1.15 - 2.3 + rng.uniform(-0.2, 0.2), rk * 1.6 - 1.6 + c * 0.15, rng.uniform(1.3, 2.4))
+                 for rk in range(3) for c in range(5) if rng.random() < 0.85]
+    elif v == 1:
+        spots = []
+        for _ in range(16):
+            a, d = rng.uniform(0, math.tau), rng.uniform(0, 2.4) ** 0.9
+            spots.append((math.cos(a) * d, math.sin(a) * d * 0.8, 2.6 - d * 0.6 + rng.uniform(-0.3, 0.3)))
+    else:
+        spots = [(c * 1.05 - 2.6, rng.uniform(-0.2, 0.2), rng.uniform(2.4, 3.2)) for c in range(6)]
+        spots += [(rng.uniform(-2.5, 2.5), rng.uniform(1.2, 2.2) * rng.choice((-1, 1)), rng.uniform(0.8, 1.4)) for _ in range(5)]
+    for x, y, h in spots:
+        _blade(m, rng, x, y, h, rng.uniform(0.75, 1.05), hd + rng.uniform(-0.15, 0.15), lean=rng.uniform(0.15, 0.3))
+    st = mark(m)
+    m.ball(1.0, (0, 0, -0.25), SNOW[1], subdiv=1, scale=(3.4, 2.6, 0.35), jitter=0.12)
+    facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
+    m.build(r, rot_z=rng.uniform(-0.3, 0.3))
+    return r
+
+
+def sastrugi(v):
+    """Scenery (shelf): sastrugi, the wind's carving in hard snow: low ridges with a sharp prow and
+    a blue shadowed lee, in a set of three (v0), a scatter of small ones (v1), a crescent (v2)."""
+    r = root("glacis_sastrugi", v)
+    rng = random.Random(1420 + v)
+    m = Model(f"glacis_sastrugi_{v}", 1420 + v)
+    cols = ["#5a7eb8", "#94b4dc", "#d4e4f4", "#f2f8ff"]
+    def ridge(x, y, L, w, h, a, bend=0.0):
+        ca, sa = math.cos(a), math.sin(a)
+        pts = []
+        for i in range(5):
+            t = i / 4
+            ww = w * math.sin(math.pi * (0.15 + 0.85 * t)) * (1.1 - t * 0.5)
+            hh = h * (0.3 + 0.7 * math.sin(math.pi * t * 0.85))
+            off = bend * (t - 0.5) ** 2 * L
+            lx, ly = (t - 0.5) * L, off
+            for q, z in ((-ww, 0.0), (ww * 0.5, 0.0), (-ww * 0.2, hh)):
+                px, py = lx, ly + q
+                pts.append((x + ca * px - sa * py, y + sa * px + ca * py, z - 0.15))
+        facet(m, hull(m, pts, cols[2]), cols, noise=0.08, bias=0.15)
+    if v == 0:
+        for i in range(3):
+            ridge(rng.uniform(-0.6, 0.6), i * 1.5 - 1.5, rng.uniform(4.5, 6.5), rng.uniform(0.6, 0.9), rng.uniform(0.45, 0.7), 0.0)
+    elif v == 1:
+        for _ in range(6):
+            ridge(rng.uniform(-2.5, 2.5), rng.uniform(-2.0, 2.0), rng.uniform(1.8, 3.0), rng.uniform(0.35, 0.55), rng.uniform(0.3, 0.45),
+                  rng.uniform(-0.2, 0.2))
+    else:
+        for k in range(4):
+            a = -0.9 + k * 0.6
+            ridge(math.cos(a + math.pi / 2) * 3.0, math.sin(a + math.pi / 2) * 3.0 - 2.4, 2.6, 0.75 - abs(k - 1.5) * 0.12,
+                  0.75 - abs(k - 1.5) * 0.18, a)
+    m.build(r, rot_z=rng.uniform(-0.25, 0.25))
+    return r
+
+
+def hum_crystal(v):
+    """Scenery (shelf): where the aurora hums. Crystals of deep blue ice grown out of the shelf, a
+    cold light caught in a few of their faces: a tall fan (v0), a crowned ring round a lit hollow
+    (v1), a toppled cluster glowing violet where it broke (v2)."""
+    r = root("glacis_hum_crystal", v)
+    rng = random.Random(1440 + v)
+    m = Model(f"glacis_hum_crystal_{v}", 1440 + v)
+    from props_b_kit import crystal as kcrystal
+    shafts = []
+    if v == 0:
+        shafts.append(((0, 0, -0.3), (0.1, -0.05, 1), 0.55, 2.8))
+        for k in range(6):
+            a = k / 6 * math.tau + rng.uniform(-0.3, 0.3)
+            t = rng.uniform(0.35, 0.8)
+            shafts.append(((math.cos(a) * 0.5, math.sin(a) * 0.5, -0.3), (math.cos(a) * math.sin(t), math.sin(a) * math.sin(t), math.cos(t)),
+                           rng.uniform(0.28, 0.42), rng.uniform(1.0, 2.0)))
+    elif v == 1:
+        for k in range(8):
+            a = k / 8 * math.tau
+            shafts.append(((math.cos(a) * 1.7, math.sin(a) * 1.7, -0.3), (-math.cos(a) * 0.25, -math.sin(a) * 0.25, 1),
+                           rng.uniform(0.3, 0.45), rng.uniform(1.2, 2.4)))
+        m.cyl(1.2, 0.08, (0, 0, -0.02), AURORA, segs=8, glow=True)
+        m.cyl(1.45, 0.06, (0, 0, -0.04), AUR_ICE[0], segs=8)
+    else:
+        for k in range(5):
+            a = rng.uniform(-0.6, 0.6)
+            shafts.append(((rng.uniform(-1.5, 1.5), rng.uniform(-0.8, 0.8), 0.1), (math.cos(a), math.sin(a), rng.uniform(0.15, 0.5)),
+                           rng.uniform(0.35, 0.55), rng.uniform(1.6, 2.8)))
+    st = mark(m)
+    for base, d, rr, L in shafts:
+        kcrystal(m, base, d, rr, L, rr * 1.8, AUR_ICE[0], segs=rng.choice((5, 6)), twist=rng.uniform(0, 1))
+    fs = new_faces(m, st)
+    facet(m, fs, AUR_ICE, noise=0.16, bias=-0.1)
+    glow_t = m._slot(AURORA, True)
+    glow_v = m._slot(AUR_VIOLET, True)
+    for f in fs:
+        if abs(f.normal.z) < 0.6 and rng.random() < 0.15:
+            f.material_index = glow_v if (v == 2 or rng.random() < 0.3) else glow_t
+    st = mark(m)
+    m.ball(1.0, (0, 0, -0.2), ICE_LOW[3], subdiv=1, scale=(2.0, 1.6, 0.35), jitter=0.12)
+    facet(m, new_faces(m, st), ICE_LOW[1:], noise=0.08, bias=0.1)
+    for q in m.bm.verts:
+        q.co *= 1.5
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    light(r, (0, 0, 2.2), AURORA if v != 2 else AUR_VIOLET, radius=6, intensity=0.6, halo=False)
+    return r
+
+
+def relic(v):
+    """Scenery (shelf): the Engine showing through. A great ring half sunk in a mound of ice (v0); a
+    mast leaning out of a slab, its tip still lit (v1); a dark sphere-eye under cracked ice, a slit of
+    orange in it (v2)."""
+    r = root("glacis_relic", v)
+    rng = random.Random(1460 + v)
+    m = Model(f"glacis_relic_{v}", 1460 + v)
+    if v == 0:
+        _chunk(m, rng, (-2.6, -1.8, -0.4), (2.6, 1.8, 0.8), ICE_LOW, n=14, bias=-0.1)
+        st = mark(m)
+        for k in range(12):
+            a = k / 20 * math.tau - 0.3
+            m.box((0.9, 0.8, 1.0), (math.cos(a) * 2.6, 0, math.sin(a) * 2.6), METAL[2], rot=(0, -a, 0))
+        for k in (2, 6, 10):
+            a = k / 20 * math.tau - 0.3
+            m.box((0.35, 0.84, 0.45), (math.cos(a) * 2.95, 0, math.sin(a) * 2.95), HOT, rot=(0, -a, 0), glow=True)
+        fs = xform(m, st, M((0, 0.3, 0.2), (1.0, 0, 0)))
+        facet(m, [f for f in fs if m.mats[f.material_index].name.startswith("c_")], METAL, noise=0.06)
+    elif v == 1:
+        _chunk(m, rng, (-2.4, -1.8, -0.4), (2.4, 1.8, 0.9), ICE_LOW, n=12, bias=-0.1)
+        st = mark(m)
+        base, tip = (-0.6, 0.3, 0.5), (2.2, -0.6, 4.6)
+        limb(m, base, tip, 0.45, 0.25, METAL[2], segs=5)
+        for t in (0.35, 0.65):
+            p = [base[i] + (tip[i] - base[i]) * t for i in range(3)]
+            m.box((0.35, 1.8 - t, 0.3), tuple(p), METAL[3], rot=(0, -0.6, 0.3))
+        facet(m, new_faces(m, st), METAL, noise=0.06)
+        m.ball(0.38, tip, HOT_PALE, subdiv=0, glow=True)
+        light(r, tip, HOT, radius=4, intensity=0.6, flicker=0.3, halo=False)
+        _drift(m, rng, (-0.4, 0.6, 1.0), (1.6, 1.2, 0.3))
+    else:
+        st = mark(m)
+        m.ball(1.9, (0, 0, -0.2), METAL[1], subdiv=1, scale=(1, 1, 0.7))
+        facet(m, new_faces(m, st), METAL, noise=0.05)
+        m.box((2.2, 0.36, 0.3), (0, -0.3, 1.1), HOT, glow=True, rot=(0.25, 0, 0.2))
+        # the cracked ice still over half of it
+        for k in range(4):
+            a = 0.8 + k * 0.55
+            st = mark(m)
+            _chunk(m, rng, (-0.9, -0.6, -0.25), (0.9, 0.6, 0.25), ICE_LOW, n=8, bias=0.05)
+            xform(m, st, M((math.cos(a) * 1.4, math.sin(a) * 1.4, 0.95 - abs(k - 1.5) * 0.15), (0.3 * math.sin(a), -0.3 * math.cos(a), a)))
+        _drift(m, rng, (-1.6, -1.0, -0.1), (1.8, 1.2, 0.5))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    if v != 1:
+        light(r, (0, 0, 1.4), HOT, radius=4, intensity=0.5, halo=False)
+    return r
+
+
 # --- Rosewater Springs -----------------------------------------------------------------------
 
 def _lobed(rng, cx, cy, rx, ry, n=11, wob=0.18):
@@ -366,28 +547,27 @@ def _lobed(rng, cx, cy, rx, ry, n=11, wob=0.18):
 
 
 def _terrace(m, rng, cx, cy, rx, ry, z0, z1, hot=0):
-    """One rimstone terrace: a lobed step of crust with a glowing pool set into its top."""
-    pts = _lobed(rng, cx, cy, rx, ry)
+    """One rimstone terrace: a lobed step of pale crust, a lip, and a pool inside it banded like a
+    hot spring: orange algae at the edge, gold, then turquoise, and only the hottest pools glowing
+    in the very middle (glow is an accent here, not the whole pool)."""
+    pts = _lobed(rng, cx, cy, rx, ry, n=13, wob=0.14)
     top = [(cx + (x - cx) * 0.94, cy + (y - cy) * 0.94) for x, y in pts]
     f = m.slab(pts, z0, z1, TRAV[0], top=top)
     facet(m, f, TRAV, noise=0.1, bias=0.1)
-    # the rim: a pale lip, then the pool inside it, hotter (bluer) towards the middle
-    lip = [(cx + (x - cx) * 0.9, cy + (y - cy) * 0.9) for x, y in pts]
-    f = m.slab(top, z1, z1 + 0.18, TRAV[3], top=lip)
-    # an orange mat of algae just inside the rim
-    m.slab([(cx + (x - cx) * 0.9, cy + (y - cy) * 0.9) for x, y in pts], z1 + 0.18, z1 + 0.22, "#ff8a4a", glow=True)
-    seq = [POOL[4], POOL[3], POOL[2], POOL[1], POOL[0]][min(hot, 2):]
-    for k, col in enumerate(seq[:4]):
-        s = 0.84 - k * 0.17
-        if s <= 0.1:
-            break
-        ring_pts = [(cx + (x - cx) * s + rng.uniform(-0.1, 0.1), cy + (y - cy) * s) for x, y in pts]
-        m.slab(ring_pts, z1 + 0.22 + k * 0.03, z1 + 0.25 + k * 0.03, col, glow=True)
+    lip = [(cx + (x - cx) * 0.88, cy + (y - cy) * 0.88) for x, y in pts]
+    facet(m, m.slab(top, z1, z1 + 0.16, TRAV[3], top=lip), TRAV[2:], noise=0.05)
+    bands = [("#e0905e", 0.84), ("#f2c474", 0.74), ("#2a9ab8", 0.6), ("#6ad8dc", 0.38)][:2 + min(hot, 2)]
+    for k, (col, s) in enumerate(bands):
+        ring_pts = [(cx + (x - cx) * s + rng.uniform(-0.06, 0.06), cy + (y - cy) * s) for x, y in pts]
+        m.slab(ring_pts, z1 + 0.17 + k * 0.025, z1 + 0.2 + k * 0.025, col)
+    if hot >= 2:
+        core = [(cx + (x - cx) * 0.18, cy + (y - cy) * 0.18) for x, y in pts]
+        m.slab(core, z1 + 0.26, z1 + 0.29, "#c8fff8", glow=True)
     # pink algae running down the step's face where it spills
     for _ in range(3):
         a = rng.uniform(0, math.tau)
-        x, y = cx + math.cos(a) * rx * 0.98, cy + math.sin(a) * ry * 0.98
-        m.box((rng.uniform(1.0, 2.0), 0.3, (z1 - z0) * 0.9), (x, y, (z0 + z1) / 2), ALGAE[0], rot=(0, 0, a + math.pi / 2), glow=True)
+        x, y = cx + math.cos(a) * rx * 0.97, cy + math.sin(a) * ry * 0.97
+        m.box((rng.uniform(0.9, 1.8), 0.3, (z1 - z0) * 0.9), (x, y, (z0 + z1) / 2), ALGAE[0], rot=(0, 0, a + math.pi / 2))
 
 
 def travertine(v):
@@ -506,23 +686,119 @@ def rimpool(v):
     return r
 
 
+LILAC = ["#3a1a5e", "#5a2e8e", "#8048bc", "#a46ad8", "#c890f0"]
+FLESH = ["#5a1830", "#862a48", "#b04462", "#d8707e", "#f4a8a8"]
+
+
 def frost_reed(v):
-    """Scenery: reeds by the springs frozen stiff, rimed white on their tips, rust at their feet."""
+    """Scenery (springs): steam-reeds, stiff flat blades rose at the foot, rimed white where the
+    steam freezes on them; a clump (v0), a broad bed (v1), a few tall ones (v2)."""
     r = root("glacis_frost_reed", v)
     rng = random.Random(1160 + v)
     m = Model(f"glacis_frost_reed_{v}", 1160 + v)
-    n = (9, 14, 6)[v]
-    m.cyl(1.4 + v * 0.3, 0.12, (0, 0, -0.05), "#6a4a4a", segs=8)
+    n, spread, hi = ((9, 1.0, 2.0), (16, 1.8, 1.6), (6, 0.8, 2.8))[v]
+    st = mark(m)
+    m.ball(spread + 0.4, (0, 0, -0.25), TRAV[1], subdiv=1, scale=(1, 0.85, 0.25), jitter=0.06)
+    facet(m, new_faces(m, st), TRAV, noise=0.08, bias=0.1)
     for _ in range(n):
         a = rng.uniform(0, math.tau)
-        d = rng.uniform(0, 1.2 + v * 0.3)
+        d = rng.uniform(0, spread)
         x, y = math.cos(a) * d, math.sin(a) * d
-        h = rng.uniform(1.2, 2.6)
-        lx, ly = rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5)
-        limb(m, (x, y, 0), (x + lx * 0.5, y + ly * 0.5, h * 0.6), 0.14, 0.12, rng.choice(("#8a5a3a", "#a8703a", "#6a4a34")), segs=4)
-        limb(m, (x + lx * 0.5, y + ly * 0.5, h * 0.6), (x + lx, y + ly, h), 0.12, 0.08, SNOW[1], segs=4)
-        if rng.random() < 0.5:
-            m.ball(0.22, (x + lx, y + ly, h), SNOW[2], subdiv=0, scale=(1, 1, 2.2))
+        h = hi * rng.uniform(0.6, 1.1)
+        la = a + rng.uniform(-0.5, 0.5)
+        lx, ly = math.cos(la) * h * 0.25, math.sin(la) * h * 0.25
+        w = rng.uniform(0.32, 0.45)
+        st = mark(m)
+        m.cyl(w, h * 0.6, (0, 0, 0), rng.choice(("#8a3a44", "#a8504a", "#6a3040")), segs=4, r_top=w * 0.7)
+        m.cyl(w * 0.7, h * 0.4, (0, 0, h * 0.6), SNOW[1], segs=4, r_top=0.03)
+        fs = xform(m, st, M(scale=(1, 0.35, 1)))
+        xform(m, st, M((x, y, -0.05), (math.atan2(ly, lx) * 0 + 0.3 * rng.uniform(-1, 1), 0.3 * rng.uniform(-1, 1), rng.uniform(0, math.pi))))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def mistwillow(v):
+    """Scenery (springs): a mistwillow, which drinks the steam. A squat pale trunk under a lilac dome
+    hung all round with curtains of frozen mist, icicle-tipped: from above, a lobed lilac crown; one
+    (v0), a pair (v1), an old one leaning, its curtains trailing long on one side (v2)."""
+    r = root("glacis_mistwillow", v)
+    rng = random.Random(1170 + v)
+    m = Model(f"glacis_mistwillow_{v}", 1170 + v)
+    trees = {0: [(0, 0, 3.2, 1.8, (0.2, 0.1))], 1: [(-1.3, 0.3, 2.6, 1.4, (-0.2, 0.1)), (1.3, -0.4, 3.4, 1.7, (0.3, -0.1))],
+             2: [(0, 0, 3.6, 2.1, (0.9, 0.3))]}[v]
+    for x, y, h, R, lean in trees:
+        top = (x + lean[0], y + lean[1], h)
+        st = mark(m)
+        limb(m, (x, y, -0.2), (x + lean[0] * 0.6, y + lean[1] * 0.6, h * 0.55), 0.42, 0.3, "#6a5a6e", segs=6)
+        limb(m, (x + lean[0] * 0.6, y + lean[1] * 0.6, h * 0.55), top, 0.3, 0.2, "#6a5a6e", segs=6)
+        facet(m, new_faces(m, st), ["#3e3444", "#5a4c60", "#7a6c80"], noise=0.1)
+        st = mark(m)
+        # the dome
+        pts = []
+        for k in range(9):
+            a = k / 9 * math.tau
+            for rr, dz in ((R, 0.0), (R * 0.6, 0.55), (R * 0.2, 0.75)):
+                rj = rr * rng.uniform(0.9, 1.08)
+                pts.append((top[0] + math.cos(a) * rj, top[1] + math.sin(a) * rj, top[2] + dz))
+        hull(m, pts, LILAC[2])
+        facet(m, new_faces(m, st), LILAC, noise=0.12, bias=-0.1)
+        # the curtains hanging from the rim
+        n = 9
+        la = math.atan2(lean[1], lean[0])
+        for k in range(n):
+            a = (k + 0.5) / n * math.tau + rng.uniform(-0.1, 0.1)
+            drop = rng.uniform(1.6, 2.4) * (1 + (0.5 * max(0, math.cos(a - la)) if v == 2 else 0))
+            drop = min(drop, top[2] - 0.4)
+            st = mark(m)
+            _wedge(m, (top[0], top[1]), top[2] + 0.05, a, R * 0.9, R * 1.12, 2 * math.pi * R / n * 0.75, 2 * math.pi * R / n * 0.35,
+                   0.24, -drop, LILAC[3])
+            facet(m, new_faces(m, st), LILAC, noise=0.1, bias=-0.05)
+            ex, ey = top[0] + math.cos(a) * R * 1.12, top[1] + math.sin(a) * R * 1.12
+            m.cyl(0.2, 0.5, (ex, ey, top[2] + 0.05 - drop + 0.05), "#e0b8ff", segs=4, r_top=0, rot=(math.pi, 0, 0), glow=k % 3 == 0)
+        m.ball(0.3, (top[0], top[1], top[2] + 0.82), SNOW[2], subdiv=0, scale=(1.3, 1.3, 0.6))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def blushcap(v):
+    """Scenery (springs): blushcaps, fat rose cushions of something between moss and flesh, crowding
+    the warm runoff; a cushion (v0), a ring round a little warm pool (v1), tall candles (v2)."""
+    r = root("glacis_blushcap", v)
+    rng = random.Random(1180 + v)
+    m = Model(f"glacis_blushcap_{v}", 1180 + v)
+    st = mark(m)
+    if v == 0:
+        caps = [(0, 0, 0.95)] + [(math.cos(a) * 1.25, math.sin(a) * 1.1, rng.uniform(0.45, 0.75)) for a in
+                                 (k / 6 * math.tau + rng.uniform(-0.3, 0.3) for k in range(6))]
+        for x, y, s in caps:
+            m.ball(s, (x, y, s * 0.15), FLESH[2], subdiv=1, scale=(1, 0.95, 0.65), jitter=0.05)
+    elif v == 1:
+        for k in range(9):
+            a = k / 9 * math.tau
+            s = rng.uniform(0.4, 0.7)
+            m.ball(s, (math.cos(a) * 1.5, math.sin(a) * 1.3, s * 0.15), FLESH[2], subdiv=1, scale=(1, 0.95, 0.65), jitter=0.05)
+    else:
+        for k in range(5):
+            a, d = rng.uniform(0, math.tau), rng.uniform(0.2, 1.2)
+            x, y, h = math.cos(a) * d, math.sin(a) * d, rng.uniform(0.9, 2.0)
+            m.cyl(0.32, h, (x, y, 0), FLESH[1], segs=6, r_top=0.26)
+            m.ball(0.45, (x, y, h), FLESH[3], subdiv=1, scale=(1, 1, 0.75))
+        m.ball(0.9, (0, 0, 0), FLESH[2], subdiv=1, scale=(1.4, 1.2, 0.4))
+    facet(m, new_faces(m, st), FLESH, noise=0.12)
+    if v == 1:
+        m.cyl(1.0, 0.06, (0, 0, 0.02), "#3aa8c0", segs=8)
+        m.cyl(0.45, 0.08, (0, 0, 0.03), "#c8fff8", segs=8, glow=True)
+        emitter(r, (0, 0, 0.3), "steam")
+    else:
+        # pores: a couple of pale pits glowing faintly
+        for k in range(2):
+            a = rng.uniform(0, math.tau)
+            m.cyl(0.18, 0.08, (math.cos(a) * 0.3, math.sin(a) * 0.3, 0.75 if v == 0 else 0.4), "#ffd0e0", segs=5, glow=True)
+    st = mark(m)
+    m.ball(1.0, (0, 0, -0.25), TRAV[1], subdiv=1, scale=(2.0, 1.8, 0.25), jitter=0.06)
+    facet(m, new_faces(m, st), TRAV, noise=0.08, bias=0.1)
+    for q in m.bm.verts:
+        q.co *= 1.35
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
 
@@ -647,26 +923,223 @@ def buried_engine(v):
     return r
 
 
-def larch(v):
-    """Scenery: a larch gone gold in the cold, tiers of amber needles dusted with snow, a dark trunk;
-    warm against the teal spruce and the white."""
-    r = root("glacis_larch", v)
+VIOLET = ["#1e1238", "#301e58", "#46307e", "#6044a4", "#7e60c4"]   # the bellcrowns' cups
+HEART = ["#6a1a5a", "#9a2a7a", "#c8449a", "#ec70b8"]               # and the bulb in the middle
+VBARK = ["#2a2234", "#3e3248", "#54465e"]
+EBARK = ["#1c1418", "#2c2026", "#422e36", "#5c424a"]                # emberroot: near black, rust lit
+EMBER = "#ffb04a"
+TUSS = ["#86643a", "#a8844a", "#cca462", "#e8cc8a"]                 # frozen sedge
+THAW = ["#5a4a48", "#6e5c58", "#86726a"]                            # wet ground where the snow's gone
+
+
+def _wedge(m, c, z, a, r0, r1, w0, w1, th, lift, col):
+    """A flat petal/blade from radius r0 to r1 along angle a, widening w0 -> w1, rising by lift."""
+    ca, sa = math.cos(a), math.sin(a)
+    pts = []
+    for r_, w_, dz in ((r0, w0, 0.0), (r1, w1, lift)):
+        for side in (-0.5, 0.5):
+            for zz in (-th / 2, th / 2):
+                pts.append((c[0] + ca * r_ - sa * w_ * side, c[1] + sa * r_ + ca * w_ * side, z + dz + zz))
+    return hull(m, pts, col)
+
+
+def bellcrown(v):
+    """Scenery (tundra): a bellcrown, Glacis's own tree. A banded violet trunk holding up a cup of
+    stiff, waxy petals that catches the snow: from above, a white disc in a ragged violet star.
+    Lone (v0), a family of three (v1), an old one with its cup tipped and buds on the trunk (v2),
+    a clump of saplings (v3)."""
+    r = root("glacis_bellcrown", v)
     rng = random.Random(1220 + v)
-    m = Model(f"glacis_larch_{v}", 1220 + v)
-    trees = {0: [(0, 0, 1.0, 5)], 1: [(0, 0, 1.25, 6)], 2: [(-1.0, 0.3, 0.8, 4), (1.1, -0.5, 0.65, 4), (0.2, 1.4, 0.5, 3)]}[v]
-    for x, y, s, tiers in trees:
-        m.cyl(0.25 * s, 1.4 * s, (x, y, 0), "#3a2626", segs=5)
-        for i in range(tiers):
-            z = (0.9 + i * 0.78) * s
-            rad = (1.5 - i * (1.2 / tiers)) * s
-            st = mark(m)
-            m.cyl(rad, 1.15 * s, (x, y, z), LARCH[1], segs=6, r_top=0.08, rot=(0, 0, rng.uniform(0, 1)))
-            jitter(m, new_faces(m, st), 0.1 * s, z=False)
-            facet(m, new_faces(m, st), LARCH, noise=0.12, bias=0.05 * i)
-            if i % 2 == 1:
-                m.cyl(rad * 0.55, 0.3 * s, (x + 0.1, y - 0.1, z + 0.7 * s), SNOW[2], segs=6, r_top=0.1)
-        m.cyl(0.2 * s, 0.8 * s, (x, y, (0.9 + tiers * 0.78) * s), LARCH[3], segs=4, r_top=0)
-    _drift(m, rng, (0, 0, -0.35), (1.8, 1.5, 0.5))
+    m = Model(f"glacis_bellcrown_{v}", 1220 + v)
+    # (x, y, height, cup radius, lean)
+    trees = {0: [(0, 0, 4.0, 1.6, (0.3, -0.2))],
+             1: [(-1.1, 0.4, 3.1, 1.2, (-0.3, 0.2)), (1.1, -0.5, 4.3, 1.55, (0.25, -0.1)), (0.1, 1.6, 2.0, 0.85, (0.1, 0.35))],
+             2: [(0, 0, 4.6, 1.9, (0.7, 0.2))],
+             3: [(rng.uniform(-1.6, 1.6), rng.uniform(-1.6, 1.6), rng.uniform(1.2, 2.0), rng.uniform(0.5, 0.75),
+                  (rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3))) for _ in range(5)]}[v]
+    for x, y, h, R, lean in trees:
+        top = (x + lean[0], y + lean[1], h - 0.35)
+        st = mark(m)
+        limb(m, (x, y, -0.2), top, 0.3 * min(1.2, R / 1.3), 0.2 * min(1.2, R / 1.3), VBARK[0], segs=6)
+        facet(m, new_faces(m, st), VBARK, noise=0.1)
+        # pale frost bands round the trunk
+        for t in (0.3, 0.55):
+            m.cyl(0.32 * min(1.2, R / 1.3) * (1 - t * 0.3) + 0.04, 0.22, (x + lean[0] * t, y + lean[1] * t, (h - 0.35) * t),
+                  SNOW[1], segs=6)
+        tilt = (0.35 if v == 2 else rng.uniform(0.0, 0.12), rng.uniform(0, math.tau))
+        st = mark(m)
+        m.ball(0.42 * R / 1.3 + 0.1, top, VIOLET[1], subdiv=0, scale=(1, 1, 1.2))
+        n = rng.choice((7, 8, 9)) if R > 1 else 6
+        a0 = rng.uniform(0, math.tau)
+        for j in range(n):
+            a = a0 + (j + rng.uniform(-0.15, 0.15)) / n * math.tau
+            # the cup tilts: petals on one side ride higher
+            lift = R * (0.55 + tilt[0] * math.cos(a - tilt[1])) * rng.uniform(0.85, 1.15)
+            _wedge(m, top, top[2], a, 0.15, R * rng.uniform(0.9, 1.1), 0.35, 2 * math.pi * R / n * 0.9, 0.2, lift, VIOLET[2])
+        facet(m, new_faces(m, st), VIOLET, noise=0.14, bias=-0.2)
+        # the heart: a fat magenta bulb filling the cup, a cap of the snow it caught off to one side
+        st = mark(m)
+        m.ball(R * 0.6, (top[0], top[1], top[2] + R * 0.32), HEART[2], subdiv=1, scale=(1, 1, 0.55), jitter=0.04 * R)
+        facet(m, new_faces(m, st), HEART, noise=0.1, bias=0.05)
+        st = mark(m)
+        m.ball(R * 0.3, (top[0] - R * 0.22, top[1] + R * 0.18, top[2] + R * 0.6), SNOW[2], subdiv=1, scale=(1.2, 0.9, 0.35))
+        facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.3)
+        if v == 2:
+            # buds: little cups on short stalks off the trunk
+            for t, a in ((0.45, 1.0), (0.62, 3.6), (0.3, 5.0)):
+                b0 = (x + lean[0] * t, y + lean[1] * t, (h - 0.35) * t)
+                b1 = (b0[0] + math.cos(a) * 0.9, b0[1] + math.sin(a) * 0.9, b0[2] + 0.7)
+                limb(m, b0, b1, 0.16, 0.12, VBARK[1], segs=5)
+                st = mark(m)
+                for j in range(5):
+                    _wedge(m, b1, b1[2], j / 5 * math.tau + a, 0.1, 0.55, 0.2, 0.62, 0.14, 0.35, VIOLET[2])
+                facet(m, new_faces(m, st), VIOLET, noise=0.14)
+                m.ball(0.3, (b1[0], b1[1], b1[2] + 0.22), SNOW[2], subdiv=0, scale=(1, 1, 0.5))
+    for x, y, h, R, _ in trees:
+        st = mark(m)
+        m.ball(R * 0.7, (x + 0.2, y - 0.1, -0.2), SNOW[1], subdiv=1, scale=(1.1, 0.9, 0.3), jitter=0.06)
+        facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def emberroot(v):
+    """Scenery (tundra, springs): an emberroot, whose roots go down to the Engine's heat. A black,
+    knotted trunk forking into arching limbs that hang clusters of amber seed-lamps; round its foot
+    the snow has melted back to wet dark ground. The one warm light in the white."""
+    r = root("glacis_emberroot", v)
+    rng = random.Random(1260 + v)
+    m = Model(f"glacis_emberroot_{v}", 1260 + v)
+    spec = {0: (3, 2.0, 1.9, 3.6), 1: (4, 1.5, 2.4, 2.9), 2: (2, 2.4, 2.0, 4.1)}[v]   # limbs, fork z, reach, crown z
+    nl, fz, reach, cz = spec
+    lean = {0: (0.2, 0.1), 1: (-0.1, 0.2), 2: (0.7, -0.3)}[v]
+    fork = (lean[0], lean[1], fz)
+    # the thaw: wet dark ground and a few meltwater puddles
+    n = 11
+    rr = reach + 0.2
+    pts = [(math.cos(a) * rr * rng.uniform(0.8, 1.1), math.sin(a) * rr * rng.uniform(0.8, 1.1)) for a in (i / n * math.tau for i in range(n))]
+    facet(m, m.slab(pts, -0.1, 0.05, THAW[0], top=[(x * 0.97, y * 0.97) for x, y in pts]), THAW, noise=0.2)
+    for _ in range(3):
+        a, d = rng.uniform(0, math.tau), rng.uniform(0.9, reach)
+        m.cyl(rng.uniform(0.4, 0.7), 0.04, (math.cos(a) * d, math.sin(a) * d, 0.05), "#4a7a8c", segs=6)
+    st = mark(m)
+    lump(m, rng, (0, 0, 0.15), (1.0, 0.9, 0.6), EBARK[1], n=12, flat=0.6)
+    for k in range(4):
+        a = k / 4 * math.tau + rng.uniform(-0.3, 0.3)
+        limb(m, (0, 0, 0.4), (math.cos(a) * 1.4, math.sin(a) * 1.4, -0.1), 0.3, 0.12, EBARK[1], segs=4)
+    limb(m, (0, 0, 0), fork, 0.42, 0.32, EBARK[1], segs=6)
+    a0 = rng.uniform(0, math.tau)
+    tips = []
+    for j in range(nl):
+        a = a0 + (j + rng.uniform(-0.2, 0.2)) / nl * math.tau
+        if v == 2:
+            a = a0 + (j - 0.5) * 1.1          # both limbs reaching the same way
+        rch = reach * rng.uniform(0.85, 1.1)
+        mid = (fork[0] + math.cos(a) * rch * 0.45, fork[1] + math.sin(a) * rch * 0.45, cz - 0.1)
+        tip = (fork[0] + math.cos(a) * rch, fork[1] + math.sin(a) * rch, cz + rng.uniform(0.1, 0.4))
+        end = (fork[0] + math.cos(a) * rch * 1.12, fork[1] + math.sin(a) * rch * 1.12, cz - 0.4)
+        limb(m, fork, mid, 0.3, 0.22, EBARK[1], segs=5)
+        m.ball(0.22, mid, EBARK[1], subdiv=0)
+        limb(m, mid, tip, 0.22, 0.15, EBARK[1], segs=5)
+        m.ball(0.15, tip, EBARK[1], subdiv=0)
+        limb(m, tip, end, 0.15, 0.12, EBARK[1], segs=4)
+        tips.append(end)
+    facet(m, new_faces(m, st), EBARK, noise=0.12)
+    for e in tips:
+        # a dark husk, and the seed-lamps hanging under it
+        m.cyl(0.42, 0.3, (e[0], e[1], e[2] - 0.05), EBARK[0], segs=5, r_top=0.15)
+        for k in range(3):
+            a = k / 3 * math.tau + rng.uniform(0, 1)
+            m.ball(rng.uniform(0.24, 0.3), (e[0] + math.cos(a) * 0.28, e[1] + math.sin(a) * 0.28, e[2] - 0.25 - 0.15 * k),
+                   EMBER if k else HOT_PALE, subdiv=0, glow=True)
+    # snow banked just outside the thaw
+    for k in range(4):
+        a = rng.uniform(0, math.tau)
+        st = mark(m)
+        m.ball(1.0, (math.cos(a) * (rr + 0.4), math.sin(a) * (rr + 0.4), -0.15), SNOW[1], subdiv=1,
+               scale=(1.4, 0.9, 0.35), rot=(0, 0, a + math.pi / 2), jitter=0.08)
+        facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    light(r, (fork[0], fork[1], cz - 0.5), EMBER, radius=5, intensity=0.6, flicker=0.08, halo=False)
+    return r
+
+
+def tussock(v):
+    """Scenery (tundra): frozen sedge, tough ochre tufts rimed white at the tips, the ground layer
+    the herds graze; a few (v0), a straggling line (v1), big old hummocks (v2)."""
+    r = root("glacis_tussock", v)
+    rng = random.Random(1280 + v)
+    m = Model(f"glacis_tussock_{v}", 1280 + v)
+    if v == 0:
+        spots = [(rng.uniform(-1.6, 1.6), rng.uniform(-1.6, 1.6), rng.uniform(1.0, 1.5)) for _ in range(6)]
+    elif v == 1:
+        spots = [(i * 0.9 - 3.2 + rng.uniform(-0.3, 0.3), math.sin(i * 0.8) * 0.8 + rng.uniform(-0.3, 0.3), rng.uniform(0.9, 1.4))
+                 for i in range(8)]
+    else:
+        spots = [(0, 0, 2.1), (1.9, 0.9, 1.6), (-1.7, 1.2, 1.4), (0.5, -1.9, 1.3)]
+    spots = [(x * 1.3, y * 1.3, s) for x, y, s in spots]
+    for x, y, s in spots:
+        st = mark(m)
+        m.ball(0.55 * s, (x, y, 0.05), TUSS[0], subdiv=0, scale=(1, 1, 0.6))
+        for k in range(3):
+            a = rng.uniform(0, math.tau)
+            lx, ly = math.cos(a) * 0.3 * s, math.sin(a) * 0.3 * s
+            limb(m, (x + lx * 0.3, y + ly * 0.3, 0.1), (x + lx, y + ly, 0.9 * s * rng.uniform(0.8, 1.2)), 0.32 * s, 0.04,
+                 TUSS[1], segs=4, twist=rng.uniform(0, 1))
+        jitter(m, new_faces(m, st), 0.04 * s)
+        fs = new_faces(m, st)
+        facet(m, fs, TUSS, noise=0.18)
+        paint(m, [f for f in fs if f.calc_center_median().z > 0.62 * s and f.normal.z > 0.2], lambda f: SNOW[2])
+    st = mark(m)
+    m.ball(1.0, (0, 0, -0.2), SNOW[1], subdiv=1, scale=(2.2 if v != 1 else 3.6, 1.5, 0.25), jitter=0.1)
+    facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def tusk_bones(v):
+    """Scenery (tundra): what the herds leave. A skull with its two great tusks curling up out of the
+    snow (v0); a ribcage arching over the drift (v1); one tusk, broken, and scattered bones (v2)."""
+    r = root("glacis_tusk_bones", v)
+    rng = random.Random(1300 + v)
+    m = Model(f"glacis_tusk_bones_{v}", 1300 + v)
+    def tusk(base, a, L, r0, curl=1.0):
+        pts, rad = [], []
+        for i in range(7):
+            t = i / 6
+            ang = a + curl * t * 1.4
+            d = L * 0.55 * math.sin(t * 2.2)
+            pts.append((base[0] + math.cos(a) * L * 0.6 * t + math.cos(ang) * d * 0.4,
+                        base[1] + math.sin(a) * L * 0.6 * t + math.sin(ang) * d * 0.4,
+                        base[2] + math.sin(t * 2.6) * L * 0.2))
+            rad.append(r0 * (1 - 0.75 * t) + 0.05)
+        return path_tube(m, pts, rad, IVORY[2], segs=6)
+    st = mark(m)
+    if v == 0:
+        lump(m, rng, (0, 0, 0.3), (1.2, 1.0, 0.8), IVORY[1], n=14, flat=0.4)
+        m.box((0.5, 0.35, 0.3), (-0.35, 0.55, 0.85), "#3a2e2a")
+        m.box((0.5, 0.35, 0.3), (0.35, 0.55, 0.85), "#3a2e2a")
+        for s in (-1, 1):
+            tusk((s * 0.55, 0.8, 0.2), math.pi / 2 + s * 0.25, 4.2, 0.36, curl=-s)
+    elif v == 1:
+        for i in range(6):
+            y = i * 0.75 - 1.9
+            lump(m, rng, (0, y, 0.15), (0.35, 0.3, 0.3), IVORY[1], n=8)
+            h = 1.8 - abs(i - 2.2) * 0.25
+            for s in (-1, 1):
+                path_tube(m, [(s * 0.2, y, 0.3), (s * 1.0, y, h * 0.85), (s * 1.7, y + 0.1, h * 0.4), (s * 1.9, y + 0.15, -0.1)],
+                          [0.17, 0.15, 0.13, 0.11], IVORY[2], segs=5)
+    else:
+        tusk((0, 0, -0.2), 0.3, 5.0, 0.42, curl=1.0)
+        for _ in range(5):
+            x, y = rng.uniform(-2, 2.5), rng.uniform(-1.8, 1.8)
+            lump(m, rng, (x, y, 0.1), (rng.uniform(0.3, 0.6), rng.uniform(0.25, 0.4), 0.25), IVORY[1], n=8)
+    facet(m, new_faces(m, st), IVORY, noise=0.1)
+    for _ in range(3 if v != 1 else 2):
+        st = mark(m)
+        a = rng.uniform(0, math.tau)
+        m.ball(1.0, (math.cos(a) * 1.2, math.sin(a) * 1.2, -0.25), SNOW[1], subdiv=1, scale=(1.8, 1.2, 0.45), jitter=0.1)
+        facet(m, new_faces(m, st), SNOW, noise=0.06, bias=0.2)
     m.build(r, rot_z=rng.uniform(0, math.tau))
     return r
 
@@ -865,7 +1338,7 @@ def engine_vent(v):
             m.cyl(0.85, 1.8, (x, y, 0), METAL[2], segs=6, r_top=0.7)
             m.box((1.4, 1.0, 1.0), (x, y - 0.6, 1.9), METAL[3], rot=(0.5, 0, 0))
             facet(m, new_faces(m, st), METAL, noise=0.06)
-            m.cyl(0.45, 0.2, (x, y - 0.95, 2.1), HOT, segs=6, glow=True, rot=(0.5 + math.pi / 2, 0, 0))
+            m.cyl(0.45, 0.2, (x, y - 0.95, 2.1), COOL if i == 1 else HOT, segs=6, glow=True, rot=(0.5 + math.pi / 2, 0, 0))
         _drift(m, rng, (0.8, 1.2, 0), (2.6, 1.2, 0.6))
     else:
         st = mark(m)
@@ -877,6 +1350,213 @@ def engine_vent(v):
         _drift(m, rng, (-0.8, 0.6, 0.3), (1.6, 1.2, 0.3), cols=ICE_LOW[2:])
     m.build(r, rot_z=rng.uniform(0, math.tau))
     light(r, (0, 0, 1), HOT, radius=4, intensity=0.6, halo=False)
+    return r
+
+
+# --- Engine City scenery --------------------------------------------------------------------------
+
+RUBBER = ["#2a4656", "#3a5e70", "#52808e"]   # frosted teal sheathing
+COOL = "#8ad8ff"          # the Engine's standby lights: cold, where the furnace isn't yet
+
+
+def _convex_clip(poly, nx, ny, c):
+    """Keep the part of a convex polygon where nx*x + ny*y <= c."""
+    out = []
+    for i in range(len(poly)):
+        p, q = poly[i], poly[(i + 1) % len(poly)]
+        dp, dq = nx * p[0] + ny * p[1] - c, nx * q[0] + ny * q[1] - c
+        if dp <= 0:
+            out.append(p)
+        if (dp <= 0) != (dq <= 0):
+            t = dp / (dp - dq)
+            out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t))
+    return out
+
+
+def radiator(v):
+    """Scenery (engine city): the Engine's heat sinks. A long housing with fins along its back, snow
+    lying in the troughs, a hot seam at its foot (v0); two banks at right angles (v1); twin tanks
+    banded in metal, snow-capped, piped together (v2)."""
+    r = root("glacis_radiator", v)
+    rng = random.Random(1500 + v)
+    m = Model(f"glacis_radiator_{v}", 1500 + v)
+    def bank(x, y, L, W, H, ang, fins):
+        st = mark(m)
+        m.box((L + 0.4, W + 0.6, 0.4), (0, 0, 0.0), METAL[1])
+        m.box((L, W, H), (0, 0, 0.2 + H / 2), METAL[2])
+        for i in range(fins):
+            fx = -L / 2 + 0.35 + i * (L - 0.7) / (fins - 1)
+            m.box((0.32, W * 0.9, 1.1), (fx, 0, 0.2 + H + 0.55), METAL[3])
+            if i < fins - 1:
+                m.box(((L - 0.7) / (fins - 1) - 0.32, W * 0.86, 0.3), (fx + (L - 0.7) / (fins - 1) / 2, 0, 0.2 + H + 0.15), SNOW[2])
+        m.box((L * 0.8, 0.3, 0.3), (0, -W / 2 - 0.05, 0.45), HOT, glow=True)
+        m.box((0.35, W * 0.5, 0.3), (L / 2 + 0.05, 0, 0.2 + H * 0.7), COOL, glow=True)
+        fs = xform(m, st, M((x, y, 0), (0, 0, ang)))
+        facet(m, [f for f in fs if m.mats[f.material_index].name in ("c_" + METAL[1][1:], "c_" + METAL[2][1:], "c_" + METAL[3][1:])],
+              METAL, noise=0.05)
+    if v == 0:
+        bank(0, 0, 5.6, 2.2, 1.2, 0, 8)
+        m.box((1.0, 1.0, 0.8), (3.4, 1.2, 0.4), METAL[1])
+        m.cyl(0.3, 0.1, (3.4, 1.2, 0.8), COOL, segs=6, glow=True)
+    elif v == 1:
+        bank(-0.8, 0.6, 4.6, 1.8, 1.0, 0, 7)
+        bank(1.9, -1.6, 3.4, 1.8, 1.4, math.pi / 2, 5)
+    else:
+        for x in (-1.3, 1.3):
+            st = mark(m)
+            m.cyl(1.15, 2.6, (x, 0, 0), METAL[2], segs=8)
+            for z in (0.5, 1.6):
+                m.cyl(1.25, 0.3, (x, 0, z), METAL[1], segs=8)
+            facet(m, new_faces(m, st), METAL, noise=0.05)
+            st = mark(m)
+            m.ball(1.08, (x, 0, 2.6), SNOW[2], subdiv=1, scale=(1, 1, 0.35), jitter=0.04)
+            facet(m, new_faces(m, st), SNOW, bias=0.3)
+            m.box((0.3, 0.6, 0.3), (x, -1.2, 1.1), HOT, glow=True)
+        limb(m, (-1.3, 0, 1.9), (1.3, 0, 1.9), 0.35, 0.35, METAL[3], segs=6)
+        m.cyl(0.45, 0.2, (0, -0.35, 1.9), HOT_DEEP, segs=6, rot=(math.pi / 2, 0, 0), glow=True)
+    _drift(m, rng, (rng.uniform(-1, 1), 1.6, -0.1), (2.2, 0.9, 0.4))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    light(r, (0, -1.5, 0.8), HOT, radius=4, intensity=0.5, halo=False)
+    return r
+
+
+def cable_run(v):
+    """Scenery (engine city): the Engine's cables, thick as a ship, snaking over the floor in
+    bundles, clamped, half under the snow; a junction box with a cold standby light at one end."""
+    r = root("glacis_cable_run", v)
+    rng = random.Random(1520 + v)
+    m = Model(f"glacis_cable_run_{v}", 1520 + v)
+    L = (8.0, 7.0, 6.0)[v]
+    def path(t):
+        if v == 0:
+            return (t * L - L / 2, math.sin(t * 2.0) * 0.6)
+        if v == 1:
+            return (t * L - L / 2, math.sin(t * math.tau) * 1.6)
+        return (t * L - L / 2, (t ** 2) * 2.0)
+    st = mark(m)
+    for k, (dy, rad) in enumerate(((-0.55, 0.36), (0.0, 0.42), (0.55, 0.3))):
+        pts, rads = [], []
+        for i in range(9):
+            t = i / 8
+            x, y = path(t)
+            z = rad * 0.6 + (0.15 * math.sin(t * 9 + k) if i not in (0, 8) else 0)
+            if v == 2 and t > 0.85:
+                z -= (t - 0.85) * 6
+            pts.append((x, y + dy, z))
+            rads.append(rad)
+        path_tube(m, pts, rads, RUBBER[1], segs=6)
+    facet(m, new_faces(m, st), RUBBER, noise=0.08)
+    st = mark(m)
+    for t in (0.2, 0.5, 0.8):
+        x, y = path(t)
+        x2, y2 = path(t + 0.01)
+        m.box((0.5, 1.8, 1.0), (x, y, 0.35), METAL[3], rot=(0, 0, math.atan2(y2 - y, x2 - x)))
+    x, y = path(0)
+    m.box((1.4, 2.2, 1.3), (x - 0.6, y, 0.6), METAL[2])
+    facet(m, new_faces(m, st), METAL, noise=0.05)
+    m.box((0.3, 0.9, 0.3), (x - 1.32, y, 0.8), COOL, glow=True)
+    if v == 2:
+        xe, ye = path(1)
+        st = mark(m)
+        m.cyl(1.6, 0.4, (xe - 0.3, ye, -0.2), METAL[1], segs=6)
+        facet(m, new_faces(m, st), METAL, noise=0.05)
+        m.cyl(1.1, 0.1, (xe - 0.3, ye, 0.2), HOT_DEEP, segs=6, glow=True)
+    for t in (0.35, 0.65):
+        x, y = path(t)
+        _drift(m, rng, (x, y + 0.6, 0.0), (1.0, 1.0, 0.4))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    return r
+
+
+def ice_crust(v):
+    """Scenery (engine city): the White Furnace showing through. Ice plates gone over the floor,
+    cracked apart, and the orange light of the Engine burning up through the cracks; one plate
+    heaved up on its edge (v2)."""
+    r = root("glacis_ice_crust", v)
+    rng = random.Random(1540 + v)
+    m = Model(f"glacis_ice_crust_{v}", 1540 + v)
+    R, sy = ((3.0, 1.0), (4.2, 0.65), (2.6, 1.0))[v]
+    n = 12
+    outline = [(math.cos(a) * R * rng.uniform(0.85, 1.05), math.sin(a) * R * sy * rng.uniform(0.85, 1.05))
+               for a in (i / n * math.tau for i in range(n))]
+    m.slab(outline, -0.1, 0.04, HOT_DEEP, glow=True)
+    seeds = [(rng.uniform(-R, R) * 0.8, rng.uniform(-R, R) * sy * 0.8) for _ in range((7, 9, 5)[v])]
+    for i, (sx_, sy_) in enumerate(seeds):
+        cell = [(x * 1.02, y * 1.02) for x, y in outline]
+        for j, (ox, oy) in enumerate(seeds):
+            if i == j:
+                continue
+            nx, ny = ox - sx_, oy - sy_
+            c = (ox * ox + oy * oy - sx_ * sx_ - sy_ * sy_) / 2
+            cell = _convex_clip(cell, nx, ny, c)
+            if len(cell) < 3:
+                break
+        if len(cell) < 3:
+            continue
+        cx = sum(p[0] for p in cell) / len(cell)
+        cy = sum(p[1] for p in cell) / len(cell)
+        # shrink toward the middle to open the crack
+        cell = [(cx + (x - cx) * 0.86 - 0.08 * math.copysign(1, x - cx) * 0, cy + (y - cy) * 0.86) for x, y in cell]
+        top = [(cx + (x - cx) * 0.9, cy + (y - cy) * 0.9) for x, y in cell]
+        h = rng.uniform(0.25, 0.45)
+        st = mark(m)
+        m.slab(cell, -0.05, h, ICE_LOW[1], top=top)
+        fs = new_faces(m, st)
+        facet(m, fs, ICE_LOW, noise=0.15, bias=-0.25)
+        if rng.random() < 0.25:
+            paint(m, [f for f in fs if f.normal.z > 0.9], lambda f: SNOW[2])
+        if v == 2 and i == 0:
+            xform(m, st, M((cx, cy, 0.2)) @ M(rot=(0.7, 0.2, 0)) @ M((-cx, -cy, 0)))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    light(r, (0, 0, 0.6), HOT, radius=5, intensity=0.6, flicker=0.15, halo=False)
+    return r
+
+
+def hexcells(v):
+    """Scenery (engine city): the Engine's cells, hexagonal capsules standing packed like a comb,
+    frost on their caps, snow on some, a few open on the orange inside and a few still showing a
+    cold standby light: a cluster (v0), a broken row (v1), a low floor of them (v2)."""
+    r = root("glacis_hexcells", v)
+    rng = random.Random(1560 + v)
+    m = Model(f"glacis_hexcells_{v}", 1560 + v)
+    d = 1.75
+    if v == 0:
+        cells = [(0, 0)] + [(math.cos(a) * d, math.sin(a) * d) for a in (k / 6 * math.tau + math.pi / 6 for k in range(6))]
+        hfn = lambda x, y: 2.8 - math.hypot(x, y) * 0.5 + rng.uniform(-0.3, 0.3)
+    elif v == 1:
+        cells = [(i * d * 0.87 - 2.6, (i % 2) * d * 0.5) for i in range(5)]
+        hfn = lambda x, y: rng.uniform(1.0, 2.6)
+    else:
+        cells = []
+        for q in range(-2, 3):
+            for rr_ in range(-1, 2):
+                x = q * d * 0.87
+                y = rr_ * d + (q % 2) * d / 2
+                if rng.random() < 0.8:
+                    cells.append((x, y))
+        hfn = lambda x, y: rng.uniform(0.4, 0.9)
+    for i, (x, y) in enumerate(cells):
+        h = max(0.4, hfn(x, y))
+        st = mark(m)
+        m.cyl(0.95, h, (x, y, -0.1), METAL[2], segs=6, r_top=0.88, rot=(0, 0, math.pi / 6))
+        facet(m, new_faces(m, st), METAL, noise=0.05)
+        cap = rng.random()
+        if cap < 0.28:
+            m.cyl(0.62, 0.1, (x, y, h - 0.1), "#2a1a14", segs=6, rot=(0, 0, math.pi / 6))
+            m.cyl(0.42, 0.12, (x, y, h - 0.08), HOT, segs=6, rot=(0, 0, math.pi / 6), glow=True)
+        elif cap < 0.4:
+            m.cyl(0.32, 0.1, (x, y, h - 0.1), COOL, segs=6, rot=(0, 0, math.pi / 6), glow=True)
+        elif cap < 0.75:
+            st = mark(m)
+            m.cyl(0.84, 0.18, (x, y, h - 0.1), SNOW[2], segs=6, r_top=0.6, rot=(0, 0, math.pi / 6))
+            facet(m, new_faces(m, st), SNOW, bias=0.3)
+        else:
+            m.cyl(0.7, 0.08, (x, y, h - 0.1), ICE_LOW[2], segs=6, rot=(0, 0, math.pi / 6))
+    if v == 1:
+        _chunk(m, rng, (2.0, -1.5, -0.3), (3.6, 0.2, 0.6), METAL, n=9)
+    _drift(m, rng, (rng.uniform(-1, 1), -1.6, -0.1), (2.4, 1.0, 0.45))
+    m.build(r, rot_z=rng.uniform(0, math.tau))
+    light(r, (0, 0, 2.0), HOT, radius=5, intensity=0.5, halo=False)
     return r
 
 
@@ -892,9 +1572,24 @@ def build():
         buried_engine(v)
         pipe_rack(v)
         turbine(v)
+    for v in range(4):
+        bellcrown(v)
+    for v in range(3):
+        penitents(v)
+        sastrugi(v)
+        hum_crystal(v)
+        relic(v)
     for v in range(3):
         rimpool(v)
         frost_reed(v)
-        larch(v)
+        mistwillow(v)
+        blushcap(v)
+        tusk_bones(v)
+        tussock(v)
+        emberroot(v)
         lichen_rock(v)
         engine_vent(v)
+        radiator(v)
+        cable_run(v)
+        ice_crust(v)
+        hexcells(v)

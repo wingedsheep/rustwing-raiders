@@ -84,8 +84,8 @@ const LANDMARK_SIZE = 26;
  * own scenery, blown up.
  */
 const LANDMARKS: Record<string, [string, number][]> = {
-  fernwood: [['statue_head', 2], ['giant_fern', 2], ['ziggurat', 1]],
-  basalt: [['basalt_columns', 3], ['lava_vent', 2], ['obsidian_rock', 1]],
+  fernwood: [['statue_head', 2], ['orutal_mossy_log', 2], ['ziggurat', 1]],
+  basalt: [['basalt_columns', 3], ['obsidian_rock', 1]],
   prism: [['crystal_cluster', 3], ['glass_shard', 1]],
   jade: [['wreck_hull', 2], ['statue_head', 1], ['tide_rock', 2]],
   kelp: [['wreck_hull', 2], ['coral_brain', 1], ['skull_isle', 1]],
@@ -95,15 +95,15 @@ const LANDMARKS: Record<string, [string, number][]> = {
   saltpans: [['salt_pillar', 2], ['nomad_tent', 1]],
   mesarun: [['boulder', 2]],
   monoliths: [['statue_head', 2], ['ziggurat', 2]],
-  oasis: [['nomad_tent', 2], ['ziggurat', 1], ['statue_head', 1]],
-  glowcap: [['glowcap', 3], ['fungus_coral', 2]],
-  peat: [['fungus_coral', 2], ['dead_tree', 1], ['spore_vent', 1]],
-  temple: [['ziggurat', 3], ['statue_head', 2]],
-  sporevents: [['spore_vent', 3], ['fungus_coral', 2]],
-  shelf: [['ice_block', 3], ['snow_rock', 2], ['mech_wreck', 1]],
-  springs: [['steam_vent', 2], ['ice_block', 2]],
-  tundra: [['mech_wreck', 2], ['snow_rock', 2]],
-  enginecity: [['machine_dome', 3], ['mech_arm', 1]],
+  oasis: [['kessra_oasis_grove', 3], ['nomad_tent', 1]],
+  glowcap: [['glowcap', 3], ['mirefall_lattice', 1]],
+  peat: [['mirefall_drowned_trunk', 2], ['mirefall_pitcher', 1]],
+  temple: [['mirefall_idol_head', 3], ['mirefall_courtyard', 2]],
+  sporevents: [['mirefall_vent_mound', 3], ['mirefall_brood_sac', 1]],
+  shelf: [['ice_block', 3], ['glacis_relic', 2], ['glacis_hum_crystal', 1], ['mech_wreck', 1]],
+  springs: [['steam_vent', 2], ['glacis_rimpool', 2], ['ice_block', 1]],
+  tundra: [['mech_wreck', 2], ['glacis_tusk_bones', 2], ['snow_rock', 1]],
+  enginecity: [['machine_dome', 2], ['glacis_hexcells', 2], ['glacis_radiator', 1], ['mech_arm', 1]],
   titans: [['mech_wreck', 3], ['mech_arm', 2]],
   glass: [['glass_shard', 3], ['mech_wreck', 1]],
   scavcamp: [['scrap_pile', 3], ['mech_wreck', 2], ['scav_tent', 1]],
@@ -122,8 +122,26 @@ const LANDMARKS: Record<string, [string, number][]> = {
 const WATERBORNE = new Set([
   'kelp_tower', 'glow_bulb', 'buoy', 'lily_pad', 'sea_stack', 'wreck_hull', 'wreck_mast', 'stilt_house',
   'tide_rock', 'mangrove', 'giant_rib', 'skull_isle', 'reed_clump', 'container_stack', 'crane', 'neon_sign',
-  'halcyon_lantern_kelp', 'halcyon_sampan',
+  'halcyon_lantern_kelp', 'halcyon_sampan', 'kessra_brine_reed', 'halcyon_storm_stack',
+  'vesh_reef_head', 'vesh_kelp_mat', 'vesh_bone_tip', 'vesh_skiff', 'cinder_slick_boom', 'cinder_sludge_raft',
+  // (the drowned temple's columns and stones stand in the shallows as well as on land)
+  'mirefall_colonnade', 'vine_pillar', 'mirefall_stele',
 ]);
+/** How far up the shore a waterborne kind may stand (above the water line; 1.5 if not said): kelp stays in the sea. */
+const SHORE: Record<string, number> = {
+  kelp_tower: 0.15, glow_bulb: 0.05, halcyon_lantern_kelp: 0.15,
+  vesh_reef_head: 0.2, vesh_kelp_mat: 0.05, vesh_bone_tip: 0.3, vesh_skiff: 0.4,
+  cinder_slick_boom: 0.05, cinder_sludge_raft: 0.05,
+  mirefall_colonnade: Infinity, vine_pillar: Infinity, mirefall_stele: Infinity,
+};
+/**
+ * Farmland, by biome: these kinds aren't scattered but laid in a grid of plots (cell w × d), all
+ * one way (rows running up the field), with tracks between and now and then a plot left fallow;
+ * the biome's other scenery fills the tracks.
+ */
+const FIELDS: Record<string, { kinds: Set<string>; cell: [number, number]; fallow: number }> = {
+  orchards: { kinds: new Set(['cinder_orchard_row', 'cinder_crop_bed']), cell: [13, 14], fallow: 0.1 },
+};
 const SWIMMERS = new Set(['plesiosaur', 'jellyfish']);
 const FLYERS = new Set(['pterosaur_flock', 'sky_whale', 'moth_swarm', 'jellyfish']);
 /** Known obstacles, for when the models haven't been measured yet. */
@@ -451,7 +469,8 @@ export class Terrain {
     const spread = SPREAD;
 
     // a landmark now and then: something big for the place, under the flight line, with room round it
-    const scenery = biome.props.filter(([k]) => !isObstacle(k));
+    const field = FIELDS[biome.id];
+    const scenery = biome.props.filter(([k]) => !isObstacle(k) && !field?.kinds.has(k));
     const marks: { x: number; z: number; r: number }[] = [];
     // a set piece: this chunk's, or a gate's next door (whose columns stand in for this one's obstacles)
     const set = start ? null : this.setPiece(index, bi, zNear);
@@ -473,6 +492,26 @@ export class Terrain {
       }
     }
     const inMark = (x: number, z: number, pad: number) => marks.some((m) => (m.x - x) ** 2 + (m.z - z) ** 2 < (m.r + pad) ** 2);
+
+    // farmland: plots on a grid across the field, square to it, the scatter below left the tracks
+    if (field) {
+      const plots = biome.props.filter(([k]) => field.kinds.has(k));
+      const [cw, cd] = field.cell;
+      for (let gz = Math.ceil((zNear - CHUNK) / cd); gz * cd <= zNear; gz++) {
+        const z = gz * cd;
+        if (z <= zNear - CHUNK || this.segments[this.biomeIndex(z)].biome !== biome) continue;
+        for (let gx = -Math.floor(spread / cw); gx * cw <= spread; gx++) {
+          const x = gx * cw;
+          if (r() < field.fallow || inMark(x, z, 4)) continue;
+          const p = this.place(weighted(r, plots), x, z, r, this.biomeIndex(z));
+          if (!p) continue;
+          p.rot = r() < 0.5 ? 0 : Math.PI;
+          p.s = 1;
+          props.push(p);
+          marks.push({ x, z, r: Math.min(cw, cd) * 0.42 });
+        }
+      }
+    }
 
     // scenery: everything not tall enough to hit. Not sprinkled evenly: in groves and thickets with
     // clearings between, each patch mostly of one kind, the biggest specimens in the thick of it
@@ -675,7 +714,7 @@ export class Terrain {
     const water = this.water(z);
     const wet = ground < water - 0.1;
     if (WATERBORNE.has(kind)) {
-      if (!wet && ground > water + 1.5) return null; // too far up the shore
+      if (!wet && ground > water + (SHORE[kind] ?? 1.5)) return null; // too far up the shore
     } else if (wet) return null;
     const vs = variants(kind);
     const variant = vs.length ? Math.floor(r() * vs.length) : 0;

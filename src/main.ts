@@ -10,6 +10,7 @@ import type { Mode } from './sim/level';
 import { drawText } from './ui/font';
 import { W, H, INK, DIM } from './ui/hud';
 import type { PodFate } from './sim/heist';
+import type { ImprintId } from './game/core';
 import { input } from './input';
 
 const game = new Game();
@@ -141,6 +142,40 @@ async function boot() {
         }),
       );
       game.go(new WreckScreen(game, run, wrecks, planet, 7, () => flow.toChart(game)));
+    } else if (screen === 'core') {
+      // &grown=5 (knots already grown, so the next wakes it), &held=laugh,creed (imprints held), &look (from the chart)
+      const { CoreScreen } = await import('./screens/core');
+      const core = await import('./game/core');
+      run.crew.forEach((c) => {
+        for (let k = 0, n = Number(q.get('grown') ?? 0); n > 0 && k < 60; k++) {
+          const i = c.core.tree.findIndex((_, j) => core.reaches(c.core, j) && !c.core.grown[j]);
+          if (i < 0) break;
+          core.grow(c.core, i);
+          n--;
+        }
+        for (const id of (q.get('held') ?? '').split(',').filter((id) => id in core.IMPRINTS)) core.imprint(c.core, id as ImprintId);
+        // (near full, so this fight's feed grows a knot)
+        c.core.learnt = core.toGrow(core.grownCount(c.core)) - 9;
+      });
+      const was = run.crew.map((c) => structuredClone(c.core));
+      const fed = run.crew.map(() => ({
+        vein: { nerve: 7, steel: 5, grease: 4 },
+        lines: [
+          { vein: 'nerve' as const, text: '9 PERFECTS', n: 4 },
+          { vein: 'nerve' as const, text: '46 GRAZES', n: 3 },
+          { vein: 'steel' as const, text: '2 TAKEDOWNS', n: 2 },
+          { vein: 'steel' as const, text: '1 BIG TAKEDOWN', n: 3 },
+          { vein: 'grease' as const, text: '2 WELDS', n: 4 },
+        ],
+      }));
+      if (q.has('look')) game.go(new CoreScreen(game, run, null, null, () => flow.toChart(game)));
+      else {
+        run.crew.forEach((c, i) => core.learn(c.core, fed[i]));
+        const scr = new CoreScreen(game, run, fed, was, () => flow.toChart(game));
+        // &offer: straight to an IMPRINT knot's three
+        if (q.has('offer')) scr.devOffer();
+        game.go(scr);
+      }
     } else if (screen === 'results') {
       const { Results } = await import('./screens/results');
       const { convoyRoles } = await import('./sim/convoy');
@@ -149,7 +184,7 @@ async function boot() {
       // &heist=cfj: a heist's results (c caught, f fell, j jumped; a D on the end: taken down)
       const hq = q.get('heist');
       const spec = levelSpec(PLANETS[0], home ? 'escort' : hq ? 'heist' : 'raid', 1, 0.2);
-      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [60, 60], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] }, wrecks: [] };
+      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [60, 60], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] }, wrecks: [], fed: run.crew.map(() => ({ vein: { nerve: 3, steel: 5, grease: 2 }, lines: [] })), spent: [] };
       if (home) {
         const n = home.filter(Boolean).length;
         Object.assign(res, { convoy: { delivered: n, home, paid: n * 17, roles: convoyRoles(spec.seed) }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });

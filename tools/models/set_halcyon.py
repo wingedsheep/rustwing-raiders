@@ -318,6 +318,10 @@ def drowned_ark(variants):
         m.build(r)
 
 
+OLD_STALK = ["#5a2a2a", "#6e3430", "#4e2424"]
+OLD_LEAF = [("#a8443a", "#7a2c28"), ("#7e8a32", "#5a6424"), ("#a8823a", "#7e5e26")]
+
+
 def lantern_kelp(variants):
     """Hero kelp: a fat old stalk crowned with a cluster of great lantern bladders (in the water)."""
     for i in range(3):
@@ -335,12 +339,12 @@ def lantern_kelp(variants):
             lean = (math.cos(a) * rng.uniform(0.6, 1.6), math.sin(a) * rng.uniform(0.6, 1.6)) if n > 1 else (0.6, 0.3)
             h = H * (1.0 if k == 0 else rng.uniform(0.65, 0.85))
             pts = bend((0, 0, -1.0), (0, 0, h), lean, n=6)
-            tube(s, pts, [0.42, 0.38, 0.34, 0.3, 0.27, 0.24, 0.2], KELP[k % 3], segs=6, colors=[KELP[j % 3] for j in range(6)])
+            tube(s, pts, [0.42, 0.38, 0.34, 0.3, 0.27, 0.24, 0.2], OLD_STALK[0], segs=6, colors=[OLD_STALK[j % 3] for j in range(6)])
             for j in range(2, 7):
                 p = pts[j]
                 yaw = rng.uniform(0, math.tau)
                 bl = arc((p.x, p.y, p.z), yaw, rng.uniform(1.4, 2.2), 0.25, 1.0, n=4)
-                ribbon(s, bl, [0.1, 0.4, 0.45, 0.3, 0.06], *KELP_LEAF[(j + k) % 3], fold=0.2, thick=0.05)
+                ribbon(s, bl, [0.1, 0.45, 0.5, 0.34, 0.06], *OLD_LEAF[(j + k) % 3], fold=0.2, thick=0.05)
             heads.append(pts[-1])
         for k, tp in enumerate(heads):                                     # the crown of bladders
             for j in range(5):
@@ -351,6 +355,118 @@ def lantern_kelp(variants):
         obj = s.build(r)
         sway(obj, f"halcyon_lantern_kelp_{i}_sway_idle", amp=(0.04, 0.035), period=4.4 + i * 0.6, phase=i)
 
+
+
+# --- the kelp islands' shores -----------------------------------------------------------------
+
+SAND = ["#d8b884", "#c8a46e"]
+THRIFT = [("#b8c068", "#8a9a50"), ("#d8c070", "#a89650"), ("#8aaa68", "#668a52")]
+THRIFT_FLOWER = ["#ff7a9a", "#ffa0b8", "#f05a7a"]
+HOLLY = ("#9aa8e8", "#6a7ac0")
+SHELL = ["#f0e0c8", "#e8c8b0", "#d8d0c0"]
+
+
+def _tuft(m, rng, x, y, h, n, cols, spread=0.5):
+    """A tussock: blades fanned up and out from one root, bending over."""
+    for k in range(n):
+        a = k * math.tau / n + rng.uniform(-0.3, 0.3)
+        L = h * rng.uniform(0.8, 1.15)
+        pts = arc((x, y, 0.0), a, L, 1.6, 1.3 + spread, n=3)
+        ribbon(m, pts, [0.24, 0.2, 0.12, 0.03], cols[0], cols[1], fold=0.3, thick=0.04)
+
+
+def shore_thrift(variants):
+    """Ground cover on the kelp islands' sand: v0 tussocks of salt grass with sea-pink heads;
+    v1 cushion plants, low domes in sage, rust and cream; v2 a wrack line of stranded kelp and
+    shells, one bladder still glowing; v3 sea-holly, spiky blue-violet rosettes with amber hearts."""
+    for i in range(4):
+        r = root("halcyon_shore_thrift", i, height=1.2)
+        rng = random.Random(5400 + i)
+        m = Model(f"halcyon_shore_thrift_{i}", 5400 + i)
+        if i == 0:
+            for k in range(5):
+                a = k * 1.3 + rng.uniform(-0.3, 0.3)
+                d = 0.3 + k * 0.32
+                x, y = math.cos(a) * d, math.sin(a) * d
+                h = rng.uniform(1.0, 1.4)
+                _tuft(m, rng, x, y, h, 5, THRIFT[k % 3])
+                for j in range(2 if k % 2 else 1):
+                    m.ball(0.24, (x + rng.uniform(-0.25, 0.25), y + rng.uniform(-0.25, 0.25), h * 0.85), THRIFT_FLOWER[(k + j) % 3],
+                           subdiv=1)
+        elif i == 1:
+            cols = ["#7e9a62", "#a8583a", "#d8cca0", "#6a8a56", "#b8743e"]
+            for k in range(6):
+                a = k * 1.1 + rng.uniform(-0.2, 0.2)
+                d = 0.2 + k * 0.28
+                rr = rng.uniform(0.5, 0.8)
+                lump(m, rng, (math.cos(a) * d, math.sin(a) * d, 0.0), (rr, rr * 0.9, rr * 0.55), cols[k % 5], n=10, flat=0.9)
+                if k % 2 == 0:
+                    m.ball(0.12 + rr * 0.15, (math.cos(a) * d, math.sin(a) * d, rr * 0.5), THRIFT_FLOWER[k % 3], subdiv=0)
+        elif i == 2:
+            # a wrack line along the tide mark: a curve of stranded blades, shells, a lit bladder
+            for k in range(8):
+                t = k / 7
+                x, y = -2.0 + t * 4.0, math.sin(t * math.pi) * 0.7 - 0.3
+                yaw = rng.uniform(-0.8, 0.8) + (math.pi if k % 2 else 0)
+                pts = arc((x, y, 0.03), yaw, rng.uniform(0.9, 1.5), 0.0, 0.0, n=3)
+                ribbon(m, pts, [0.12, 0.26, 0.2, 0.06], *(("#7a3a2a", "#5a2a22"), ("#6a6a2a", "#4e5222"), ("#8a6a2a", "#6a4e22"))[k % 3],
+                       fold=0.15, thick=0.06)
+            for k in range(6):
+                x, y = rng.uniform(-2.0, 2.0), rng.uniform(-0.8, 0.9)
+                m.ball(rng.uniform(0.14, 0.22), (x, y, 0.05), SHELL[k % 3], subdiv=0, scale=(1.3, 1, 0.6), rot=(0, 0, rng.uniform(0, 3)))
+            m.ball(0.26, (0.5, 0.3, 0.12), LANTERN, subdiv=1, scale=(1.2, 1, 0.7), glow=True)
+            lump(m, rng, (-1.2, -0.5, 0.0), (0.45, 0.35, 0.3), "#8a8478", n=8, flat=0.6)
+        else:
+            for k in range(4):
+                a = k * 1.7 + 0.4
+                d = 0.0 if k == 0 else rng.uniform(0.8, 1.2)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                s = (1.0, 0.75, 0.65, 0.55)[k]
+                for j in range(7):                                       # spiky leaves, star-like from above
+                    yaw = j * math.tau / 7 + k
+                    pts = arc((x, y, 0.05), yaw, 1.05 * s, 0.6, 0.9, n=3)
+                    ribbon(m, pts, [0.2 * s, 0.28 * s, 0.14 * s, 0.0], HOLLY[0], HOLLY[1], fold=0.4, thick=0.04)
+                m.ball(0.2 * s + 0.06, (x, y, 0.3 * s), "#ffb84a", subdiv=1, scale=(1, 1, 0.8), glow=k == 0)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def kelp_rack(variants):
+    """The harvest: v0 drying racks on the sand, A-frames with kelp hung over the ridge poles,
+    baskets and a lantern post; v1 a harvester's skiff pulled up on the beach, a heap of cut kelp
+    beside it, a lamp on an oar."""
+    for i in range(2):
+        r = root("halcyon_kelp_rack", i, height=2.6)
+        rng = random.Random(5450 + i)
+        m = Model(f"halcyon_kelp_rack_{i}", 5450 + i)
+        if i == 0:
+            L = 4.2
+            for x in (-L / 2, 0, L / 2):                                   # three A-frames
+                for sy in (-1, 1):
+                    m.plank_line((x, sy * 0.8, 0), (x, 0, 2.0), 0.14, 0.14, "#5a4030")
+            m.plank_line((-L / 2 - 0.3, 0, 2.0), (L / 2 + 0.3, 0, 2.0), 0.14, 0.14, "#6a4c36")
+            cols = [("#8a6a2a", "#6a4e22"), ("#7a3a2a", "#5a2a22"), ("#6a6a2a", "#4e5222")]
+            for k in range(7):                                             # blades hung over, both sides
+                x = -L / 2 + 0.3 + k * (L - 0.6) / 6
+                for sy in (-1, 1):
+                    h = rng.uniform(1.0, 1.6)
+                    pts = [Vector((x, 0.0, 2.05)), Vector((x, sy * 0.25, 1.95)), Vector((x, sy * 0.45, 2.05 - h * 0.6)),
+                           Vector((x, sy * 0.55, 2.05 - h))]
+                    ribbon(m, pts, [0.2, 0.24, 0.22, 0.14], *cols[(k + (sy > 0)) % 3], fold=0.1, thick=0.04, side=(1, 0, 0))
+            for k, (x, y) in enumerate(((-1.6, -1.5), (-0.9, -1.6), (1.8, 1.4))):    # baskets
+                m.cyl(0.36, 0.5, (x, y, 0), "#a8844a", segs=7, r_top=0.42)
+                m.cyl(0.32, 0.06, (x, y, 0.5), "#6a6a2a", segs=7)
+            m.plank_line((2.6, -1.1, 0), (2.6, -1.1, 2.4), 0.1, 0.1, "#5a4030")
+            m.ball(0.24, (2.6, -1.25, 2.2), LANTERN, subdiv=1, scale=(1, 1, 1.3), glow=True)
+        else:
+            _sampan(m, rng, -0.6, 0, 0.3, 1, L=4.4)
+            for k in range(6):                                             # the heap of cut kelp
+                a = rng.uniform(0, math.tau)
+                pts = arc((1.8 + rng.uniform(-0.3, 0.3), -1.4 + rng.uniform(-0.3, 0.3), 0.15 + k * 0.04), a, rng.uniform(0.9, 1.4), 0.1, 0.3, n=3)
+                ribbon(m, pts, [0.2, 0.3, 0.24, 0.08], *(("#8a6a2a", "#6a4e22"), ("#7a3a2a", "#5a2a22"))[k % 2], fold=0.2, thick=0.06)
+            m.ball(0.2, (1.7, -1.3, 0.5), LANTERN, subdiv=1, glow=True)
+            m.plank_line((-2.8, 1.0, 0), (-2.5, 1.2, 2.3), 0.1, 0.1, "#6a4c36")
+            m.ball(0.22, (-2.5, 1.1, 2.25), LANTERN, subdiv=1, scale=(1, 1, 1.3), glow=True)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
 
 # --- stiltport --------------------------------------------------------------------------------
 
@@ -588,50 +704,6 @@ def sampan(variants):
         bob(m.build(r), f"halcyon_sampan_{i}_bob_idle", amp=0.08, period=2.8 + i * 0.4, tilt=0.04)
 
 
-def tank_tower(variants):
-    """A water tower on stilts, a ladder and a lamp, rust down its side."""
-    for i in range(2):
-        r = root("halcyon_tank_tower", i, height=6.5)
-        rng = random.Random(6400 + i)
-        m = Model(f"halcyon_tank_tower_{i}", 6400 + i)
-        H = (4.2, 3.4)[i]
-        for a in range(4):
-            b = a * math.tau / 4 + math.pi / 4
-            m.plank_line((math.cos(b) * 1.6, math.sin(b) * 1.6, -0.3), (math.cos(b) * 1.1, math.sin(b) * 1.1, H), 0.2, 0.2, STILT)
-        m.box((2.8, 2.8, 0.2), (0, 0, H), DECK[1])
-        col = ("#5a7a8a", "#a8483a")[i]
-        m.cyl(1.4, 1.9, (0, 0, H + 0.1), col, segs=8)
-        m.cyl(1.5, 0.5, (0, 0, H + 2.0), "#3a4a5a", segs=8, r_top=0.3)
-        m.box((0.6, 0.1, 1.6), (0.6, -1.38, H + 1.0), RUST[2])
-        m.ball(0.2, (0, 0, H + 2.6), WARN, subdiv=1, glow=True)
-        if i == 1:
-            shack(m, rng, 2.4, 0.4, 0, 2.2, 2.0, 1.6, WALL[3], ROOF[2], neon=NEON_PINK, door=True)
-        m.build(r, rot_z=rng.uniform(0, math.tau))
-
-
-def cargo_pile(variants):
-    """Cargo on the quay: crates and drums under a net, a pallet or two, a lamp post."""
-    for i in range(2):
-        r = root("halcyon_cargo_pile", i, height=3.0)
-        rng = random.Random(6500 + i)
-        m = Model(f"halcyon_cargo_pile_{i}", 6500 + i)
-        for k in range(6 + i * 3):
-            x, y = rng.uniform(-2.2, 2.2), rng.uniform(-1.6, 1.6)
-            if k % 3 == 0:
-                m.cyl(0.42, 0.9, (x, y, 0), BARREL[k % 3], segs=7)
-                m.cyl(0.43, 0.06, (x, y, 0.85), IRON, segs=7)
-            else:
-                sz = rng.uniform(0.8, 1.3)
-                m.box((sz, sz, sz), (x, y, sz / 2 + (0.9 if k > 5 else 0)), ("#8a6a42", "#a87a4a", "#6a5a3a")[k % 3],
-                      rot=(0, 0, rng.uniform(-0.5, 0.5)))
-        m.ball(1.8, (0, 0, 0.6), "#3a4a3a", subdiv=1, scale=(1.4, 1.1, 0.5))          # a net slung over
-        m.plank_line((2.8, 1.6, 0), (2.8, 1.6, 3.0), 0.12, 0.12, IRON)
-        m.ball(0.25, (2.8, 1.6, 3.0), WINDOW, subdiv=1, glow=True)
-        m.build(r, rot_z=rng.uniform(0, math.tau))
-
-
-# --- colony bones -----------------------------------------------------------------------------
-
 def _rib_curve(x_half, top, n=16, p=3.0):
     """A rib's arc across the field: legs down at +-x_half, flat-topped (a superellipse)."""
     out = []
@@ -670,11 +742,14 @@ def ark_ribs(variants):
             pts = _rib_curve(44.0, top)
             if i == 0 and j == 2:                                          # one has lost its top
                 pts = pts[:6] + [pts[6] + Vector((1.5, 0, -1.0))]
-                _girder(m, pts, 1.4, 1.8, RUST[0], RUST[2], y=y)
+                _girder(m, pts, 1.4, 1.8, RUST[0], PAINT[1], y=y)
                 tail = _rib_curve(44.0, top)[11:]
-                _girder(m, tail, 1.4, 1.8, RUST[0], RUST[2], y=y)
+                _girder(m, tail, 1.4, 1.8, RUST[0], PAINT[1], y=y)
             else:
-                _girder(m, pts, 1.4, 1.8, RUST[j % 2], RUST[2], y=y)
+                _girder(m, pts, 1.4, 1.8, RUST[j % 2], PAINT[j % 2], y=y)
+                for k in (5, 11):                                          # the founders' stripe, painted round each rib
+                    p = pts[k]
+                    m.box((1.6, 1.6, 2.1), (p.x, y, p.z), STRIPE, rot=(0, -math.atan2(pts[k + 1].z - pts[k - 1].z, pts[k + 1].x - pts[k - 1].x), 0))
             for s in (-1, 1):
                 m.box((3.0, 3.0, 2.4), (s * 43, y, -1.6), RUST[3])
                 collider(r, s * 43.0, y, 1.8)
@@ -684,7 +759,7 @@ def ark_ribs(variants):
             p = crown[k]
             if p.z < 14.5:
                 continue
-            m.box((0.5, abs(ys[-1] - ys[0]) + 1.2, 0.5), (p.x, 0, p.z - 0.4), RUST[3])
+            m.box((0.5, abs(ys[-1] - ys[0]) + 1.2, 0.5), (p.x, 0, p.z - 0.4), STRIPE if k % 4 == 1 else RUST[3])
         for k in range(5):
             idx = rng.randrange(4, 12)
             p = crown[idx]
@@ -701,8 +776,8 @@ def ark_ribs(variants):
             # the keel: a box girder lying right across the ribs' tops, and a bulkhead holding it up
             for k in range(3):
                 x0 = -46 + k * 31
-                m.box((30, 2.6, 2.2), (x0 + 15, 0, 22.0 - k * 0.6 + (0.6 if k == 1 else 0)), RUST[k % 3], rot=(0, (k - 1) * 0.03, 0.03 * (k - 1)))
-            m.box((6, 4, 21), (5, 0, 8.5), RUST[1])
+                m.box((30, 2.6, 2.2), (x0 + 15, 0, 22.0 - k * 0.6 + (0.6 if k == 1 else 0)), (PAINT[0], STRIPE, PAINT[1])[k], rot=(0, (k - 1) * 0.03, 0.03 * (k - 1)))
+            m.box((6, 4, 21), (5, 0, 8.5), PAINT[1])
             m.box((6.2, 4.2, 1.0), (5, 0, 19.0), RUST[3])
             for k in range(3):
                 m.box((1.2, 0.2, 1.4), (3.5 + k * 1.5, -2.05, 10 + k * 3), DARK)
@@ -725,9 +800,9 @@ def ark_fins(variants):
         heads = []
         for k, (x, y, H, w) in enumerate(fins):
             lean = rng.uniform(-0.08, 0.08)
-            m.box((w, 2.0, H + 3), (x, y, (H - 3) / 2), RUST[k % 3], rot=(lean, 0, rng.uniform(-0.2, 0.2)))
+            m.box((w, 2.0, H + 3), (x, y, (H - 3) / 2), PAINT[k % 2], rot=(lean, 0, rng.uniform(-0.2, 0.2)))
             for j in range(int(H / 2.4)):                                  # cooling ribs across it
-                m.box((w + 0.4, 2.3, 0.35), (x, y, 1.0 + j * 2.4), (RUST[3], PAINT[1])[j % 4 == 0], rot=(lean, 0, 0))
+                m.box((w + 0.4, 2.3, 0.35), (x, y, 1.0 + j * 2.4), ("#8a8c86", RUST[2], STRIPE)[(j % 4 == 0) + (j % 5 == 2) * 2], rot=(lean, 0, 0))
             m.box((w * 0.5, 2.1, 2.4), (x, y, H - 2.0), STRIPE)
             m.box((1.2, 2.1, 1.0), (x + w * 0.25, y, H * 0.45), DARK)          # rusted through
             m.ball(0.35, (x, y, H + 0.2), "#ff5a3a", subdiv=1, glow=True)
@@ -822,6 +897,127 @@ def hull_plate(variants):
         tube(m, pts, [0.25] * 3, RUST[3], segs=4)
         m.build(r)
 
+
+
+GRAIN = [("#c8d890", "#9aac64"), ("#d8d888", "#aab060")]
+GRAIN_HEAD = ["#fff4c0", "#f0eaa8"]
+REED = [("#7a9a4a", "#5a7a3a"), ("#8aa050", "#667e40"), ("#6a8a46", "#4e6a36")]
+CELL = ["#2a4a8a", "#24407a", "#305496"]
+FRAME = "#d8c8a0"
+
+
+def marsh_reed(variants):
+    """The marsh's own cover, round the wrecks: v0 feral grain, the arks' seed stock gone wild,
+    gold stands nodding; v1 reed clumps, green blades with rust tips; v2 a low cushion of marsh-mint
+    with white star flowers."""
+    for i in range(3):
+        r = root("halcyon_marsh_reed", i, height=2.0)
+        rng = random.Random(7600 + i)
+        m = Model(f"halcyon_marsh_reed_{i}", 7600 + i)
+        if i == 0:
+            for k in range(8):
+                a = k * 2.4 + rng.uniform(-0.2, 0.2)
+                d = 0.3 + 0.6 * math.sqrt(k)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                for j in range(3):                                         # stalks, each nodding its head over
+                    yaw = rng.uniform(0, math.tau)
+                    h = rng.uniform(1.1, 1.6)
+                    pts = arc((x + rng.uniform(-0.2, 0.2), y + rng.uniform(-0.2, 0.2), 0.0), yaw, h, 3.0, 2.0, n=2)
+                    ribbon(m, pts, [0.14, 0.11, 0.08], *GRAIN[(k + j) % 2], fold=0.3, thick=0.05)
+                    tp = pts[-1]
+                    m.ball(0.21, (tp.x, tp.y, tp.z), GRAIN_HEAD[j % 2], subdiv=0, scale=(1, 1, 1.7), rot=(0.4, 0, yaw))
+        elif i == 1:
+            for k in range(5):
+                a = k * 1.25 + rng.uniform(-0.3, 0.3)
+                d = 0.2 + k * 0.45
+                x, y = math.cos(a) * d, math.sin(a) * d
+                for j in range(6):
+                    yaw = j * math.tau / 6 + rng.uniform(-0.3, 0.3)
+                    L = rng.uniform(1.3, 2.0)
+                    pts = arc((x, y, 0.0), yaw, L, 2.2, 1.6, n=3)
+                    c1, c2 = REED[(k + j) % 3]
+                    ribbon(m, pts, [0.18, 0.15, 0.09, 0.02], c1, c2, fold=0.3, thick=0.04)
+                    if j % 3 == 0:
+                        tp = pts[-2]
+                        m.ball(0.13, (tp.x, tp.y, tp.z + 0.1), "#a8583a", subdiv=0, scale=(1, 1, 2.0))
+        else:
+            for k in range(7):
+                a = k * 0.9 + rng.uniform(-0.2, 0.2)
+                d = 0.3 + k * 0.3
+                rr = rng.uniform(0.6, 0.9)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                lump(m, rng, (x, y, 0.0), (rr, rr * 0.85, rr * 0.5), ("#5e8a5a", "#4e7a4e", "#6e9a62")[k % 3], n=10, flat=0.9)
+                for j in range(2):
+                    m.ball(0.18, (x + rng.uniform(-rr, rr) * 0.5, y + rng.uniform(-rr, rr) * 0.5, rr * 0.45), "#f0ece0", subdiv=0)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def solar_wing(variants):
+    """A solar wing torn off an ark: a great panel of deep blue cells in a cream frame, lying
+    tilted in the marsh, one edge sunk. v1 two leaves still hinged, folded, the spar snapped."""
+    for i in range(2):
+        r = root("halcyon_solar_wing", i, height=2.0)
+        rng = random.Random(7700 + i)
+        m = Model(f"halcyon_solar_wing_{i}", 7700 + i)
+        leaves = [(0, 0, 0.25, 0.0)] if i == 0 else [(-1.6, 0, 0.35, 0.12), (1.7, 0.4, -0.3, -0.2)]
+        for n, (cx, cy, tilt, yaw) in enumerate(leaves):
+            W, D = (5.6, 2.8) if i == 0 else (3.4, 2.6)
+            z = 0.4 + abs(tilt) * W * 0.3
+            m.box((W + 0.2, D + 0.2, 0.16), (cx, cy, z), FRAME, rot=(0, tilt, yaw))
+            nx, ny = (4, 2) if i == 0 else (3, 2)
+            c, s_ = math.cos(yaw), math.sin(yaw)
+            for a in range(nx):
+                for b in range(ny):
+                    u = -W / 2 + (a + 0.5) * W / nx
+                    v = -D / 2 + (b + 0.5) * D / ny
+                    if rng.random() < 0.12:
+                        continue                                           # a cell smashed out
+                    px, py = cx + u * math.cos(tilt) * c - v * s_, cy + u * math.cos(tilt) * s_ + v * c
+                    pz = z + 0.06 - u * math.sin(tilt)
+                    m.box((W / nx - 0.16, D / ny - 0.16, 0.08), (px, py, pz), CELL[(a + b + n) % 3], rot=(0, tilt, yaw))
+        m.box((0.4, 0.4, 3.0 if i == 0 else 2.0), (0, -1.9, 0.6), PAINT[0], rot=(1.2, 0, 0.3))   # the spar
+        m.box((0.42, 0.42, 0.6), (0, -2.6, 0.3), STRIPE, rot=(1.2, 0, 0.3))
+        for k in range(3):
+            lump(m, rng, (rng.uniform(-2.5, 2.5), rng.choice((-1, 1)) * rng.uniform(1.4, 2.0), 0.0), (0.5, 0.4, 0.3),
+                 ("#6a8a3a", "#5a7a34")[k % 2], n=8, flat=0.8)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def settler_marker(variants):
+    """The first settlers' graves: v0 a ring of hull plates stood on end round a cairn, a lantern
+    kept lit on it; v1 a colony beacon still standing, white with the founders' stripe, its lamp
+    blinking amber over the grain."""
+    for i in range(2):
+        r = root("halcyon_settler_marker", i, height=3.0)
+        rng = random.Random(7800 + i)
+        m = Model(f"halcyon_settler_marker_{i}", 7800 + i)
+        if i == 0:
+            for k in range(6):
+                a = k * math.tau / 6 + rng.uniform(-0.1, 0.1)
+                x, y = math.cos(a) * 1.9, math.sin(a) * 1.9
+                m.box((0.7, 0.18, rng.uniform(1.0, 1.4)), (x, y, 0.55), (PAINT[0], PAINT[1])[k % 2],
+                      rot=(rng.uniform(-0.15, 0.15), 0, a + math.pi / 2))
+                m.box((0.72, 0.2, 0.2), (x, y, 0.75), STRIPE, rot=(0, 0, a + math.pi / 2))
+            lump(m, rng, (0, 0, 0.0), (0.8, 0.7, 0.6), "#8a8478", n=10, flat=0.8)
+            m.ball(0.3, (0, 0, 0.75), LANTERN, subdiv=1, scale=(1, 1, 1.3), glow=True)
+            for k in range(5):
+                a = rng.uniform(0, math.tau)
+                m.ball(0.15, (math.cos(a) * 1.1, math.sin(a) * 1.1, 0.1), ("#f0ece0", "#ff8ab0")[k % 2], subdiv=0)
+        else:
+            m.cyl(0.7, 0.4, (0, 0, 0), "#8a8478", segs=6, r_top=0.6)
+            m.cyl(0.32, 2.6, (0, 0, 0.4), PAINT[0], segs=6, r_top=0.24)
+            m.cyl(0.34, 0.5, (0, 0, 1.6), STRIPE, segs=6)
+            m.ball(0.6, (0.4, 0, 2.7), PAINT[1], subdiv=1, scale=(1, 1, 0.4), rot=(0, 0.7, 0))
+            m.ball(0.24, (0, 0, 3.15), "#ffb43a", subdiv=1, glow=True)
+            for k in range(3):                                             # grain round its foot
+                a = k * 2.1
+                for j in range(4):
+                    yaw = rng.uniform(0, math.tau)
+                    pts = arc((math.cos(a) * 1.0, math.sin(a) * 1.0, 0.0), yaw, rng.uniform(0.9, 1.3), 3.0, 2.0, n=3)
+                    ribbon(m, pts, [0.08, 0.07, 0.06, 0.05], *GRAIN[j % 2], fold=0.3, thick=0.05)
+                    tp = pts[-1]
+                    m.ball(0.14, (tp.x, tp.y, tp.z), GRAIN_HEAD[j % 2], subdiv=0, scale=(1, 1, 1.8))
+        m.build(r, rot_z=rng.uniform(0, math.tau))
 
 # --- the stormwall ----------------------------------------------------------------------------
 
@@ -1005,26 +1201,185 @@ def lightning_rod(variants):
         if i == 1:
             m.box((1.4, 1.0, 1.2), (1.1, 0.4, 0.5), "#3a4a5a")
             m.box((0.2, 0.6, 0.3), (1.81, 0.4, 0.7), "#ff3a3a", glow=True)
-        fs = m.cyl(2.4, 0.06, (0, 0, -0.02), "#2a2a30", segs=8)
+        fs = m.cyl(1.4, 0.06, (0, 0, -0.02), "#3e4450", segs=7)
+        for k in range(3):                                                 # lichen, where the strikes don't reach
+            b = k * math.tau / 3 + 1.0
+            lump(m, rng, (math.cos(b) * 2.0, math.sin(b) * 2.0, 0.0), (0.45, 0.4, 0.25), LICHEN[(k + i) % 4], n=8, flat=0.8)
         m.build(r)
 
+
+
+SLATE = ["#5a6270", "#6a7482", "#4e5664"]
+SLATE_TOP = ["#8a96a6", "#9aa6b4", "#7e8a9a"]
+SALT = "#e8ecf0"
+LICHEN = ["#ff9a2a", "#e8c840", "#b8d858", "#ffd080"]
+PUDDLE = "#8ab0d0"
+
+
+def storm_shard(variants):
+    """Slate on the Stormwall's islands, split by the weather into slabs and all leaning the one
+    way, salt crusted white along their tops, lichen on their lee. v0 a pair of tall leaning slabs;
+    v1 a toppled stack of plates; v2 a ring of low shards round a puddle."""
+    for i in range(3):
+        r = root("halcyon_storm_shard", i, height=3.5)
+        rng = random.Random(8400 + i)
+        m = Model(f"halcyon_storm_shard_{i}", 8400 + i)
+        if i == 0:
+            for k, (x, y, h, w) in enumerate(((0, 0, 4.0, 2.0), (1.6, 0.9, 2.8, 1.5), (-1.4, 1.1, 1.9, 1.3))):
+                fs = m.box((w, 0.7, h), (x, y, h / 2 - 0.2), SLATE[k % 3], rot=(0.0, 0.42, 0.3 + k * 0.15), taper=0.7)
+                faces_up(m, fs, SALT, SLATE[k % 3], dot=0.7)
+                lump(m, rng, (x - 0.6, y - 0.3, 0.0), (0.5, 0.4, 0.3), LICHEN[k % 4], n=8, flat=0.8)
+        elif i == 1:
+            for k in range(4):
+                w = 3.4 - k * 0.6
+                fs = m.box((w, w * 0.7, 0.45), (k * 0.25, rng.uniform(-0.2, 0.2), 0.22 + k * 0.42), SLATE[k % 3],
+                           rot=(rng.uniform(-0.1, 0.1), 0.12, rng.uniform(-0.4, 0.4)))
+                faces_up(m, fs, SLATE_TOP[k % 3], SLATE[k % 3], dot=0.7)
+            for k in range(3):
+                lump(m, rng, (rng.uniform(-1.6, 1.6), rng.uniform(-1.3, 1.3), 0.0), (0.45, 0.4, 0.25), LICHEN[k], n=8, flat=0.8)
+            m.ball(0.3, (0.6, 0.0, 2.0), SALT, subdiv=0, scale=(1.4, 1, 0.4))
+        else:
+            m.cyl(1.2, 0.04, (0, 0, 0.0), PUDDLE, segs=7)
+            for k in range(6):
+                a = k * math.tau / 6 + rng.uniform(-0.2, 0.2)
+                h = rng.uniform(0.8, 1.8)
+                fs = m.box((0.8, 0.45, h), (math.cos(a) * 1.6, math.sin(a) * 1.6, h / 2 - 0.1), SLATE[k % 3],
+                           rot=(0, 0.35, a + rng.uniform(-0.3, 0.3)), taper=0.6)
+                faces_up(m, fs, SLATE_TOP[k % 3], SLATE[k % 3], dot=0.7)
+            for k in range(4):
+                a = rng.uniform(0, math.tau)
+                lump(m, rng, (math.cos(a) * 2.2, math.sin(a) * 2.2, 0.0), (0.4, 0.35, 0.25), LICHEN[k % 4], n=8, flat=0.8)
+        m.build(r, rot_z=rng.uniform(-0.2, 0.2))
+
+
+def storm_lichen(variants):
+    """Ground cover where nothing else holds on: salt lichen in hot ochre and lime, cushions and
+    crusts over flat slate, rain standing in the hollows."""
+    for i in range(3):
+        r = root("halcyon_storm_lichen", i, height=0.8)
+        rng = random.Random(8500 + i)
+        m = Model(f"halcyon_storm_lichen_{i}", 8500 + i)
+        if i == 0:
+            for k in range(3):
+                fs = m.box((rng.uniform(1.4, 2.2), rng.uniform(1.0, 1.6), 0.25), (rng.uniform(-1, 1), rng.uniform(-0.8, 0.8), 0.1),
+                           SLATE[k % 3], rot=(0, 0, rng.uniform(0, 3)))
+                faces_up(m, fs, SLATE_TOP[k % 3], SLATE[k % 3], dot=0.7)
+        own = (LICHEN[0], LICHEN[2], "#d86a2a")[i]                         # each patch mostly one kind
+        for k in range(8 if i < 2 else 5):
+            a = k * 2.4 + rng.uniform(-0.3, 0.3)
+            d = 0.2 + 0.45 * math.sqrt(k)
+            rr = rng.uniform(0.5, 0.85)
+            lump(m, rng, (math.cos(a) * d, math.sin(a) * d, 0.1 if i == 0 else 0.0), (rr, rr * 0.9, rr * 0.45),
+                 own if k % 3 else LICHEN[(k + i + 1) % 4], n=9, flat=0.9)
+        if i == 2:
+            m.cyl(1.0, 0.04, (0.6, 0.3, 0.0), PUDDLE, segs=7)
+            m.cyl(0.6, 0.04, (-0.9, -0.6, 0.0), PUDDLE, segs=6)
+            for k in range(3):
+                lump(m, rng, (rng.uniform(-1.6, 1.6), rng.uniform(-1.2, 1.2), 0.0), (0.5, 0.4, 0.35), SLATE[k], n=8, flat=0.7)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def weather_station(variants):
+    """The Port Authority's weather posts: v0 a bunker dug into the rock, a lit slit, an
+    anemometer, an orange windsock straining; v1 a warning mast, red and white, strobe on top,
+    a battery box at its foot, guy wires pegged out."""
+    for i in range(2):
+        r = root("halcyon_weather_station", i, height=5.5)
+        rng = random.Random(8600 + i)
+        m = Model(f"halcyon_weather_station_{i}", 8600 + i)
+        if i == 0:
+            fs = m.box((3.2, 2.6, 1.6), (0, 0, 0.7), STORM_CONCRETE[1], taper=0.85)
+            faces_up(m, fs, "#a8b0b8", STORM_CONCRETE[1], dot=0.7)
+            m.box((1.8, 0.1, 0.3), (0, -1.12, 1.0), WINDOW, glow=True)
+            m.box((0.9, 0.1, 1.0), (1.0, -1.2, 0.5), "#c87a2a")                        # the door, Authority orange
+            m.cyl(0.3, 0.4, (-0.9, 0.6, 1.5), "#3a4048", segs=6)
+            m.plank_line((0.9, 0.5, 1.5), (0.9, 0.5, 4.0), 0.12, 0.12, IRON)             # anemometer
+            for k in range(3):
+                a = k * math.tau / 3
+                m.plank_line((0.9, 0.5, 4.0), (0.9 + math.cos(a) * 0.6, 0.5 + math.sin(a) * 0.6, 4.0), 0.06, 0.06, IRON)
+                m.ball(0.18, (0.9 + math.cos(a) * 0.6, 0.5 + math.sin(a) * 0.6, 4.0), "#e8e8e0", subdiv=0)
+            m.plank_line((-1.2, -0.4, 1.5), (-1.2, -0.4, 3.6), 0.1, 0.1, IRON)            # the windsock
+            for k in range(4):
+                m.cyl(0.32 - k * 0.05, 0.5, (-1.2 - 0.25 - k * 0.48, -0.4, 3.45), ("#ff7a2a", "#e8e8e0")[k % 2], segs=6,
+                      rot=(0, -math.pi / 2 - 0.1, 0))
+            m.ball(0.16, (0.9, 0.5, 4.2), WARN, subdiv=1, glow=True)
+            for k in range(4):
+                lump(m, rng, (rng.uniform(-2.2, 2.2), rng.choice((-1, 1)) * rng.uniform(1.6, 2.2), 0.0), (0.6, 0.5, 0.45), SLATE[k % 3], n=8, flat=0.6)
+        else:
+            H = 5.0
+            for k in range(5):
+                m.cyl(0.24 - k * 0.02, H / 5, (0, 0, k * H / 5), ("#d83a2a", "#e8e8e0")[k % 2], segs=6)
+            m.ball(0.3, (0, 0, H + 0.15), STORM_ROD, subdiv=1, glow=True)
+            m.cyl(0.36, 0.1, (0, 0, H), IRON, segs=6)
+            for k in range(3):
+                a = k * math.tau / 3 + 0.3
+                m.plank_line((0, 0, H * 0.7), (math.cos(a) * 2.6, math.sin(a) * 2.6, 0.0), 0.05, 0.05, "#2a2a30")
+                m.cyl(0.18, 0.3, (math.cos(a) * 2.6, math.sin(a) * 2.6, 0.0), "#c87a2a", segs=5)
+            m.box((1.2, 0.8, 0.9), (0.9, -0.5, 0.45), "#3a4a5a")
+            m.box((1.22, 0.82, 0.12), (0.9, -0.5, 0.92), "#c87a2a")
+            m.box((0.3, 0.06, 0.2), (0.9, -0.92, 0.6), NEON_GREEN, glow=True)
+            lump(m, rng, (-0.6, 0.5, 0.0), (0.7, 0.6, 0.4), SLATE[1], n=8, flat=0.6)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def storm_stack(variants):
+    """Obstacle: the Stormwall's sea stacks, bundles of basalt columns standing out of the sea,
+    salt white where the spray dries, lichen on their heads, an Authority rod on the tallest
+    drawing the lightning. Same footprints as the sea stacks they stand in for."""
+    shapes = [
+        [(0, 0, 15.0, 2.6)],
+        [(0, 0, 17.0, 2.2)],
+        [(-1.2, 0, 16.0, 2.0), (1.6, 0.4, 13.5, 1.8)],
+    ]
+    for i, pillars in enumerate(shapes):
+        r = root("halcyon_storm_stack", i, height=max(p[2] for p in pillars) + 1.5 + (3.0 if i != 2 else 0), obstacle=1)
+        rng = random.Random(8700 + i)
+        m = Model(f"halcyon_storm_stack_{i}", 8700 + i)
+        for j, (x, y, H, R) in enumerate(pillars):
+            cols = [(x, y, H, R * 0.62)]
+            for k in range(5):                                             # a bundle of columns, stepped
+                a = k * math.tau / 5 + rng.uniform(-0.2, 0.2) + i
+                cols.append((x + math.cos(a) * R * 0.5, y + math.sin(a) * R * 0.5, H * rng.uniform(0.55, 0.92), R * rng.uniform(0.4, 0.5)))
+            for k, (cx, cy, h, cr) in enumerate(cols):
+                fs = m.cyl(cr, h + 3, (cx, cy, -3), SLATE[k % 3], segs=6, rot=(0, 0, rng.uniform(0, 1)))
+                faces_up(m, fs, SLATE_TOP[k % 3], SLATE[k % 3], dot=0.7)
+                m.cyl(cr * 1.04, 0.5, (cx, cy, 1.0 + rng.uniform(0, 0.8)), SALT, segs=6)            # the spray line
+                if k % 2 == 0:
+                    lump(m, rng, (cx, cy, h), (cr * 0.7, cr * 0.6, 0.3), LICHEN[(k + j) % 4], n=8, flat=0.7)
+            if j == 0 and i != 2:
+                _rod_tip(m, x, y, H, h=3.0)
+            elif j == 0:
+                m.ball(0.4, (x, y, H + 0.3), STORM_ROD, subdiv=1, glow=True)
+            for k in range(3):                                             # fallen columns at its foot
+                a = rng.uniform(0, math.tau)
+                m.cyl(R * 0.35, R * 1.2, (x + math.cos(a) * R * 1.4, y + math.sin(a) * R * 1.4, 0.3), SLATE[k], segs=6,
+                      rot=(math.pi / 2, 0, a))
+            collider(r, x, y, R * 1.15)
+        m.build(r)
 
 def build():
     kelp_arch(2)
     drowned_ark(2)
     lantern_kelp(3)
+    shore_thrift(4)
+    kelp_rack(2)
     gantry(2)
     stilt_towers(2)
     barge(2)
     sampan(3)
-    tank_tower(2)
-    cargo_pile(2)
     ark_ribs(2)
     ark_fins(2)
     ark_wreck(2)
     cargo_pod(3)
     hull_plate(2)
+    marsh_reed(3)
+    solar_wing(2)
+    settler_marker(2)
     storm_pylons(2)
     storm_towers(2)
     capsized_hulk(2)
     lightning_rod(3)
+    storm_shard(3)
+    storm_lichen(3)
+    weather_station(2)
+    storm_stack(3)

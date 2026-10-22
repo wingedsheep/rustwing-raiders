@@ -43,6 +43,566 @@
   "mounts": [],
   "variant": 1
  },
+ "ashgrave_armor_plate#0": {
+  "colliders": [],
+  "kind": "ashgrave_armor_plate",
+  "max": [
+   3.012,
+   1.344,
+   2.076
+  ],
+  "min": [
+   -2.783,
+   -2.375,
+   -2.084
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_armor_plate#1": {
+  "colliders": [],
+  "kind": "ashgrave_armor_plate",
+  "max": [
+   3.472,
+   1.632,
+   3.098
+  ],
+  "min": [
+   -3.274,
+   -0.469,
+   -3.171
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_armor_plate#2": {
+  "colliders": [],
+  "kind": "ashgrave_armor_plate",
+  "max": [
+   2.522,
+   2.642,
+   2.991
+  ],
+  "min": [
+   -3.189,
+   -0.646,
+   -2.715
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_ash_drift#0": {
+  "colliders": [],
+  "kind": "ashgrave_ash_drift",
+  "max": [
+   2.734,
+   1.21,
+   3.014
+  ],
+  "min": [
+   -2.619,
+   -0.5,
+   -2.878
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_ash_drift#1": {
+  "colliders": [],
+  "kind": "ashgrave_ash_drift",
+  "max": [
+   2.057,
+   1.26,
+   2.839
+  ],
+  "min": [
+   -1.644,
+   -0.475,
+   -2.371
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_ash_drift#2": {
+  "colliders": [],
+  "kind": "ashgrave_ash_drift",
+  "max": [
+   2.675,
+   0.897,
+   2.791
+  ],
+  "min": [
+   -2.832,
+   -0.214,
+   -2.641
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_camp#0": {
+  "colliders": [],
+  "kind": "ashgrave_camp",
+  "max": [
+   4.228,
+   1.9,
+   4.2
+  ],
+  "min": [
+   -3.994,
+   -0.143,
+   -4.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_camp#1": {
+  "colliders": [],
+  "kind": "ashgrave_camp",
+  "max": [
+   4.13,
+   2.45,
+   3.6
+  ],
+  "min": [
+   -4.13,
+   -0.103,
+   -3.6
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_camp#2": {
+  "colliders": [],
+  "kind": "ashgrave_camp",
+  "max": [
+   3.994,
+   5.2,
+   4.2
+  ],
+  "min": [
+   -3.994,
+   -0.217,
+   -4.2
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_fallen_log#0": {
+  "colliders": [],
+  "kind": "ashgrave_fallen_log",
+  "max": [
+   3.917,
+   2.411,
+   3.578
+  ],
+  "min": [
+   -5.288,
+   -0.611,
+   -3.104
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_fallen_log#1": {
+  "colliders": [],
+  "kind": "ashgrave_fallen_log",
+  "max": [
+   3.143,
+   1.296,
+   3.524
+  ],
+  "min": [
+   -2.863,
+   -0.375,
+   -3.244
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_fulgurite_root#0": {
+  "colliders": [],
+  "kind": "ashgrave_fulgurite_root",
+  "max": [
+   3.627,
+   1.08,
+   3.58
+  ],
+  "min": [
+   -3.675,
+   -0.19,
+   -3.644
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_fulgurite_root#1": {
+  "colliders": [],
+  "kind": "ashgrave_fulgurite_root",
+  "max": [
+   1.685,
+   2.761,
+   1.734
+  ],
+  "min": [
+   -1.672,
+   -0.276,
+   -1.699
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_fulgurite_root#2": {
+  "colliders": [],
+  "kind": "ashgrave_fulgurite_root",
+  "max": [
+   4.262,
+   0.863,
+   3.389
+  ],
+  "min": [
+   -3.804,
+   -0.151,
+   -3.653
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_fused_wreck#0": {
+  "colliders": [],
+  "kind": "ashgrave_fused_wreck",
+  "max": [
+   5.246,
+   2.554,
+   5.44
+  ],
+  "min": [
+   -5.558,
+   -1.145,
+   -5.239
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_fused_wreck#1": {
+  "colliders": [],
+  "kind": "ashgrave_fused_wreck",
+  "max": [
+   5.379,
+   3.218,
+   4.989
+  ],
+  "min": [
+   -5.101,
+   -1.644,
+   -5.358
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_crust#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_crust",
+  "max": [
+   2.12,
+   0.245,
+   2.136
+  ],
+  "min": [
+   -4.417,
+   -0.205,
+   -5.612
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_crust#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_crust",
+  "max": [
+   2.643,
+   0.458,
+   2.66
+  ],
+  "min": [
+   -2.738,
+   -0.157,
+   -2.715
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_crust#2": {
+  "colliders": [],
+  "kind": "ashgrave_glass_crust",
+  "max": [
+   3.336,
+   0.78,
+   3.459
+  ],
+  "min": [
+   -3.432,
+   -0.205,
+   -3.407
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_hollow_giant#0": {
+  "colliders": [],
+  "kind": "ashgrave_hollow_giant",
+  "max": [
+   4.429,
+   4.553,
+   4.46
+  ],
+  "min": [
+   -4.408,
+   -0.5,
+   -4.466
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_hollow_giant#1": {
+  "colliders": [],
+  "kind": "ashgrave_hollow_giant",
+  "max": [
+   5.109,
+   5.943,
+   4.882
+  ],
+  "min": [
+   -4.759,
+   -0.5,
+   -4.736
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_pale_spire#0": {
+  "colliders": [],
+  "kind": "ashgrave_pale_spire",
+  "max": [
+   1.781,
+   6.392,
+   1.286
+  ],
+  "min": [
+   -1.438,
+   -0.911,
+   -1.672
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_pale_spire#1": {
+  "colliders": [],
+  "kind": "ashgrave_pale_spire",
+  "max": [
+   1.734,
+   5.656,
+   1.61
+  ],
+  "min": [
+   -1.967,
+   -0.927,
+   -1.865
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_pale_spire#2": {
+  "colliders": [],
+  "kind": "ashgrave_pale_spire",
+  "max": [
+   1.625,
+   3.428,
+   1.767
+  ],
+  "min": [
+   -1.964,
+   -0.939,
+   -1.63
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_scrap_fence#0": {
+  "colliders": [],
+  "kind": "ashgrave_scrap_fence",
+  "max": [
+   3.215,
+   1.95,
+   3.369
+  ],
+  "min": [
+   -3.677,
+   -0.104,
+   -4.052
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_scrap_fence#1": {
+  "colliders": [],
+  "kind": "ashgrave_scrap_fence",
+  "max": [
+   4.514,
+   3.425,
+   2.397
+  ],
+  "min": [
+   -3.77,
+   -0.106,
+   -4.911
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_scrap_fence#2": {
+  "colliders": [],
+  "kind": "ashgrave_scrap_fence",
+  "max": [
+   3.987,
+   3.838,
+   3.235
+  ],
+  "min": [
+   -3.212,
+   -0.227,
+   -2.367
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_shell_crater#0": {
+  "colliders": [],
+  "kind": "ashgrave_shell_crater",
+  "max": [
+   4.864,
+   0.617,
+   4.379
+  ],
+  "min": [
+   -4.91,
+   -0.251,
+   -4.381
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_shell_crater#1": {
+  "colliders": [],
+  "kind": "ashgrave_shell_crater",
+  "max": [
+   4.257,
+   1.924,
+   3.963
+  ],
+  "min": [
+   -4.252,
+   -0.836,
+   -3.877
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_leg#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_leg",
+  "max": [
+   4.597,
+   5.613,
+   5.157
+  ],
+  "min": [
+   -4.966,
+   -0.632,
+   -4.171
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_leg#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_leg",
+  "max": [
+   7.138,
+   4.697,
+   7.654
+  ],
+  "min": [
+   -8.395,
+   -0.92,
+   -7.445
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_leg#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_leg",
+  "max": [
+   4.729,
+   4.543,
+   5.423
+  ],
+  "min": [
+   -5.324,
+   -1.74,
+   -5.858
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_leg#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_leg",
+  "max": [
+   3.981,
+   3.342,
+   4.403
+  ],
+  "min": [
+   -5.481,
+   -0.69,
+   -5.191
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_watchtower#0": {
+  "colliders": [],
+  "kind": "ashgrave_watchtower",
+  "max": [
+   2.146,
+   7.2,
+   2.007
+  ],
+  "min": [
+   -2.007,
+   -0.116,
+   -2.361
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_watchtower#1": {
+  "colliders": [],
+  "kind": "ashgrave_watchtower",
+  "max": [
+   2.14,
+   7.4,
+   2.251
+  ],
+  "min": [
+   -2.019,
+   -0.45,
+   -1.976
+  ],
+  "mounts": [],
+  "variant": 1
+ },
  "bonfire#0": {
   "colliders": [],
   "kind": "bonfire",
@@ -79,14 +639,14 @@
   "colliders": [],
   "kind": "conifer",
   "max": [
-   2.195,
-   5.2,
-   2.263
+   2.635,
+   6.0,
+   2.637
   ],
   "min": [
-   -2.263,
-   0.0,
-   -2.195
+   -2.744,
+   -0.449,
+   -2.609
   ],
   "mounts": [],
   "variant": 0
@@ -95,14 +655,14 @@
   "colliders": [],
   "kind": "conifer",
   "max": [
-   1.485,
-   4.725,
-   1.549
+   2.289,
+   4.2,
+   2.107
   ],
   "min": [
-   -1.576,
-   0.0,
-   -1.497
+   -2.635,
+   -0.471,
+   -2.426
   ],
   "mounts": [],
   "variant": 1
@@ -111,30 +671,46 @@
   "colliders": [],
   "kind": "conifer",
   "max": [
-   1.965,
-   3.95,
-   2.143
+   3.541,
+   5.2,
+   3.376
   ],
   "min": [
-   -1.775,
-   0.0,
-   -2.297
+   -3.156,
+   -0.478,
+   -3.276
   ],
   "mounts": [],
   "variant": 2
+ },
+ "conifer#3": {
+  "colliders": [],
+  "kind": "conifer",
+  "max": [
+   2.122,
+   5.4,
+   2.254
+  ],
+  "min": [
+   -1.229,
+   -0.46,
+   -1.336
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "copper_tree#0": {
   "colliders": [],
   "kind": "copper_tree",
   "max": [
-   1.863,
-   4.214,
-   1.71
+   1.338,
+   3.109,
+   1.413
   ],
   "min": [
-   -1.86,
+   -1.515,
    -0.05,
-   -1.849
+   -1.257
   ],
   "mounts": [],
   "variant": 0
@@ -143,14 +719,14 @@
   "colliders": [],
   "kind": "copper_tree",
   "max": [
-   2.192,
-   4.4,
-   2.34
+   1.8,
+   2.84,
+   1.918
   ],
   "min": [
-   -2.345,
+   -1.947,
    -0.05,
-   -2.254
+   -1.881
   ],
   "mounts": [],
   "variant": 1
@@ -159,17 +735,33 @@
   "colliders": [],
   "kind": "copper_tree",
   "max": [
-   2.688,
-   4.285,
-   2.582
+   3.392,
+   4.171,
+   3.546
   ],
   "min": [
-   -2.526,
-   -0.05,
-   -2.552
+   -2.92,
+   -0.091,
+   -3.4
   ],
   "mounts": [],
   "variant": 2
+ },
+ "copper_tree#3": {
+  "colliders": [],
+  "kind": "copper_tree",
+  "max": [
+   0.74,
+   3.054,
+   0.823
+  ],
+  "min": [
+   -0.967,
+   -0.05,
+   -0.658
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "coral_brain#0": {
   "colliders": [],
@@ -332,7 +924,7 @@
   "max": [
    9.521,
    15.113,
-   2.491
+   2.391
   ],
   "min": [
    -9.389,
@@ -373,14 +965,14 @@
   "colliders": [],
   "kind": "glass_shard",
   "max": [
-   2.754,
-   3.561,
-   2.795
+   2.509,
+   3.212,
+   2.511
   ],
   "min": [
-   -2.741,
-   -0.458,
-   -2.798
+   -2.596,
+   -0.464,
+   -2.594
   ],
   "mounts": [],
   "variant": 0
@@ -389,14 +981,14 @@
   "colliders": [],
   "kind": "glass_shard",
   "max": [
-   3.084,
-   4.918,
-   2.935
+   2.582,
+   4.376,
+   2.439
   ],
   "min": [
-   -2.561,
-   -0.508,
-   -2.706
+   -2.364,
+   -0.64,
+   -2.68
   ],
   "mounts": [],
   "variant": 1
@@ -405,14 +997,14 @@
   "colliders": [],
   "kind": "glass_shard",
   "max": [
-   4.303,
-   2.243,
-   4.449
+   3.817,
+   2.118,
+   3.776
   ],
   "min": [
-   -4.277,
-   -0.409,
-   -4.078
+   -3.861,
+   -0.398,
+   -3.887
   ],
   "mounts": [],
   "variant": 2
@@ -453,14 +1045,14 @@
   "colliders": [],
   "kind": "ice_block",
   "max": [
-   2.643,
-   1.72,
-   2.35
+   2.181,
+   1.99,
+   1.694
   ],
   "min": [
-   -2.302,
-   -0.2,
-   -2.585
+   -2.579,
+   -0.3,
+   -1.757
   ],
   "mounts": [],
   "variant": 0
@@ -469,14 +1061,14 @@
   "colliders": [],
   "kind": "ice_block",
   "max": [
-   2.615,
-   1.636,
-   2.346
+   3.748,
+   1.983,
+   3.352
   ],
   "min": [
-   -2.344,
-   -0.596,
-   -2.361
+   -3.362,
+   -0.388,
+   -3.882
   ],
   "mounts": [],
   "variant": 1
@@ -485,17 +1077,33 @@
   "colliders": [],
   "kind": "ice_block",
   "max": [
-   2.926,
-   1.779,
-   2.352
+   2.643,
+   1.79,
+   3.02
   ],
   "min": [
-   -3.062,
-   -0.94,
-   -2.43
+   -2.992,
+   -0.903,
+   -3.158
   ],
   "mounts": [],
   "variant": 2
+ },
+ "ice_block#3": {
+  "colliders": [],
+  "kind": "ice_block",
+  "max": [
+   3.236,
+   3.149,
+   2.61
+  ],
+  "min": [
+   -2.695,
+   -0.373,
+   -3.064
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "ice_spire#0": {
   "colliders": [
@@ -600,7 +1208,7 @@
   "max": [
    2.683,
    2.1,
-   2.683
+   2.552
   ],
   "min": [
    -3.738,
@@ -630,14 +1238,14 @@
   "colliders": [],
   "kind": "mangrove",
   "max": [
-   2.234,
-   4.813,
-   2.015
+   4.043,
+   4.125,
+   2.942
   ],
   "min": [
-   -2.048,
-   -0.396,
-   -2.244
+   -2.948,
+   -0.427,
+   -3.142
   ],
   "mounts": [],
   "variant": 0
@@ -646,14 +1254,14 @@
   "colliders": [],
   "kind": "mangrove",
   "max": [
-   3.186,
-   5.209,
-   2.993
+   2.996,
+   5.073,
+   2.462
   ],
   "min": [
-   -2.95,
-   -0.354,
-   -3.123
+   -2.751,
+   -0.413,
+   -2.425
   ],
   "mounts": [],
   "variant": 1
@@ -662,14 +1270,14 @@
   "colliders": [],
   "kind": "mangrove",
   "max": [
-   1.707,
-   3.33,
-   1.535
+   2.561,
+   3.173,
+   2.39
   ],
   "min": [
-   -1.288,
-   -0.393,
-   -1.656
+   -2.463,
+   -0.38,
+   -2.206
   ],
   "mounts": [],
   "variant": 2
@@ -685,7 +1293,7 @@
   "min": [
    -3.454,
    -1.507,
-   -2.741
+   -2.871
   ],
   "mounts": [],
   "variant": 0
@@ -737,6 +1345,22 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "mech_wreck#2": {
+  "colliders": [],
+  "kind": "mech_wreck",
+  "max": [
+   4.508,
+   4.497,
+   4.281
+  ],
+  "min": [
+   -4.46,
+   -1.736,
+   -4.581
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "pipe_run#0": {
   "colliders": [],
@@ -834,6 +1458,38 @@
   "mounts": [],
   "variant": 2
  },
+ "refinery_tank#3": {
+  "colliders": [],
+  "kind": "refinery_tank",
+  "max": [
+   4.843,
+   3.162,
+   4.619
+  ],
+  "min": [
+   -4.492,
+   0.0,
+   -4.651
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "refinery_tank#4": {
+  "colliders": [],
+  "kind": "refinery_tank",
+  "max": [
+   4.473,
+   2.6,
+   3.924
+  ],
+  "min": [
+   -4.913,
+   -0.005,
+   -4.555
+  ],
+  "mounts": [],
+  "variant": 4
+ },
  "scav_tent#0": {
   "colliders": [],
   "kind": "scav_tent",
@@ -886,14 +1542,14 @@
   "colliders": [],
   "kind": "scrap_pile",
   "max": [
-   2.695,
+   2.478,
    2.029,
    2.485
   ],
   "min": [
    -2.713,
-   -0.308,
-   -2.778
+   -0.269,
+   -2.733
   ],
   "mounts": [],
   "variant": 0
@@ -908,7 +1564,7 @@
   ],
   "min": [
    -2.805,
-   -0.32,
+   -0.315,
    -2.807
   ],
   "mounts": [],
@@ -923,9 +1579,9 @@
    3.559
   ],
   "min": [
-   -3.669,
-   -0.276,
-   -4.984
+   -3.782,
+   -0.229,
+   -5.117
   ],
   "mounts": [],
   "variant": 2
@@ -966,14 +1622,14 @@
   "colliders": [],
   "kind": "skull_isle",
   "max": [
-   7.007,
+   6.729,
    6.024,
    7.98
   ],
   "min": [
    -7.391,
    -1.453,
-   -8.565
+   -8.384
   ],
   "mounts": [],
   "variant": 0
@@ -1106,14 +1762,14 @@
   "colliders": [],
   "kind": "tide_rock",
   "max": [
-   2.962,
-   2.5,
-   3.008
+   2.88,
+   2.51,
+   2.938
   ],
   "min": [
-   -3.022,
-   -0.577,
-   -2.975
+   -2.969,
+   -0.59,
+   -2.955
   ],
   "mounts": [],
   "variant": 0
@@ -1122,14 +1778,14 @@
   "colliders": [],
   "kind": "tide_rock",
   "max": [
-   2.359,
-   4.7,
-   2.476
+   2.467,
+   4.5,
+   1.852
   ],
   "min": [
-   -2.502,
-   -0.587,
-   -2.315
+   -2.376,
+   -0.602,
+   -2.312
   ],
   "mounts": [],
   "variant": 1
@@ -1138,30 +1794,46 @@
   "colliders": [],
   "kind": "tide_rock",
   "max": [
-   2.547,
-   0.695,
-   2.989
+   2.416,
+   0.669,
+   3.033
   ],
   "min": [
-   -2.649,
-   -0.563,
-   -2.635
+   -2.662,
+   -0.65,
+   -2.456
   ],
   "mounts": [],
   "variant": 2
+ },
+ "tide_rock#3": {
+  "colliders": [],
+  "kind": "tide_rock",
+  "max": [
+   2.128,
+   1.514,
+   2.21
+  ],
+  "min": [
+   -2.32,
+   -0.456,
+   -2.451
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "white_tree#0": {
   "colliders": [],
   "kind": "white_tree",
   "max": [
-   2.007,
-   5.813,
-   1.936
+   2.082,
+   5.361,
+   2.473
   ],
   "min": [
-   -2.051,
-   -0.791,
-   -2.186
+   -2.45,
+   -0.977,
+   -2.27
   ],
   "mounts": [],
   "variant": 0
@@ -1170,14 +1842,14 @@
   "colliders": [],
   "kind": "white_tree",
   "max": [
-   2.567,
-   5.681,
-   3.046
+   3.659,
+   4.176,
+   4.192
   ],
   "min": [
-   -1.585,
-   -0.959,
-   -3.072
+   -2.486,
+   -0.88,
+   -1.815
   ],
   "mounts": [],
   "variant": 1
@@ -1186,16 +1858,32 @@
   "colliders": [],
   "kind": "white_tree",
   "max": [
-   4.325,
-   3.493,
-   2.629
+   2.73,
+   3.664,
+   2.017
   ],
   "min": [
-   -1.846,
-   -0.808,
-   -4.171
+   -2.018,
+   -0.841,
+   -4.828
   ],
   "mounts": [],
   "variant": 2
+ },
+ "white_tree#3": {
+  "colliders": [],
+  "kind": "white_tree",
+  "max": [
+   2.559,
+   4.72,
+   1.98
+  ],
+  "min": [
+   -2.668,
+   -0.847,
+   -2.188
+  ],
+  "mounts": [],
+  "variant": 3
  }
 }

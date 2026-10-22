@@ -225,6 +225,8 @@ def main():
         lay_out(sorted(objs, key=lambda o: (o["kind"], o.get("variant", 0))))
         print(f"{name}: {len(objs)} templates: {', '.join(sorted({o['kind'] for o in objs}))}")
         if a.preview:
+            # posed as the game first sees it: each part in its idle
+            kit.stash_clips()
             preview(a.preview, a.top, a.frame)
         else:
             export(name)

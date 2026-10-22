@@ -12,6 +12,11 @@ const SWAY: Record<string, number> = {
   giant_fern: 1, tree_fern: 0.9, mangrove: 0.45, dune_grass: 1.4, reed_clump: 1.3, kelp_tower: 0.6, coral_fan: 0.5,
   fungus_coral: 0.25, glow_bulb: 0.5, glowcap: 0.25, glowcap_tall: 0.2, vine_pillar: 0.25, lily_pad: 0.15,
   nomad_tent: 0.12, scav_tent: 0.12,
+  glacis_bellcrown: 0.3, glacis_mistwillow: 0.2, glacis_emberroot: 0.15, glacis_frost_reed: 0.8, glacis_tussock: 0.6,
+  orutal_bracken: 0.8, orutal_scale_tree: 0.35, orutal_ash_fern: 0.5,
+  vesh_seagrass: 1.2, vesh_screwpine: 0.45, vesh_sea_grape: 0.25,
+  kessra_bluecrown: 0.35, kessra_brine_reed: 1.1, kessra_brine_mat: 0.3, kessra_bladder_bush: 0.3, kessra_cistern_rosette: 0.4,
+  kessra_seep: 0.25, kessra_ironscrub: 0.5,
 };
 
 /**

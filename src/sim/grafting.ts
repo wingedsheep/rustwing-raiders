@@ -453,6 +453,15 @@ export class Grafting {
     p.gs.fired.boost = 0;
   }
 
+  /** A ring of `n` spore clouds round (x, z), and one in the middle (THE CHOIR'S HUM, a PLAGUE NOTICE). */
+  sporeRing(p: Player, x: number, z: number, n: number) {
+    this.cloud(p, x, z, 'bloom');
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      this.cloud(p, x + Math.cos(a) * SPORE_R * 1.6, z + Math.sin(a) * SPORE_R * 1.6, 'bloom');
+    }
+  }
+
   private cloud(p: Player, x: number, z: number, from: 'spores' | 'bloom') {
     const mine = this.patches.filter((c) => c.kind === 'spore' && c.owner === p.id && !c.dead);
     if (mine.length >= SPORE_MAX) mine[0].dead = true;

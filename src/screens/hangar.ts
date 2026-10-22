@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
-import { CARGO, Run } from '../sim/run';
+import { CARGO, Run, crewHull } from '../sim/run';
 import { cellsOf, fits, gunDir, hardpointAt, partAt, rotOf, socket, stats, suits, type Build, type Placement, type Stats } from '../sim/build';
 import { EDGES, frameById, hardpointOf, HARDPOINTS, hardpointsOf, linkedStr, LOAD_CLASS, partById, verbOf, type Hardpoint, type PartDef } from '../game/parts';
 import { links, type Edge, type Links } from '../sim/links';
@@ -20,6 +20,7 @@ import { markKinds, reactionsOf } from '../sim/marks';
 import { markIcon, REACTION_COLOR } from '../ui/mark-icons';
 import { graftIcon, FACTION_COLOR } from '../ui/graft-icon';
 import { BONDS, VERBS, VERB_COLOR as GRAFT_VERB_COLOR, bondsOf, hasVerb } from '../game/grafts';
+import { waysOf } from '../game/core';
 
 interface Bay {
   cur: { c: number; r: number };
@@ -188,7 +189,7 @@ export class Hangar implements Screen {
     if (this.bays.every((b) => b.ready)) {
       for (let i = 0; i < this.run.crew.length; i++) {
         const c = this.run.crew[i];
-        c.hull = Math.min(c.hull, stats(c.build).hp);
+        c.hull = Math.min(c.hull, crewHull(c));
       }
       audio.play('ui_select');
       this.onDone();
@@ -364,7 +365,7 @@ export class Hangar implements Screen {
       ctx.fillRect(cx, y + 13, 12, 1);
       cx += 16;
     }
-    for (const f of bondsOf(crew.grafts)) cx += drawText(ctx, `✦ ${BONDS[f].name}`, cx + 2, y + 3, FACTION_COLOR[f], { shadow: DARK }) + 8;
+    for (const f of bondsOf(crew.grafts, waysOf(crew.core.held))) cx += drawText(ctx, `✦ ${BONDS[f].name}`, cx + 2, y + 3, FACTION_COLOR[f], { shadow: DARK }) + 8;
   }
 
   /**
@@ -396,7 +397,7 @@ export class Hangar implements Screen {
     // header
     drawText(ctx, `P${i + 1}`, x, 26, col, { scale: 1 });
     drawText(ctx, f.name.toUpperCase(), x + 18, 26, INK);
-    hullGauge(ctx, crew.hull, s.hp, x + 100, 26, 60);
+    hullGauge(ctx, crew.hull, crewHull(crew), x + 100, 26, 60);
     // grid
     frame(ctx, x, 40, 140, 106);
     this.grid(ctx, bay, b, view, x + 70, 93);

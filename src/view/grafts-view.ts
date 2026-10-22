@@ -224,7 +224,7 @@ export class GraftsView {
         return true;
       case 'stoop':
         if (e.what === 'shadow') {
-          audio.play('boost', { pan, pitch: 1.4, vol: 0.6 });
+          audio.play('wingbeat', { pan, pitch: 1.4, vol: 0.6 });
           this.name('stoop', e.x, e.z);
         } else {
           // the talons come down: a slam of air and feathers
@@ -237,7 +237,7 @@ export class GraftsView {
             this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2, size: 0.35, grow: 0.6, life: 0.6, drag: 3, gravity: 3, color: this.c.setHex(k % 2 ? col : 0xf0e8e0), carried: true });
           }
           this.host.juice({ trauma: 0.28, hitstop: 3, flash: 0.1, flashColor: col });
-          audio.play('laser_charge', { pan, pitch: 1.6, vol: 0.4 });
+          audio.play('shriek', { pan, pitch: 1.6, vol: 0.4 });
           audio.play('explode_small', { pan, pitch: 0.7 });
         }
         return true;
@@ -255,11 +255,11 @@ export class GraftsView {
           // the lane drawn across the screen, the way she drew yours
           this.line(e.x, e.z, e.x2!, e.z2!, col, 7, DIVE_TELL + 0.3, DIVE_TELL * 0.7);
           this.line(e.x, e.z, e.x2!, e.z2!, 0xffffff, 0.6, DIVE_TELL + 0.2, DIVE_TELL * 0.7);
-          audio.play('laser_charge', { pan, pitch: 1.2, vol: 0.55 });
+          audio.play('shriek', { pan, pitch: 1.2, vol: 0.55 });
           this.name('skydive', e.x, e.z, true);
         } else if (e.what === 'dive') {
           this.host.juice({ trauma: 0.2, shove: 0.5, dx: Math.sign((p?.gs.dive?.dir ?? 1)), dz: 0 });
-          audio.play('boost', { pan, pitch: 0.8 });
+          audio.play('wingbeat', { pan, pitch: 0.8 });
           audio.play('boost', { pan, pitch: 1.3 });
         } else if (e.what === 'ram') {
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 10, col, 18, 0.25, 0.2);

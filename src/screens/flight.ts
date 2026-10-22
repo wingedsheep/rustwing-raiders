@@ -12,6 +12,7 @@ import type { PodFate } from '../sim/heist';
 import { rollItem, type Item } from '../game/loot';
 import { EDGES, type Edge } from '../game/parts';
 import { GRAFTS, type GraftId, type Grafts, type Wreck } from '../game/grafts';
+import { IMPRINTS, KNACKS, ROOM, type CoreKit, type Fed, type ImprintId, type KnackId, type Vein } from '../game/core';
 
 export interface FlightResult {
   cleared: boolean;
@@ -29,6 +30,9 @@ export interface FlightResult {
   heist?: { fate: PodFate[]; downed: boolean; paid: number };
   /** Elites taken down and finished: each one a wreck to salvage at the results. */
   wrecks: Wreck[];
+  /** What the fight fed each pilot's core, and imprints gone for good (a policy paid out). */
+  fed: Fed[];
+  spent: ImprintId[][];
 }
 
 /**
@@ -52,11 +56,29 @@ export class Flight implements Screen {
     hull: number[] | undefined,
     private onDone: (r: FlightResult) => void,
     grafts?: Grafts[],
+    kits?: CoreKit[],
+    call = 0,
   ) {
     // &grafts=ramline,halo;stoop: these grafts on the ships (per ship, split by ';'), over their own
     const want = game.params.get('grafts');
     if (want) grafts = want.split(';').map((list) => Object.fromEntries(list.split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as GraftId].verb, id])));
-    this.lv = new Level(spec, builds, hull, grafts);
+    // &core=laugh,creed,chain;sight: these imprints held and knacks grown (per ship, split by ';'),
+    // &woke=nerve: the cores awake (that temper), &call=2: the Engine calls at the boss's phases
+    const core = game.params.get('core');
+    const woke = game.params.get('woke') as Vein | null;
+    if (core || woke) {
+      kits = builds.map((_, i) => {
+        const ids = (core ?? '').split(';')[i]?.split(',') ?? [];
+        return {
+          held: ids.filter((id): id is ImprintId => id in IMPRINTS),
+          knacks: ids.filter((id): id is KnackId => id in KNACKS),
+          room: ROOM + 1,
+          woke: woke ? { name: 'WHISKER', temper: woke } : null,
+        };
+      });
+    }
+    if (game.params.has('call')) call = Number(game.params.get('call'));
+    this.lv = new Level(spec, builds, hull, grafts, kits, call);
     // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
     this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
@@ -136,6 +158,8 @@ export class Flight implements Screen {
       convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid, roles: lv.convoy.haulers.map((h) => h.role) } : undefined,
       heist: lv.heist ? { fate: [...lv.heist.fate], downed: lv.heist.state === 'down', paid: lv.heist.paid } : undefined,
       wrecks: cleared ? [...lv.wrecks] : [],
+      fed: lv.players.map((p) => lv.mind.fed(p)),
+      spent: lv.players.map((p) => [...p.ch.spent]),
     });
   }
 

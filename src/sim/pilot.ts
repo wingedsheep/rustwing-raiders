@@ -184,6 +184,14 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   const partner = lv.players.find((q) => q !== p && q.down);
   if (partner) return { x: partner.x, z: partner.z };
   const bottom = lv.bottom - 9;
+  // a beam broken at a distance (the Engine's scan): the break is the one place it doesn't reach
+  const far = lv.lasers.find((l) => l.r0);
+  if (far) {
+    const near = lv.lasers.find((l) => l.owner === far.owner && !l.r0);
+    const r = ((near ? Math.hypot(near.x2 - near.x, near.z2 - near.z) : 0) + far.r0!) / 2;
+    const a = Math.atan2(p.x - far.x, p.z - far.z);
+    return { x: clamp(far.x + Math.sin(a) * r, -HALF_W + 3, HALF_W - 3), z: clamp(far.z + Math.cos(a) * r, lv.top + 6, bottom) };
+  }
   // an escort: boarders on a hull (or lining up on one) come first
   if (lv.convoy) {
     let board: { x: number; z: number } | undefined;
@@ -334,6 +342,13 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
         const hr = core + b.r + 0.4;
         if ((b.x + b.vx * t - x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) way += 2;
       }
+      // (and beams: a dash through a live one is a hit)
+      for (const l of lv.lasers) {
+        if (l.warn > t) continue;
+        const len = Math.hypot(l.x2 - l.x, l.z2 - l.z) || 1;
+        const along = ((x - l.x) * (l.x2 - l.x) + (z - l.z) * (l.z2 - l.z)) / len;
+        if (along > (l.r0 ?? 0) && along < len && Math.abs((x - l.x) * (l.z2 - l.z) - (z - l.z) * (l.x2 - l.x)) / len < 1.6 + core) way += 3;
+      }
       // (not what's staggered: a dash through that is a takedown, see takedownDash)
       for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && e.state !== 'stagger' && (e.x + e.vx * t - x) ** 2 + (e.z + (e.vz - scroll) * t - z) ** 2 < (e.r * 0.75 + core + 0.6) ** 2) way += 3;
       if (threatCost(lv, x, z, t, core) >= 500) way += 3;
@@ -354,7 +369,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       const lz = l.z2 - l.z;
       const len = Math.hypot(lx, lz);
       const along = ((ex - l.x) * lx + (ez - l.z) * lz) / len;
-      if (along > 0 && along < len && Math.abs((ex - l.x) * lz - (ez - l.z) * lx) / len < 2 + core && l.warn < 0.5) danger += 3;
+      if (along > (l.r0 ?? 0) && along < len && Math.abs((ex - l.x) * lz - (ez - l.z) * lx) / len < 2 + core && l.warn < 0.5) danger += 3;
     }
     const score = danger * 100 - (perfect ? 50 : 0) + Math.hypot(ex - goal.x, ez - goal.z) * 0.5;
     if (!best || score < best.score) best = { k, perfect, safe: danger === 0, clear: way === 0, score };
@@ -398,7 +413,7 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
         const lx = Math.sin(la) * len;
         const lz = Math.cos(la) * len;
         const along = ((x - l.x) * lx + (z - l.z) * lz) / len;
-        if (along < 0 || along > len) continue;
+        if (along < (l.r0 ?? 0) || along > len) continue;
         const across = Math.abs((x - l.x) * lz - (z - l.z) * lx) / len;
         if (across < 1.0 + core + 0.4) c += 900 * weight;
       }

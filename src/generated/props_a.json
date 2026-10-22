@@ -57,14 +57,14 @@
   "colliders": [],
   "kind": "basalt_columns",
   "max": [
-   2.444,
-   4.977,
-   2.117
+   3.547,
+   5.439,
+   3.072
   ],
   "min": [
-   -2.444,
-   -0.2,
-   -2.43
+   -3.547,
+   -0.3,
+   -3.555
   ],
   "mounts": [],
   "variant": 0
@@ -73,14 +73,14 @@
   "colliders": [],
   "kind": "basalt_columns",
   "max": [
-   2.195,
-   3.383,
-   2.159
+   3.975,
+   3.147,
+   4.005
   ],
   "min": [
-   -2.006,
-   -0.2,
-   -2.16
+   -3.975,
+   -0.56,
+   -4.005
   ],
   "mounts": [],
   "variant": 1
@@ -89,65 +89,33 @@
   "colliders": [],
   "kind": "basalt_columns",
   "max": [
-   2.222,
-   4.361,
-   2.083
+   3.165,
+   5.282,
+   2.95
   ],
   "min": [
-   -2.222,
-   -0.2,
-   -3.372
+   -2.82,
+   -0.603,
+   -2.106
   ],
   "mounts": [],
   "variant": 2
  },
- "blue_palm#0": {
+ "basalt_columns#3": {
   "colliders": [],
-  "kind": "blue_palm",
+  "kind": "basalt_columns",
   "max": [
-   3.82,
-   5.532,
-   2.534
+   3.483,
+   2.599,
+   2.532
   ],
   "min": [
-   -1.633,
-   -0.05,
-   -2.856
+   -6.199,
+   -0.3,
+   -5.324
   ],
   "mounts": [],
-  "variant": 0
- },
- "blue_palm#1": {
-  "colliders": [],
-  "kind": "blue_palm",
-  "max": [
-   1.19,
-   6.852,
-   2.107
-  ],
-  "min": [
-   -4.494,
-   -0.05,
-   -3.804
-  ],
-  "mounts": [],
-  "variant": 1
- },
- "blue_palm#2": {
-  "colliders": [],
-  "kind": "blue_palm",
-  "max": [
-   3.443,
-   4.361,
-   3.662
-  ],
-  "min": [
-   -2.315,
-   -0.05,
-   -1.738
-  ],
-  "mounts": [],
-  "variant": 2
+  "variant": 3
  },
  "boulder#0": {
   "colliders": [],
@@ -244,6 +212,22 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "buoy#2": {
+  "colliders": [],
+  "kind": "buoy",
+  "max": [
+   1.101,
+   3.977,
+   0.973
+  ],
+  "min": [
+   -0.623,
+   -0.516,
+   -0.708
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "charred_cycad#0": {
   "colliders": [],
@@ -352,12 +336,12 @@
   "kind": "crystal_cluster",
   "max": [
    2.166,
-   3.687,
+   3.588,
    2.11
   ],
   "min": [
    -2.031,
-   -0.462,
+   -0.463,
    -2.067
   ],
   "mounts": [],
@@ -367,14 +351,14 @@
   "colliders": [],
   "kind": "crystal_cluster",
   "max": [
-   2.281,
-   3.687,
-   2.874
+   2.307,
+   3.793,
+   2.33
   ],
   "min": [
-   -2.901,
-   -0.518,
-   -2.253
+   -2.537,
+   -0.468,
+   -2.516
   ],
   "mounts": [],
   "variant": 1
@@ -383,17 +367,49 @@
   "colliders": [],
   "kind": "crystal_cluster",
   "max": [
-   2.249,
-   3.687,
-   2.048
+   2.163,
+   3.588,
+   1.977
   ],
   "min": [
-   -1.796,
-   -0.476,
-   -2.345
+   -1.786,
+   -0.482,
+   -2.272
   ],
   "mounts": [],
   "variant": 2
+ },
+ "crystal_cluster#3": {
+  "colliders": [],
+  "kind": "crystal_cluster",
+  "max": [
+   2.505,
+   1.828,
+   2.828
+  ],
+  "min": [
+   -2.866,
+   -0.554,
+   -2.799
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "crystal_cluster#4": {
+  "colliders": [],
+  "kind": "crystal_cluster",
+  "max": [
+   2.752,
+   3.576,
+   2.711
+  ],
+  "min": [
+   -2.498,
+   -0.55,
+   -2.398
+  ],
+  "mounts": [],
+  "variant": 4
  },
  "crystal_spire#0": {
   "colliders": [
@@ -453,14 +469,14 @@
   "colliders": [],
   "kind": "cycad",
   "max": [
-   2.004,
-   2.22,
-   1.843
+   1.816,
+   1.98,
+   1.799
   ],
   "min": [
-   -1.667,
-   -0.01,
-   -2.09
+   -1.503,
+   -0.015,
+   -2.025
   ],
   "mounts": [],
   "variant": 0
@@ -469,14 +485,14 @@
   "colliders": [],
   "kind": "cycad",
   "max": [
-   1.746,
-   1.52,
-   1.835
+   2.071,
+   0.822,
+   1.706
   ],
   "min": [
-   -1.875,
-   0.0,
-   -1.74
+   -1.248,
+   -0.05,
+   -1.46
   ],
   "mounts": [],
   "variant": 1
@@ -485,17 +501,33 @@
   "colliders": [],
   "kind": "cycad",
   "max": [
-   2.605,
-   2.92,
-   1.911
+   2.386,
+   2.88,
+   1.452
   ],
   "min": [
-   -2.822,
-   -0.047,
-   -2.134
+   -2.719,
+   -0.045,
+   -1.705
   ],
   "mounts": [],
   "variant": 2
+ },
+ "cycad#3": {
+  "colliders": [],
+  "kind": "cycad",
+  "max": [
+   1.934,
+   1.677,
+   1.993
+  ],
+  "min": [
+   -2.101,
+   -0.018,
+   -2.007
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "dead_tree#0": {
   "colliders": [],
@@ -645,14 +677,14 @@
   "colliders": [],
   "kind": "giant_fern",
   "max": [
-   2.903,
-   1.727,
-   2.55
+   2.035,
+   1.246,
+   1.786
   ],
   "min": [
-   -3.048,
-   -0.719,
-   -2.962
+   -2.127,
+   -0.245,
+   -2.075
   ],
   "mounts": [],
   "variant": 0
@@ -661,14 +693,14 @@
   "colliders": [],
   "kind": "giant_fern",
   "max": [
-   3.737,
-   2.107,
-   3.554
+   2.064,
+   1.127,
+   1.668
   ],
   "min": [
-   -3.753,
-   -0.821,
-   -3.186
+   -1.89,
+   -0.3,
+   -1.707
   ],
   "mounts": [],
   "variant": 1
@@ -677,14 +709,14 @@
   "colliders": [],
   "kind": "giant_fern",
   "max": [
-   2.614,
-   1.652,
-   2.597
+   2.319,
+   1.047,
+   2.305
   ],
   "min": [
-   -2.359,
-   -0.705,
-   -2.377
+   -2.075,
+   -0.916,
+   -2.091
   ],
   "mounts": [],
   "variant": 2
@@ -693,14 +725,14 @@
   "colliders": [],
   "kind": "glow_bulb",
   "max": [
-   1.379,
-   0.715,
-   1.784
+   1.457,
+   0.65,
+   1.445
   ],
   "min": [
-   -1.524,
-   -0.303,
-   -1.132
+   -1.512,
+   -0.275,
+   -0.98
   ],
   "mounts": [],
   "variant": 0
@@ -709,14 +741,14 @@
   "colliders": [],
   "kind": "glow_bulb",
   "max": [
-   1.099,
-   0.715,
-   1.541
+   1.291,
+   0.65,
+   1.474
   ],
   "min": [
-   -1.466,
-   -0.303,
-   -1.361
+   -1.452,
+   -0.275,
+   -1.35
   ],
   "mounts": [],
   "variant": 1
@@ -725,30 +757,46 @@
   "colliders": [],
   "kind": "glow_bulb",
   "max": [
-   1.296,
-   0.715,
-   1.359
+   1.285,
+   0.65,
+   1.342
   ],
   "min": [
-   -1.826,
-   -0.303,
-   -1.814
+   -1.179,
+   -0.275,
+   -1.048
   ],
   "mounts": [],
   "variant": 2
+ },
+ "glow_bulb#3": {
+  "colliders": [],
+  "kind": "glow_bulb",
+  "max": [
+   1.955,
+   0.219,
+   1.702
+  ],
+  "min": [
+   -2.398,
+   -0.019,
+   -1.77
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "glowcap#0": {
   "colliders": [],
   "kind": "glowcap",
   "max": [
-   2.656,
-   7.122,
-   1.856
+   3.603,
+   7.4,
+   2.803
   ],
   "min": [
-   -1.656,
-   -0.014,
-   -2.456
+   -2.603,
+   -0.114,
+   -3.403
   ],
   "mounts": [],
   "variant": 0
@@ -757,14 +805,14 @@
   "colliders": [],
   "kind": "glowcap",
   "max": [
-   3.67,
-   7.915,
-   2.778
+   4.619,
+   6.9,
+   3.4
   ],
   "min": [
-   -2.578,
-   -0.021,
-   -2.36
+   -3.068,
+   -0.122,
+   -2.842
   ],
   "mounts": [],
   "variant": 1
@@ -773,14 +821,14 @@
   "colliders": [],
   "kind": "glowcap",
   "max": [
-   3.005,
-   7.4,
-   1.925
+   3.808,
+   6.7,
+   3.319
   ],
   "min": [
-   -1.74,
-   -0.018,
-   -2.324
+   -3.172,
+   -0.114,
+   -2.639
   ],
   "mounts": [],
   "variant": 2
@@ -789,17 +837,33 @@
   "colliders": [],
   "kind": "glowcap",
   "max": [
-   2.851,
-   5.985,
-   2.37
+   2.688,
+   6.364,
+   2.614
   ],
   "min": [
-   -4.137,
-   -0.024,
-   -3.342
+   -2.331,
+   -0.112,
+   -2.534
   ],
   "mounts": [],
   "variant": 3
+ },
+ "glowcap#4": {
+  "colliders": [],
+  "kind": "glowcap",
+  "max": [
+   4.825,
+   7.296,
+   4.382
+  ],
+  "min": [
+   -4.384,
+   -0.154,
+   -3.126
+  ],
+  "mounts": [],
+  "variant": 4
  },
  "glowcap_tall#0": {
   "colliders": [
@@ -811,14 +875,14 @@
   ],
   "kind": "glowcap_tall",
   "max": [
-   5.8,
+   6.25,
    16.864,
-   4.4
+   4.796
   ],
   "min": [
-   -4.0,
+   -4.233,
    -0.015,
-   -5.4
+   -5.796
   ],
   "mounts": [],
   "variant": 0
@@ -838,14 +902,14 @@
   ],
   "kind": "glowcap_tall",
   "max": [
-   6.232,
+   6.538,
    17.3,
-   3.516
+   3.826
   ],
   "min": [
-   -6.716,
+   -6.823,
    -0.021,
-   -4.716
+   -5.026
   ],
   "mounts": [],
   "variant": 1
@@ -854,14 +918,14 @@
   "colliders": [],
   "kind": "kelp_tower",
   "max": [
-   1.97,
-   6.057,
-   2.135
+   1.808,
+   5.262,
+   2.446
   ],
   "min": [
-   -2.142,
-   -1.05,
-   -1.905
+   -1.747,
+   -1.066,
+   -1.714
   ],
   "mounts": [],
   "variant": 0
@@ -870,14 +934,14 @@
   "colliders": [],
   "kind": "kelp_tower",
   "max": [
-   2.088,
-   6.438,
-   1.846
+   2.616,
+   3.842,
+   1.966
   ],
   "min": [
-   -2.608,
-   -1.113,
-   -2.091
+   -1.062,
+   -1.155,
+   -2.37
   ],
   "mounts": [],
   "variant": 1
@@ -886,17 +950,33 @@
   "colliders": [],
   "kind": "kelp_tower",
   "max": [
-   2.234,
-   4.752,
-   2.385
+   2.161,
+   2.71,
+   2.25
   ],
   "min": [
-   -1.404,
-   -1.174,
-   -2.068
+   -2.156,
+   -1.171,
+   -2.54
   ],
   "mounts": [],
   "variant": 2
+ },
+ "kelp_tower#3": {
+  "colliders": [],
+  "kind": "kelp_tower",
+  "max": [
+   2.39,
+   1.901,
+   2.551
+  ],
+  "min": [
+   -1.965,
+   -0.491,
+   -2.123
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "lava_vent#0": {
   "colliders": [],
@@ -934,14 +1014,14 @@
   "colliders": [],
   "kind": "lily_pad",
   "max": [
-   1.337,
-   0.32,
-   1.596
+   2.247,
+   0.4,
+   2.544
   ],
   "min": [
-   -1.225,
+   -2.564,
    0.0,
-   -1.285
+   -1.986
   ],
   "mounts": [],
   "variant": 0
@@ -950,17 +1030,33 @@
   "colliders": [],
   "kind": "lily_pad",
   "max": [
-   2.733,
-   0.5,
-   2.365
+   2.617,
+   1.0,
+   2.083
   ],
   "min": [
-   -2.91,
+   -2.179,
    0.0,
-   -2.05
+   -2.278
   ],
   "mounts": [],
   "variant": 1
+ },
+ "lily_pad#2": {
+  "colliders": [],
+  "kind": "lily_pad",
+  "max": [
+   2.897,
+   1.485,
+   0.495
+  ],
+  "min": [
+   -2.897,
+   0.0,
+   -1.491
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "mesa#0": {
   "colliders": [
@@ -1226,6 +1322,550 @@
   "mounts": [],
   "variant": 2
  },
+ "orutal_ash_fern#0": {
+  "colliders": [],
+  "kind": "orutal_ash_fern",
+  "max": [
+   2.766,
+   0.65,
+   3.377
+  ],
+  "min": [
+   -2.953,
+   -0.254,
+   -2.839
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_ash_fern#1": {
+  "colliders": [],
+  "kind": "orutal_ash_fern",
+  "max": [
+   1.659,
+   0.73,
+   1.859
+  ],
+  "min": [
+   -2.848,
+   -0.281,
+   -1.916
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_ash_fern#2": {
+  "colliders": [],
+  "kind": "orutal_ash_fern",
+  "max": [
+   2.164,
+   0.598,
+   2.647
+  ],
+  "min": [
+   -2.106,
+   -0.252,
+   -2.691
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_bracken#0": {
+  "colliders": [],
+  "kind": "orutal_bracken",
+  "max": [
+   2.469,
+   0.56,
+   2.718
+  ],
+  "min": [
+   -3.088,
+   -0.377,
+   -3.046
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_bracken#1": {
+  "colliders": [],
+  "kind": "orutal_bracken",
+  "max": [
+   2.355,
+   0.56,
+   2.962
+  ],
+  "min": [
+   -2.876,
+   -0.28,
+   -2.413
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_bracken#2": {
+  "colliders": [],
+  "kind": "orutal_bracken",
+  "max": [
+   2.399,
+   0.56,
+   2.309
+  ],
+  "min": [
+   -2.09,
+   -0.357,
+   -2.476
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_broadleaf#0": {
+  "colliders": [],
+  "kind": "orutal_broadleaf",
+  "max": [
+   3.773,
+   4.487,
+   3.951
+  ],
+  "min": [
+   -4.167,
+   -0.135,
+   -3.951
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_broadleaf#1": {
+  "colliders": [],
+  "kind": "orutal_broadleaf",
+  "max": [
+   3.422,
+   5.24,
+   3.066
+  ],
+  "min": [
+   -3.369,
+   -0.007,
+   -3.708
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_broadleaf#2": {
+  "colliders": [],
+  "kind": "orutal_broadleaf",
+  "max": [
+   2.683,
+   4.226,
+   2.991
+  ],
+  "min": [
+   -2.697,
+   -0.013,
+   -2.354
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_broadleaf#3": {
+  "colliders": [],
+  "kind": "orutal_broadleaf",
+  "max": [
+   2.665,
+   5.95,
+   2.981
+  ],
+  "min": [
+   -2.98,
+   -0.011,
+   -2.241
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "orutal_fumarole#0": {
+  "colliders": [],
+  "kind": "orutal_fumarole",
+  "max": [
+   2.303,
+   0.789,
+   2.237
+  ],
+  "min": [
+   -2.213,
+   -0.11,
+   -2.064
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_fumarole#1": {
+  "colliders": [],
+  "kind": "orutal_fumarole",
+  "max": [
+   2.863,
+   0.658,
+   3.542
+  ],
+  "min": [
+   -2.879,
+   -0.1,
+   -3.104
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_fumarole#2": {
+  "colliders": [],
+  "kind": "orutal_fumarole",
+  "max": [
+   1.864,
+   2.4,
+   1.901
+  ],
+  "min": [
+   -2.072,
+   -0.1,
+   -2.002
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_geode_stone#0": {
+  "colliders": [],
+  "kind": "orutal_geode_stone",
+  "max": [
+   2.337,
+   1.099,
+   2.358
+  ],
+  "min": [
+   -2.263,
+   -0.076,
+   -2.203
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_geode_stone#1": {
+  "colliders": [],
+  "kind": "orutal_geode_stone",
+  "max": [
+   2.168,
+   1.088,
+   2.388
+  ],
+  "min": [
+   -2.342,
+   -0.099,
+   -2.184
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_geode_stone#2": {
+  "colliders": [],
+  "kind": "orutal_geode_stone",
+  "max": [
+   2.942,
+   1.088,
+   2.836
+  ],
+  "min": [
+   -2.583,
+   -0.098,
+   -2.722
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_needle_field#0": {
+  "colliders": [],
+  "kind": "orutal_needle_field",
+  "max": [
+   1.711,
+   1.535,
+   1.512
+  ],
+  "min": [
+   -2.285,
+   -0.312,
+   -2.052
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_needle_field#1": {
+  "colliders": [],
+  "kind": "orutal_needle_field",
+  "max": [
+   1.555,
+   1.51,
+   1.968
+  ],
+  "min": [
+   -1.516,
+   -0.289,
+   -1.784
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_needle_field#2": {
+  "colliders": [],
+  "kind": "orutal_needle_field",
+  "max": [
+   2.003,
+   1.452,
+   1.7
+  ],
+  "min": [
+   -1.994,
+   -0.276,
+   -2.214
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_nest#0": {
+  "colliders": [],
+  "kind": "orutal_nest",
+  "max": [
+   2.57,
+   0.7,
+   2.147
+  ],
+  "min": [
+   -2.355,
+   -0.207,
+   -2.534
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_nest#1": {
+  "colliders": [],
+  "kind": "orutal_nest",
+  "max": [
+   2.869,
+   0.703,
+   2.917
+  ],
+  "min": [
+   -2.703,
+   -0.219,
+   -2.863
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_nest#2": {
+  "colliders": [],
+  "kind": "orutal_nest",
+  "max": [
+   2.574,
+   0.705,
+   2.662
+  ],
+  "min": [
+   -2.832,
+   -0.221,
+   -2.786
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_reef_rock#0": {
+  "colliders": [],
+  "kind": "orutal_reef_rock",
+  "max": [
+   1.024,
+   1.344,
+   0.936
+  ],
+  "min": [
+   -0.82,
+   0.0,
+   -1.184
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_reef_rock#1": {
+  "colliders": [],
+  "kind": "orutal_reef_rock",
+  "max": [
+   2.016,
+   1.604,
+   2.087
+  ],
+  "min": [
+   -2.114,
+   0.0,
+   -1.705
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_reef_rock#2": {
+  "colliders": [],
+  "kind": "orutal_reef_rock",
+  "max": [
+   2.095,
+   1.214,
+   1.496
+  ],
+  "min": [
+   -2.184,
+   0.0,
+   -1.541
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_scale_tree#0": {
+  "colliders": [],
+  "kind": "orutal_scale_tree",
+  "max": [
+   2.856,
+   6.666,
+   3.624
+  ],
+  "min": [
+   -2.445,
+   -0.157,
+   -2.201
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_scale_tree#1": {
+  "colliders": [],
+  "kind": "orutal_scale_tree",
+  "max": [
+   1.676,
+   5.858,
+   2.11
+  ],
+  "min": [
+   -1.997,
+   -0.159,
+   -1.59
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_scale_tree#2": {
+  "colliders": [],
+  "kind": "orutal_scale_tree",
+  "max": [
+   2.131,
+   5.76,
+   1.423
+  ],
+  "min": [
+   -2.492,
+   -0.159,
+   -3.188
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_shell_drift#0": {
+  "colliders": [],
+  "kind": "orutal_shell_drift",
+  "max": [
+   3.331,
+   0.954,
+   2.309
+  ],
+  "min": [
+   -2.475,
+   -0.156,
+   -3.157
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_shell_drift#1": {
+  "colliders": [],
+  "kind": "orutal_shell_drift",
+  "max": [
+   3.265,
+   1.193,
+   3.087
+  ],
+  "min": [
+   -3.411,
+   -0.173,
+   -3.522
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_shell_drift#2": {
+  "colliders": [],
+  "kind": "orutal_shell_drift",
+  "max": [
+   1.962,
+   0.927,
+   2.152
+  ],
+  "min": [
+   -2.13,
+   -0.152,
+   -2.193
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "orutal_thicket#0": {
+  "colliders": [],
+  "kind": "orutal_thicket",
+  "max": [
+   5.637,
+   5.181,
+   5.552
+  ],
+  "min": [
+   -5.641,
+   -0.311,
+   -5.67
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "orutal_thicket#1": {
+  "colliders": [],
+  "kind": "orutal_thicket",
+  "max": [
+   5.338,
+   5.066,
+   5.565
+  ],
+  "min": [
+   -5.602,
+   -0.423,
+   -5.118
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "orutal_thicket#2": {
+  "colliders": [],
+  "kind": "orutal_thicket",
+  "max": [
+   4.721,
+   5.444,
+   4.925
+  ],
+  "min": [
+   -4.932,
+   -0.438,
+   -4.364
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "reed_clump#0": {
   "colliders": [],
   "kind": "reed_clump",
@@ -1316,14 +1956,14 @@
   ],
   "kind": "sea_stack",
   "max": [
-   4.939,
-   17.164,
-   3.337
+   4.317,
+   16.907,
+   4.054
   ],
   "min": [
-   -4.639,
+   -3.28,
    -1.0,
-   -4.016
+   -4.044
   ],
   "mounts": [],
   "variant": 0
@@ -1338,17 +1978,44 @@
   ],
   "kind": "sea_stack",
   "max": [
-   3.695,
-   19.181,
+   3.856,
+   18.359,
    3.432
   ],
   "min": [
-   -3.871,
+   -4.466,
    -1.0,
-   -3.867
+   -3.478
   ],
   "mounts": [],
   "variant": 1
+ },
+ "sea_stack#2": {
+  "colliders": [
+   {
+    "r": 2.3,
+    "x": -1.2,
+    "z": -0.0
+   },
+   {
+    "r": 2.07,
+    "x": 1.6,
+    "z": -0.4
+   }
+  ],
+  "kind": "sea_stack",
+  "max": [
+   3.63,
+   17.749,
+   2.645
+  ],
+  "min": [
+   -4.858,
+   -1.0,
+   -3.671
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "skeleton_ribs#0": {
   "colliders": [],
@@ -1386,14 +2053,14 @@
   "colliders": [],
   "kind": "spore_vent",
   "max": [
-   2.72,
-   1.314,
-   2.549
+   2.617,
+   1.169,
+   2.169
   ],
   "min": [
-   -2.718,
-   -0.06,
-   -2.789
+   -2.41,
+   -0.075,
+   -3.672
   ],
   "mounts": [],
   "variant": 0
@@ -1402,17 +2069,33 @@
   "colliders": [],
   "kind": "spore_vent",
   "max": [
-   3.145,
-   3.094,
-   2.999
+   2.3,
+   3.04,
+   2.136
   ],
   "min": [
-   -2.224,
+   -2.367,
    -0.2,
-   -2.143
+   -2.242
   ],
   "mounts": [],
   "variant": 1
+ },
+ "spore_vent#2": {
+  "colliders": [],
+  "kind": "spore_vent",
+  "max": [
+   2.919,
+   0.88,
+   1.853
+  ],
+  "min": [
+   -2.915,
+   -0.18,
+   -1.868
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "statue_head#0": {
   "colliders": [],
@@ -1450,14 +2133,14 @@
   "colliders": [],
   "kind": "stilt_house",
   "max": [
-   1.9,
-   3.831,
-   1.584
+   5.817,
+   4.327,
+   5.847
   ],
   "min": [
-   -1.9,
+   -5.814,
    -0.3,
-   -1.75
+   -4.0
   ],
   "mounts": [],
   "variant": 0
@@ -1468,10 +2151,10 @@
   "max": [
    2.1,
    6.27,
-   1.784
+   3.939
   ],
   "min": [
-   -2.1,
+   -2.446,
    -0.3,
    -1.92
   ],
@@ -1484,7 +2167,7 @@
   "max": [
    4.005,
    4.123,
-   1.483
+   3.582
   ],
   "min": [
    -3.454,
@@ -1498,9 +2181,9 @@
   "colliders": [],
   "kind": "stilt_house",
   "max": [
-   1.8,
+   3.662,
    4.3,
-   1.683
+   3.885
   ],
   "min": [
    -1.8,
@@ -1510,18 +2193,66 @@
   "mounts": [],
   "variant": 3
  },
+ "stilt_house#4": {
+  "colliders": [],
+  "kind": "stilt_house",
+  "max": [
+   7.305,
+   3.607,
+   3.339
+  ],
+  "min": [
+   -4.975,
+   -0.3,
+   -2.317
+  ],
+  "mounts": [],
+  "variant": 4
+ },
+ "stilt_house#5": {
+  "colliders": [],
+  "kind": "stilt_house",
+  "max": [
+   4.599,
+   4.846,
+   5.667
+  ],
+  "min": [
+   -4.3,
+   -0.3,
+   -3.283
+  ],
+  "mounts": [],
+  "variant": 5
+ },
+ "stilt_house#6": {
+  "colliders": [],
+  "kind": "stilt_house",
+  "max": [
+   3.934,
+   4.495,
+   3.246
+  ],
+  "min": [
+   -2.079,
+   -0.3,
+   -1.181
+  ],
+  "mounts": [],
+  "variant": 6
+ },
  "tree_fern#0": {
   "colliders": [],
   "kind": "tree_fern",
   "max": [
-   2.889,
-   4.205,
-   2.41
+   2.309,
+   3.707,
+   1.928
   ],
   "min": [
-   -2.287,
-   -0.117,
-   -2.656
+   -1.434,
+   -0.126,
+   -1.99
   ],
   "mounts": [],
   "variant": 0
@@ -1530,14 +2261,14 @@
   "colliders": [],
   "kind": "tree_fern",
   "max": [
-   2.144,
-   5.811,
-   2.367
+   1.485,
+   5.207,
+   1.673
   ],
   "min": [
-   -3.814,
-   -0.115,
-   -3.368
+   -2.943,
+   -0.122,
+   -2.471
   ],
   "mounts": [],
   "variant": 1
@@ -1546,17 +2277,49 @@
   "colliders": [],
   "kind": "tree_fern",
   "max": [
-   2.429,
-   3.223,
-   2.555
+   1.603,
+   2.677,
+   1.689
   ],
   "min": [
-   -2.288,
-   -0.114,
-   -1.892
+   -1.484,
+   -0.118,
+   -1.339
   ],
   "mounts": [],
   "variant": 2
+ },
+ "tree_fern#3": {
+  "colliders": [],
+  "kind": "tree_fern",
+  "max": [
+   2.522,
+   4.481,
+   1.938
+  ],
+  "min": [
+   -1.906,
+   -0.126,
+   -2.07
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "tree_fern#4": {
+  "colliders": [],
+  "kind": "tree_fern",
+  "max": [
+   2.474,
+   4.316,
+   2.197
+  ],
+  "min": [
+   -0.748,
+   -0.124,
+   -1.308
+  ],
+  "mounts": [],
+  "variant": 4
  },
  "vine_pillar#0": {
   "colliders": [],

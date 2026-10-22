@@ -15,12 +15,14 @@ import { WreckScreen } from '../screens/wreck';
 import { Hangar } from '../screens/hangar';
 import { Shop, Dock, EventScreen } from '../screens/stops';
 import { Ending } from '../screens/ending';
-import { DANGER_HARDER, DANGER_PAY, levelSpec, Run, SECTORS } from '../sim/run';
+import { CoreScreen } from '../screens/core';
+import { forget, kitOf, learn } from './core';
+import { PRICE_HARDER } from '../sim/mind';
+import { crewHull, DANGER_HARDER, DANGER_PAY, levelSpec, Run, SECTORS } from '../sim/run';
 import { EVENTS, eventById, type Result, type RunEvent } from '../sim/events';
 import type { ChartNode } from '../sim/chart';
 import { HULL_STEP, type Mode } from '../sim/level';
 import type { Planet } from '../world/planets';
-import { stats } from '../sim/build';
 import { hashStr, pick, rng } from '../util';
 
 export function newRun(game: Game, frames: string[], seed: number) {
@@ -159,6 +161,8 @@ function nearestPlanet(run: Run, node: ChartNode): Planet {
  */
 export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder = 0, after?: () => void, node?: ChartNode) {
   const run = game.run!;
+  // THE PRICE ON YOU: they come harder
+  if (run.crew.some((c) => c.core.held.includes('price'))) harder += PRICE_HARDER;
   const spec = levelSpec(planet, mode, seed, run.difficulty() + harder);
   const builds = run.crew.map((c) => c.build);
   const hull = run.crew.map((c) => c.hull);
@@ -167,6 +171,8 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
     new Flight(game, spec, builds, hull, (res: FlightResult) => {
       run.levels++;
       run.score += res.score;
+      // what each core took in (a policy paid out is gone, cleared or not)
+      run.crew.forEach((c, i) => res.spent[i]?.forEach((id) => forget(c.core, id)));
       for (const s of res.stats) {
         run.stats.kills += s.kills;
         run.stats.grazes += s.grazes;
@@ -208,7 +214,7 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       // the insurance pays for what got shot off
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
       // patched up a little on the way out
-      run.crew.forEach((c, i) => (c.hull = Math.min(stats(c.build).hp, res.hull[i] + HULL_STEP)));
+      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + HULL_STEP)));
       const boss = mode === 'boss';
       if (boss) run.stats.bosses++;
       const next = () => {
@@ -221,8 +227,12 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         } else if (after) after();
         else toChart(game);
       };
+      // the cores learn from the fight; any that grew a knot get to choose it after the salvage
+      const was = run.crew.map((c) => ({ ...c.core, life: { ...c.core.life } }));
+      const grows = run.crew.map((c, i) => learn(c.core, res.fed[i]));
+      const core = () => (grows.some((n) => n > 0) || run.crew.some((c) => c.core.growths > 0) ? game.go(new CoreScreen(game, run, res.fed, was, next)) : next());
       // then the wrecks taken down, if any, to strip
-      game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, next)) : next())));
-    }, run.crew.map((c) => c.grafts)),
+      game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, core)) : core())));
+    }, run.crew.map((c) => c.grafts), run.crew.map((c) => kitOf(c.core)), mode === 'boss' ? Math.min(2, run.sector) : 0),
   );
 }

@@ -77,8 +77,8 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'orutal_caldera', role: 'giant', w: 2 },
     ],
     setChance: 0.2,
-    haze: { color: 0x5a4a4a, alpha: 0.55, rate: 0.2 },
-    pattern: { kind: 'cells', color: 0xff7a2a, scale: 3.6, amount: 0.7, glow: 0.9, patchy: 0.8, below: 1.3 },
+    haze: { color: 0x9a929a, alpha: 0.3, rate: 0.15 },
+    pattern: { kind: 'streaks', color: 0x9a96a0, scale: 5, amount: 0.45, patchy: 0.6 },
   },
   prism: {
     sets: [
@@ -116,8 +116,8 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'halcyon_barge', role: 'giant', w: 2 },
     ],
     setChance: 0.2,
-    haze: { color: 0x9a90a8, alpha: 0.45 },
-    pattern: { kind: 'plates', color: 0x2a2028, scale: 4, amount: 0.5 },
+    haze: { color: 0x4a3a6a, alpha: 0.3 },
+    pattern: { kind: 'plates', color: 0x0e2232, scale: 4, amount: 0.35, patchy: 0.5 },
   },
   arkbones: {
     sets: [
@@ -127,7 +127,7 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0xb08a78, alpha: 0.4, rate: 0.2 },
-    pattern: { kind: 'streaks', color: 0x5a3020, scale: 5, amount: 0.35, patchy: 0.7 },
+    pattern: { kind: 'streaks', color: 0x7a4628, scale: 5, amount: 0.3, patchy: 0.7 },
   },
   stormwall: {
     sets: [
@@ -136,7 +136,7 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'halcyon_capsized_hulk', role: 'giant', w: 2 },
     ],
     setChance: 0.2,
-    haze: { color: 0x4a5468, alpha: 0.6, rate: 0.3 },
+    haze: { color: 0x5a6478, alpha: 0.45, rate: 0.3 },
     pattern: { kind: 'cracks', color: 0x2a3036, scale: 6, amount: 0.5 },
   },
   // ── KESSRA ─────────────────────────────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ export const LOOKS: Record<string, Look> = {
   oasis: {
     sets: [
       { kind: 'kessra_sandcrawler', role: 'giant', w: 1.5 },
-      { kind: 'kessra_palm_canopy', role: 'span', w: 2 },
+      { kind: 'kessra_sunsails', role: 'span', w: 2 },
       { kind: 'kessra_aqueduct', role: 'span', w: 1.5 },
     ],
     setChance: 0.2,
@@ -185,8 +185,8 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'mirefall_fallen_stalk', role: 'span', w: 2 },
     ],
     setChance: 0.2,
-    haze: { color: 0x4ab0d0, glow: true, alpha: 0.35 },
-    pattern: { kind: 'veins', color: 0x6af0ff, scale: 8, amount: 0.35, glow: 0.45, patchy: 0.5 },
+    haze: { color: 0x9a7ad0, glow: true, alpha: 0.35 },
+    pattern: { kind: 'veins', color: 0x9aff6a, scale: 8, amount: 0.28, glow: 0.35, patchy: 0.55 },
   },
   peat: {
     sets: [
@@ -205,7 +205,7 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0xc8dcd0, rate: 0.22 },
-    pattern: { kind: 'tiles', color: 0x3a3a30, scale: 3, amount: 0.45, patchy: 0.6 },
+    pattern: { kind: 'tiles', color: 0x6a5a6a, scale: 3, amount: 0.4, patchy: 0.6 },
   },
   sporevents: {
     sets: [
@@ -215,14 +215,14 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0x9a60b8, glow: true, alpha: 0.4, rate: 0.3 },
-    pattern: { kind: 'veins', color: 0x2a1030, scale: 5, amount: 0.35, patchy: 0.5 },
+    pattern: { kind: 'veins', color: 0x3a2040, scale: 5, amount: 0.25, patchy: 0.5 },
   },
   // ── GLACIS ─────────────────────────────────────────────────────────────────────────────────
   shelf: {
     sets: [{ kind: 'glacis_ice_bridge', role: 'span', w: 3 }, { kind: 'glacis_cable_car', role: 'span', w: 2 }, { kind: 'glacis_seracs', role: 'gate', w: 2 }, { kind: 'glacis_mammoth', role: 'giant', w: 2 }],
     setChance: 0.2,
-    haze: { color: 0xf0f6ff },
-    pattern: { kind: 'cracks', color: 0x2a5aa8, scale: 9, amount: 0.75, patchy: 0.4 },
+    haze: { color: 0x7af0e8, glow: true, alpha: 0.3, rate: 0.3 },
+    pattern: { kind: 'cracks', color: 0x1a3a90, scale: 7, amount: 0.95, patchy: 0.3 },
   },
   springs: {
     sets: [{ kind: 'glacis_travertine', role: 'giant', w: 3 }, { kind: 'glacis_ice_arch', role: 'span', w: 2 }],
@@ -253,7 +253,7 @@ export const LOOKS: Record<string, Look> = {
     sets: [{ kind: 'ashgrave_fulgurite', role: 'gate', w: 3 }, { kind: 'ashgrave_glass_ship', role: 'giant', w: 3 }],
     setChance: 0.2,
     haze: { color: 0x4aa078, glow: true, alpha: 0.3, rate: 0.18 },
-    pattern: { kind: 'streaks', color: 0x9affc0, scale: 6, amount: 0.5, glow: 0.3 },
+    pattern: { kind: 'veins', color: 0x6affa0, scale: 4, amount: 0.7, glow: 0.9, below: -0.2 },
   },
   scavcamp: {
     sets: [{ kind: 'ashgrave_scrap_gantry', role: 'span', w: 3 }, { kind: 'ashgrave_scrap_wall', role: 'gate', w: 2 }, { kind: 'ashgrave_crawler_town', role: 'giant', w: 2 }],
@@ -264,8 +264,8 @@ export const LOOKS: Record<string, Look> = {
   whitewood: {
     sets: [{ kind: 'ashgrave_white_canopy', role: 'span', w: 3 }, { kind: 'ashgrave_white_trunks', role: 'gate', w: 2 }, { kind: 'ashgrave_overgrown_mech', role: 'giant', w: 2 }],
     setChance: 0.2,
-    haze: { color: 0xe8ecf8, rate: 0.28 },
-    pattern: { kind: 'streaks', color: 0xc8ccd8, scale: 8, amount: 0.3, patchy: 0.5 },
+    haze: { color: 0xe4e0da, rate: 0.28 },
+    pattern: { kind: 'streaks', color: 0x9e9890, scale: 8, amount: 0.4, patchy: 0.5 },
   },
   // ── VESH ───────────────────────────────────────────────────────────────────────────────────
   coralflats: {
@@ -338,7 +338,7 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0x8a7060, alpha: 0.45, rate: 0.2 },
-    pattern: { kind: 'streaks', color: 0x5a3a24, scale: 5, amount: 0.35, patchy: 0.5 },
+    pattern: { kind: 'streaks', color: 0x3a2418, scale: 5, amount: 0.5, patchy: 0.5 },
   },
   chemlake: {
     sets: [
@@ -348,7 +348,7 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0x8ac040, glow: true, alpha: 0.3, rate: 0.22 },
-    pattern: { kind: 'rings', color: 0xa0d04a, scale: 12, amount: 0.14, glow: 0.12, patchy: 0.8 },
+    pattern: { kind: 'cells', color: 0xd8d2b0, scale: 3.2, amount: 0.3, patchy: 0.7 },
   },
 };
 
