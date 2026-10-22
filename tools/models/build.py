@@ -4,7 +4,8 @@
     blender -b --factory-startup -P tools/models/build.py -- --only props_a --preview /tmp/a.png [--kind tree_fern] [--top]
     blender -b --factory-startup -P tools/models/build.py              (everything)
 
-Each module (props_a.py, props_b.py, creatures.py, enemies.py, ships.py, bosses.py) has a
+Each module (props_a.py, props_b.py, creatures.py, enemies.py, ships.py, bosses.py, and a
+set_<planet>.py per planet for its set pieces) has a
 `build()` that makes templates: root objects (kit.group or a Model's build()) carrying a custom
 property `kind=<name>` (and `variant=<n>` when a kind has several looks). The runtime clones a
 template wherever it wants one, so where the roots stand doesn't matter; for previews they're
@@ -36,7 +37,9 @@ from mathutils import Vector  # noqa: E402
 
 OUT = HERE.parent.parent / "public" / "models"
 META = HERE.parent.parent / "src" / "generated"
-MODULES = ["props_a", "props_b", "creatures", "enemies", "ships", "bosses"]
+PLANETS = ["orutal", "halcyon", "kessra", "mirefall", "glacis", "ashgrave", "vesh", "cinder"]
+# set pieces, a module a planet: set_<planet>.py
+MODULES = ["props_a", "props_b", "creatures", "enemies", "ships", "bosses", *(f"set_{p}" for p in PLANETS)]
 
 
 def args():

@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import type { Enemy, Level, LevelEvent, Player } from '../sim/level';
-import { FLIGHT_Y, HALF_H, HALF_W, TILT, fromFlight } from '../sim/types';
+import { FLIGHT_Y, HALF_H, HALF_W, TILT, fromFlight, toFlight } from '../sim/types';
 import { WorldView } from './world-view';
+import { NearLayer, PUFF } from './near';
+import { xray } from './xray';
+import { HazardView } from './hazard-view';
 import { Fx } from './fx';
 import { Life } from './life';
 import { Threats } from './threats';
@@ -112,6 +115,8 @@ export class LevelView {
   halfW = HALF_W;
   halfH = FIELD_H / 2;
   readonly world: WorldView;
+  /** High things drifting past the screen's edges, faster than the land. */
+  private near: NearLayer;
   readonly fx = new Fx();
   private life: Life;
   private sun = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -119,7 +124,8 @@ export class LevelView {
   private ships: (ShipModel | null)[] = [];
   private enemies = new Map<number, EnemyView>();
   private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null; beacon?: THREE.Group }>();
-  private hazards = new Map<object, THREE.Group>();
+  /** Geysers, rockfalls, lightning… as each planet has them. */
+  private hazards: HazardView;
   private bullets = new BulletArt();
   private shotArt = new ShotArt();
   /** When each gun edge's name last popped. */
@@ -204,7 +210,18 @@ export class LevelView {
 
   constructor(readonly lv: Level) {
     this.world = new WorldView(lv.terrain);
-    this.scene.add(this.world.group, this.fx.group);
+    this.near = new NearLayer(lv.terrain);
+    this.hazards = new HazardView(lv, this.fx, {
+      bolt: (pts, col) => this.bolt(pts, col),
+      juice: (o) => {
+        if (o.trauma) this.trauma = Math.max(this.trauma, o.trauma);
+        if (o.flash && o.flash > this.flash) {
+          this.flash = o.flash;
+          this.flashColor.setHex(o.flashColor ?? 0xffffff);
+        }
+      },
+    });
+    this.scene.add(this.world.group, this.near.group, this.hazards.group, this.fx.group);
     this.life = new Life(this.scene, this.fx);
     this.shields = new Shields(this.fx);
     this.scene.add(this.shields.group);
@@ -231,6 +248,7 @@ export class LevelView {
     lv.players.forEach((p, i) => {
       const ship = new ShipModel(p.build, LIVERY[i]);
       ship.root.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
+      xray(ship.body, new THREE.Color(LIVERY[i][0]).lerp(WHITE, 0.35).getHex(), 0.65);
       this.scene.add(ship.root);
       this.ships.push(ship);
     });
@@ -1498,6 +1516,16 @@ export class LevelView {
     this.world.emit(this.fx, dt, lv.scroll - reach - 6, lv.scroll + reach + 6);
     this.lighting(dt);
     this.updateShips(dt);
+    // whatever is over a ship thins away round it, and round the foes nearest the ships
+    const see = weather.uSee.value;
+    let k = 0;
+    for (const p of lv.players) if (k < see.length && !p.down) see[k++].set(p.x, p.z, 5.5, 1);
+    const near = lv.enemies
+      .filter((e) => !e.dead && e.z > lv.top - 4)
+      .map((e) => ({ e, d: Math.min(...lv.players.map((p) => Math.hypot(p.x - e.x, p.z - e.z))) }))
+      .sort((a, b) => a.d - b.d);
+    for (const { e } of near) if (k < see.length) see[k++].set(e.x, toFlight(e.z, e.y), Math.max(3.5, e.r * 2.2), 0.85);
+    for (; k < see.length; k++) see[k].w = 0;
     this.updateEnemies(dt);
     this.updateWrecks(dt, scrollDz);
     this.convoy?.update(dt, scrollDz);
@@ -1515,9 +1543,10 @@ export class LevelView {
     this.traits.update(dt, scrollDz);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
-    this.updateHazards(dt);
+    this.hazards.update(dt);
     this.ambient(dt);
     this.updateClouds(dt);
+    this.near.update(dt, this.halfW, lv.top, lv.bottom, lv.players);
     this.life.update(dt, lv, this.halfW);
     for (let i = this.bolts.length - 1; i >= 0; i--) {
       const b = this.bolts[i];
@@ -1610,6 +1639,7 @@ export class LevelView {
     this.camera.position.set(target.x, target.y + Math.cos(TILT) * 120, target.z + Math.sin(TILT) * 120);
     this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
+    weather.uView.value.set(target.x, target.z);
     // the sun (and its shadows) follow the view
     this.sun.target.position.set(0, 0, lv.scroll);
     this.sun.position.set(-30, 60, lv.scroll + 25);
@@ -1907,6 +1937,7 @@ export class LevelView {
     });
     if (e.arch !== 'turret' && e.arch !== 'spindle' && e.arch !== 'technical' && e.arch !== 'gunboat') head = null;
     obj.traverse((o) => ((o as THREE.Mesh).isMesh ? (o.castShadow = true) : 0));
+    xray(obj, new THREE.Color(e.skin.colors[0]).lerp(FOE_XRAY, 0.5).getHex(), 0.55);
     this.scene.add(obj);
     let ring: THREE.Mesh | null = null;
     if (e.elite) {
@@ -2242,101 +2273,6 @@ export class LevelView {
     if (it?.affix) this.pop(`✦ ${AFFIXES[it.affix].name}`, x, z + (tier === 'legendary' ? 4 : 3.5), AFFIX_COLOR);
   }
 
-  private updateHazards(dt: number) {
-    const lv = this.lv;
-    const seen = new Set<object>();
-    for (const h of lv.hazards) {
-      seen.add(h);
-      let g = this.hazards.get(h);
-      if (!g) {
-        g = this.makeHazard(h.kind, h.r);
-        this.scene.add(g);
-        this.hazards.set(h, g);
-      }
-      const warn = h.t < h.warn;
-      const ground = h.kind === 'geyser' || h.kind === 'flare';
-      const gy = ground ? Math.max(lv.terrain.height(h.x, fromFlight(h.z, 0)), lv.terrain.water(fromFlight(h.z, 0))) : 0;
-      const z = ground ? fromFlight(h.z, gy) : h.z;
-      g.position.set(h.x, ground ? gy : FLIGHT_Y, z);
-      const [marker, body] = g.children;
-      if (h.kind === 'laser_gate') {
-        const on = lv.gateOn(h);
-        g.position.set(0, FLIGHT_Y, h.z);
-        body.visible = on;
-        marker.visible = !on && Math.floor(this.time * 12) % 2 === 0;
-        continue;
-      }
-      if (h.kind === 'spore_cloud') {
-        g.rotation.y += dt * 0.5;
-        g.scale.setScalar(h.t < h.warn ? h.t / h.warn : 1);
-        continue;
-      }
-      marker.visible = warn ? Math.floor(this.time * (6 + (h.t / h.warn) * 20)) % 2 === 0 : false;
-      body.visible = !warn;
-      if (h.kind === 'falling_rocks') {
-        // falls from above, shadow first
-        const f = clamp(h.t / h.warn, 0, 1);
-        marker.visible = true;
-        marker.scale.setScalar(0.4 + f * 0.6);
-        body.visible = true;
-        body.position.y = (1 - f) * 30;
-        body.rotation.x += dt * 5;
-        if (!warn && h.t - h.warn < dt * 1.5) {
-          this.fx.explode(h.x, FLIGHT_Y, h.z, 1, 0xb0a090);
-          this.trauma = Math.max(this.trauma, 0.3);
-          audio.play('crash', { pan: h.x / HALF_W, vol: 0.6 });
-        }
-      } else if (h.kind === 'lightning') {
-        if (!warn && h.t - h.warn < dt * 1.5) {
-          this.flash = Math.max(this.flash, 0.7);
-          this.flashColor.set(0xd0e0ff);
-          this.trauma = Math.max(this.trauma, 0.4);
-          audio.play('lightning', { pan: h.x / HALF_W });
-          this.bolt([h.x + (Math.random() - 0.5) * 6, h.z - 30, h.x, h.z], 0xd0e0ff);
-        }
-      } else if (!warn) {
-        body.scale.set(1, 1 + Math.sin(this.time * 30) * 0.08, 1);
-        if (Math.random() < 0.8) {
-          const fire = h.kind === 'flare' || lv.terrain.biome(h.z).waterGlow;
-          this.fx.add({ x: h.x + (Math.random() - 0.5) * h.r, y: gy + Math.random() * 14, z, vy: 12, size: 1, grow: 2.2, life: 0.5, color: new THREE.Color(fire ? 0xffd080 : 0xf0f4ff), to: new THREE.Color(fire ? 0x8a2a1a : 0x9aa8b8) });
-        }
-      }
-    }
-    for (const [h, g] of this.hazards)
-      if (!seen.has(h)) {
-        this.scene.remove(g);
-        this.hazards.delete(h);
-      }
-  }
-
-  private makeHazard(kind: string, r: number) {
-    const g = new THREE.Group();
-    const warnMat = flat(kind === 'lightning' ? 0xd0e0ff : kind === 'laser_gate' ? 0xff4a4a : 0xffd04a, { opacity: 0.7 });
-    if (kind === 'laser_gate') {
-      const marker = part(GEO.box, warnMat, [0, 0.8, 0], [HALF_W * 2, 0.1, 0.15]);
-      const beam = part(GEO.box, flat(0xff4a5a), [0, 0.8, 0], [HALF_W * 2, 0.3, 0.6]);
-      g.add(marker, beam);
-      for (const s of [-1, 1]) g.add(part(GEO.cyl6, toon(0x4a4a5a), [s * (HALF_W - 0.5), -6, 0], [1.2, 16, 1.2]), part(GEO.sphere, toon(0xff4a4a, { glow: 1 }), [s * (HALF_W - 0.5), 1.6, 0], 1));
-      return g;
-    }
-    if (kind === 'spore_cloud') {
-      g.add(new THREE.Group(), new THREE.Group());
-      for (let i = 0; i < 9; i++) {
-        const a = (i / 9) * Math.PI * 2;
-        const d = i === 0 ? 0 : r * 0.55;
-        g.add(part(GEO.sphere, toon(0x8aff8a, { glow: 0.3, opacity: 0.55 }), [Math.cos(a) * d, (Math.random() - 0.5) * 2, Math.sin(a) * d], r * (0.6 + Math.random() * 0.4)));
-      }
-      return g;
-    }
-    const marker = part(new THREE.RingGeometry(r * 0.7, r, 12), warnMat, [0, 0.2, 0], 1, [-Math.PI / 2, 0, 0]);
-    let body: THREE.Object3D;
-    if (kind === 'falling_rocks') body = part(GEO.dodeca, toon(0x8a7a6a), [0, 30, 0], r * 1.3);
-    else if (kind === 'lightning') body = new THREE.Group();
-    else body = part(GEO.cyl6, flat(kind === 'flare' ? 0xffb040 : 0xe8f0ff, { opacity: 0.85 }), [0, 9, 0], [r * 1.6, 18, r * 1.6]);
-    g.add(marker, body);
-    return g;
-  }
-
   /** The air of the place: ash, embers, spores, snow, rain… drifting through the view. */
   private ambient(dt: number) {
     const lv = this.lv;
@@ -2420,6 +2356,8 @@ export class LevelView {
 
   dispose() {
     this.world.dispose();
+    this.near.dispose();
+    this.hazards.dispose();
     this.life.dispose();
     this.shields.dispose();
     this.fx.clear();
@@ -2493,24 +2431,6 @@ const RAIN = new THREE.Color(0x9ab8e8);
 const STEAM = new THREE.Color(0xf8f0f4);
 const HOT = new THREE.Color(2, 2, 2);
 
-/** A soft round puff, lighter on top: one texture for every cloud. */
-const PUFF = (() => {
-  const n = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = n;
-  const ctx = c.getContext('2d')!;
-  for (const [x, y, r, a] of [[32, 34, 26, 1], [22, 36, 16, 0.8], [42, 35, 16, 0.8], [32, 26, 18, 0.9]] as const) {
-    const g = ctx.createRadialGradient(x, y - r * 0.3, 0, x, y, r);
-    g.addColorStop(0, `rgba(255,255,255,${a})`);
-    g.addColorStop(0.55, `rgba(236,236,244,${a * 0.75})`);
-    g.addColorStop(1, 'rgba(200,204,222,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, n, n);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-})();
 const cloudMats = new Map<string, THREE.SpriteMaterial>();
 function cloudMaterial(col: THREE.Color, opacity: number) {
   const key = `${col.getHexString()}:${opacity.toFixed(1)}`;
@@ -2525,6 +2445,9 @@ function cloudMaterial(col: THREE.Color, opacity: number) {
 
 export type { Player };
 const SCORCH = new THREE.Color(0x2e2620);
+const WHITE = new THREE.Color(0xffffff);
+/** What a foe under something shows as: its colour, gone hot. */
+const FOE_XRAY = new THREE.Color(0xff4a3a);
 const BITE = new THREE.Color(0xffb060);
 const FIRE_PETAL = new THREE.Color(0xffd880);
 const FIRE_DARK = new THREE.Color(0xb02a10);

@@ -445,6 +445,8 @@ export const STREAK = (() => {
 })();
 
 export function instanced(geo: THREE.BufferGeometry, mat: THREE.Material, max: number, order: number) {
+  // shots are never lost under a bridge or a crown of leaves: whatever's over them, they show
+  mat.depthTest = false;
   const m = new THREE.InstancedMesh(geo, mat, max);
   m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);

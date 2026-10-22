@@ -6,6 +6,7 @@
  */
 
 import type { Biome, TerrainShape } from '../world/planets';
+import { lookOf, type SetRole } from '../world/looks';
 import { FLIGHT_Y, HALF_W } from './types';
 import { fbm, noise2, ridged, rng, smooth, smoothstep, weighted, clamp, lerp, type Rng } from '../util';
 import { metaOf, variants, height as metaHeight } from './meta';
@@ -39,6 +40,8 @@ export interface Placed {
   cols: { x: number; z: number; r: number }[];
   /** Index of the biome it belongs to. */
   biome: number;
+  /** A set piece (see world/looks.ts): placed as built, never leant or tinted. */
+  role?: SetRole;
 }
 
 export interface Wildlife {
@@ -68,6 +71,9 @@ export interface Chunk {
   wildlife: Wildlife[];
 }
 
+/** Set pieces come one to a slot of this many chunks at most, so two never crowd each other. */
+const SET_SLOT = 4;
+
 /** How often a chunk has a landmark, and how wide one grows to (world units, about). */
 const LANDMARK_CHANCE = 0.32;
 const LANDMARK_SIZE = 26;
@@ -76,17 +82,17 @@ const LANDMARK_SIZE = 26;
  * own scenery, blown up.
  */
 const LANDMARKS: Record<string, [string, number][]> = {
-  fernwood: [['statue_head', 2], ['giant_fern', 2], ['skeleton_ribs', 1], ['ziggurat', 1]],
+  fernwood: [['statue_head', 2], ['giant_fern', 2], ['ziggurat', 1]],
   basalt: [['basalt_columns', 3], ['lava_vent', 2], ['obsidian_rock', 1]],
   prism: [['crystal_cluster', 3], ['glass_shard', 1]],
   jade: [['wreck_hull', 2], ['statue_head', 1], ['tide_rock', 2]],
   kelp: [['wreck_hull', 2], ['coral_brain', 1], ['skull_isle', 1]],
   stiltport: [['wreck_hull', 2], ['container_stack', 1]],
-  arkbones: [['skeleton_ribs', 3], ['skull_isle', 1], ['wreck_hull', 1]],
+  arkbones: [['wreck_hull', 3], ['skull_isle', 1]],
   stormwall: [['wreck_hull', 2], ['tide_rock', 2]],
-  saltpans: [['skeleton_ribs', 2], ['salt_pillar', 2], ['nomad_tent', 1]],
-  mesarun: [['boulder', 2], ['skeleton_ribs', 1]],
-  monoliths: [['statue_head', 2], ['ziggurat', 2], ['skeleton_ribs', 1]],
+  saltpans: [['salt_pillar', 2], ['nomad_tent', 1]],
+  mesarun: [['boulder', 2]],
+  monoliths: [['statue_head', 2], ['ziggurat', 2]],
   oasis: [['nomad_tent', 2], ['ziggurat', 1], ['statue_head', 1]],
   glowcap: [['glowcap', 3], ['fungus_coral', 2]],
   peat: [['fungus_coral', 2], ['dead_tree', 1], ['spore_vent', 1]],
@@ -94,14 +100,14 @@ const LANDMARKS: Record<string, [string, number][]> = {
   sporevents: [['spore_vent', 3], ['fungus_coral', 2]],
   shelf: [['ice_block', 3], ['snow_rock', 2], ['mech_wreck', 1]],
   springs: [['steam_vent', 2], ['ice_block', 2]],
-  tundra: [['mech_wreck', 2], ['snow_rock', 2], ['skeleton_ribs', 1]],
+  tundra: [['mech_wreck', 2], ['snow_rock', 2]],
   enginecity: [['machine_dome', 3], ['mech_arm', 1]],
-  titans: [['mech_wreck', 3], ['mech_arm', 2], ['skeleton_ribs', 1]],
+  titans: [['mech_wreck', 3], ['mech_arm', 2]],
   glass: [['glass_shard', 3], ['mech_wreck', 1]],
   scavcamp: [['scrap_pile', 3], ['mech_wreck', 2], ['scav_tent', 1]],
   whitewood: [['mech_wreck', 1], ['white_tree', 2], ['statue_head', 1]],
   coralflats: [['coral_brain', 3], ['coral_fan', 2], ['wreck_hull', 1]],
-  whalelagoon: [['skull_isle', 1], ['skeleton_ribs', 2], ['coral_brain', 2]],
+  whalelagoon: [['coral_brain', 2], ['tide_rock', 1]],
   bonearch: [['skeleton_ribs', 3], ['skull_isle', 1]],
   tidecaves: [['coral_brain', 2], ['tide_rock', 2]],
   orchards: [['greenhouse', 2], ['silo', 1], ['copper_tree', 2]],
@@ -114,11 +120,20 @@ const LANDMARKS: Record<string, [string, number][]> = {
 const WATERBORNE = new Set([
   'kelp_tower', 'glow_bulb', 'buoy', 'lily_pad', 'sea_stack', 'wreck_hull', 'wreck_mast', 'stilt_house',
   'tide_rock', 'mangrove', 'giant_rib', 'skull_isle', 'reed_clump', 'container_stack', 'crane', 'neon_sign',
+  'halcyon_lantern_kelp', 'halcyon_sampan',
 ]);
 const SWIMMERS = new Set(['plesiosaur', 'jellyfish']);
 const FLYERS = new Set(['pterosaur_flock', 'sky_whale', 'moth_swarm', 'jellyfish']);
 /** Known obstacles, for when the models haven't been measured yet. */
 const TALL = new Set(['crystal_spire', 'sea_stack', 'crane', 'mesa', 'arch', 'monolith', 'glowcap_tall', 'ice_spire', 'alien_pylon', 'giant_rib', 'smokestack']);
+
+/** The weighted pick at u (0..1): like weighted(), but from a number in hand (a patch's noise). */
+function weightedAt<T>(u: number, xs: readonly (readonly [T, number])[]): readonly [T, number] {
+  const total = xs.reduce((a, x) => a + x[1], 0);
+  let k = clamp(u, 0, 0.999) * total;
+  for (const x of xs) if ((k -= x[1]) < 0) return x;
+  return xs[xs.length - 1];
+}
 
 export function isObstacle(kind: string) {
   const m = metaOf(kind);
@@ -416,7 +431,14 @@ export class Terrain {
     // a landmark now and then: something big for the place, under the flight line, with room round it
     const scenery = biome.props.filter(([k]) => !isObstacle(k));
     const marks: { x: number; z: number; r: number }[] = [];
-    if (!start && r() < LANDMARK_CHANCE) {
+    // a set piece: this chunk's, or a gate's next door (whose columns stand in for this one's obstacles)
+    const set = start ? null : this.setPiece(index, bi, zNear);
+    const crowded = !!set || this.setRole(index - 1) === 'gate' || this.setRole(index + 1) === 'gate';
+    if (set) {
+      props.push(set.p);
+      if (set.p.role !== 'span') marks.push({ x: set.p.x, z: set.p.z, r: set.foot });
+    }
+    if (!start && !set && r() < LANDMARK_CHANCE) {
       const p = this.landmark(biome, zNear, r, bi);
       if (p) {
         props.push(p);
@@ -436,8 +458,9 @@ export class Terrain {
       const thick = fbm(x * 0.028, z * 0.028, s0 + 21);
       if (r() > clamp((thick - 0.3) * 3.2, 0.1, 1)) continue;
       if (inMark(x, z, 1)) continue;
-      // the patch's own kind, or (less often) whatever grows here
-      const patch = scenery[Math.floor(noise2(x * 0.017, z * 0.017, s0 + 4) * scenery.length * 0.999)];
+      // the patch's own kind (as often as its weight says; the noise is about even over 0.15 … 0.85), or
+      // (less often) whatever grows here
+      const patch = weightedAt((noise2(x * 0.017, z * 0.017, s0 + 4) - 0.15) / 0.7, scenery);
       const kind = r() < 0.6 ? patch[0] : weighted(r, scenery);
       const p = this.place(kind, x, z, r, this.biomeIndex(z));
       if (!p) continue;
@@ -450,7 +473,7 @@ export class Terrain {
     // obstacles: rows across the field that always leave gaps to fly through, a few of them, so
     // there's more than one line to take (and the tight ones are quicker)
     const tall = biome.props.filter(([k]) => isObstacle(k));
-    if (tall.length && !start) {
+    if (tall.length && !start && !crowded) {
       const rows = r() < 0.6 ? 1 : 0;
       for (let row = 0; row < rows; row++) {
         const z = zNear - (row + 0.3 + r() * 0.4) * (CHUNK / rows);
@@ -514,6 +537,83 @@ export class Terrain {
   private grow(p: Placed, k: number) {
     const h = metaHeight(metaOf(p.kind, p.variant));
     p.s = Math.max(p.s, Math.min(p.s * k, (FLIGHT_Y - 1.5 - p.y) / Math.max(h, 0.3)));
+  }
+
+  /** Which chunk of its slot has the slot's set piece, if any (-1: none), and its roll. */
+  private setSlot(slot: number): { at: number; r: Rng } {
+    const r = rng(this.seed * 6007 + slot * 92821);
+    const at = slot * SET_SLOT + 1 + Math.floor(r() * (SET_SLOT - 2));
+    const bi = this.biomeIndex(-at * CHUNK - CHUNK / 2);
+    const look = lookOf(this.segments[bi].biome.id);
+    const odds = Math.min(0.9, (look.setChance ?? 0.18) * SET_SLOT);
+    return { at: look.sets.length && r() < odds ? at : -1, r };
+  }
+
+  /** The role of the set piece in chunk `index`, if it has one. */
+  private setRole(index: number): SetRole | null {
+    const { at, r } = this.setSlot(Math.floor(index / SET_SLOT));
+    if (at !== index || index < 3) return null;
+    return this.pickSet(this.biomeIndex(-index * CHUNK - CHUNK / 2), r)?.role ?? null;
+  }
+
+  private pickSet(bi: number, r: Rng) {
+    const b = this.segments[bi].biome;
+    let sets = lookOf(b.id).sets;
+    // (a canyon is gate enough)
+    if (b.shape === 'canyon') sets = sets.filter((s) => s.role !== 'gate');
+    if (!sets.length) return null;
+    return weighted(r, sets.map((s) => [s, s.w] as [typeof s, number]));
+  }
+
+  /**
+   * The chunk's set piece, if its slot gave it one. Spans go right across, roughly centred; a gate
+   * stands off to one side, half off the field, leaving the other side open; a giant lies
+   * anywhere, as big as it was built (shrunk only to pass under you).
+   */
+  private setPiece(index: number, bi: number, zNear: number): { p: Placed; foot: number } | null {
+    const { at, r } = this.setSlot(Math.floor(index / SET_SLOT));
+    if (at !== index || index < 3) return null;
+    const piece = this.pickSet(bi, r);
+    if (!piece) return null;
+    const vs = variants(piece.kind);
+    if (!vs.length) return null;
+    const variant = Math.floor(r() * vs.length);
+    const m = vs[variant];
+    const wide = m.max[0] - m.min[0];
+    const deep = m.max[2] - m.min[2];
+    const z = zNear - CHUNK * (0.35 + r() * 0.3);
+    const canyon = this.segments[bi].biome.shape === 'canyon';
+    let x = 0;
+    let rot = 0;
+    let s = 1;
+    if (piece.role === 'span') {
+      x = (canyon ? this.pathX(z) : 0) + (r() - 0.5) * 6;
+      rot = (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.08;
+    } else if (piece.role === 'gate') {
+      // its far edge a little past the field's, so the open side is the rest
+      const side = r() < 0.5 ? -1 : 1;
+      rot = side < 0 ? 0 : Math.PI;
+      // (its bounds' middle there, however far off its origin it was built)
+      x = side * (HALF_W + 5 - wide / 2) + (r() - 0.5) * 4 - ((m.min[0] + m.max[0]) / 2) * Math.cos(rot);
+    } else {
+      x = (r() - 0.5) * 44;
+      rot = r() * Math.PI * 2;
+    }
+    const ground = this.height(x, z);
+    const water = this.water(z);
+    let y = piece.role === 'giant' ? Math.max(ground, water) - 0.2 : 0;
+    if (piece.role === 'giant' && !m.colliders.length) {
+      // under the flight line, whatever the ground's doing
+      s = Math.min(1, (FLIGHT_Y - 1.5 - y) / Math.max(m.max[1], 0.3));
+      if (s < 0.5) return null;
+    }
+    const c = Math.cos(rot);
+    const sn = Math.sin(rot);
+    // a gate's columns hit a little inside what you see of them: threading one should feel tight, not cheat you
+    const give = piece.role === 'gate' ? 0.85 : 1;
+    const cols = m.colliders.map((k) => ({ x: x + (k.x * c + k.z * sn) * s, z: z + (-k.x * sn + k.z * c) * s, r: k.r * s * give }));
+    const p: Placed = { kind: piece.kind, variant, x, z, y, rot, s, obstacle: cols.length > 0, cols, biome: bi, role: piece.role };
+    return { p, foot: Math.max(wide, deep) * s * 0.5 };
   }
 
   /**

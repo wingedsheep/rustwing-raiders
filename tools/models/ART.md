@@ -63,3 +63,39 @@ Always render previews and **look at them** (Read the PNG) — from the game ang
 and iterate until each model reads clearly and looks lovely. Put preview PNGs in your scratchpad,
 not in the repo. Export at the end (no `--preview`) so `public/models/<module>.glb` is written.
 Only edit your own module file(s); kit.py and build.py are shared (ask before changing them).
+
+## Set pieces (`set_<planet>.py`)
+
+Each planet has its own module, `tools/models/set_<planet>.py` (exported to
+`public/models/set_<planet>.glb` and `src/generated/set_<planet>.json`), holding the things that
+make its levels feel enormous. Kinds are prefixed with the planet (`orutal_fig_bridge`). They're
+wired up per biome in `src/world/looks.ts`: which set pieces a biome has (with a role), the haze
+that drifts by high over it, and the pattern painted into its ground. A root needs nothing but `kind` and `variant`.
+
+**Roles** (the runtime places them; build each around the origin):
+
+- **span**: reaches right across the field *above* the flight line. The field is x = −36 … 36 and
+  a wide screen shows about ±44, so build spans 80–100 wide with legs out at |x| ≈ 38–46 (outside
+  the field), or one variant with an extra leg in the middle (then it's an obstacle to slip past).
+  The underside of the deck must be at **13 or higher** everywhere over the field (ships are
+  ~1 tall at y 10); the top can go to 22. The runtime stretches spans ×1.6 upwards (gates ×1.35)
+  so a deck stands well clear of a ship, and draws whatever is over the flight line with depth:
+  the higher, the bigger and the faster it slides by. Deck depth (along y) 3–14: a bridge, a fallen trunk, a
+  pipe rack, a rib, a crane boom, a frond canopy. Legs go down to z = −3 (the ground dips; water
+  stands up to 2.5). One `collider` per leg (radius = the leg's). The deck stays solid over a
+  ship (the ship shows through as a silhouette), and its shadow falls over it: so make the deck's
+  top *and* underside's silhouette interesting, with gaps, holes, hanging bits (above 12.5).
+- **gate**: a cluster of 2–5 columns taller than the flight line (tops 15–28) with **narrow gaps**
+  between them (6–9 units: a ship is ~3 wide), 26–44 wide overall. The runtime stands it with its
+  outer end a little past one side of the field, so the other side stays open: threading the gaps
+  is the brave line (skimming close builds Burn). Colliders on every column (radius ≈ the
+  column's at flight height, 10). Things can join columns *above* 13 (a lintel, a web, a
+  hanging vine) to fly under.
+- **giant**: something enormous lying below the flight line, 30–70 across: a carcass, a hull, a
+  felled statue, a machine. Top under **8.5** except for any part that reaches up past the flight
+  line, which needs colliders (one raised arm, a mast). The runtime turns it any way, so it must
+  read from every angle; detail on top is what's seen.
+
+**Ground patterns** are set in `looks.ts` (no models): `cells`, `cracks`, `veins`, `tiles`,
+`ripples`, `rings`, `streaks`, `plates`, with a colour, a scale, a strength, an optional glow,
+`patchy` and `below` (a height it keeps under).

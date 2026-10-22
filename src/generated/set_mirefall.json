@@ -1,0 +1,835 @@
+{
+ "mirefall_bog_beast#0": {
+  "colliders": [],
+  "kind": "mirefall_bog_beast",
+  "max": [
+   25.023,
+   8.428,
+   14.882
+  ],
+  "min": [
+   -20.078,
+   -16.5,
+   -14.882
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_bog_beast#1": {
+  "colliders": [],
+  "kind": "mirefall_bog_beast",
+  "max": [
+   27.61,
+   8.35,
+   14.134
+  ],
+  "min": [
+   -3.506,
+   -6.875,
+   -13.344
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_bog_lantern#0": {
+  "colliders": [],
+  "kind": "mirefall_bog_lantern",
+  "max": [
+   2.653,
+   3.432,
+   2.625
+  ],
+  "min": [
+   -2.63,
+   -0.629,
+   -2.852
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_bog_lantern#1": {
+  "colliders": [],
+  "kind": "mirefall_bog_lantern",
+  "max": [
+   3.183,
+   3.524,
+   3.039
+  ],
+  "min": [
+   -3.292,
+   -0.728,
+   -3.653
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_bog_lantern#2": {
+  "colliders": [],
+  "kind": "mirefall_bog_lantern",
+  "max": [
+   2.234,
+   2.958,
+   2.917
+  ],
+  "min": [
+   -3.083,
+   -0.644,
+   -2.753
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_cap_gate#0": {
+  "colliders": [
+   {
+    "r": 1.725,
+    "x": -16.0,
+    "z": -0.5
+   },
+   {
+    "r": 1.725,
+    "x": -6.0,
+    "z": 0.8
+   },
+   {
+    "r": 1.725,
+    "x": 4.0,
+    "z": -0.6
+   },
+   {
+    "r": 1.725,
+    "x": 14.0,
+    "z": 0.4
+   }
+  ],
+  "kind": "mirefall_cap_gate",
+  "max": [
+   20.29,
+   27.97,
+   8.15
+  ],
+  "min": [
+   -22.233,
+   -1.112,
+   -6.87
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_cap_gate#1": {
+  "colliders": [
+   {
+    "r": 2.09,
+    "x": -14.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.31,
+    "x": -3.0,
+    "z": -0.8
+   },
+   {
+    "r": 1.98,
+    "x": 8.5,
+    "z": 0.6
+   }
+  ],
+  "kind": "mirefall_cap_gate",
+  "max": [
+   12.156,
+   25.612,
+   4.126
+  ],
+  "min": [
+   -17.081,
+   -1.015,
+   -7.3
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_causeway#0": {
+  "colliders": [
+   {
+    "r": 3.3,
+    "x": -41.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.3,
+    "x": 41.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_causeway",
+  "max": [
+   47.0,
+   21.7,
+   5.18
+  ],
+  "min": [
+   -47.0,
+   -3.0,
+   -5.18
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_causeway#1": {
+  "colliders": [
+   {
+    "r": 3.3,
+    "x": -41.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.3,
+    "x": 41.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.75,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_causeway",
+  "max": [
+   47.0,
+   21.7,
+   5.18
+  ],
+  "min": [
+   -47.0,
+   -3.0,
+   -5.18
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_drowned_roots#0": {
+  "colliders": [
+   {
+    "r": 3.2,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.2,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_drowned_roots",
+  "max": [
+   48.612,
+   20.989,
+   6.383
+  ],
+  "min": [
+   -48.671,
+   -3.234,
+   -6.357
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_drowned_roots#1": {
+  "colliders": [
+   {
+    "r": 3.0,
+    "x": -40.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.0,
+    "x": 40.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_drowned_roots",
+  "max": [
+   46.5,
+   20.439,
+   5.916
+  ],
+  "min": [
+   -46.214,
+   -3.0,
+   -5.916
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_fallen_stalk#0": {
+  "colliders": [
+   {
+    "r": 5.0,
+    "x": -43.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.5,
+    "x": 44.5,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_fallen_stalk",
+  "max": [
+   49.677,
+   20.753,
+   9.0
+  ],
+  "min": [
+   -51.079,
+   -1.614,
+   -9.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_fallen_stalk#1": {
+  "colliders": [
+   {
+    "r": 5.0,
+    "x": -43.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.5,
+    "x": 44.5,
+    "z": -0.0
+   },
+   {
+    "r": 1.61,
+    "x": 0.0,
+    "z": 0.6
+   }
+  ],
+  "kind": "mirefall_fallen_stalk",
+  "max": [
+   49.677,
+   20.603,
+   9.0
+  ],
+  "min": [
+   -51.079,
+   -1.614,
+   -9.0
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_fungal_arch#0": {
+  "colliders": [
+   {
+    "r": 4.0,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.0,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_fungal_arch",
+  "max": [
+   48.4,
+   22.002,
+   5.794
+  ],
+  "min": [
+   -48.4,
+   -3.297,
+   -5.896
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_fungal_arch#1": {
+  "colliders": [
+   {
+    "r": 4.0,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.0,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_fungal_arch",
+  "max": [
+   48.4,
+   19.554,
+   5.945
+  ],
+  "min": [
+   -48.4,
+   -2.913,
+   -5.853
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_hummock#0": {
+  "colliders": [],
+  "kind": "mirefall_hummock",
+  "max": [
+   2.514,
+   2.575,
+   2.542
+  ],
+  "min": [
+   -2.908,
+   -0.432,
+   -2.981
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_hummock#1": {
+  "colliders": [],
+  "kind": "mirefall_hummock",
+  "max": [
+   3.109,
+   2.312,
+   2.846
+  ],
+  "min": [
+   -3.609,
+   -0.324,
+   -4.316
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_hummock#2": {
+  "colliders": [],
+  "kind": "mirefall_hummock",
+  "max": [
+   2.435,
+   2.764,
+   4.214
+  ],
+  "min": [
+   -6.209,
+   -0.504,
+   -4.65
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_idol#0": {
+  "colliders": [],
+  "kind": "mirefall_idol",
+  "max": [
+   1.984,
+   3.8,
+   2.075
+  ],
+  "min": [
+   -2.197,
+   -0.3,
+   -2.031
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_idol#1": {
+  "colliders": [],
+  "kind": "mirefall_idol",
+  "max": [
+   2.775,
+   2.85,
+   2.706
+  ],
+  "min": [
+   -3.256,
+   -0.64,
+   -3.247
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_inkcap#0": {
+  "colliders": [],
+  "kind": "mirefall_inkcap",
+  "max": [
+   3.931,
+   5.5,
+   3.311
+  ],
+  "min": [
+   -2.409,
+   -0.011,
+   -3.339
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_inkcap#1": {
+  "colliders": [],
+  "kind": "mirefall_inkcap",
+  "max": [
+   2.745,
+   5.5,
+   3.523
+  ],
+  "min": [
+   -3.256,
+   -0.014,
+   -3.283
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_inkcap#2": {
+  "colliders": [],
+  "kind": "mirefall_inkcap",
+  "max": [
+   2.404,
+   6.029,
+   1.761
+  ],
+  "min": [
+   -2.73,
+   -0.009,
+   -1.97
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_pillar_gate#0": {
+  "colliders": [
+   {
+    "r": 1.55,
+    "x": -15.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.55,
+    "x": -5.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.55,
+    "x": 5.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.55,
+    "x": 15.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_pillar_gate",
+  "max": [
+   17.926,
+   24.82,
+   2.467
+  ],
+  "min": [
+   -18.443,
+   -0.3,
+   -4.131
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_pillar_gate#1": {
+  "colliders": [
+   {
+    "r": 1.75,
+    "x": -13.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.75,
+    "x": -1.5,
+    "z": -0.0
+   },
+   {
+    "r": 1.75,
+    "x": 10.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_pillar_gate",
+  "max": [
+   12.956,
+   26.0,
+   3.737
+  ],
+  "min": [
+   -15.913,
+   -0.3,
+   -3.695
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_puffball#0": {
+  "colliders": [],
+  "kind": "mirefall_puffball",
+  "max": [
+   2.266,
+   2.988,
+   2.212
+  ],
+  "min": [
+   -2.122,
+   -0.149,
+   -2.083
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_puffball#1": {
+  "colliders": [],
+  "kind": "mirefall_puffball",
+  "max": [
+   2.78,
+   2.293,
+   3.344
+  ],
+  "min": [
+   -3.641,
+   -0.112,
+   -2.986
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_puffball#2": {
+  "colliders": [],
+  "kind": "mirefall_puffball",
+  "max": [
+   2.81,
+   4.255,
+   3.081
+  ],
+  "min": [
+   -2.971,
+   -0.203,
+   -2.711
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_rubble#0": {
+  "colliders": [],
+  "kind": "mirefall_rubble",
+  "max": [
+   3.894,
+   1.542,
+   3.576
+  ],
+  "min": [
+   -3.975,
+   -0.505,
+   -4.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_rubble#1": {
+  "colliders": [],
+  "kind": "mirefall_rubble",
+  "max": [
+   3.109,
+   2.5,
+   3.645
+  ],
+  "min": [
+   -3.583,
+   -0.5,
+   -3.156
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_rubble#2": {
+  "colliders": [],
+  "kind": "mirefall_rubble",
+  "max": [
+   3.941,
+   2.5,
+   3.398
+  ],
+  "min": [
+   -3.51,
+   -0.632,
+   -6.865
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_spore_chimney#0": {
+  "colliders": [
+   {
+    "r": 1.65,
+    "x": -15.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.87,
+    "x": -5.0,
+    "z": -0.6
+   },
+   {
+    "r": 1.54,
+    "x": 5.0,
+    "z": 0.5
+   },
+   {
+    "r": 1.76,
+    "x": 15.0,
+    "z": -0.4
+   }
+  ],
+  "kind": "mirefall_spore_chimney",
+  "max": [
+   17.88,
+   24.01,
+   4.591
+  ],
+  "min": [
+   -19.887,
+   -1.019,
+   -3.66
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_spore_chimney#1": {
+  "colliders": [
+   {
+    "r": 2.2,
+    "x": -12.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.65,
+    "x": 0.0,
+    "z": -0.6
+   },
+   {
+    "r": 1.98,
+    "x": 11.5,
+    "z": 0.4
+   }
+  ],
+  "kind": "mirefall_spore_chimney",
+  "max": [
+   16.125,
+   25.1,
+   4.326
+  ],
+  "min": [
+   -15.6,
+   -1.022,
+   -4.392
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_spore_tube#0": {
+  "colliders": [],
+  "kind": "mirefall_spore_tube",
+  "max": [
+   1.852,
+   4.346,
+   1.885
+  ],
+  "min": [
+   -1.849,
+   -0.241,
+   -1.994
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_spore_tube#1": {
+  "colliders": [],
+  "kind": "mirefall_spore_tube",
+  "max": [
+   2.805,
+   4.408,
+   2.925
+  ],
+  "min": [
+   -2.896,
+   -0.266,
+   -2.745
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_spore_tube#2": {
+  "colliders": [],
+  "kind": "mirefall_spore_tube",
+  "max": [
+   1.929,
+   5.151,
+   1.85
+  ],
+  "min": [
+   -2.119,
+   -0.237,
+   -1.761
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_vent_crater#0": {
+  "colliders": [],
+  "kind": "mirefall_vent_crater",
+  "max": [
+   21.579,
+   6.44,
+   17.498
+  ],
+  "min": [
+   -22.704,
+   -1.804,
+   -18.502
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_ziggurat_ruin#0": {
+  "colliders": [],
+  "kind": "mirefall_ziggurat_ruin",
+  "max": [
+   29.568,
+   8.399,
+   22.138
+  ],
+  "min": [
+   -21.434,
+   -2.099,
+   -22.152
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_ziggurat_ruin#1": {
+  "colliders": [],
+  "kind": "mirefall_ziggurat_ruin",
+  "max": [
+   27.952,
+   7.5,
+   27.952
+  ],
+  "min": [
+   -27.952,
+   -2.6,
+   -27.952
+  ],
+  "mounts": [],
+  "variant": 1
+ }
+}

@@ -2,6 +2,23 @@ import * as THREE from 'three';
 
 /** How many ships can blow on the land at once. */
 export const WASH = 6;
+/** How many things can be seen through what's over them (see uSee): the ships, then the nearest foes. */
+export const SEE = 12;
+
+/**
+ * The camera is orthographic: a thing high up would look no bigger, and slide by no faster, than
+ * the land. So whatever stands over the flight line is drawn as a camera this far above the flight
+ * plane would see it: the higher, the bigger and the further out from the middle of the screen,
+ * sliding by faster. At the flight line and below, nothing moves, so what you hit is where it shows.
+ */
+export const DEPTH = 60;
+
+/** How much bigger (and further out from the middle) a thing at height `y` shows. */
+export function depthScale(y: number) {
+  const d = y - 10;
+  const e = d <= -2 ? 0 : d < 2 ? ((d + 2) * (d + 2)) / 8 : d;
+  return DEPTH / (DEPTH - Math.min(e, DEPTH * 0.6));
+}
 
 /**
  * What makes a planet feel alive, shared by every shader that wants it: one clock, one wind (a
@@ -27,6 +44,14 @@ export const weather = {
    * and away, the water pushed down and whipped to foam. Strength 0 is a free slot.
    */
   uWash: { value: Array.from({ length: WASH }, () => new THREE.Vector4()) },
+  /**
+   * Where the ships are (x, z on the flight plane, radius, strength 0..1): anything over the flight
+   * line between them and the camera thins away there in a dither, so a ship under a bridge or a
+   * crown of rock is never lost. Strength 0 is a free slot.
+   */
+  uSee: { value: Array.from({ length: SEE }, () => new THREE.Vector4()) },
+  /** The middle of the screen on the flight plane (x, z), for the depth (see DEPTH). */
+  uView: { value: new THREE.Vector2() },
 };
 
 /** Steps the clock and the clouds along. */
@@ -68,6 +93,45 @@ const CLOUD_GLSL = /* glsl */ `
   }
 `;
 
+// (the flight line's height and the camera's lean, as in sim/types.ts)
+const SEE_GLSL = /* glsl */ `
+  uniform vec4 uSee[${SEE}];
+  // 0 … 1: how far to thin out a point over the flight line, for whatever is under it on screen
+  float seeThrough(vec3 w) {
+    if (w.y < 11.0) return 0.0;
+    // slid down the camera's line of sight onto the flight plane
+    float zf = w.z + (10.0 - w.y) * 0.57735;
+    float a = 0.0;
+    for (int i = 0; i < ${SEE}; i++) {
+      vec4 k = uSee[i];
+      if (k.w <= 0.0) continue;
+      float d = length(vec2(w.x - k.x, zf - k.y));
+      a = max(a, k.w * (1.0 - smoothstep(k.z * 0.45, k.z, d)));
+    }
+    return a * smoothstep(11.0, 12.5, w.y);
+  }
+  float bayer4(vec2 p) {
+    vec2 q = mod(floor(p), 4.0);
+    float i = q.x + q.y * 4.0;
+    // the 4×4 ordered-dither matrix, row by row
+    return (i < 1.0 ? 0.0 : i < 2.0 ? 8.0 : i < 3.0 ? 2.0 : i < 4.0 ? 10.0 : i < 5.0 ? 12.0 : i < 6.0 ? 4.0 : i < 7.0 ? 14.0 : i < 8.0 ? 6.0
+      : i < 9.0 ? 3.0 : i < 10.0 ? 11.0 : i < 11.0 ? 1.0 : i < 12.0 ? 9.0 : i < 13.0 ? 15.0 : i < 14.0 ? 7.0 : i < 15.0 ? 13.0 : 5.0) / 16.0 + 1.0 / 32.0;
+  }
+`;
+
+// (the flight line's height and the camera's lean, as in sim/types.ts; DEPTH as above)
+const DEPTH_GLSL = /* glsl */ `
+  uniform vec2 uView;
+  // where a world point over the flight line shows, as a camera DEPTH above the flight plane sees it
+  vec3 depthOff(vec3 w) {
+    float d = w.y - 10.0;
+    float e = d <= -2.0 ? 0.0 : d < 2.0 ? (d + 2.0) * (d + 2.0) / 8.0 : d;
+    float s = ${DEPTH.toFixed(1)} / (${DEPTH.toFixed(1)} - min(e, ${(DEPTH * 0.6).toFixed(1)})) - 1.0;
+    float zf = w.z + (10.0 - w.y) * 0.57735;
+    return vec3((w.x - uView.x) * s, 0.0, (zf - uView.y) * s);
+  }
+`;
+
 const SWAY_GLSL = /* glsl */ `
   uniform float uTime;
   uniform vec2 uWindDir;
@@ -96,18 +160,35 @@ const SWAY_GLSL = /* glsl */ `
   }
 `;
 
+/** Vertex: whatever's over the flight line pushed out as a camera would see it (see DEPTH). */
+const DEPTH_VERT = (on?: boolean) =>
+  on
+    ? /* glsl */ `
+  {
+    #ifdef USE_INSTANCING
+      mat4 dm = modelMatrix * instanceMatrix;
+    #else
+      mat4 dm = modelMatrix;
+    #endif
+    transformed += inverse(mat3(dm)) * depthOff((dm * vec4(transformed, 1.0)).xyz);
+  }`
+    : '';
+
 /**
  * Patches a lit material (toon) so it takes the cloud shadows and a little painterly grain, and,
  * with `sway`, bends in the wind by its `aSway` vertex attribute (0 at the root, ~1 at the tips).
+ * With `see`, it's something that stands over the flight line: drawn with depth (see DEPTH), and
+ * (unless `hole` is false) thinned away round whatever's under it on screen (see uSee).
  */
-export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean; grain?: number } = {}): T {
+export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean; grain?: number; see?: boolean; hole?: boolean } = {}): T {
   const grain = opts.grain ?? 0.07;
+  const hole = opts.see && opts.hole !== false;
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
     Object.assign(shader.uniforms, weather);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${opts.sway ? SWAY_GLSL : ''}`)
+      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${opts.sway ? SWAY_GLSL : ''}\n${opts.see ? DEPTH_GLSL : ''}`)
       .replace(
         '#include <project_vertex>',
         opts.sway
@@ -127,8 +208,10 @@ export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean
             #endif
             transformed += toObj * off;
           }
+          ${DEPTH_VERT(opts.see)}
           #include <project_vertex>`
-          : '#include <project_vertex>',
+          : `${DEPTH_VERT(opts.see)}
+          #include <project_vertex>`,
       )
       .replace(
         '#include <worldpos_vertex>',
@@ -140,10 +223,11 @@ export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean
         #endif`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${NOISE_GLSL}\n${CLOUD_GLSL}`)
+      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${NOISE_GLSL}\n${CLOUD_GLSL}\n${opts.see ? SEE_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         /* glsl */ `#include <color_fragment>
+        ${hole ? 'if (bayer4(gl_FragCoord.xy) < seeThrough(vAliveW) * 0.85) discard;' : ''}
         // brushwork: the colour wanders a little, in strokes longer one way than the other
         float stroke = aFbm(vAliveW.xz * vec2(0.9, 2.2) + vAliveW.y * 0.7) - 0.5;
         diffuseColor.rgb *= 1.0 + stroke * ${grain.toFixed(3)} * 2.0 * uGrain;`,
@@ -155,6 +239,6 @@ export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean
       );
   };
   const key = mat.customProgramCacheKey.bind(mat);
-  mat.customProgramCacheKey = () => `${key()}|alive${opts.sway ? 's' : ''}${grain}`;
+  mat.customProgramCacheKey = () => `${key()}|alive${opts.sway ? 's' : ''}${opts.see ? 'v' : ''}${hole ? 'h' : ''}${grain}`;
   return mat;
 }

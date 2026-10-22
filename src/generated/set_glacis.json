@@ -1,0 +1,754 @@
+{
+ "glacis_buried_engine#0": {
+  "colliders": [],
+  "kind": "glacis_buried_engine",
+  "max": [
+   25.274,
+   8.444,
+   10.089
+  ],
+  "min": [
+   -26.728,
+   -7.513,
+   -10.098
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_buried_engine#1": {
+  "colliders": [],
+  "kind": "glacis_buried_engine",
+  "max": [
+   22.5,
+   4.1,
+   21.8
+  ],
+  "min": [
+   -22.5,
+   -1.341,
+   -21.8
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_cable_car#0": {
+  "colliders": [
+   {
+    "r": 3.2,
+    "x": -43.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.2,
+    "x": 43.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_cable_car",
+  "max": [
+   46.049,
+   22.1,
+   3.6
+  ],
+  "min": [
+   -46.049,
+   -3.032,
+   -3.95
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_cable_car#1": {
+  "colliders": [
+   {
+    "r": 3.2,
+    "x": -43.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.2,
+    "x": 43.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_cable_car",
+  "max": [
+   46.049,
+   22.1,
+   3.6
+  ],
+  "min": [
+   -46.049,
+   -3.032,
+   -3.95
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_engine_vent#0": {
+  "colliders": [],
+  "kind": "glacis_engine_vent",
+  "max": [
+   2.859,
+   0.7,
+   3.02
+  ],
+  "min": [
+   -2.859,
+   -0.2,
+   -3.02
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_engine_vent#1": {
+  "colliders": [],
+  "kind": "glacis_engine_vent",
+  "max": [
+   2.684,
+   2.579,
+   2.811
+  ],
+  "min": [
+   -3.662,
+   -0.533,
+   -2.392
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_engine_vent#2": {
+  "colliders": [],
+  "kind": "glacis_engine_vent",
+  "max": [
+   3.488,
+   0.621,
+   3.429
+  ],
+  "min": [
+   -3.488,
+   -0.1,
+   -3.429
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "glacis_frost_reed#0": {
+  "colliders": [],
+  "kind": "glacis_frost_reed",
+  "max": [
+   1.614,
+   2.629,
+   1.614
+  ],
+  "min": [
+   -1.614,
+   -0.05,
+   -1.614
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_frost_reed#1": {
+  "colliders": [],
+  "kind": "glacis_frost_reed",
+  "max": [
+   2.345,
+   2.914,
+   2.345
+  ],
+  "min": [
+   -2.345,
+   -0.05,
+   -2.345
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_frost_reed#2": {
+  "colliders": [],
+  "kind": "glacis_frost_reed",
+  "max": [
+   2.818,
+   2.595,
+   2.818
+  ],
+  "min": [
+   -2.909,
+   -0.05,
+   -2.926
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "glacis_frost_teeth#0": {
+  "colliders": [
+   {
+    "r": 2.25,
+    "x": -21.06,
+    "z": 0.072
+   },
+   {
+    "r": 3.25,
+    "x": -7.704,
+    "z": -1.588
+   },
+   {
+    "r": 3.05,
+    "x": 5.277,
+    "z": 0.703
+   },
+   {
+    "r": 2.85,
+    "x": 17.915,
+    "z": -0.843
+   }
+  ],
+  "kind": "glacis_frost_teeth",
+  "max": [
+   23.373,
+   26.0,
+   8.182
+  ],
+  "min": [
+   -23.373,
+   -2.5,
+   -7.072
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_frost_teeth#1": {
+  "colliders": [
+   {
+    "r": 2.25,
+    "x": -21.218,
+    "z": -0.691
+   },
+   {
+    "r": 3.05,
+    "x": -8.117,
+    "z": 0.785
+   },
+   {
+    "r": 3.05,
+    "x": 4.824,
+    "z": -0.667
+   },
+   {
+    "r": 3.05,
+    "x": 18.377,
+    "z": 1.094
+   }
+  ],
+  "kind": "glacis_frost_teeth",
+  "max": [
+   23.502,
+   23.0,
+   8.728
+  ],
+  "min": [
+   -23.502,
+   -2.5,
+   -7.472
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_ice_arch#0": {
+  "colliders": [
+   {
+    "r": 5.0,
+    "x": -46.5,
+    "z": -0.0
+   },
+   {
+    "r": 5.0,
+    "x": 46.5,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_ice_arch",
+  "max": [
+   52.843,
+   22.7,
+   8.764
+  ],
+  "min": [
+   -53.199,
+   -8.199,
+   -8.561
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_ice_arch#1": {
+  "colliders": [
+   {
+    "r": 5.0,
+    "x": -46.5,
+    "z": -0.0
+   },
+   {
+    "r": 5.0,
+    "x": 46.5,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_ice_arch",
+  "max": [
+   52.259,
+   22.005,
+   9.897
+  ],
+  "min": [
+   -52.174,
+   -7.259,
+   -9.007
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_ice_bridge#0": {
+  "colliders": [
+   {
+    "r": 5.5,
+    "x": -44.0,
+    "z": -0.0
+   },
+   {
+    "r": 5.5,
+    "x": 44.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_ice_bridge",
+  "max": [
+   50.0,
+   22.856,
+   8.159
+  ],
+  "min": [
+   -50.0,
+   -3.0,
+   -6.975
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_ice_bridge#1": {
+  "colliders": [
+   {
+    "r": 5.5,
+    "x": -44.0,
+    "z": -0.0
+   },
+   {
+    "r": 5.5,
+    "x": 44.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "glacis_ice_bridge",
+  "max": [
+   50.0,
+   22.915,
+   7.453
+  ],
+  "min": [
+   -50.0,
+   -3.0,
+   -7.611
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_larch#0": {
+  "colliders": [],
+  "kind": "glacis_larch",
+  "max": [
+   2.046,
+   5.6,
+   2.117
+  ],
+  "min": [
+   -1.965,
+   -0.895,
+   -2.05
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_larch#1": {
+  "colliders": [],
+  "kind": "glacis_larch",
+  "max": [
+   2.139,
+   7.975,
+   2.301
+  ],
+  "min": [
+   -2.067,
+   -0.895,
+   -2.234
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_larch#2": {
+  "colliders": [],
+  "kind": "glacis_larch",
+  "max": [
+   2.17,
+   3.856,
+   2.029
+  ],
+  "min": [
+   -1.474,
+   -0.799,
+   -2.191
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "glacis_lichen_rock#0": {
+  "colliders": [],
+  "kind": "glacis_lichen_rock",
+  "max": [
+   1.713,
+   1.673,
+   2.01
+  ],
+  "min": [
+   -2.779,
+   -0.473,
+   -2.155
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_lichen_rock#1": {
+  "colliders": [],
+  "kind": "glacis_lichen_rock",
+  "max": [
+   3.228,
+   0.935,
+   1.604
+  ],
+  "min": [
+   -1.789,
+   -0.478,
+   -2.948
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_lichen_rock#2": {
+  "colliders": [],
+  "kind": "glacis_lichen_rock",
+  "max": [
+   3.986,
+   1.117,
+   3.1
+  ],
+  "min": [
+   -2.406,
+   -0.417,
+   -3.033
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "glacis_mammoth#0": {
+  "colliders": [],
+  "kind": "glacis_mammoth",
+  "max": [
+   19.545,
+   9.155,
+   14.279
+  ],
+  "min": [
+   -23.03,
+   -3.701,
+   -17.158
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_mammoth#1": {
+  "colliders": [],
+  "kind": "glacis_mammoth",
+  "max": [
+   21.756,
+   8.54,
+   15.461
+  ],
+  "min": [
+   -22.076,
+   -1.5,
+   -16.777
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_pipe_rack#0": {
+  "colliders": [
+   {
+    "r": 1.8,
+    "x": -42.0,
+    "z": 4.5
+   },
+   {
+    "r": 1.8,
+    "x": -42.0,
+    "z": -4.5
+   },
+   {
+    "r": 1.8,
+    "x": 42.0,
+    "z": 4.5
+   },
+   {
+    "r": 1.8,
+    "x": 42.0,
+    "z": -4.5
+   }
+  ],
+  "kind": "glacis_pipe_rack",
+  "max": [
+   44.364,
+   21.324,
+   5.8
+  ],
+  "min": [
+   -44.0,
+   -3.0,
+   -5.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_pipe_rack#1": {
+  "colliders": [
+   {
+    "r": 1.8,
+    "x": -42.0,
+    "z": 4.5
+   },
+   {
+    "r": 1.8,
+    "x": -42.0,
+    "z": -4.5
+   },
+   {
+    "r": 1.8,
+    "x": 42.0,
+    "z": 4.5
+   },
+   {
+    "r": 1.8,
+    "x": 42.0,
+    "z": -4.5
+   }
+  ],
+  "kind": "glacis_pipe_rack",
+  "max": [
+   46.259,
+   22.1,
+   5.8
+  ],
+  "min": [
+   -44.0,
+   -3.0,
+   -5.8
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_rimpool#0": {
+  "colliders": [],
+  "kind": "glacis_rimpool",
+  "max": [
+   4.107,
+   1.46,
+   4.331
+  ],
+  "min": [
+   -4.195,
+   -0.3,
+   -4.261
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_rimpool#1": {
+  "colliders": [],
+  "kind": "glacis_rimpool",
+  "max": [
+   4.276,
+   1.04,
+   2.651
+  ],
+  "min": [
+   -4.134,
+   -0.3,
+   -2.887
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_rimpool#2": {
+  "colliders": [],
+  "kind": "glacis_rimpool",
+  "max": [
+   2.316,
+   0.76,
+   2.492
+  ],
+  "min": [
+   -2.703,
+   -0.3,
+   -2.308
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "glacis_seracs#0": {
+  "colliders": [
+   {
+    "r": 2.25,
+    "x": -20.631,
+    "z": -0.553
+   },
+   {
+    "r": 3.05,
+    "x": -7.466,
+    "z": 1.328
+   },
+   {
+    "r": 3.25,
+    "x": 5.722,
+    "z": -1.136
+   },
+   {
+    "r": 2.85,
+    "x": 18.427,
+    "z": 0.626
+   }
+  ],
+  "kind": "glacis_seracs",
+  "max": [
+   22.875,
+   25.5,
+   6.181
+  ],
+  "min": [
+   -22.875,
+   -2.5,
+   -5.529
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_seracs#1": {
+  "colliders": [
+   {
+    "r": 2.25,
+    "x": -20.227,
+    "z": 0.034
+   },
+   {
+    "r": 3.05,
+    "x": -6.966,
+    "z": -0.951
+   },
+   {
+    "r": 3.25,
+    "x": 6.009,
+    "z": 0.909
+   },
+   {
+    "r": 2.65,
+    "x": 18.526,
+    "z": -1.825
+   }
+  ],
+  "kind": "glacis_seracs",
+  "max": [
+   22.585,
+   23.5,
+   5.211
+  ],
+  "min": [
+   -22.585,
+   -2.5,
+   -5.295
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_travertine#0": {
+  "colliders": [],
+  "kind": "glacis_travertine",
+  "max": [
+   24.615,
+   7.11,
+   15.791
+  ],
+  "min": [
+   -23.25,
+   -0.5,
+   -17.365
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_travertine#1": {
+  "colliders": [],
+  "kind": "glacis_travertine",
+  "max": [
+   24.755,
+   6.96,
+   16.972
+  ],
+  "min": [
+   -19.496,
+   -0.988,
+   -17.313
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "glacis_turbine#0": {
+  "colliders": [],
+  "kind": "glacis_turbine",
+  "max": [
+   21.753,
+   3.75,
+   21.753
+  ],
+  "min": [
+   -21.753,
+   -1.2,
+   -21.753
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "glacis_turbine#1": {
+  "colliders": [],
+  "kind": "glacis_turbine",
+  "max": [
+   21.753,
+   3.783,
+   21.753
+  ],
+  "min": [
+   -21.753,
+   -1.2,
+   -21.753
+  ],
+  "mounts": [],
+  "variant": 1
+ }
+}

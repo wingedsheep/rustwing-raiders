@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import type { Terrain, Chunk, Placed, Wildlife } from '../sim/terrain';
 import { CHUNK } from '../sim/terrain';
 import type { Biome } from '../world/planets';
+import { lookOf, PATTERNS } from '../world/looks';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
 import { enliven, weather, NOISE_GLSL, WASH } from '../render/alive';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
 import type { Fx } from './fx';
+import { FLIGHT_Y } from '../sim/types';
 
 /**
  * The land as you see it, a chunk at a time: soft-shaded ground painted in the biome's colours,
@@ -57,7 +59,133 @@ const EMITS: Record<string, EmitKind> = {
   ice_spire: 'glint',
 };
 
-const groundMat = enliven(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRADIENT }), { grain: 0.11 });
+/** Each segment's ground pattern (see world/looks.ts): kind (-1 none), size, strength, glow; and colour. */
+const SEGS = 8;
+const patterns = {
+  uPat: { value: Array.from({ length: SEGS }, () => new THREE.Vector4(-1, 1, 0, 0)) },
+  uPatCol: { value: Array.from({ length: SEGS }, () => new THREE.Color()) },
+  /** patchiness, the height it keeps under */
+  uPat2: { value: Array.from({ length: SEGS }, () => new THREE.Vector4(0, 999, 0, 0)) },
+};
+
+const PATTERN_GLSL = /* glsl */ `
+  uniform vec4 uPat[${SEGS}];
+  uniform vec3 uPatCol[${SEGS}];
+  uniform vec4 uPat2[${SEGS}];
+  varying vec2 vLook;
+  // nearest and second-nearest of a scatter of points, and the nearest's own random number
+  vec3 gVor(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float f1 = 8.0;
+    float f2 = 8.0;
+    float id = 0.0;
+    for (int y = -1; y <= 1; y++)
+      for (int x = -1; x <= 1; x++) {
+        vec2 g = vec2(float(x), float(y));
+        vec2 o = vec2(aHash(i + g), aHash(i + g + 17.3)) * 0.8 + 0.1;
+        vec2 r = g + o - f;
+        float d = dot(r, r);
+        if (d < f1) { f2 = f1; f1 = d; id = aHash(i + g + 5.1); }
+        else if (d < f2) f2 = d;
+      }
+    return vec3(sqrt(f1), sqrt(f2), id);
+  }
+  // how much of the pattern's colour at w (0..1), and a shade to multiply the ground by
+  float gPattern(vec2 w, int kind, float scale, out float shade) {
+    vec2 p = w / scale;
+    shade = 1.0;
+    if (kind == 0) {
+      // cells: polygons with dark joints, each its own shade
+      vec3 v = gVor(p + (vec2(aNoise(p * 2.0), aNoise(p * 2.0 + 9.0)) - 0.5) * 0.25);
+      shade = 0.92 + v.z * 0.16;
+      return 1.0 - smoothstep(0.035, 0.08, v.y - v.x);
+    }
+    if (kind == 1) {
+      // cracks: thin, wandering, broken off here and there
+      vec2 q = p + (vec2(aNoise(p * 1.3), aNoise(p * 1.3 + 4.0)) - 0.5) * 0.7;
+      vec3 v = gVor(q);
+      float line = 1.0 - smoothstep(0.012, 0.035, v.y - v.x);
+      vec3 v2 = gVor(q * 2.7 + 3.0);
+      line = max(line, (1.0 - smoothstep(0.01, 0.03, v2.y - v2.x)) * 0.6 * step(0.55, aNoise(q * 1.7)));
+      return line * smoothstep(0.35, 0.55, aNoise(p * 0.6 + 2.0));
+    }
+    if (kind == 2) {
+      // veins: branching lines where the noise crosses its middle
+      float n = aFbm(p);
+      float m = 1.0 - smoothstep(0.0, 0.03, abs(n - 0.5));
+      float n2 = aNoise(p * 3.1 + 7.0);
+      m = max(m, (1.0 - smoothstep(0.0, 0.025, abs(n2 - 0.5))) * smoothstep(0.42, 0.5, n) * 0.7);
+      return m;
+    }
+    if (kind == 3 || kind == 7) {
+      // tiles in courses (or plates, square and riveted), each its own shade, a little worn
+      vec2 q = p;
+      if (kind == 3) q.x += 0.5 * mod(floor(q.y), 2.0);
+      vec2 cell = floor(q);
+      vec2 g = fract(q);
+      shade = 0.9 + aHash(cell) * 0.2;
+      float joint = min(min(g.x, g.y), min(1.0 - g.x, 1.0 - g.y));
+      float m = 1.0 - smoothstep(0.025, 0.06, joint);
+      if (kind == 7) {
+        vec2 c = abs(g - 0.5);
+        float rivet = 1.0 - smoothstep(0.025, 0.045, length(c - vec2(0.42)));
+        m = max(m, rivet * 0.8);
+      } else m *= smoothstep(0.2, 0.45, aNoise(p * 1.7));
+      return m;
+    }
+    if (kind == 4) {
+      // ripples, combed across, wavering
+      float v = sin((p.y + p.x * 0.3 + aNoise(p * 0.35) * 2.6) * 6.2832);
+      return smoothstep(0.55, 0.95, v) * (0.6 + 0.4 * aNoise(p * 0.5));
+    }
+    if (kind == 5) {
+      // rings round scattered centres, stained inside
+      vec3 v = gVor(p);
+      float r = fract(v.x * 5.0 - v.z);
+      float ring = (1.0 - smoothstep(0.08, 0.2, abs(r - 0.5) * 2.0 - 0.6)) * (1.0 - smoothstep(0.25, 0.5, v.x));
+      shade = 1.0 - (1.0 - smoothstep(0.0, 0.3, v.x)) * 0.12;
+      return max(ring * 0.7, 1.0 - smoothstep(0.06, 0.12, v.x)) * step(0.35, v.z);
+    }
+    if (kind == 6) {
+      // streaks along the wind
+      float n = aFbm(vec2(p.x * 0.35 + p.y * 0.15, p.y * 2.6 - p.x * 0.6));
+      return smoothstep(0.58, 0.72, n);
+    }
+    return 0.0;
+  }
+`;
+
+/** The ground: its colours per vertex, its patterns per pixel. */
+function groundMaterial() {
+  const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRADIENT });
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, patterns);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 aLook;\nvarying vec2 vLook;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLook = aLook;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${PATTERN_GLSL}`).replace(
+      '#include <color_fragment>',
+      /* glsl */ `#include <color_fragment>
+      {
+        int seg = int(vLook.x + 0.5);
+        vec4 pat = uPat[seg];
+        if (pat.x >= 0.0 && vLook.y > 0.0) {
+          float sh;
+          vec4 pat2 = uPat2[seg];
+          float m = gPattern(vAliveW.xz, int(pat.x + 0.5), pat.y, sh) * vLook.y;
+          m *= 1.0 - pat2.x * (1.0 - smoothstep(0.38, 0.62, aFbm(vAliveW.xz * 0.025 + float(seg) * 7.0)));
+          m *= 1.0 - smoothstep(pat2.y, pat2.y + 1.0, vAliveW.y);
+          diffuseColor.rgb *= mix(1.0, sh, vLook.y);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uPatCol[seg], m * pat.z);
+          totalEmissiveRadiance += uPatCol[seg] * m * pat.w;
+        }
+      }`,
+    );
+  };
+  return enliven(mat, { grain: 0.11 });
+}
+const groundMat = groundMaterial();
 
 export class WorldView {
   readonly group = new THREE.Group();
@@ -69,6 +197,13 @@ export class WorldView {
   constructor(readonly terrain: Terrain) {
     this.water = waterMaterial();
     this.grassMat = grassMaterial();
+    patterns.uPat.value.forEach((u, i) => {
+      const pat = terrain.segments[i] ? lookOf(terrain.segments[i].biome.id).pattern : undefined;
+      if (!pat) return u.set(-1, 1, 0, 0);
+      u.set(PATTERNS.indexOf(pat.kind), pat.scale, pat.amount, pat.glow ?? 0);
+      patterns.uPat2.value[i].set(pat.patchy ?? 0, pat.below ?? 999, 0, 0);
+      patterns.uPatCol.value[i].setHex(pat.color);
+    });
   }
 
   /** The sun's direction (towards it), for the water's glints. */
@@ -134,7 +269,14 @@ export class WorldView {
       obj.position.set(p.x, p.y, p.z);
       obj.rotation.y = p.rot;
       obj.scale.setScalar(p.s);
-      if (!p.obstacle) {
+      // what you fly under stands well clear of you: stretched up from the ground, so its legs
+      // still stand where they hit
+      if (p.role === 'span' || p.role === 'gate') obj.scale.y *= LIFT[p.role];
+      // whatever reaches over the flight line thins away round a ship under it; but a span or a
+      // gate stays solid, high over you, and you show through it as a silhouette (see xray.ts)
+      if (p.role === 'span' || p.role === 'gate') seeThrough(obj, false);
+      else if (p.obstacle || p.role || p.y + metaTop(p) > FLIGHT_Y + 1) seeThrough(obj);
+      if (!p.obstacle && !p.role) {
         // no two alike: a lean, and a shade of their patch's colour (neighbours share a cast, as
         // a stand of trees does)
         obj.rotation.x = (hash(p.x * 3.7, p.z) - 0.5) * 0.12;
@@ -302,6 +444,35 @@ function tint(obj: THREE.Object3D, k: number) {
   });
 }
 
+/**
+ * How much taller spans and gates are drawn than built (ART.md): a deck built at 13 shows at 21,
+ * clearly over a ship at 10, and a gate's lintels with it.
+ */
+const LIFT = { span: 1.6, gate: 1.35 };
+
+/** The see-through twin of a material (see weather.uSee), or with no `hole`, just drawn with depth. */
+const seen = [new WeakMap<THREE.Material, THREE.Material>(), new WeakMap<THREE.Material, THREE.Material>()];
+function seeThroughMat(m: THREE.Material, hole: boolean): THREE.Material {
+  const t = m as THREE.MeshToonMaterial;
+  if (!t.isMeshToonMaterial) return m;
+  const cache = seen[hole ? 1 : 0];
+  let n = cache.get(m);
+  if (!n) {
+    n = t.clone();
+    n.userData = { ...t.userData };
+    enliven(n, { sway: !!t.userData.sway, see: true, hole });
+    cache.set(m, n);
+  }
+  return n;
+}
+export function seeThrough(obj: THREE.Object3D, hole = true) {
+  obj.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => seeThroughMat(m, hole)) : seeThroughMat(mesh.material, hole);
+  });
+}
+
 function placeholder(p: Placed) {
   const h = p.obstacle ? 15 : 1.5;
   return part(p.obstacle ? GEO.cyl6 : GEO.cone6, toon(p.obstacle ? 0x8a7a8a : 0x4a6a3a), [0, h / 2, 0], [p.obstacle ? 3 : 1.4, h, p.obstacle ? 3 : 1.4]);
@@ -391,6 +562,9 @@ function groundGeometry(t: Terrain, z0: number) {
   const pos = new Float32Array(verts * 3);
   const nor = new Float32Array(verts * 3);
   const col = new Float32Array(verts * 3);
+  // which segment's pattern, and how much of it: none right where two biomes meet, so the
+  // switch from one to the next falls where neither shows
+  const look = new Float32Array(verts * 2);
   const c = new THREE.Color();
   const tmp = new THREE.Color();
   const n = new THREE.Vector3();
@@ -421,6 +595,8 @@ function groundGeometry(t: Terrain, z0: number) {
       col[k] = c.r;
       col[k + 1] = c.g;
       col[k + 2] = c.b;
+      look[(k / 3) * 2] = Math.min(SEGS - 1, bl.t < 0.5 ? bl.a : bl.b);
+      look[(k / 3) * 2 + 1] = bl.a === bl.b ? 1 : clamp(Math.abs(bl.t - 0.5) * 2.4 - 0.1, 0, 1);
       k += 3;
       // grass, on the cells this vertex starts
       const green = i < nx && j < nz && steep < 0.12 && h > water + 0.45 ? grassy(c) : 0;
@@ -454,6 +630,7 @@ function groundGeometry(t: Terrain, z0: number) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aLook', new THREE.BufferAttribute(look, 2));
   g.setIndex(idx);
   g.computeBoundingSphere();
   return { geo: g, grass: spots.length ? grassMesh(spots) : null };

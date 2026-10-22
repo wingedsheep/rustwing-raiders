@@ -1,0 +1,723 @@
+{
+ "cinder_barrels#0": {
+  "colliders": [],
+  "kind": "cinder_barrels",
+  "max": [
+   2.738,
+   1.35,
+   2.709
+  ],
+  "min": [
+   -2.702,
+   0.0,
+   -2.753
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_barrels#1": {
+  "colliders": [],
+  "kind": "cinder_barrels",
+  "max": [
+   1.919,
+   1.35,
+   1.919
+  ],
+  "min": [
+   -2.015,
+   0.0,
+   -1.937
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_barrels#2": {
+  "colliders": [],
+  "kind": "cinder_barrels",
+  "max": [
+   3.047,
+   1.35,
+   3.122
+  ],
+  "min": [
+   -3.307,
+   0.0,
+   -3.01
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "cinder_beacon#0": {
+  "colliders": [],
+  "kind": "cinder_beacon",
+  "max": [
+   1.381,
+   5.175,
+   0.804
+  ],
+  "min": [
+   -1.413,
+   0.0,
+   -1.002
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_beacon#1": {
+  "colliders": [],
+  "kind": "cinder_beacon",
+  "max": [
+   0.734,
+   6.75,
+   0.629
+  ],
+  "min": [
+   -0.685,
+   0.0,
+   -0.62
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_columns#0": {
+  "colliders": [
+   {
+    "r": 2.5,
+    "x": -15.5,
+    "z": -0.0
+   },
+   {
+    "r": 2.9,
+    "x": -4.0,
+    "z": -1.2
+   },
+   {
+    "r": 2.3,
+    "x": 8.0,
+    "z": 0.6
+   },
+   {
+    "r": 1.9,
+    "x": 17.5,
+    "z": -0.8
+   }
+  ],
+  "kind": "cinder_columns",
+  "max": [
+   20.16,
+   28.92,
+   3.815
+  ],
+  "min": [
+   -18.76,
+   -2.5,
+   -5.045
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_columns#1": {
+  "colliders": [
+   {
+    "r": 2.0,
+    "x": -13.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.0,
+    "x": -1.0,
+    "z": -1.0
+   },
+   {
+    "r": 2.0,
+    "x": 11.5,
+    "z": 0.8
+   }
+  ],
+  "kind": "cinder_columns",
+  "max": [
+   14.724,
+   27.96,
+   6.8
+  ],
+  "min": [
+   -15.154,
+   -2.594,
+   -3.728
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_cooler#0": {
+  "colliders": [],
+  "kind": "cinder_cooler",
+  "max": [
+   5.221,
+   3.54,
+   1.984
+  ],
+  "min": [
+   -5.192,
+   0.0,
+   -1.685
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_cooler#1": {
+  "colliders": [],
+  "kind": "cinder_cooler",
+  "max": [
+   4.069,
+   3.54,
+   4.734
+  ],
+  "min": [
+   -4.326,
+   0.0,
+   -4.579
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_cooling_towers#0": {
+  "colliders": [
+   {
+    "r": 3.78,
+    "x": -14.8,
+    "z": -0.0
+   },
+   {
+    "r": 4.15,
+    "x": 0.0,
+    "z": -1.0
+   },
+   {
+    "r": 3.61,
+    "x": 14.8,
+    "z": 0.5
+   }
+  ],
+  "kind": "cinder_cooling_towers",
+  "max": [
+   20.223,
+   22.65,
+   5.735
+  ],
+  "min": [
+   -20.423,
+   -2.5,
+   -6.805
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_cooling_towers#1": {
+  "colliders": [
+   {
+    "r": 4.39,
+    "x": -9.5,
+    "z": -0.0
+   },
+   {
+    "r": 3.89,
+    "x": 9.0,
+    "z": -0.4
+   },
+   {
+    "r": 1.6,
+    "x": 0.5,
+    "z": 3.0
+   }
+  ],
+  "kind": "cinder_cooling_towers",
+  "max": [
+   14.823,
+   24.0,
+   6.186
+  ],
+  "min": [
+   -15.923,
+   -2.5,
+   -6.186
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_gantry#0": {
+  "colliders": [
+   {
+    "r": 4.4,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.4,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_gantry",
+  "max": [
+   47.28,
+   20.35,
+   3.592
+  ],
+  "min": [
+   -47.28,
+   -3.245,
+   -3.6
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_gantry#1": {
+  "colliders": [
+   {
+    "r": 2.72,
+    "x": -41.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.4,
+    "x": 0.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.72,
+    "x": 41.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_gantry",
+  "max": [
+   47.2,
+   17.322,
+   3.063
+  ],
+  "min": [
+   -47.2,
+   -3.172,
+   -3.4
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_grove_gate#0": {
+  "colliders": [
+   {
+    "r": 1.65,
+    "x": -15.5,
+    "z": -0.5
+   },
+   {
+    "r": 1.87,
+    "x": -5.0,
+    "z": 1.0
+   },
+   {
+    "r": 1.76,
+    "x": 5.5,
+    "z": -0.8
+   },
+   {
+    "r": 1.54,
+    "x": 15.0,
+    "z": 0.6
+   }
+  ],
+  "kind": "cinder_grove_gate",
+  "max": [
+   21.783,
+   25.025,
+   8.588
+  ],
+  "min": [
+   -23.412,
+   -2.5,
+   -8.517
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_grove_gate#1": {
+  "colliders": [
+   {
+    "r": 2.09,
+    "x": -11.0,
+    "z": -0.0
+   },
+   {
+    "r": 1.87,
+    "x": 0.0,
+    "z": -1.2
+   },
+   {
+    "r": 2.09,
+    "x": 11.0,
+    "z": 0.5
+   }
+  ],
+  "kind": "cinder_grove_gate",
+  "max": [
+   19.158,
+   24.944,
+   7.699
+  ],
+  "min": [
+   -18.258,
+   -2.5,
+   -8.228
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_harvester#0": {
+  "colliders": [],
+  "kind": "cinder_harvester",
+  "max": [
+   16.587,
+   8.95,
+   20.9
+  ],
+  "min": [
+   -9.6,
+   0.0,
+   -12.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_irrigator#0": {
+  "colliders": [
+   {
+    "r": 3.4,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.4,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_irrigator",
+  "max": [
+   52.002,
+   20.4,
+   4.775
+  ],
+  "min": [
+   -52.002,
+   -3.0,
+   -4.775
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_irrigator#1": {
+  "colliders": [
+   {
+    "r": 2.16,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.64,
+    "x": 0.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.16,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_irrigator",
+  "max": [
+   50.0,
+   17.4,
+   2.425
+  ],
+  "min": [
+   -50.0,
+   -3.0,
+   -2.3
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_pipe_rack#0": {
+  "colliders": [
+   {
+    "r": 4.2,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.2,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_pipe_rack",
+  "max": [
+   50.0,
+   20.15,
+   4.5
+  ],
+  "min": [
+   -50.0,
+   -3.0,
+   -4.5
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_pipe_rack#1": {
+  "colliders": [
+   {
+    "r": 2.7,
+    "x": -41.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.25,
+    "x": 0.0,
+    "z": -0.0
+   },
+   {
+    "r": 2.7,
+    "x": 41.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_pipe_rack",
+  "max": [
+   48.06,
+   16.925,
+   2.91
+  ],
+  "min": [
+   -48.06,
+   -3.139,
+   -2.9
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_pump_station#0": {
+  "colliders": [],
+  "kind": "cinder_pump_station",
+  "max": [
+   20.0,
+   6.75,
+   11.0
+  ],
+  "min": [
+   -20.0,
+   -0.2,
+   -11.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_sapling_row#0": {
+  "colliders": [],
+  "kind": "cinder_sapling_row",
+  "max": [
+   3.231,
+   3.023,
+   3.66
+  ],
+  "min": [
+   -3.232,
+   0.0,
+   -3.66
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_sapling_row#1": {
+  "colliders": [],
+  "kind": "cinder_sapling_row",
+  "max": [
+   3.4,
+   2.299,
+   1.692
+  ],
+  "min": [
+   -3.4,
+   0.0,
+   -1.692
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_sludge_vent#0": {
+  "colliders": [],
+  "kind": "cinder_sludge_vent",
+  "max": [
+   3.846,
+   0.995,
+   3.907
+  ],
+  "min": [
+   -3.827,
+   -0.367,
+   -3.653
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_sludge_vent#1": {
+  "colliders": [],
+  "kind": "cinder_sludge_vent",
+  "max": [
+   5.305,
+   3.3,
+   4.816
+  ],
+  "min": [
+   -5.431,
+   -0.35,
+   -5.161
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_split_pipe#0": {
+  "colliders": [],
+  "kind": "cinder_split_pipe",
+  "max": [
+   33.0,
+   8.7,
+   7.0
+  ],
+  "min": [
+   -27.685,
+   -1.5,
+   -8.203
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_tank_farm#0": {
+  "colliders": [],
+  "kind": "cinder_tank_farm",
+  "max": [
+   25.0,
+   8.156,
+   17.825
+  ],
+  "min": [
+   -25.0,
+   -0.25,
+   -17.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_tanker#0": {
+  "colliders": [],
+  "kind": "cinder_tanker",
+  "max": [
+   10.0,
+   7.72,
+   30.0
+  ],
+  "min": [
+   -9.0,
+   -6.833,
+   -30.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_trestle#0": {
+  "colliders": [
+   {
+    "r": 3.8,
+    "x": -40.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.8,
+    "x": 40.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_trestle",
+  "max": [
+   52.0,
+   21.85,
+   3.855
+  ],
+  "min": [
+   -52.0,
+   -3.199,
+   -3.9
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_trestle#1": {
+  "colliders": [
+   {
+    "r": 3.2,
+    "x": -42.0,
+    "z": -0.0
+   },
+   {
+    "r": 3.2,
+    "x": 42.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "cinder_trestle",
+  "max": [
+   52.0,
+   22.05,
+   4.038
+  ],
+  "min": [
+   -52.0,
+   -3.115,
+   -4.038
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "cinder_valve_station#0": {
+  "colliders": [],
+  "kind": "cinder_valve_station",
+  "max": [
+   3.71,
+   2.975,
+   3.394
+  ],
+  "min": [
+   -3.71,
+   0.0,
+   -3.394
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "cinder_valve_station#1": {
+  "colliders": [],
+  "kind": "cinder_valve_station",
+  "max": [
+   4.56,
+   2.975,
+   5.328
+  ],
+  "min": [
+   -3.673,
+   0.0,
+   -3.315
+  ],
+  "mounts": [],
+  "variant": 1
+ }
+}

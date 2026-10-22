@@ -32,7 +32,9 @@ export interface Template {
 
 export type Skin = [number, number, number];
 
-const MODULES = ['props_a', 'props_b', 'creatures', 'enemies', 'ships', 'bosses'];
+const PLANETS = ['orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder'];
+/** (set_<planet>: each planet's set pieces, see world/looks.ts) */
+const MODULES = ['props_a', 'props_b', 'creatures', 'enemies', 'ships', 'bosses', ...PLANETS.map((p) => `set_${p}`)];
 
 class Library {
   private templates = new Map<string, Template[]>();
