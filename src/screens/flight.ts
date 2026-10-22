@@ -91,10 +91,12 @@ export class Flight implements Screen {
     if (m.start && this.lv.state !== 'clear' && this.lv.state !== 'failed') {
       this.paused = !this.paused;
       audio.play(this.paused ? 'ui_back' : 'ui_select');
+      audio.muffle(this.paused);
     }
     if (this.paused) {
       if (m.back) {
         this.paused = false;
+        audio.muffle(false);
         this.finish(false);
       }
       return;

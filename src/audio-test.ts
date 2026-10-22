@@ -11,7 +11,7 @@ const SFX: Sfx[] = [
   'ui_move', 'ui_select', 'ui_back', 'ui_error', 'ui_place', 'ui_buy',
 ];
 const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder'];
-const LOOPS: Loop[] = ['beam', 'flame', 'engine'];
+const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const num = (id: string) => Number($<HTMLInputElement>(id).value);
@@ -32,7 +32,7 @@ window.addEventListener('pointerdown', unlock);
 window.addEventListener('keydown', unlock);
 
 const play = (name: Sfx, extra: { pan?: number; pitch?: number; vol?: number } = {}) =>
-  audio.play(name, { pan: num('pan'), pitch: num('pitch'), ...extra });
+  audio.play(name, { pan: num('pan'), pitch: num('pitch'), dist: num('dist'), ...extra });
 
 for (const s of SFX) button($('sfx'), s, () => play(s));
 
@@ -106,3 +106,55 @@ $('mute').addEventListener('click', () => {
 });
 $('mute').classList.toggle('on', audio.muted);
 $('duck').addEventListener('click', () => audio.duck(1.5));
+
+// places: the ambience and reverb of every biome and menu
+const placeButtons: HTMLButtonElement[] = [];
+for (const p of audio.places) {
+  placeButtons.push(
+    button($('places'), p, (b) => {
+      const on = !b.classList.contains('on');
+      for (const x of placeButtons) x.classList.remove('on');
+      if (on) b.classList.add('on');
+      audio.ambience(on ? p : null);
+    }),
+  );
+}
+
+// mix states
+const danger = $<HTMLInputElement>('danger');
+danger.addEventListener('input', () => audio.danger(Number(danger.value)));
+let muffled = false;
+$('muffle').addEventListener('click', () => {
+  muffled = !muffled;
+  audio.muffle(muffled);
+  $('muffle').classList.toggle('on', muffled);
+});
+button($('stress'), 'shell shock (player_down)', () => play('player_down'));
+
+// levels: RMS and peak of the output, in dBFS, over the last second
+const db = (x: number) => (x > 1e-6 ? (20 * Math.log10(x)).toFixed(1) : '-inf');
+let sumSq = 0;
+let n = 0;
+let peak = 0;
+let since = performance.now();
+const meter = () => {
+  const a = audio.meter();
+  if (a) {
+    const buf = new Float32Array(a.fftSize);
+    a.getFloatTimeDomainData(buf);
+    for (const x of buf) {
+      sumSq += x * x;
+      peak = Math.max(peak, Math.abs(x));
+    }
+    n += buf.length;
+    if (performance.now() - since > 1000) {
+      $('meter').textContent = `rms ${db(Math.sqrt(sumSq / n))} dBFS  peak ${db(peak)} dBFS`;
+      sumSq = 0;
+      n = 0;
+      peak = 0;
+      since = performance.now();
+    }
+  }
+  requestAnimationFrame(meter);
+};
+requestAnimationFrame(meter);

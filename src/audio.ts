@@ -1,11 +1,18 @@
 /**
  * Rustwing Raiders audio: every sound synthesized at runtime with the Web Audio API.
  *
- * Graph:
- *   sfx voices -> per-play gain/pan -> sfxBus ----------------------\
- *                                   \-> sfxVerb (short convolver) ---+-> master (mute/volume)
- *   music players -> fade -> duck -> musicVol ------------------------/     -> compressor -> limiter -> out
- *                 \-> reverb send -> its own long convolver -> fade -> duck
+ * Graph (see docs/sound-design.md):
+ *   sfx voices -> per-play gain/pan/air -> sfxBus -------------------------\
+ *                                     \-> sfxVerb -> the place's reverb ----+-> world -> worldLP -\
+ *   ambience -> ambLevel -> ambDuck -> ambVol --\                          |                    +-> master
+ *   music players -> fade -> musicDuck -> musicVol -+-> bedLP --------------/                    |   -> compressor
+ *                 \-> reverb send -> its own long convolver -> fade -> duck                       |   -> limiter -> out
+ *   ui sounds -> uiBus -----------------------------------------------------------------------/
+ *
+ * The place (`audio.ambience`) sets a bed of air, surf, rumble or hum, one-shots scattered around
+ * it at random distances, and the reverb every sound in the world goes through. Big sounds duck
+ * the music and ambience on their own; low hull closes bedLP and brings in a heartbeat; pause
+ * sinks worldLP.
  *
  * Music is sequenced step by step (16 steps a bar) by a lookahead scheduler running on
  * AudioContext time. Each track's song (32 bars: A B A' B') is generated once from a seed
@@ -45,6 +52,18 @@ let musicDuck!: GainNode;
 let musicVol!: GainNode;
 let musicVerbIR!: AudioBuffer;
 let noiseBuf!: AudioBuffer;
+/** Stereo pink noise, the two sides unrelated: wide, soft beds of air. */
+let pinkBuf!: AudioBuffer;
+let uiBus!: GainNode;
+let world!: GainNode;
+let worldLP!: BiquadFilterNode;
+let bedLP!: BiquadFilterNode;
+let ambLevel!: GainNode;
+let ambDuck!: GainNode;
+let ambVol!: GainNode;
+let ambWet!: GainNode;
+let limiter!: DynamicsCompressorNode;
+let meterNode: AnalyserNode | null = null;
 let pulse12!: PeriodicWave;
 let pulse25!: PeriodicWave;
 const makeCurve = (k: number) => {
@@ -91,26 +110,50 @@ function init(): boolean {
   lim.attack.value = 0.001;
   lim.release.value = 0.08;
   master.connect(comp).connect(lim).connect(ctx.destination);
+  limiter = lim;
 
+  // the UI goes straight to master: never muffled, never ducked
+  uiBus = ctx.createGain();
+  uiBus.connect(master);
+  // everything in the world goes through worldLP (pause, going down)
+  world = ctx.createGain();
+  worldLP = ctx.createBiquadFilter();
+  worldLP.type = 'lowpass';
+  worldLP.frequency.value = OPEN_HZ;
+  worldLP.Q.value = 0.5;
+  world.connect(worldLP).connect(master);
   sfxBus = ctx.createGain();
-  sfxBus.connect(master);
+  sfxBus.connect(world);
+  // music and ambience go through bedLP too (low hull closes it; the guns stay crisp)
+  bedLP = ctx.createBiquadFilter();
+  bedLP.type = 'lowpass';
+  bedLP.frequency.value = OPEN_HZ;
+  bedLP.Q.value = 0.6;
+  bedLP.connect(world);
   musicVol = ctx.createGain();
-  musicVol.connect(master);
+  musicVol.connect(bedLP);
   musicDuck = ctx.createGain();
   musicDuck.connect(musicVol);
+  ambVol = ctx.createGain();
+  ambVol.connect(bedLP);
+  ambDuck = ctx.createGain();
+  ambDuck.connect(ambVol);
+  ambLevel = ctx.createGain();
+  ambLevel.connect(ambDuck);
 
   // shared buffers: 2 s of white noise, two reverb impulses, pulse waves, drive curve
   const sr = ctx.sampleRate;
   noiseBuf = ctx.createBuffer(1, sr * 2, sr);
   const nd = noiseBuf.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  pinkBuf = pinkNoise(5);
 
   musicVerbIR = impulse(2.6, 2.4);
 
-  const sv = ctx.createConvolver();
-  sv.buffer = impulse(1.4, 3);
   sfxVerb = ctx.createGain();
-  sfxVerb.connect(sv).connect(master);
+  setSpace('open');
+  ambWet = ctx.createGain();
+  ambWet.connect(sfxVerb);
 
   pulse12 = pulseWave(0.125);
   pulse25 = pulseWave(0.25);
@@ -147,6 +190,40 @@ function impulse(seconds: number, decay: number): AudioBuffer {
   return b;
 }
 
+/** Pink noise (Paul Kellet's filter), a different stream on each side, about 0.25 RMS, looping seamlessly. */
+function pinkNoise(seconds: number): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const n = Math.floor(sr * seconds);
+  const xf = Math.floor(sr * 0.05);
+  const b = ctx.createBuffer(2, n, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = new Float32Array(n + xf);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    let sq = 0;
+    for (let i = 0; i < d.length; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179;
+      b1 = 0.99332 * b1 + w * 0.0750759;
+      b2 = 0.969 * b2 + w * 0.153852;
+      b3 = 0.8665 * b3 + w * 0.3104856;
+      b4 = 0.55 * b4 + w * 0.5329522;
+      b5 = -0.7616 * b5 - w * 0.016898;
+      d[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
+      b6 = w * 0.115926;
+      sq += d[i] * d[i];
+    }
+    const k = 0.25 / Math.sqrt(sq / d.length);
+    // the start fades in from what would have come after the end, so the loop doesn't tick
+    for (let i = 0; i < xf; i++) {
+      const a = i / xf;
+      d[i] = d[i] * a + d[n + i] * (1 - a);
+    }
+    for (let i = 0; i < n; i++) d[i] *= k;
+    b.copyToChannel(d.subarray(0, n), ch);
+  }
+  return b;
+}
+
 function pulseWave(duty: number): PeriodicWave {
   const n = 64;
   const re = new Float32Array(n);
@@ -163,6 +240,8 @@ function applyVolumes(instant = false) {
   musicVol.gain.setTargetAtTime(settings.music * 0.7, now, tc);
   sfxBus.gain.setTargetAtTime(settings.sfx * 0.9, now, tc);
   sfxVerb.gain.setTargetAtTime(settings.sfx * 0.9, now, tc);
+  uiBus.gain.setTargetAtTime(settings.sfx * 0.9, now, tc);
+  ambVol.gain.setTargetAtTime(settings.sfx * AMB_GAIN, now, tc);
 }
 
 // ================================================================================================
@@ -276,6 +355,10 @@ interface SfxDef {
   rev?: number;
   /** Musical: no random pitch drift. */
   tuned?: boolean;
+  /** Owns the moment: ducks the music and ambience for [seconds] down to [level]. */
+  duck?: [number, number];
+  /** Rattles you: the world dulls for a moment (0..1; 1 deafens, with a ring in the ears). */
+  shock?: number;
 }
 
 let combo = 0;
@@ -431,7 +514,7 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t + 0.04, 'sine', 70 * p, 24 * p, 0.8, 0.26, 0.01);
     noise(o, t + 0.02, 0.5, 'bandpass', 500 * p, 250 * p, 0.9, 0.16, 0.01);
     return 1.1;
-  }, 0.08, 3, { rev: 0.25 }),
+  }, 0.08, 3, { rev: 0.25, duck: [0.25, 0.6] }),
 
   explode_boss: S((t, p, o) => {
     boom(o, t, p, 1.5, 0.28);
@@ -439,7 +522,7 @@ const SFX: Record<Sfx, SfxDef> = {
     boom(o, t + 0.6, p * 0.7, 1.9, 0.3);
     noise(o, t, 2.6, 'lowpass', 200 * p, 90, 0.8, 0.3, 0.2);
     return 2.8;
-  }, 0.5, 1, { rev: 0.35 }),
+  }, 0.5, 1, { rev: 0.35, duck: [1.4, 0.3] }),
 
   player_hit: S((t, p, o) => {
     const lp = filt(o, 'lowpass', 2200);
@@ -448,7 +531,7 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t, 0.18, 'bandpass', 1200 * p, 400 * p, 0.8, 0.28);
     tone(o, t, 'sine', 110 * p, 40 * p, 0.2, 0.3, 0.002);
     return 0.3;
-  }, 0.1, 2),
+  }, 0.1, 2, { duck: [0.2, 0.7], shock: 0.3 }),
 
   player_down: S((t, p, o) => {
     const lp = filt(o, 'lowpass', 1800);
@@ -456,7 +539,7 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(lp, t, 'square', 705 * p, 46 * p, 1.1, 0.07, 0.005);
     boom(o, t + 0.05, p * 0.8, 1.4, 0.3);
     return 1.3;
-  }, 0.3, 2, { rev: 0.25 }),
+  }, 0.3, 2, { rev: 0.25, duck: [1.5, 0.3], shock: 1 }),
 
   shield_break: S((t, p, o) => {
     for (let i = 0; i < 9; i++) {
@@ -560,7 +643,7 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(lp, t + 0.1, 'sawtooth', 220 * p, 110 * p, 1.4, 0.08, 0.05, 1.3);
     tone(lp, t + 0.1, 'sawtooth', 277 * p, 138 * p, 1.4, 0.06, 0.05, 1.3);
     return 1.6;
-  }, 0.4, 1, { rev: 0.3 }),
+  }, 0.4, 1, { rev: 0.3, duck: [0.6, 0.5] }),
 
   // a hauler home: its horn, two notes, and a chime for the pay
   horn: S((t, p, o) => {
@@ -600,7 +683,7 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(lp, t + 0.05, 'square', 210 * p, 40 * p, 1.3, 0.04, 0.01, 1.2);
     noise(o, t + 0.1, 1.1, 'bandpass', 900 * p, 200 * p, 2, 0.08, 0.05);
     return 1.4;
-  }, 0.3, 2, { rev: 0.25 }),
+  }, 0.3, 2, { rev: 0.25, duck: [0.4, 0.55] }),
 
   // its jump drive spooling: a cold whine climbing for the last stretch of the level
   spool: S((t, p, o) => {
@@ -632,7 +715,7 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(lp, t + 0.2, 'sawtooth', 110 * p, 48 * p, 2.2, 0.08, 0.1, 2.2);
     tone(lp, t + 0.2, 'sawtooth', 116 * p, 50 * p, 2.2, 0.06, 0.1, 2.2);
     return 2.6;
-  }, 1, 1, { rev: 0.4 }),
+  }, 1, 1, { rev: 0.4, duck: [1, 0.4] }),
 
   // the heavy button: a sub thump under whatever the heavies fire, so a press always lands
   heavy: S((t, p, o) => {
@@ -785,7 +868,7 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.04, 0.7, 'bandpass', 300 * p, 1200 * p, 0.9, 0.18, 0.06);
     tone(o, t, 'sine', 90 * p, 30 * p, 0.5, 0.28, 0.004);
     return 0.9;
-  }, 0.07, 3, { rev: 0.25 }),
+  }, 0.07, 3, { rev: 0.25, duck: [0.2, 0.7] }),
 
   /** SHATTER: a heavy blow and armour going like glass. */
   react_shatter: S((t, p, o) => {
@@ -906,7 +989,7 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t, 0.08, 'highpass', 2000, 2000, 0.7, 0.28);
     crackle(o, t + 0.05, 1.0, 22, 0.14);
     return 1.7;
-  }, 0.2, 2, { rev: 0.35 }),
+  }, 0.2, 2, { rev: 0.35, duck: [0.7, 0.45], shock: 0.2 }),
 
   special_phase: S((t, p, o) => {
     tone(o, t, 'sine', 200 * p, 1600 * p, 0.32, 0.11, 0.02);
@@ -1181,7 +1264,7 @@ const SFX: Record<Sfx, SfxDef> = {
     crackle(o, t + 0.02, 0.3, 14, 0.18);
     noise(o, t + 0.06, 0.9, 'lowpass', 500 * p, 90, 0.8, 0.22, 0.05);
     return 1;
-  }, 0.08, 2, { rev: 0.35 }),
+  }, 0.08, 2, { rev: 0.35, duck: [0.3, 0.6] }),
 
   /** VENGEFUL: the hull lets go: a deep whump, a ring of shrapnel whistling out. */
   nova: S((t, p, o) => {
@@ -1192,7 +1275,7 @@ const SFX: Record<Sfx, SfxDef> = {
       tone(o, t + 0.03 + i * 0.02, 'sine', f, f * 0.6, 0.2, 0.025, 0.002);
     }
     return 0.8;
-  }, 0.2, 1, { rev: 0.3 }),
+  }, 0.2, 1, { rev: 0.3, duck: [0.3, 0.6] }),
 
   /** RAVENOUS: a kill's spark drunk by the special: a soft rising chime. */
   feed: S((t, p, o) => {
@@ -1215,7 +1298,10 @@ const lastPlay = new Map<Sfx, number>();
 /** Nodes to disconnect once their sound is over. */
 const trash: { at: number; nodes: AudioNode[] }[] = [];
 
-function playSfx(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number }) {
+/** Sounds of the interface: on their own bus, never muffled or ducked. */
+const isUi = (name: Sfx) => name.startsWith('ui_') || name === 'card_flip';
+
+function playSfx(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }) {
   const def = SFX[name];
   const now = ctx.currentTime;
   if (now - (lastPlay.get(name) ?? -9) < def.gap) return;
@@ -1232,21 +1318,38 @@ function playSfx(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number 
 
   const pitch = clamp(opts?.pitch ?? 1, 0.1, 4) * (def.tuned ? 1 : 1 + (Math.random() * 2 - 1) * 0.045);
   const out = ctx.createGain();
-  out.gain.value = vol;
+  // a little level drift too, so a stream of the same shot doesn't sound like a loop
+  out.gain.value = vol * (def.tuned ? 1 : 1 + (Math.random() * 2 - 1) * 0.1);
   const pan = ctx.createStereoPanner();
   pan.pan.value = clamp(opts?.pan ?? 0, -1, 1) * 0.8;
-  out.connect(pan).connect(sfxBus);
+  out.connect(pan);
   const nodes: AudioNode[] = [out, pan];
-  if (def.rev) {
+  let tail: AudioNode = pan;
+  const dist = clamp(opts?.dist ?? 0, 0, 1);
+  if (dist > 0.01) {
+    // far off: the air takes the top off it, and more of what's left is the room
+    const air = ctx.createBiquadFilter();
+    air.type = 'lowpass';
+    air.frequency.value = OPEN_HZ * Math.pow(0.1, dist);
+    pan.connect(air);
+    out.gain.value *= 1 - 0.45 * dist;
+    tail = air;
+    nodes.push(air);
+  }
+  tail.connect(isUi(name) ? uiBus : sfxBus);
+  const rev = (def.rev ?? 0) + dist * 0.5;
+  if (rev > 0) {
     const s = ctx.createGain();
-    s.gain.value = def.rev;
-    pan.connect(s).connect(sfxVerb);
+    s.gain.value = rev;
+    tail.connect(s).connect(sfxVerb);
     nodes.push(s);
   }
   const t = now + 0.005;
   const dur = def.fn(t, pitch, out);
   voices.push({ name, end: t + dur });
   trash.push({ at: t + dur + 0.5, nodes });
+  if (def.duck) duckTo(def.duck[0], 1 - (1 - def.duck[1]) * vol);
+  if (def.shock) shellShock(t, def.shock * vol);
 }
 
 // ================================================================================================
@@ -1398,6 +1501,581 @@ function applyLoop(key: string) {
       v.out.gain.setTargetAtTime(0, now, 0.04);
     }
   }
+}
+
+// ================================================================================================
+// The place: its reverb, its ambience, and the state of the mix
+// ================================================================================================
+
+const OPEN_HZ = 20000;
+/** Paused: the world under water. */
+const MUFFLE_HZ = 700;
+/** The ambience bus against the sfx volume setting. */
+const AMB_GAIN = 0.5;
+
+type Space = 'open' | 'forest' | 'canyon' | 'cave' | 'metal' | 'ice' | 'room' | 'void';
+/**
+ * A reverb: tail length (s) and how fast it falls (power), brightness 0..1, early reflections
+ * [how many, spread in s, how loud against the tail], pre-delay (s).
+ */
+interface SpaceDef { len: number; decay: number; bright: number; er: [number, number, number]; pre: number }
+const SPACES: Record<Space, SpaceDef> = {
+  // out in the air: little to bounce off, a soft dark tail
+  open: { len: 1.4, decay: 3, bright: 0.45, er: [2, 0.04, 0.15], pre: 0.012 },
+  // trees all round: lots of close, scattered reflections, a diffuse tail
+  forest: { len: 1.8, decay: 3, bright: 0.5, er: [10, 0.05, 0.25], pre: 0.008 },
+  // walls a long way apart: discrete slaps coming back
+  canyon: { len: 2.6, decay: 2.4, bright: 0.55, er: [4, 0.22, 0.45], pre: 0.03 },
+  // stone close round: dense, long, dark
+  cave: { len: 3.2, decay: 2, bright: 0.4, er: [12, 0.06, 0.35], pre: 0.012 },
+  // steel: bright, ringing
+  metal: { len: 2.2, decay: 2.4, bright: 0.85, er: [8, 0.07, 0.3], pre: 0.01 },
+  // ice: the brightest and longest
+  ice: { len: 3.2, decay: 2.2, bright: 0.95, er: [4, 0.09, 0.25], pre: 0.02 },
+  // the hangar: a small tin shed
+  room: { len: 0.8, decay: 3, bright: 0.65, er: [8, 0.025, 0.4], pre: 0.003 },
+  // the map: nothing near, a long, dim tail
+  void: { len: 4.2, decay: 1.8, bright: 0.3, er: [0, 0, 0], pre: 0.04 },
+};
+
+/** A place's impulse: pre-delay, a few early reflections (different each side), then a tail that darkens as it fades. */
+function spaceIR(sp: SpaceDef): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const pre = Math.floor(sp.pre * sr);
+  const tail = Math.floor(sp.len * sr);
+  const b = ctx.createBuffer(2, pre + tail, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = b.getChannelData(ch);
+    let lp = 0;
+    let energy = 0;
+    for (let i = 0; i < tail; i++) {
+      const u = i / tail;
+      lp += (0.12 + 0.83 * sp.bright) * (1 - 0.75 * u) * (Math.random() * 2 - 1 - lp);
+      const x = lp * Math.pow(1 - u, sp.decay) * Math.min(1, i / (sr * 0.012));
+      d[pre + i] = x;
+      energy += x * x;
+    }
+    // the reflections are scaled against the tail's energy: the convolver normalizes the whole
+    // impulse, so a lone tap would otherwise vanish under it
+    const tap = Math.sqrt(energy) * sp.er[2];
+    for (let k = 0; k < sp.er[0]; k++) {
+      const at = pre + Math.floor((0.002 + Math.pow(Math.random(), 0.7) * sp.er[1]) * sr);
+      const a = tap * (1 - (0.6 * k) / sp.er[0]) * (Math.random() < 0.5 ? -1 : 1);
+      // a short smear, not a single sample: walls aren't perfect mirrors
+      for (let j = 0; j < 24 && at + j < d.length; j++) d[at + j] += a * Math.exp(-j / 5) * (j % 2 ? -0.4 : 1);
+    }
+  }
+  return b;
+}
+
+let space: Space | null = null;
+let verb: { conv: ConvolverNode; g: GainNode } | null = null;
+
+/** The place's reverb, crossfaded from the last (a fresh convolver, never a buffer swapped under a ringing tail). */
+function setSpace(s: Space) {
+  if (s === space) return;
+  space = s;
+  const now = ctx.currentTime;
+  const conv = ctx.createConvolver();
+  conv.buffer = spaceIR(SPACES[s]);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(1, now + 1.5);
+  sfxVerb.connect(conv).connect(g).connect(world);
+  if (verb) {
+    const old = verb;
+    old.g.gain.cancelScheduledValues(now);
+    old.g.gain.setValueAtTime(old.g.gain.value, now);
+    old.g.gain.linearRampToValueAtTime(0, now + 1.5);
+    trash.push({ at: now + 1.5 + SPACES[s].len + 0.5, nodes: [old.conv, old.g] });
+    window.setTimeout(() => sfxVerb.disconnect(old.conv), 1600);
+  }
+  verb = { conv, g };
+}
+
+// ---- ambience ------------------------------------------------------------------------------------
+
+type AmbEvent =
+  | 'bird' | 'insect' | 'frog' | 'call' | 'whale' | 'caw' | 'thunder' | 'gust' | 'creak' | 'clank'
+  | 'drip' | 'bubble' | 'chime' | 'crack' | 'vent' | 'fire' | 'horn' | 'buzz' | 'machine';
+
+interface AmbDef {
+  space: Space;
+  /** Air moving: level, centre (Hz), Q, gustiness 0..1. */
+  wind?: [number, number, number, number];
+  /** Ground and machinery under everything: level, lowpass (Hz). */
+  rumble?: [number, number];
+  /** A band of hiss (rain, surf, steam, sand): level, centre (Hz), Q, swell rate (Hz; 0 steady). */
+  hiss?: [number, number, number, number];
+  /** A drone on the music's root, so it's always in key: level, octaves up (semitones), timbre. */
+  drone?: [number, number, 'warm' | 'glass' | 'hum'];
+  /** One-shots around you, so many a minute. */
+  events: Partial<Record<AmbEvent, number>>;
+  /** Pitch of the one-shots (bigger, deeper things below 1). */
+  pitch?: number;
+  /** A menu: doesn't step back for the fight. */
+  menu?: boolean;
+}
+
+const AMB: Record<string, AmbDef> = {
+  // --- Oru-Tal: jungle, lava, crystal, a warm sea
+  fernwood: { space: 'forest', wind: [0.5, 600, 0.6, 0.5], hiss: [0.1, 5200, 0.8, 0.06], events: { bird: 10, insect: 6, call: 1.5, caw: 1.5 } },
+  basalt: { space: 'canyon', rumble: [0.9, 140], hiss: [0.2, 2600, 0.7, 0.15], wind: [0.25, 400, 0.8, 0.4], events: { bubble: 9, vent: 4, fire: 4, thunder: 1 }, pitch: 0.6 },
+  prism: { space: 'ice', wind: [0.6, 1500, 2.5, 0.6], drone: [0.2, 24, 'glass'], events: { chime: 8, gust: 3 } },
+  jade: { space: 'open', hiss: [0.35, 900, 0.5, 0.09], wind: [0.25, 500, 0.7, 0.3], events: { whale: 2, call: 2, bird: 4, bubble: 2 } },
+  // --- Halcyon: kelp, a neon port, old arks, the storm
+  kelp: { space: 'open', hiss: [0.3, 700, 0.5, 0.1], drone: [0.18, 12, 'warm'], events: { bubble: 8, whale: 2, chime: 2 } },
+  stiltport: { space: 'metal', hiss: [0.28, 800, 0.5, 0.1], drone: [0.3, 0, 'hum'], events: { horn: 2, clank: 6, buzz: 4, machine: 2, caw: 2 } },
+  arkbones: { space: 'metal', wind: [0.45, 500, 0.9, 0.6], events: { creak: 6, clank: 3, drip: 5, gust: 2 } },
+  stormwall: { space: 'open', hiss: [0.5, 3600, 0.4, 0.05], wind: [0.6, 500, 0.6, 0.8], rumble: [0.4, 120], events: { thunder: 6, gust: 4 } },
+  // --- Kessra: desert
+  saltpans: { space: 'open', wind: [0.5, 900, 0.6, 0.6], hiss: [0.14, 6000, 0.7, 0.07], events: { gust: 4, caw: 1 } },
+  mesarun: { space: 'canyon', wind: [0.55, 500, 0.8, 0.7], events: { gust: 5, caw: 2, call: 1 } },
+  monoliths: { space: 'canyon', wind: [0.4, 400, 1, 0.5], drone: [0.3, 0, 'warm'], events: { gust: 3, chime: 1, buzz: 1 } },
+  oasis: { space: 'open', hiss: [0.1, 1800, 0.6, 0.12], wind: [0.25, 600, 0.6, 0.3], events: { bird: 10, insect: 5, drip: 3, chime: 1.5 } },
+  // --- Mirefall: swamp
+  glowcap: { space: 'forest', drone: [0.25, 12, 'glass'], wind: [0.35, 400, 0.7, 0.3], events: { bubble: 4, insect: 6, drip: 4, chime: 2 } },
+  peat: { space: 'forest', wind: [0.3, 350, 0.7, 0.4], events: { frog: 10, drip: 6, creak: 2, insect: 3, call: 1 } },
+  temple: { space: 'cave', drone: [0.3, 0, 'warm'], wind: [0.3, 400, 0.8, 0.4], events: { drip: 8, call: 1.5, creak: 1, frog: 3 } },
+  sporevents: { space: 'forest', rumble: [0.5, 120], hiss: [0.3, 900, 0.6, 0.12], events: { bubble: 6, vent: 5, insect: 2 }, pitch: 0.8 },
+  // --- Glacis: ice
+  shelf: { space: 'ice', wind: [0.6, 700, 0.8, 0.7], drone: [0.2, 24, 'glass'], events: { crack: 3, gust: 4, chime: 1 } },
+  springs: { space: 'ice', wind: [0.35, 600, 0.7, 0.5], hiss: [0.12, 3000, 0.6, 0.06], events: { bubble: 8, vent: 4, drip: 4 } },
+  tundra: { space: 'open', wind: [0.7, 500, 0.7, 0.8], events: { gust: 5, call: 2, crack: 1 }, pitch: 0.8 },
+  enginecity: { space: 'metal', drone: [0.3, 0, 'hum'], rumble: [0.5, 100], wind: [0.3, 600, 0.8, 0.5], events: { machine: 4, clank: 5, buzz: 3, horn: 1, vent: 2 } },
+  // --- Ashgrave: the battlefield
+  titans: { space: 'metal', wind: [0.45, 450, 0.8, 0.6], rumble: [0.4, 100], events: { creak: 7, clank: 3, machine: 1, gust: 2 }, pitch: 0.75 },
+  glass: { space: 'open', drone: [0.22, 12, 'glass'], wind: [0.35, 700, 0.7, 0.5], hiss: [0.06, 5000, 1, 0], events: { buzz: 3, fire: 3, chime: 2 } },
+  scavcamp: { space: 'open', wind: [0.35, 500, 0.7, 0.5], events: { fire: 8, clank: 5, machine: 1, horn: 1, buzz: 1 } },
+  whitewood: { space: 'forest', wind: [0.55, 450, 0.8, 0.7], events: { creak: 5, caw: 3, gust: 3 } },
+  // --- Vesh: reef and sea
+  coralflats: { space: 'open', hiss: [0.45, 900, 0.5, 0.08], events: { drip: 8, bird: 6, bubble: 3, caw: 1 } },
+  whalelagoon: { space: 'open', hiss: [0.28, 700, 0.5, 0.07], wind: [0.25, 500, 0.6, 0.3], events: { whale: 5, bird: 3 } },
+  bonearch: { space: 'canyon', wind: [0.5, 450, 0.9, 0.6], hiss: [0.18, 700, 0.5, 0.08], events: { creak: 4, caw: 3, gust: 3 } },
+  tidecaves: { space: 'cave', hiss: [0.35, 600, 0.5, 0.1], rumble: [0.3, 110], events: { drip: 10, bubble: 3 } },
+  // --- Cinder: the company's planet
+  orchards: { space: 'open', drone: [0.25, 0, 'hum'], wind: [0.25, 600, 0.7, 0.3], events: { machine: 4, clank: 4, buzz: 2, chime: 2 } },
+  refinery: { space: 'metal', rumble: [0.7, 110], hiss: [0.14, 2500, 0.6, 0], drone: [0.22, 0, 'hum'], events: { vent: 5, horn: 1.5, machine: 4, clank: 4, fire: 3 } },
+  pipeline: { space: 'canyon', wind: [0.45, 500, 0.8, 0.6], drone: [0.22, 0, 'hum'], events: { clank: 4, vent: 2, buzz: 2, gust: 2 } },
+  chemlake: { space: 'open', drone: [0.25, 12, 'warm'], hiss: [0.08, 1500, 0.6, 0.1], events: { bubble: 9, vent: 3, buzz: 1 } },
+  // --- menus
+  hangar: { space: 'room', rumble: [0.35, 140], hiss: [0.06, 2000, 0.5, 0], drone: [0.2, 0, 'hum'], events: { clank: 5, vent: 2, machine: 1.5, drip: 2, buzz: 1 }, menu: true },
+  map: { space: 'void', drone: [0.35, 0, 'warm'], wind: [0.1, 2500, 3, 0.4], events: { chime: 1, buzz: 0.5 }, menu: true },
+  title: { space: 'open', wind: [0.45, 500, 0.8, 0.7], events: { gust: 3, thunder: 1 }, menu: true },
+};
+
+/** The one-shots. `o` is already placed (panned, filtered for distance); returns how long it rings. */
+const AMB_EV: Record<AmbEvent, (t: number, o: AudioNode, p: number) => number> = {
+  // a few quick tweets, each a sine flicking up or down
+  bird: (t, o, p) => {
+    const n = 2 + Math.floor(Math.random() * 4);
+    const f = (2600 + Math.random() * 1800) * p;
+    let at = 0;
+    for (let i = 0; i < n; i++) {
+      const up = Math.random() < 0.6;
+      tone(o, t + at, 'sine', f * (up ? 0.8 : 1.25), f * (up ? 1.3 : 0.75), 0.05 + Math.random() * 0.05, 0.05, 0.004);
+      at += 0.07 + Math.random() * 0.1;
+    }
+    return at + 0.12;
+  },
+  // a cicada: a high buzz chopped fast, swelling and dying away
+  insect: (t, o, p) => {
+    const dur = 0.8 + Math.random() * 1.4;
+    const bp = filt(o, 'bandpass', 5200 * p, 5);
+    const env = ctx.createGain();
+    adsr(env.gain, t, dur * 0.3, 0.1, 1, dur * 0.3, dur * 0.6, 0.035);
+    env.connect(bp);
+    const chop = ctx.createGain();
+    chop.gain.value = 0.5;
+    chop.connect(env);
+    const s = ctx.createOscillator();
+    s.type = 'square';
+    s.frequency.value = 4800 * p;
+    const l = ctx.createOscillator();
+    l.type = 'square';
+    l.frequency.value = 30 + Math.random() * 25;
+    const lg = ctx.createGain();
+    lg.gain.value = 0.5;
+    s.connect(chop);
+    l.connect(lg).connect(chop.gain);
+    for (const x of [s, l]) {
+      x.start(t);
+      x.stop(t + dur + 0.1);
+    }
+    return dur + 0.1;
+  },
+  // a frog: two to four croaks, each a quick run of low reedy pulses
+  frog: (t, o, p) => {
+    const bp = filt(o, 'bandpass', 600 * p, 3);
+    const f = (140 + Math.random() * 80) * p;
+    const n = 2 + Math.floor(Math.random() * 3);
+    let at = 0;
+    for (let c = 0; c < n; c++) {
+      for (let k = 0; k < 5; k++) tone(bp, t + at + k * 0.03, 'square', f, f * 0.9, 0.022, 0.12, 0.002);
+      at += 0.25 + Math.random() * 0.2;
+    }
+    return at;
+  },
+  // something big, a long way off, calling: a reedy cry that rises and falls
+  call: (t, o, p) => {
+    const dur = 0.9 + Math.random() * 0.8;
+    const f = (240 + Math.random() * 160) * p;
+    const bp = filt(o, 'bandpass', f * 2.5, 2);
+    const s = tone(bp, t, 'sawtooth', f, f, dur, 0.09, dur * 0.3);
+    s.frequency.linearRampToValueAtTime(f * 1.12, t + dur * 0.3);
+    s.frequency.exponentialRampToValueAtTime(f * 0.62, t + dur);
+    const l = ctx.createOscillator();
+    l.frequency.value = 5 + Math.random() * 2;
+    const lg = ctx.createGain();
+    lg.gain.value = f * 0.02;
+    l.connect(lg).connect(s.frequency);
+    l.start(t);
+    l.stop(t + dur + 0.05);
+    return dur + 0.1;
+  },
+  // a deep, slow moan, gliding up and back down
+  whale: (t, o, p) => {
+    const dur = 2.5 + Math.random() * 1.5;
+    const f = (100 + Math.random() * 50) * p;
+    for (const [w, k, pk] of [['sine', 1, 0.14], ['triangle', 2, 0.04]] as const) {
+      const s = tone(o, t, w, f * k, f * k, dur, pk, dur * 0.4);
+      s.frequency.linearRampToValueAtTime(f * k * 1.4, t + dur * 0.45);
+      s.frequency.linearRampToValueAtTime(f * k * 0.85, t + dur);
+    }
+    return dur + 0.1;
+  },
+  // a harsh bird, twice
+  caw: (t, o, p) => {
+    const bp = filt(o, 'bandpass', 1400 * p, 1.5);
+    for (let i = 0; i < 2; i++) {
+      const tt = t + i * (0.28 + Math.random() * 0.1);
+      tone(bp, tt, 'sawtooth', 760 * p, 560 * p, 0.18, 0.1, 0.01);
+      noise(bp, tt, 0.14, 'bandpass', 1800 * p, 1400 * p, 2, 0.05, 0.01);
+    }
+    return 0.7;
+  },
+  // thunder a long way off: a roll that comes and goes in waves
+  thunder: (t, o, p) => {
+    const dur = 2.8 + Math.random() * 1.6;
+    noise(o, t, dur, 'lowpass', 700 * p, 90, 0.8, 0.3, 0.25);
+    for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+      noise(o, t + 0.4 + Math.random() * 1.4, 1.2 + Math.random(), 'lowpass', 420 * p, 80, 0.8, 0.2, 0.15);
+    }
+    return dur + 1.5;
+  },
+  // a gust: air swelling past, with a thin whistle in it
+  gust: (t, o, p) => {
+    const dur = 1.8 + Math.random() * 1.6;
+    noise(o, t, dur, 'bandpass', 380 * p, 1200 * p, 1.2, 0.14, dur * 0.45);
+    noise(o, t + 0.2, dur * 0.8, 'bandpass', 1700 * p, 2300 * p, 9, 0.03, dur * 0.4);
+    return dur + 0.2;
+  },
+  // metal under strain: a saw stepping at random through a narrow band
+  creak: (t, o, p) => {
+    const dur = 0.8 + Math.random() * 0.9;
+    const f = (65 + Math.random() * 50) * p;
+    const s = tone(filt(o, 'bandpass', (500 + Math.random() * 500) * p, 6), t, 'sawtooth', f, f, dur, 0.12, 0.2);
+    for (let k = 1; k < dur / 0.035; k++) s.frequency.setValueAtTime(f * (0.9 + Math.random() * 0.22 + k * 0.004), t + k * 0.035);
+    return dur + 0.05;
+  },
+  // struck metal far off: a thud, a click, and partials that don't line up
+  clank: (t, o, p) => {
+    const f = (300 + Math.random() * 360) * p;
+    const parts: [number, number, number][] = [[1, 0.06, 1.1], [2.76, 0.04, 0.8], [5.4, 0.025, 0.5], [8.9, 0.012, 0.3]];
+    for (const [k, pk, d] of parts) tone(o, t, 'sine', f * k, f * k * 0.998, d, pk, 0.001);
+    noise(o, t, 0.02, 'highpass', 3000, 3000, 0.7, 0.07);
+    tone(o, t, 'sine', 120 * p, 70 * p, 0.12, 0.1, 0.002);
+    return 1.2;
+  },
+  // a drip: a quick upward plip and the ring of it
+  drip: (t, o, p) => {
+    const n = 1 + (Math.random() < 0.3 ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const tt = t + i * (0.15 + Math.random() * 0.3);
+      const f = (700 + Math.random() * 500) * p;
+      tone(o, tt, 'sine', f, f * 2.8, 0.06, 0.09, 0.001, 0.03);
+      tone(o, tt + 0.02, 'sine', f * 2.2, f * 2.2, 0.15, 0.02, 0.002);
+    }
+    return 0.6;
+  },
+  // bubbles breaking the surface: a few bloops
+  bubble: (t, o, p) => {
+    const n = 1 + Math.floor(Math.random() * 4);
+    let at = 0;
+    for (let i = 0; i < n; i++) {
+      const f = (110 + Math.random() * 90) * p;
+      tone(o, t + at, 'sine', f, f * 3.4, 0.09, 0.1, 0.003, 0.07);
+      at += 0.08 + Math.random() * 0.25;
+    }
+    return at + 0.1;
+  },
+  // crystal or ice: a few high tinkles, ringing long
+  chime: (t, o, p) => {
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const tt = t + Math.random() * 1.2;
+      const f = (2400 + Math.random() * 3600) * p;
+      const d = 0.6 + Math.random();
+      tone(o, tt, 'sine', f, f, d, 0.03, 0.002);
+      tone(o, tt, 'sine', f * 2.76, f * 2.76, d * 0.4, 0.008, 0.002);
+    }
+    return 2.4;
+  },
+  // ice giving way: a snap, ticks, a low boom, and the falling 'pew' a sheet of ice sings
+  crack: (t, o, p) => {
+    noise(o, t, 0.04, 'highpass', 2500, 2500, 0.7, 0.2);
+    crackle(o, t, 0.25, 8, 0.07);
+    tone(o, t + 0.02, 'sine', 90 * p, 45 * p, 0.6, 0.1, 0.004);
+    tone(o, t + 0.03, 'sine', 3200 * p, 380 * p, 0.35, 0.04, 0.002, 0.3);
+    return 0.8;
+  },
+  // a steam vent letting go
+  vent: (t, o, p) => {
+    const dur = 1.2 + Math.random() * 0.8;
+    noise(o, t, dur, 'highpass', 2400 * p, 1800 * p, 0.7, 0.06, 0.15);
+    noise(o, t, dur * 0.7, 'bandpass', 700 * p, 500 * p, 1, 0.04, 0.1);
+    return dur + 0.1;
+  },
+  // a fire: pops and crackle over a soft roar
+  fire: (t, o, p) => {
+    crackle(o, t, 1.2, 14, 0.06);
+    noise(o, t, 1.3, 'lowpass', 600 * p, 400 * p, 0.7, 0.05, 0.3);
+    return 1.4;
+  },
+  // a foghorn or a klaxon a long way off: two notes a minor third apart
+  horn: (t, o, p) => {
+    const lp = filt(o, 'lowpass', 520);
+    const f = 110 * p;
+    for (const k of [1, 1.19]) tone(lp, t, 'sawtooth', f * k, f * k, 1.6, 0.06, 0.1);
+    return 1.7;
+  },
+  // power: a buzz swelling and fading, with a spit or two of sparks
+  buzz: (t, o, p) => {
+    const dur = 1.3 + Math.random() * 0.6;
+    const bp = filt(o, 'bandpass', 900 * p, 3);
+    for (const k of [1, 2]) tone(bp, t, 'sawtooth', 120 * p * k, 120 * p * k, dur, 0.035 / k, dur * 0.4);
+    crackle(o, t + dur * 0.3, dur * 0.5, 3, 0.04);
+    return dur + 0.1;
+  },
+  // a press somewhere, thumping, and a clink as it stops
+  machine: (t, o, p) => {
+    const n = 4 + Math.floor(Math.random() * 4);
+    const gap = 0.4 + Math.random() * 0.15;
+    for (let i = 0; i < n; i++) {
+      tone(o, t + i * gap, 'sine', 85 * p, 50 * p, 0.15, 0.12, 0.002);
+      noise(o, t + i * gap, 0.06, 'lowpass', 400, 300, 0.7, 0.06);
+    }
+    tone(o, t + n * gap, 'sine', 1300 * p, 1290 * p, 0.25, 0.02, 0.002);
+    return n * gap + 0.3;
+  },
+};
+
+interface Amb {
+  def: AmbDef;
+  out: GainNode;
+  wet: GainNode;
+  srcs: AudioScheduledSourceNode[];
+  nodes: AudioNode[];
+  next: Map<AmbEvent, number>;
+  stopAt: number;
+}
+const ambs: Amb[] = [];
+let amb: Amb | null = null;
+let wantPlace: string | null = null;
+let ambI = -1;
+
+/** Seconds to the next of something that happens `perMin` times a minute, at random (a Poisson process). */
+const nextIn = (perMin: number) => Math.max(0.4, (-Math.log(1 - Math.random()) * 60) / perMin);
+
+function makeAmb(def: AmbDef): Amb {
+  const now = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0, now);
+  out.gain.linearRampToValueAtTime(1, now + 3);
+  out.connect(ambLevel);
+  const wet = ctx.createGain();
+  wet.gain.setValueAtTime(0, now);
+  wet.gain.linearRampToValueAtTime(1, now + 3);
+  wet.connect(ambWet);
+  const srcs: AudioScheduledSourceNode[] = [];
+  const nodes: AudioNode[] = [out, wet];
+  const gain = (v: number, to: AudioNode) => {
+    const g = ctx.createGain();
+    g.gain.value = v;
+    g.connect(to);
+    nodes.push(g);
+    return g;
+  };
+  const bq = (type: BiquadFilterType, f: number, q: number, to: AudioNode) => {
+    const b = filt(to, type, f, q);
+    nodes.push(b);
+    return b;
+  };
+  const bed = (buf: AudioBuffer, to: AudioNode) => {
+    const s = ctx.createBufferSource();
+    s.buffer = buf;
+    s.loop = true;
+    s.connect(to);
+    s.start(now, Math.random() * buf.duration);
+    srcs.push(s);
+  };
+  /** A slow wobble added onto a param: rate (Hz), depth. */
+  const lfo = (rate: number, depth: number, to: AudioParam) => {
+    const l = ctx.createOscillator();
+    l.frequency.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = depth;
+    l.connect(g).connect(to);
+    l.start(now);
+    srcs.push(l);
+    nodes.push(g);
+  };
+  const r = () => Math.random();
+
+  if (def.wind) {
+    // two slow wobbles at unrelated rates push the level and the pitch of the air around: gusts
+    const [lv, hz, q, gust] = def.wind;
+    const g = gain(lv * (1 - 0.6 * gust), out);
+    const bp = bq('bandpass', hz, q, g);
+    bed(pinkBuf, bp);
+    lfo(0.05 + r() * 0.04, lv * gust * 0.3, g.gain);
+    lfo(0.11 + r() * 0.06, lv * gust * 0.3, g.gain);
+    lfo(0.07 + r() * 0.05, hz * 0.35, bp.frequency);
+  }
+  if (def.rumble) {
+    const [lv, hz] = def.rumble;
+    // pink noise is mostly lows: a little of it under 150 Hz goes a long way
+    const g = gain(lv * 0.35, out);
+    bed(pinkBuf, bq('lowpass', hz, 0.7, g));
+    lfo(0.03 + r() * 0.03, lv * 0.09, g.gain);
+  }
+  if (def.hiss) {
+    // a swell on it makes surf, steady makes rain or steam
+    const [lv, hz, q, swell] = def.hiss;
+    const g = gain(swell ? lv * 0.55 : lv, out);
+    bed(pinkBuf, bq('bandpass', hz, q, g));
+    if (swell) {
+      lfo(swell, lv * 0.4, g.gain);
+      lfo(swell * 1.618, lv * 0.15, g.gain);
+    }
+  }
+  if (def.drone) {
+    const [lv, oct, kind] = def.drone;
+    const f = mtof((current?.def.root ?? 38) + oct);
+    const g = gain(lv * 0.7, out);
+    lfo(0.09 + r() * 0.06, lv * 0.3, g.gain);
+    const osc = (w: Wave, fr: number, v: number, to: AudioNode) => {
+      const o = ctx.createOscillator();
+      setWave(o, w);
+      o.frequency.value = fr;
+      o.connect(gain(v, to));
+      o.start(now);
+      srcs.push(o);
+      return o;
+    };
+    if (kind === 'warm') {
+      const lp = bq('lowpass', 600, 0.7, g);
+      osc('triangle', f, 0.12, lp).detune.value = -6;
+      osc('triangle', f, 0.12, lp).detune.value = 6;
+      osc('sine', f * 1.5, 0.05, lp);
+    } else if (kind === 'glass') {
+      // pure partials a hair apart, so they beat slowly: the aurora's hum
+      osc('sine', f, 0.06, g);
+      osc('sine', f * 2.003, 0.035, g);
+      osc('sine', f * 3.007, 0.018, g);
+    } else {
+      const lp = bq('lowpass', 260, 2, g);
+      lfo(0.08 + r() * 0.04, 70, lp.frequency);
+      osc('sawtooth', f, 0.08, lp);
+      osc('sawtooth', f * 1.0035, 0.08, lp);
+      osc('sine', f / 2, 0.08, g);
+    }
+  }
+  const next = new Map<AmbEvent, number>();
+  for (const [k, perMin] of Object.entries(def.events) as [AmbEvent, number][]) next.set(k, now + 1 + nextIn(perMin));
+  return { def, out, wet, srcs, nodes, next, stopAt: Infinity };
+}
+
+/** One of the place's one-shots, somewhere around you: a random side, distance, pitch and level. */
+function ambEvent(a: Amb, kind: AmbEvent, t: number) {
+  const dist = 0.25 + Math.random() * 0.75;
+  const o = ctx.createGain();
+  o.gain.value = (1 - 0.55 * dist) * (0.7 + Math.random() * 0.3);
+  const air = ctx.createBiquadFilter();
+  air.type = 'lowpass';
+  air.frequency.value = 14000 * Math.pow(0.1, dist);
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = (Math.random() * 2 - 1) * 0.9;
+  const send = ctx.createGain();
+  send.gain.value = 0.25 + 0.7 * dist;
+  o.connect(air).connect(pan).connect(a.out);
+  pan.connect(send).connect(a.wet);
+  const dur = AMB_EV[kind](t, o, (a.def.pitch ?? 1) * (0.88 + Math.random() * 0.24));
+  trash.push({ at: t + dur + 0.5, nodes: [o, air, pan, send] });
+}
+
+function setPlace(place: string | null) {
+  const def = place ? AMB[place] : undefined;
+  if (amb && def === amb.def) return;
+  const now = ctx.currentTime;
+  if (amb) {
+    for (const g of [amb.out.gain, amb.wet.gain]) {
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(0, now + 3);
+    }
+    amb.stopAt = now + 3.1;
+  }
+  amb = null;
+  if (!def) return;
+  setSpace(def.space);
+  amb = makeAmb(def);
+  ambs.push(amb);
+}
+
+// ---- the state of the mix ---------------------------------------------------------------------
+
+let muffled = false;
+let danger = 0;
+let nextBeat = 0;
+let duckUntil = 0;
+let duckDepth = 1;
+
+/** Ducks the music and the ambience to `depth` for `seconds`: quick down, gentle back (the deeper of two overlapping ducks wins). */
+function duckTo(seconds: number, depth: number) {
+  const now = ctx.currentTime;
+  if (now < duckUntil) depth = Math.min(depth, duckDepth);
+  duckDepth = depth;
+  duckUntil = Math.max(duckUntil, now + Math.max(0, seconds));
+  for (const g of [musicDuck.gain, ambDuck.gain]) {
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(depth, now + 0.035);
+    g.setValueAtTime(depth, duckUntil);
+    g.linearRampToValueAtTime(1, duckUntil + 0.6);
+  }
+}
+
+/** A blow you feel: the world dulls and comes back (hard enough, it deafens, and your ears ring). */
+function shellShock(t: number, k: number) {
+  const f = worldLP.frequency;
+  f.cancelScheduledValues(t);
+  f.setValueAtTime(f.value, t);
+  f.exponentialRampToValueAtTime(Math.max(240, OPEN_HZ * Math.pow(0.012, k)), t + 0.03);
+  f.setTargetAtTime(muffled ? MUFFLE_HZ : OPEN_HZ, t + 0.15 + 0.6 * k, 0.15 + 0.7 * k);
+  if (k >= 0.8) tone(uiBus, t + 0.05, 'sine', 3900, 3860, 2.4, 0.014, 0.1);
+}
+
+/** Low hull: a heartbeat, quicker and louder the closer to nothing. */
+function heartbeat(now: number) {
+  if (danger < 0.05 || now < nextBeat) return;
+  const t = Math.max(now, nextBeat) + 0.02;
+  const v = 0.1 + 0.22 * danger;
+  for (const [at, k] of [[0, 1], [0.17, 0.7]] as const) {
+    tone(sfxBus, t + at, 'sine', 62, 42, 0.16, v * k, 0.006);
+    noise(sfxBus, t + at, 0.07, 'lowpass', 220, 150, 0.8, v * k * 0.5, 0.004);
+  }
+  nextBeat = t + 1.05 - 0.4 * danger;
 }
 
 // ================================================================================================
@@ -2390,6 +3068,28 @@ function tick() {
       loops.delete(key);
     }
   }
+  // the place: its one-shots, how far it steps back for the fight, the old one fading out
+  if (amb) {
+    for (const [k, at] of amb.next) {
+      if (at > now + 0.1) continue;
+      ambEvent(amb, k, Math.max(at, now + 0.01));
+      amb.next.set(k, now + nextIn(amb.def.events[k] ?? 1));
+    }
+    const lvl = amb.def.menu ? 1 : 1 - 0.55 * wantI;
+    if (Math.abs(lvl - ambI) > 0.02) {
+      ambI = lvl;
+      ambLevel.gain.setTargetAtTime(lvl, now, 0.8);
+      ambWet.gain.setTargetAtTime(lvl, now, 0.8);
+    }
+  }
+  for (let i = ambs.length - 1; i >= 0; i--) {
+    const a = ambs[i];
+    if (now < a.stopAt) continue;
+    for (const s of a.srcs) s.stop();
+    for (const n of a.nodes) n.disconnect();
+    ambs.splice(i, 1);
+  }
+  heartbeat(now);
   // disconnect finished sfx chains
   for (let i = trash.length - 1; i >= 0; i--) {
     if (trash[i].at < now) {
@@ -2406,14 +3106,13 @@ export const bossTrack = (planet: string): Track => (`boss_${planet}` in TRACKS 
 // Public API
 // ================================================================================================
 
-let duckUntil = 0;
-
 export const audio = {
   unlock(): void {
     try {
       if (!ready) {
         if (!init()) return;
         if (wantTrack) switchTrack(wantTrack);
+        setPlace(wantPlace);
         for (const key of [...loopWant.keys()]) applyLoop(key);
       }
       if (ctx.state !== 'running' && !document.hidden) void ctx.resume().catch(() => undefined);
@@ -2422,7 +3121,8 @@ export const audio = {
     }
   },
 
-  play(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number }): void {
+  /** `dist` 0 (right here) .. 1 (far off): duller, quieter, more of the room. */
+  play(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }): void {
     if (!ready || ctx.state !== 'running') return;
     playSfx(name, opts);
   },
@@ -2435,9 +3135,36 @@ export const audio = {
     else if (!on) loopWant.delete(key);
   },
 
+  /** The tune. The menu tunes (title, map, hangar) bring their own place with them. */
   music(track: Track | null): void {
     wantTrack = track;
     if (ready) switchTrack(track);
+    if (track && AMB[track]?.menu) audio.ambience(track);
+  },
+
+  /** Where we are: a biome's id (or title / map / hangar). Sets its ambience and its reverb; null for silence. */
+  ambience(place: string | null): void {
+    wantPlace = place && AMB[place] ? place : null;
+    if (ready) setPlace(wantPlace);
+  },
+
+  /** How close to going down (0 fine .. 1 one hit left): the music closes in, a heartbeat comes up. */
+  danger(x: number): void {
+    const d = clamp(x, 0, 1);
+    if (!ready || Math.abs(d - danger) < 0.02) return;
+    if (danger < 0.05 && d >= 0.05) nextBeat = ctx.currentTime;
+    danger = d;
+    bedLP.frequency.setTargetAtTime(OPEN_HZ * Math.pow(0.075, d), ctx.currentTime, 0.3);
+  },
+
+  /** Paused: everything but the menu sinks under water. */
+  muffle(on: boolean): void {
+    if (!ready || on === muffled) return;
+    muffled = on;
+    const now = ctx.currentTime;
+    worldLP.frequency.cancelScheduledValues(now);
+    worldLP.frequency.setTargetAtTime(on ? MUFFLE_HZ : OPEN_HZ, now, 0.08);
+    world.gain.setTargetAtTime(on ? 0.55 : 1, now, 0.08);
   },
 
   intensity(x: number): void {
@@ -2450,15 +3177,7 @@ export const audio = {
   },
 
   duck(seconds: number): void {
-    if (!ready) return;
-    const now = ctx.currentTime;
-    duckUntil = Math.max(duckUntil, now + Math.max(0, seconds));
-    const g = musicDuck.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(g.value, now);
-    g.linearRampToValueAtTime(0.35, now + 0.04);
-    g.setValueAtTime(0.35, duckUntil);
-    g.linearRampToValueAtTime(1, duckUntil + 0.6);
+    if (ready) duckTo(seconds, 0.35);
   },
 
   volume(masterVol: number, music: number, sfx: number): void {
@@ -2466,6 +3185,22 @@ export const audio = {
     settings.music = clamp(music, 0, 1);
     settings.sfx = clamp(sfx, 0, 1);
     applyVolumes();
+  },
+
+  /** For the audio bench: a tap on the final output, to read levels by. */
+  meter(): AnalyserNode | null {
+    if (!ready) return null;
+    if (!meterNode) {
+      meterNode = ctx.createAnalyser();
+      meterNode.fftSize = 2048;
+      limiter.connect(meterNode);
+    }
+    return meterNode;
+  },
+
+  /** For the audio bench: every place there is. */
+  get places(): string[] {
+    return Object.keys(AMB);
   },
 
   get muted(): boolean {

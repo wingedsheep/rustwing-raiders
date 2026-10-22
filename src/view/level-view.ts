@@ -1665,6 +1665,9 @@ export class LevelView {
     }
     this.placeCamera(dt);
     audio.intensity(clamp(0.35 + lv.enemies.length * 0.03 + lv.bullets.length * 0.004 + (lv.state === 'boss' ? 0.4 : 0), 0, 1));
+    // the lowest hull still flying, under three tenths of full: the mix closes in
+    const hull = Math.min(1, ...lv.players.filter((p) => !p.down).map((p) => p.hp / p.stats.hp));
+    audio.danger(clamp(1 - hull / 0.3, 0, 1));
   }
 
   /** Boosting: the view pulls back, the edges smear, streaks rush past, the air roars. */
@@ -1747,6 +1750,7 @@ export class LevelView {
     const idx = k < 0.5 ? bl.a : bl.b;
     if (idx !== this.biomeIdx) {
       this.biomeIdx = idx;
+      audio.ambience(t.segments[idx].biome.id);
     }
     void dt;
   }
@@ -2460,6 +2464,7 @@ export class LevelView {
     audio.loop('flame', 'p1', false);
     audio.loop('engine', 'p1', false);
     audio.loop('wind', 'all', false);
+    audio.danger(0);
   }
 }
 
