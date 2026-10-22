@@ -21,6 +21,7 @@ export type Sfx =
   | 'laser_charge' | 'laser_fire' | 'lightning' | 'geyser' | 'crash' | 'warp' | 'boss_warning' | 'level_clear'
   | 'ui_move' | 'ui_select' | 'ui_back' | 'ui_error' | 'ui_place' | 'ui_buy'
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
+  | 'graft_deal' | 'graft_bolt' | 'bond_wake'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
@@ -1069,6 +1070,44 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.3, 1.4, 'highpass', 6000, 12000, 0.6, 0.035, 0.2);
     return 1.8;
   }, 1, 1, { tuned: true, rev: 0.5 }),
+
+  // --- wreck grafts ---------------------------------------------------------------------------
+
+  // a graft dealt off the wreck: a plate of hull dropped on the bench, and its ring
+  graft_deal: S((t, p, o) => {
+    noise(o, t, 0.05, 'bandpass', 1600 * p, 700 * p, 1.6, 0.12, 0.001);
+    tone(o, t, 'square', 150 * p, 60 * p, 0.05, 0.08, 0.001);
+    tone(filt(o, 'bandpass', 2400 * p, 8), t + 0.005, 'triangle', 1870 * p, 1840 * p, 0.3, 0.035, 0.001);
+    tone(filt(o, 'bandpass', 3100 * p, 8), t + 0.005, 'triangle', 2950 * p, 2930 * p, 0.22, 0.02, 0.001);
+    return 0.35;
+  }, 0.04, 4, { tuned: true, rev: 0.2 }),
+
+  // a graft bolted on: a heavy clamp, a ratchet going round, a hiss of steam off the weld
+  graft_bolt: S((t, p, o) => {
+    tone(o, t, 'sine', 120 * p, 40 * p, 0.22, 0.3, 0.001);
+    noise(o, t, 0.08, 'lowpass', 2400, 600, 0.8, 0.22, 0.001);
+    tone(filt(o, 'bandpass', 900 * p, 4), t, 'square', 220 * p, 110 * p, 0.08, 0.12, 0.001);
+    for (let k = 0; k < 6; k++) noise(o, t + 0.1 + k * 0.035, 0.012, 'bandpass', 4200 * p, 3800 * p, 3, 0.07, 0.001);
+    tone(filt(o, 'bandpass', 2600 * p, 10), t + 0.32, 'triangle', 2200 * p, 2160 * p, 0.4, 0.03, 0.001);
+    noise(o, t + 0.3, 0.5, 'highpass', 5000, 9000, 0.6, 0.05, 0.02);
+    return 0.85;
+  }, 0.1, 2, { tuned: true, rev: 0.3 }),
+
+  // a bond waking: three of a kind come to life together, a low swell under a rising chord
+  bond_wake: S((t, p, o) => {
+    tone(o, t, 'sine', 41 * p, 82 * p, 1.2, 0.22, 0.3, 0.9);
+    noise(o, t, 0.7, 'bandpass', 300, 2400, 0.8, 0.05, 0.4);
+    [0, 7, 12, 16, 19].forEach((n, i) => {
+      const f = mtof(57 + n) * p;
+      tone(o, t + 0.35 + i * 0.06, 'sawtooth', f, f, 1.2, 0.022, 0.05);
+      tone(o, t + 0.35 + i * 0.06, 'triangle', f * 2, f * 2, 1.4, 0.04, 0.01);
+    });
+    tone(o, t + 0.35, 'square', 110 * p, 55 * p, 0.12, 0.12, 0.001);
+    noise(o, t + 0.35, 0.12, 'lowpass', 3000, 400, 0.7, 0.2, 0.001);
+    [31, 36, 40, 43].forEach((n, i) => tone(o, t + 0.9 + i * 0.08, 'sine', mtof(57 + n) * p, mtof(57 + n) * p, 0.6, 0.03, 0.002));
+    noise(o, t + 0.6, 1.4, 'highpass', 6000, 12000, 0.6, 0.03, 0.2);
+    return 2.2;
+  }, 1, 1, { tuned: true, rev: 0.55 }),
 
   // --- legendary traits in flight -----------------------------------------------------------
 

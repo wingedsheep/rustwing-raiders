@@ -11,6 +11,7 @@ import type { Game } from './game';
 import { Flight, type FlightResult } from '../screens/flight';
 import { ChartScreen } from '../screens/chart';
 import { Results } from '../screens/results';
+import { WreckScreen } from '../screens/wreck';
 import { Hangar } from '../screens/hangar';
 import { Shop, Dock, EventScreen } from '../screens/stops';
 import { Ending } from '../screens/ending';
@@ -210,18 +211,18 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       run.crew.forEach((c, i) => (c.hull = Math.min(stats(c.build).hp, res.hull[i] + HULL_STEP)));
       const boss = mode === 'boss';
       if (boss) run.stats.bosses++;
-      game.go(
-        new Results(game, run, res, spec, () => {
-          if (boss) {
-            if (run.sector + 1 >= SECTORS) game.go(new Ending(game, run, true, 'The last Warden falls. The way out is open.'));
-            else {
-              run.nextSector();
-              toChart(game);
-            }
-          } else if (after) after();
-          else toChart(game);
-        }),
-      );
-    }),
+      const next = () => {
+        if (boss) {
+          if (run.sector + 1 >= SECTORS) game.go(new Ending(game, run, true, 'The last Warden falls. The way out is open.'));
+          else {
+            run.nextSector();
+            toChart(game);
+          }
+        } else if (after) after();
+        else toChart(game);
+      };
+      // then the wrecks taken down, if any, to strip
+      game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, next)) : next())));
+    }, run.crew.map((c) => c.grafts)),
   );
 }

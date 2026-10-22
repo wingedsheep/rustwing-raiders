@@ -67,13 +67,13 @@ Every run starts the same: one frame and its starter parts, three empty hooks, n
 
 ## 3. Wreck grafts: you fly what you beat
 
-- **Take down an elite** and its wreck offers 2 grafts (random) from its faction: its own move, and another of the faction's. Pick one, bolt it onto the verb it fits. A **boss** gives its signature.
+- **Take down an elite** (dash through it while it reels) and finish it, and its wreck is yours. After the results your wrecks lay out up to 3 grafts between them: each wreck's own move, and another of its faction's. Pick one and bolt it onto the verb it fits, or leave them for scrap. A **boss** leaves every pilot its signature (one without a signature: two of its faction's). An elite that dies without a takedown leaves no wreck.
 - **One graft per verb**: trigger, heavy, dash, aux, special, boost. A new one on a taken verb replaces the old.
 - **Three from one faction wake its bond**:
   - Scrap, SALVAGE RIGHTS: kills throw shrapnel.
-  - Lattice, TRUE LINE: your shots draw their lane first, and pierce.
+  - Lattice, TRUE LINE: trigger shots pierce one more.
   - Wild, BLOOD UP: takedowns fill the Weld twice as fast.
-  - Bloom, OVERGROWTH: marks spread on a kill.
+  - Bloom, OVERGROWTH: a kill passes its marks on to the nearest.
 - **The route is the build.** The chart already shows who you'll meet, so hunting a Rook is choosing your heavy.
 
 First grafts:
@@ -91,6 +91,12 @@ First grafts:
 | Vask (boss) | SPECIAL | SKY DIVE: pick a lane, dive it untouchable, sow eggs |
 | Oko (boss) | AUX | CRANE SWING: a wrecking ball swings under you, batting bullets |
 | Khet (boss) | HEAVY | TITAN EYE: a beam that follows the nearest enemy |
+| Swooper | DASH | STOOP: your shadow thrown ahead, a talon strike on it a beat later |
+| Spitter | TRIGGER | ACID SPIT: a glob lobbed at the nearest enemy, its puddle eats and cracks |
+| Puffball | BOOST | SPORE TRAIL: clouds that eat enemy fire and rot what flies in |
+| Mother-of-Spores (boss) | HEAVY | MOTHER'S BLOOM: a heavy round that hits flowers into a ring of spores |
+
+A graft rides its verb: an aux graft on a ship with no aux sleeps (the card and the hangar say so). Grafts are in `src/game/grafts.ts`, how they fly in `src/sim/grafting.ts`, the salvage in `src/screens/wreck.ts`.
 
 ---
 

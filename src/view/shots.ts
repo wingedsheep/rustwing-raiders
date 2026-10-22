@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Shot } from '../sim/level';
+import { graftShotColor } from './grafts-view';
 import { FLIGHT_Y, TILT } from '../sim/types';
 import { FINS, FLAME, FLAME_CORE, HULL, NOZZLE, OCTA, SOFT, SPHERE, STREAK, instanced, lathe, material, place, type Stuff } from './bullets';
 
@@ -214,6 +215,8 @@ export class ShotArt {
       if (s.tag === 'reflect' || s.tag === 'mirror') x.col.lerp(WHITE, 0.4);
       // a VENGEFUL nova's shrapnel burns orange; a dash-strike's rounds run white-hot
       else if (s.tag === 'nova') x.col.setHex(0xff8a4a);
+      // a graft's shots burn in its faction's light
+      else if (s.graft) x.col.setHex(graftShotColor(s.graft)!).lerp(WHITE, 0.2);
       if (s.strike) x.col.lerp(WHITE, 0.5).multiplyScalar(1.3);
       x.age = s.t;
       x.life = Math.min(1, s.t / Math.max(s.life, 0.01));

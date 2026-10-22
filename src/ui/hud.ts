@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { HULL_STEP, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, READ_LINE, sigName } from '../sim/boss';
-import { FOES, type Foe } from '../sim/factions';
+import { FOES, PALETTE, type Foe } from '../sim/factions';
+import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { frameById, LOAD_CLASS, partById, type FrameDef, type Hardpoint, type PartClass } from '../game/parts';
@@ -409,6 +410,31 @@ export class Hud {
       bar(ctx, x0 + 4, 19, pw - 8, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', 'rgba(60,48,80,0.6)');
     }
     if (p.down) drawText(ctx, lv.players.length > 1 ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', side === 'left' ? x0 : x0 + pw, 28, RED, { align: side });
+    else this.grafts(ctx, p, side === 'left' ? x0 : x0 + pw, side);
+  }
+
+  /**
+   * The wreck grafts on a ship, in a strip under its plate: a socket a verb, in its graft's
+   * faction's colour (dark if the ship can't use it), lit white as it goes off; a star for each
+   * bond awake.
+   */
+  private grafts(ctx: CanvasRenderingContext2D, p: Player, x: number, side: 'left' | 'right') {
+    if (!Object.keys(p.grafts).length) return;
+    const w = VERBS.length * 7 + 3 + p.bonds.length * 7;
+    const x0 = side === 'left' ? x + 2 : x - 2 - w;
+    plate(ctx, x0 - 2, 25, w + 3, 8, 0.5);
+    VERBS.forEach((v, k) => {
+      const id = p.grafts[v];
+      const cx = x0 + k * 7;
+      ctx.fillStyle = '#2a2236';
+      ctx.fillRect(cx, 27, 5, 4);
+      if (!id) return;
+      const col = hex(PALETTE[GRAFTS[id].faction][2]);
+      const fired = p.gs.fired[v];
+      ctx.fillStyle = fired !== undefined && fired < 0.18 ? '#ffffff' : hasVerb(p.stats, v) ? col : '#4a4058';
+      ctx.fillRect(cx, 27, 5, 4);
+    });
+    p.bonds.forEach((f, k) => drawText(ctx, '✦', x0 + VERBS.length * 7 + 2 + k * 7, 26, hex(PALETTE[f][2]), { shadow: false }));
   }
 
   /**
@@ -566,7 +592,10 @@ export class Hud {
     drawText(ctx, e.title!, bx + 5, 31, GOLD, { shadow: false });
     drawText(ctx, `· ${what.toUpperCase()}`, bx + 9 + textWidth(e.title!), 31, DIM, { shadow: false });
     const of = e.d.chain ?? 0;
-    if (of > 1) drawText(ctx, `CHAINS ${of}`, bx + bw - 5, 31, '#ffe0b0', { shadow: false, align: 'right' });
+    // taken down once: its wreck is that pilot's when it dies
+    let right = bx + bw - 5;
+    if (e.downBy !== undefined && !e.bounty) right -= drawText(ctx, '✦ WRECK', right, 31, hex(LIVERY[e.downBy]?.[2] ?? 0xffd04a), { shadow: false, align: 'right' }) + 6;
+    if (of > 1) drawText(ctx, `CHAINS ${of}`, right, 31, '#ffe0b0', { shadow: false, align: 'right' });
     const x0 = bx + 5;
     if (e.armour > 0) bar(ctx, x0, 40, bw - 10, 3, e.armour / e.armourMax, e.hitT < 0.07 ? '#ffffff' : GOLD, 'rgba(42,34,54,0.9)');
     else if (e.state === 'stagger' && Math.floor(this.time * 6) % 2) drawText(ctx, 'ARMOUR BROKEN', mid, 52, GOLD, { align: 'center' });

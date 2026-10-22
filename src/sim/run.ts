@@ -16,6 +16,7 @@ import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
 import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
+import type { Grafts } from '../game/grafts';
 
 /** Sites where there's a fight to fly. */
 export const fights = (n: ChartNode) => n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'heist' || n.kind === 'gate';
@@ -39,6 +40,8 @@ export interface Crew {
   /** Parts in the hold, not bolted on. */
   cargo: Item[];
   hull: number;
+  /** Wreck grafts, one a verb (see game/grafts.ts): found this run, lost at its end. */
+  grafts: Grafts;
 }
 
 export const CARGO = 6;
@@ -140,7 +143,7 @@ export class Run {
     this.r = rng(seed ^ 0x5eed);
     this.crew = frames.map((f) => {
       const build = startBuild(f);
-      return { build, cargo: [], hull: stats(build).hp };
+      return { build, cargo: [], hull: stats(build).hp, grafts: {} };
     });
     this.chart = new Chart(chartSeed(seed, 0), 0);
     this.chart.nodes[0].done = true;

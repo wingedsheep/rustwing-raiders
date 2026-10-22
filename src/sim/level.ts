@@ -21,6 +21,8 @@ import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, sprea
 import { Convoy } from './convoy';
 import { Heist } from './heist';
 import { rollItem, rollTier, type AffixId, type Item } from '../game/loot';
+import { Grafting, newGraftState, type GraftState } from './grafting';
+import { bondsOf, type GraftId, type Grafts, type Wreck } from '../game/grafts';
 
 export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
 
@@ -183,6 +185,10 @@ export interface Player {
   /** Welds finished, and lost to a hit (for the autopilot's report). */
   welds: number;
   weldsLost: number;
+  /** Wreck grafts bolted onto its verbs, the bonds they wake, and their working state (see grafting.ts). */
+  grafts: Grafts;
+  bonds: Faction[];
+  gs: GraftState;
 }
 
 /** SENTINEL: a copy of a gun left behind by a dash, firing on its own until it winks out. */
@@ -259,6 +265,14 @@ export interface Shot {
   /** Its gun's affix; `rico`: a RICOCHET's glance (it doesn't glance again). */
   affix?: AffixId;
   rico?: boolean;
+  /** A graft's (see grafting.ts); `blow`: it breaks plating at full strength, whatever its punch. */
+  graft?: GraftId;
+  blow?: boolean;
+  /** SQUARE TURN: 0 looking for one to turn into, 1 holding (`halt` more) before it goes off at (nvx, nvz), 2 done. */
+  sq?: number;
+  halt?: number;
+  nvx?: number;
+  nvz?: number;
   dead: boolean;
 }
 
@@ -354,6 +368,8 @@ export interface Enemy extends FoeFields {
   /** Thrown (a THUNDEROUS clap): a push that dies away. */
   kx?: number;
   kz?: number;
+  /** An elite a takedown's landed on: who by (its wreck is theirs when it goes down). */
+  downBy?: number;
 }
 
 /** A hard drop: `reward` scrap (and a part crate with `part`) if it's killed within `life` seconds. */
@@ -518,6 +534,12 @@ export type LevelEvent =
   | { type: 'weld'; id: number; state: 'ready' | 'start' | 'done' | 'lost'; x: number; z: number }
   /** A hot crate: there to take (`id` -1), taken, cracked open (the part's yours), blown (a hull and the part gone), or let go at the level's end. */
   | { type: 'hot'; id: number; state: 'appear' | 'on' | 'open' | 'blown' | 'lost'; x: number; z: number; part?: Item }
+  /** A graft went off (`what` it did: see grafting.ts), at (x, z), with a line to (x2, z2) or a count where it has one. */
+  | { type: 'graft'; id: number; graft: GraftId; what: string; x: number; z: number; x2?: number; z2?: number; n?: number }
+  /** A bond did its thing. */
+  | { type: 'bond'; id: number; faction: Faction; x: number; z: number }
+  /** An elite went down: its wreck is `id`'s to salvage (or, `lost`, nobody took it down first). */
+  | { type: 'wreck'; id: number; enemy: number; x: number; z: number; title: string; kind: string; faction: Faction; lost: boolean }
   /** A shocked enemy seized up for a beat. */
   | { type: 'jolt'; enemy: number; x: number; z: number }
   /** Escorts (see convoy.ts): a hauler hit, lost, boarded, delivered; raiders coming to board one. */
@@ -602,6 +624,10 @@ export class Level {
   readonly sentinels: Sentinel[] = [];
   /** A special going off right now: what it kills doesn't feed a RAVENOUS special. */
   private inSpecial = false;
+  /** The grafts' doings, and what they leave about. */
+  readonly grafting: Grafting;
+  /** Wrecks taken: elites taken down and finished, each one theirs to salvage at the results. */
+  readonly wrecks: Wreck[] = [];
   /** Boss phases a takedown has already filled the Weld half in. */
   private readonly tookPhase = new Set<number>();
   /** Inside a blast: its hits are blows (see isBlow). */
@@ -614,6 +640,8 @@ export class Level {
     builds: Build[],
     /** Players' hull carried over from the last level (or full). */
     hull?: number[],
+    /** Their wreck grafts. */
+    grafts?: Grafts[],
   ) {
     this.rand = rng(spec.seed);
     this.terrain = new Terrain(
@@ -703,8 +731,12 @@ export class Level {
         weldT: 0,
         welds: 0,
         weldsLost: 0,
+        grafts: { ...(grafts?.[i] ?? {}) },
+        bonds: bondsOf(grafts?.[i] ?? {}),
+        gs: newGraftState(),
       });
     });
+    this.grafting = new Grafting(this);
     this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
     this.heist = spec.mode === 'heist' ? new Heist(this) : null;
     this.director = new Director(this);
@@ -801,6 +833,7 @@ export class Level {
     this.updateBullets(dz);
     this.updateLasers();
     updateStrikes(this, dz);
+    this.grafting.update(dz);
     tickCombat(this);
     this.updatePickups(dz);
     this.updateDecoys(dz);
@@ -953,6 +986,8 @@ export class Level {
     p.primeT = Math.max(0, p.primeT - DT);
     p.focus = i.focus;
     const welding = this.updateWeld(p, i);
+    // a SKY DIVE has the ship till it's done
+    const diving = this.grafting.diving(p);
     if (p.frenzyT > 0 && (p.frenzyT -= DT) <= 0) {
       p.frenzy = 0;
       this.emit({ type: 'frenzy', id: p.id, stacks: 0 });
@@ -971,7 +1006,8 @@ export class Level {
     const b = p.boosting;
     if (Math.hypot(mx, mz) < 0.1) mz = -SURGE_PUSH * b;
     const top = welding ? s.speed * WELD.crawl : s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b);
-    if (p.dashT > 0) {
+    if (diving) this.grafting.dive(p);
+    else if (p.dashT > 0) {
       p.dashT -= DT;
       p.vx = p.dashX * DASH_SPEED;
       p.vz = p.dashZ * DASH_SPEED;
@@ -979,6 +1015,7 @@ export class Level {
         p.vx *= 0.35;
         p.vz *= 0.35;
         if (s.thunder > 0) this.thunderclap(p);
+        this.grafting.dashEnd(p);
       }
     } else {
       const tx = mx * top;
@@ -1002,15 +1039,15 @@ export class Level {
       p.dashes++;
       p.dashCd = s.dashCooldown;
     }
-    if (i.dash && !welding && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
+    if (i.dash && !welding && !diving && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
       p.dashes--;
       if (p.dashCd <= 0) p.dashCd = s.dashCooldown;
       const dl = Math.hypot(mx, mz);
       p.dashX = dl > 0.2 ? mx / dl : 0;
       p.dashZ = dl > 0.2 ? mz / dl : -1;
       // committed: a fixed burst, and nothing in it is safe (see perfectDash)
-      p.dashT = DASH_TIME;
-      p.dashLock = DASH_TIME + DASH_RECOVER;
+      p.dashT = DASH_TIME * this.grafting.dashLength(p);
+      p.dashLock = p.dashT + DASH_RECOVER;
       p.slip = s.slip;
       p.slipX = p.x;
       p.slipZ = p.z - this.scroll;
@@ -1018,6 +1055,7 @@ export class Level {
       p.strike = STRIKE_TIME * (1 + 0.5 * s.mod.strike);
       this.emit({ type: 'dash', id: p.id, x: p.x, z: p.z, dx: p.dashX, dz: p.dashZ });
       this.dashMods(p);
+      this.grafting.dash(p);
     }
 
     this.regenShield(p);
@@ -1026,9 +1064,10 @@ export class Level {
     const was = p.charge;
     p.charge = Math.min(1, p.charge + DT * 0.012 * s.specialRate);
     if (was < 1 && p.charge >= 1 && s.special) this.emit({ type: 'specialReady', id: p.id });
-    if (i.special && !welding && s.special && p.charge >= 1) {
+    if (i.special && !welding && !diving && s.special && p.charge >= 1) {
       p.charge = 0;
       this.special(p, s.special);
+      this.grafting.special(p, i.x);
     }
 
     // guns
@@ -1041,10 +1080,14 @@ export class Level {
       else this.updateGun(p, k, p.firing);
     }
     if (press && s.guns.some((g) => g.heavy)) {
-      if (fired) p.heavyT = 0;
+      if (fired) {
+        p.heavyT = 0;
+        this.grafting.heavy(p);
+      }
       this.emit({ type: 'heavy', id: p.id, x: p.x, z: p.z, fired });
     }
-    this.updateKit(p, welding ? { ...i, aux: false } : i);
+    this.updateKit(p, welding || diving ? { ...i, aux: false } : i);
+    this.grafting.tick(p);
   }
 
   /** Shield comes back if you stop getting hit. */
@@ -1266,7 +1309,7 @@ export class Level {
       const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * sp.spread * tight;
       const jitter = sp.shot === 'pellet' || sp.shot === 'flame' ? (this.rand() - 0.5) * 0.12 * tight : 0;
       const speed = sp.speed * (sp.shot === 'pellet' ? 0.85 + this.rand() * 0.3 : 1);
-      const s = this.addShot(p.id, sp.shot, x, z, dir + off + jitter, speed, hit.dmg, sp.life, sp.pierce ?? 0, 0);
+      const s = this.addShot(p.id, sp.shot, x, z, dir + off + jitter, speed, hit.dmg, sp.life, (sp.pierce ?? 0) + (g.heavy ? 0 : this.grafting.pierce(p)), 0);
       s.crit = hit.crit;
       s.marks = g.marks;
       s.markStr = g.markStr;
@@ -1279,6 +1322,7 @@ export class Level {
       s.edgeMul = g.edgeMul;
       if (strike) s.strike = true;
       if (g.heavy) s.heavy = true;
+      if (g.heavy && !turret) this.grafting.heavyShot(p, s);
     }
   }
 
@@ -1540,6 +1584,7 @@ export class Level {
     if (e.armour > 0) {
       const bite = dot ? 0.5 : blow ? 1 : PLATE_GLANCE;
       e.armour -= dmg * bite;
+      this.grafting.share(e, dmg, dot);
       if (p && !dot) this.feedWeld(p, Math.min(dmg * bite, WELD.cap) * (blow ? WELD.blow : WELD.stream));
       foeHurt(this, e, 0);
       this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg: dmg * bite, kill: false, crit, dot, edge, strike: s?.strike, armour: true, blow });
@@ -1554,6 +1599,7 @@ export class Level {
       return;
     }
     e.hp -= dmg;
+    this.grafting.share(e, dmg, dot);
     // EXECUTIONER: what's left that low is finished off
     if (af === 'executioner' && !e.boss && e.hp > 0 && e.hp < e.max * EXECUTE) {
       dmg += e.hp;
@@ -1655,6 +1701,8 @@ export class Level {
   private takedown(p: Player, e: Enemy) {
     e.d.td = 1;
     p.takedowns++;
+    // its wreck is yours, once it's finished
+    if (e.elite && !e.boss) e.downBy ??= p.id;
     let big = false;
     if (e.boss) {
       const ph = e.boss.phase;
@@ -1670,7 +1718,7 @@ export class Level {
     p.burn = Math.min(1, p.burn + BURN_TAKEDOWN);
     p.inv = Math.max(p.inv, 0.5);
     p.strike = Math.max(p.strike, STRIKE_TIME);
-    this.feedWeld(p, big ? WELD.bigTakedown : WELD.takedown);
+    this.feedWeld(p, this.grafting.takedownWeld(p, big ? WELD.bigTakedown : WELD.takedown));
     this.emit({ type: 'takedown', id: p.id, enemy: e.id, x: e.x, z: e.z, kill: e.dead, big, boss: !!e.boss });
   }
 
@@ -1690,12 +1738,59 @@ export class Level {
     if (p) {
       p.kills++;
       this.fed(p, e);
+      this.grafting.killed(e, owner);
     }
+    if (e.elite && !e.boss && !e.bounty) this.salvage(e, owner);
     for (let i = 0; i < e.scrap * (close ? 2 : 1); i++) this.drop('scrap', e.x + (this.rand() - 0.5) * e.r, e.z + (this.rand() - 0.5) * e.r, 1 + (this.rand() < 0.2 ? 4 : 0));
     if (e.drop) this.drop('part', e.x, e.z, 0);
     else if (this.rand() < 0.015) this.drop('repair', e.x, e.z, 1);
     onKill(this, e, p ? owner : -1);
     if (e.boss) this.director.bossDown(e);
+    // a Warden's wreck is everyone's: its signature, or the pick of its faction's
+    if (e.boss && !this.wrecks.some((w) => w.boss)) {
+      const pl = this.spec.planet;
+      for (const q of this.players) this.wrecks.push({ owner: q.id, kind: 'boss', title: pl.boss.name, faction: factionOf(pl), boss: pl.id });
+    }
+  }
+
+  /** An elite down: if a takedown landed on it first, its wreck is that pilot's (see game/grafts.ts). */
+  private salvage(e: Enemy, owner: number) {
+    const by = e.downBy !== undefined && this.players[e.downBy] ? e.downBy : undefined;
+    const faction = isFoe(e.arch) ? FOES[e.arch].faction : factionOf(this.spec.planet);
+    const title = e.title ?? e.skin.name.toUpperCase();
+    const foe = isFoe(e.arch) ? FOES[e.arch] : undefined;
+    if (by !== undefined) this.wrecks.push({ owner: by, kind: e.arch, title, faction, skin: e.skin, model: foe?.model ?? e.arch, scale: foe?.scale });
+    this.emit({ type: 'wreck', id: by ?? owner, enemy: e.id, x: e.x, z: e.z, title, kind: e.arch, faction, lost: by === undefined });
+  }
+
+  /** The nearest enemy on the screen that can be hit, within `reach` (`ahead`: up the screen of (x, z), give or take). */
+  nearestEnemy(x: number, z: number, reach = 999, ahead = false) {
+    let best: Enemy | undefined;
+    let bd = reach * reach;
+    for (const e of this.enemies) {
+      if (e.dead || e.shielded || e.t < 0 || !this.seen(e) || (ahead && e.z > z + 4)) continue;
+      const d = (e.x - x) ** 2 + (e.z - z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** A ray from (x, z) at `dir` (0 up the screen) as a beam sees it: how far it reaches (the land stops it), and what's on it. */
+  reach(x: number, z: number, dir: number, width: number) {
+    return this.beamReach(x, z, dir, width);
+  }
+
+  /** Whatever `fn` hits counts as blows (it breaks plating at full strength). */
+  asBlow(fn: () => void) {
+    this.blowing++;
+    try {
+      fn();
+    } finally {
+      this.blowing--;
+    }
   }
 
   /** Splash damage (flak, mines, a cook-off): leaving `bits` marks; `quiet`: the caller makes the fuss. */
@@ -1787,6 +1882,8 @@ export class Level {
   private updateShots() {
     for (const s of this.shots) {
       s.t += DT;
+      // a graft's shot steering itself, or holding still to turn
+      if (s.graft && this.grafting.shot(s)) continue;
       // a BOOMERANG shot at the end of its flight (or the edge of the screen) turns for home
       if (s.boomerang && !s.back && (s.t > s.life || !this.onScreen(s.x, s.z, 1))) this.turnHome(s);
       if (s.back) {
@@ -1799,6 +1896,7 @@ export class Level {
           for (let a = 0; a < 8; a++) this.addShot(s.owner, 'pellet', s.x, s.z, (a / 8) * Math.PI * 2, 30, s.dmg * 0.25, 0.25, 0, 0);
         } else if (s.kind === 'mine') {
           this.blast(s.x, s.z, 3.5, s.dmg, s.owner, { bits: s.marks, pow: s.markStr });
+          if (s.graft) this.grafting.burst(s);
         }
         continue;
       }
@@ -2089,7 +2187,7 @@ export class Level {
         const r = e.r * 0.75 + core;
         if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < r * r) {
           // a Ram Prow dashing through: the dash does the hitting (see ramAlong)
-          if (p.dashT > 0 && p.stats.mod.ram > 0) continue;
+          if (p.dashT > 0 && (p.stats.mod.ram > 0 || this.grafting.rams(p))) continue;
           if (this.hurt(p, p.x, p.z, 'ram:' + e.arch)) {
             this.damage(e, e.arch === 'swarm' ? 999 : 20, p.id, false);
             if (p.stats.affixes.barbed) this.barb(p, e);
@@ -2227,6 +2325,7 @@ export class Level {
         this.damage(e, dmg, s.owner, crit, null, s, false, edge);
         if (!e.dead) mark(this, e, s.marks, s.markStr, s.owner);
         if (s.affix === 'ricochet' && !s.rico) this.ricochet(s, e);
+        if (s.graft) this.grafting.hit(s, e);
         if (s.split && !s.hit.length) this.split(s, e);
         s.hit.push(e.id);
         if (s.kind === 'missile') this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner, { bits: s.marks, pow: s.markStr });
@@ -2248,6 +2347,8 @@ export class Level {
     // Ram Prow: everything the dash went through this frame; Catalyst: every mark it went past
     if (p.dashT > 0 && s.mod.ram > 0) this.ramAlong(p, p.x - p.vx * DT, p.z - p.vz * DT, p.x, p.z);
     if (p.dashT > 0 && s.mod.detonate > 0) this.catalyst(p, p.x - p.vx * DT, p.z - p.vz * DT, p.x, p.z);
+    // RAM LINE: everything on the line takes a blow
+    if (this.grafting.rams(p)) this.grafting.ramAlong(p, p.x - p.vx * DT, p.z - p.vz * DT, p.x, p.z);
     // the Void Siphon is heavy going
     if (p.auxT > 0 && s.aux === 'siphon') {
       p.x -= p.vx * DT * SIPHON_SLOW;
@@ -2292,6 +2393,7 @@ export class Level {
     if (!i.aux || !s.aux || p.auxCd > 0 || p.auxT > 0 || this.state === 'clear' || this.state === 'failed') return;
     p.auxUses++;
     this.emit({ type: 'aux', id: p.id, kind: s.aux, x: p.x, z: p.z });
+    this.grafting.aux(p);
     if (s.aux === 'parry') {
       p.auxT = PARRY_BURST;
       p.parryT = PARRY_WINDOW;
@@ -2798,7 +2900,7 @@ export class Level {
   /** A blow: a hit that breaks plating at full strength (the stream only chips it). */
   private isBlow(p: Player | undefined, dmg: number, crit: boolean, s?: Shot) {
     if (crit || this.blowing > 0 || dmg >= BLOW_DMG) return true;
-    if (s) return !!s.heavy || !!s.strike || s.tag === 'reflect' || s.tag === 'mirror' || s.tag === 'nova';
+    if (s) return !!s.heavy || !!s.strike || !!s.blow || s.tag === 'reflect' || s.tag === 'mirror' || s.tag === 'nova';
     // beams and arcs: out of a dash
     return !!p && p.strike > 0;
   }

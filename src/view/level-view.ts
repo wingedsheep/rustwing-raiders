@@ -25,6 +25,7 @@ import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
+import { GraftsView } from './grafts-view';
 import { ConvoyView } from './convoy-view';
 import { HeistView } from './heist-view';
 import { TraitsView } from './traits';
@@ -138,6 +139,8 @@ export class LevelView {
   private edgeSaid = new Map<Edge, number>();
   /** The legendary traits that play in flight: sentinels, frenzies, claps, novas (see traits.ts). */
   private traits: TraitsView;
+  /** The wreck grafts in flight (see grafts-view.ts). */
+  private grafts: GraftsView;
   private shields: Shields;
   /** An escort's haulers. */
   private convoy: ConvoyView | null = null;
@@ -273,6 +276,21 @@ export class LevelView {
         if (o.shove) this.shove(o.dx ?? 0, o.dz ?? 1, o.shove);
       },
     });
+    this.grafts = new GraftsView(lv, this.fx, {
+      pop: (text, x, z, color, big) => this.pop(text, x, z, color, big),
+      unpop: (prefix) => (this.pops = this.pops.filter((p) => !p.text.startsWith(prefix))),
+      bolt: (pts, col) => this.bolt(pts, col),
+      juice: (o) => {
+        if (o.trauma) this.trauma = Math.min(1, this.trauma + o.trauma);
+        if (o.hitstop) this.hitstop = Math.max(this.hitstop, o.hitstop);
+        if (o.flash && o.flash > this.flash) {
+          this.flash = o.flash;
+          this.flashColor.setHex(o.flashColor ?? 0xffffff);
+        }
+        if (o.shove) this.shove(o.dx ?? 0, o.dz ?? 1, o.shove);
+      },
+    });
+    this.scene.add(this.grafts.group);
     const disc = new THREE.CircleGeometry(0.5, 10);
     // the hitbox while focusing: a white dot ringed dark, the size the sim really uses
     lv.players.forEach((p) => {
@@ -324,6 +342,7 @@ export class LevelView {
     const lv = this.lv;
     for (const e of events) {
       if (this.traits.handle(e)) continue;
+      if (this.grafts.handle(e)) continue;
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
@@ -1572,6 +1591,7 @@ export class LevelView {
     this.updatePickups(dt);
     this.updateDecoys();
     this.traits.update(dt, scrollDz);
+    this.grafts.update(dt, scrollDz);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.hazards.update(dt);
@@ -2400,6 +2420,7 @@ export class LevelView {
     this.convoy?.dispose();
     this.heist?.dispose();
     this.traits.dispose();
+    this.grafts.dispose();
     for (const v of this.pickups.values()) v.inst?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);

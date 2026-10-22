@@ -18,6 +18,8 @@ import { portraits } from '../view/portraits';
 import type { DeviceId } from '../input';
 import { markKinds, reactionsOf } from '../sim/marks';
 import { markIcon, REACTION_COLOR } from '../ui/mark-icons';
+import { graftIcon, FACTION_COLOR } from '../ui/graft-icon';
+import { BONDS, VERBS, VERB_COLOR as GRAFT_VERB_COLOR, bondsOf, hasVerb } from '../game/grafts';
 
 interface Bay {
   cur: { c: number; r: number };
@@ -337,6 +339,7 @@ export class Hangar implements Screen {
       drawText(ctx, s.frame.name.toUpperCase(), x + 4, 36, INK);
       drawText(ctx, s.frame.perk.name, x + 4 + textWidth(s.frame.name.toUpperCase() + ' '), 36, GOLD);
       this.linksPanel(ctx, this.bays[0], 0, x, 228, 292, 316);
+      this.graftStrip(ctx, 0, x + 4, 206);
     }
     // the 3D goes under the UI canvas: cut windows for it
     this.bays.forEach((bay) => {
@@ -344,6 +347,24 @@ export class Hangar implements Screen {
     });
     if (this.big) this.big.render(g, 336, 32);
     else this.bays.forEach((bay) => bay.stage.render(g, bay.x + 146, 41));
+  }
+
+  /** The wreck grafts bolted on, along the bottom of the ship's window, and the bonds they wake. */
+  private graftStrip(ctx: CanvasRenderingContext2D, i: number, x: number, y: number) {
+    const crew = this.run.crew[i];
+    const st = stats(crew.build);
+    let cx = x;
+    for (const v of VERBS) {
+      const id = crew.grafts[v];
+      if (!id) continue;
+      ctx.fillStyle = 'rgba(12,10,20,0.7)';
+      ctx.fillRect(cx - 1, y - 1, 14, 14);
+      graftIcon(ctx, id, cx, y, 1, !hasVerb(st, v));
+      ctx.fillStyle = GRAFT_VERB_COLOR[v];
+      ctx.fillRect(cx, y + 13, 12, 1);
+      cx += 16;
+    }
+    for (const f of bondsOf(crew.grafts)) cx += drawText(ctx, `✦ ${BONDS[f].name}`, cx + 2, y + 3, FACTION_COLOR[f], { shadow: DARK }) + 8;
   }
 
   /**

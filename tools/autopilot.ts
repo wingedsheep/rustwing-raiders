@@ -15,6 +15,7 @@
  *   just autopilot --loadout gun:rail             the starter ship with only that gun (a bench)
  *   just autopilot --noboost                      a pilot that never boosts (is it the layout, or the speed?)
  *   just autopilot --foes rook,halo               the level's waves are these kinds, in turn (as &foes= in the browser)
+ *   just autopilot --grafts ramline,halo,spindle   wreck grafts on the ship (as &grafts= in the browser)
  *
  * Runs are shared out over every core (--cores to say how many). Exits non-zero if any run fails.
  */
@@ -27,6 +28,7 @@ import { fits, startBuild, type Build } from '../src/sim/build';
 import { frameById, partById } from '../src/game/parts';
 import { newPilot, pilot } from '../src/sim/pilot';
 import { PLANETS } from '../src/world/planets';
+import { GRAFTS, type GraftId, type Grafts } from '../src/game/grafts';
 
 interface Job {
   planet: string;
@@ -38,6 +40,7 @@ interface Job {
   loadout: string;
   noboost: boolean;
   foes?: string;
+  grafts?: string;
   verbose: boolean;
 }
 
@@ -78,6 +81,9 @@ interface Result extends Job {
   bounties: string;
   rank: string;
   bonus: number;
+  /** What the grafts did (their events, by graft), and wrecks taken / lost. */
+  grafted: Record<string, number>;
+  wrecks: string;
   hull: string;
   progress: number;
   log: string[];
@@ -153,7 +159,10 @@ function fly(job: Job): Result {
   const planet = PLANETS.find((p) => p.id === job.planet)!;
   const spec = levelSpec(planet, job.mode, job.seed, job.difficulty);
   const builds = (job.coop ? [0, 1] : [0]).map(() => loadout(job.loadout, job.frame));
-  const lv = new Level(spec, builds);
+  const grafts: Grafts = Object.fromEntries((job.grafts ?? '').split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as GraftId].verb, id]));
+  const lv = new Level(spec, builds, undefined, builds.map(() => grafts));
+  const grafted: Record<string, number> = {};
+  let wrecksLost = 0;
   if (job.foes) lv.director.only(job.foes.split(','));
   const pilots = lv.players.map(() => newPilot({ noBoost: job.noboost }));
   const log: string[] = [];
@@ -166,6 +175,9 @@ function fly(job: Job): Result {
     for (const e of lv.events) {
       if (e.type === 'haulerHit') hhit[e.cause] = (hhit[e.cause] ?? 0) + e.dmg;
       if (e.type === 'hot' && (e.state === 'open' || e.state === 'blown' || e.state === 'lost')) crates += e.state[0];
+      if (e.type === 'graft') grafted[`${e.graft}:${e.what}`] = (grafted[`${e.graft}:${e.what}`] ?? 0) + 1;
+      if (e.type === 'bond') grafted[`bond:${e.faction}`] = (grafted[`bond:${e.faction}`] ?? 0) + 1;
+      if (e.type === 'wreck' && e.lost) wrecksLost++;
       if (!job.verbose) continue;
       const at = `${lv.time.toFixed(1)}s ${Math.round(lv.progress * 100)}%`;
       const biome = lv.terrain.biome(lv.scroll).id;
@@ -220,6 +232,8 @@ function fly(job: Job): Result {
     bounties: `${lv.bounties}/${lv.bounties + lv.bountiesLost}`,
     rank: lv.rank ?? '-',
     bonus: lv.parBonus,
+    grafted,
+    wrecks: `${lv.wrecks.length}/${lv.wrecks.length + wrecksLost}`,
     hull: lv.players.map((p) => `${p.hp}/${p.stats.hp}`).join(' '),
     progress: lv.progress,
     convoy: lv.convoy ? `${lv.convoy.delivered}/3 (${lv.convoy.haulers.map((h) => `${h.hp}/${h.max}`).join(' ')}; ${Object.entries(hhit).map(([k, v]) => `${k} ${v}`).join(', ')})` : '',
@@ -263,6 +277,7 @@ if (!isMainThread) {
           loadout: args.loadout ?? 'starter',
           noboost: !!args.noboost,
           foes: args.foes,
+          grafts: args.grafts,
           verbose: !!args.verbose || jobs.length === 0 && !!args.seed,
         });
   const cores = Math.min(Number(args.cores ?? cpus().length), jobs.length);
@@ -282,7 +297,8 @@ if (!isMainThread) {
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
             `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}  welds ${r.welds}${r.weldsLost ? ` (lost ${r.weldsLost})` : ''}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
-            `  ${r.rank} +${r.bonus}  scrap ${r.scrap}${r.convoy ? `  convoy ${r.convoy}` : ''}`,
+            `  ${r.rank} +${r.bonus}  scrap ${r.scrap}  wrecks ${r.wrecks}${r.convoy ? `  convoy ${r.convoy}` : ''}` +
+            (Object.keys(r.grafted).length ? `\n    grafts: ${Object.entries(r.grafted).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''),
         );
         for (const l of r.log) console.log('    ' + l);
         feed();

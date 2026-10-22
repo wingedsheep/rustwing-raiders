@@ -11,6 +11,7 @@ import type { Build } from '../sim/build';
 import type { PodFate } from '../sim/heist';
 import { rollItem, type Item } from '../game/loot';
 import { EDGES, type Edge } from '../game/parts';
+import { GRAFTS, type GraftId, type Grafts, type Wreck } from '../game/grafts';
 
 export interface FlightResult {
   cleared: boolean;
@@ -26,6 +27,8 @@ export interface FlightResult {
   convoy?: { delivered: number; home: boolean[]; paid: number; roles: Role[] };
   /** A heist: what became of each strongbox (each caught one is a card at the results), and was the runner taken down. */
   heist?: { fate: PodFate[]; downed: boolean; paid: number };
+  /** Elites taken down and finished: each one a wreck to salvage at the results. */
+  wrecks: Wreck[];
 }
 
 /**
@@ -48,8 +51,12 @@ export class Flight implements Screen {
     builds: Build[],
     hull: number[] | undefined,
     private onDone: (r: FlightResult) => void,
+    grafts?: Grafts[],
   ) {
-    this.lv = new Level(spec, builds, hull);
+    // &grafts=ramline,halo;stoop: these grafts on the ships (per ship, split by ';'), over their own
+    const want = game.params.get('grafts');
+    if (want) grafts = want.split(';').map((list) => Object.fromEntries(list.split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as GraftId].verb, id])));
+    this.lv = new Level(spec, builds, hull, grafts);
     // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
     this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
@@ -126,6 +133,7 @@ export class Flight implements Screen {
       report: { rank: lv.rank, lines: report(lv) },
       convoy: lv.convoy ? { delivered: lv.convoy.delivered, home: lv.convoy.haulers.map((h) => h.delivered), paid: lv.convoy.paid, roles: lv.convoy.haulers.map((h) => h.role) } : undefined,
       heist: lv.heist ? { fate: [...lv.heist.fate], downed: lv.heist.state === 'down', paid: lv.heist.paid } : undefined,
+      wrecks: cleared ? [...lv.wrecks] : [],
     });
   }
 

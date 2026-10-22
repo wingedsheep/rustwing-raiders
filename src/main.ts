@@ -83,13 +83,18 @@ async function boot() {
     };
     fly();
   } else if (q.has('crew')) {
-    // straight into a run, for testing: ?crew=kestrel,mule&run=5&screen=hangar|shop|event|dock|results
+    // straight into a run, for testing: ?crew=kestrel,mule&run=5&screen=hangar|shop|event|dock|results|wreck
     const frames = q.get('crew')!.split(',');
     game.devices = frames.length > 1 ? ['keys-left', 'keys-right'] : ['keys'];
     const flow = await import('./game/flow');
     flow.newRun(game, frames, Number(q.get('run') ?? 1));
     const run = game.run!;
     run.crew.forEach((c) => fitParts(c.build));
+    // &grafts=ramline,halo;stoop: wreck grafts already bolted on (per pilot, split by ';')
+    const { GRAFTS } = await import('./game/grafts');
+    (q.get('grafts') ?? '').split(';').forEach((list, i) => {
+      if (run.crew[i]) run.crew[i].grafts = Object.fromEntries(list.split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as keyof typeof GRAFTS].verb, id]));
+    });
     const screen = q.get('screen');
     // &site=escort: start beside a site of that kind on the chart (to look at its card)
     const site = q.get('site');
@@ -117,6 +122,25 @@ async function boot() {
       const n = node(screen === 'shop' ? 'salvage' : screen);
       n.kind = screen === 'shop' ? 'salvage' : (screen as 'event' | 'dock');
       flow.land(game, n);
+    } else if (screen === 'wreck') {
+      // &wreck=ramjack,rook (elites' kinds, P1's; ;-separated per pilot) or &wreck=boss:<planet>
+      const { WreckScreen } = await import('./screens/wreck');
+      const { FOES, isFoe, factionOf } = await import('./sim/factions');
+      // (&at=<planet>: whose yard, and whose fliers the elites wear; a Warden's wreck brings its own)
+      const boss = PLANETS.find((p) => q.get('wreck')?.includes(`boss:${p.id}`));
+      const planet = PLANETS.find((p) => p.id === q.get('at')) ?? boss ?? PLANETS[0];
+      const wrecks = (q.get('wreck') ?? 'ramjack,spitter').split(';').flatMap((list, owner) =>
+        list.split(',').filter(Boolean).map((kind) => {
+          if (kind.startsWith('boss')) {
+            const pl = PLANETS.find((p) => p.id === kind.split(':')[1]) ?? planet;
+            return { owner, kind: 'boss', title: pl.boss.name, faction: factionOf(pl), boss: pl.id };
+          }
+          const foe = isFoe(kind) ? FOES[kind] : undefined;
+          const skin = planet.enemies.find((e) => e.archetype === (foe?.model ?? kind)) ?? planet.enemies[0];
+          return { owner, kind, title: (foe?.name ?? kind).toUpperCase(), faction: foe?.faction ?? factionOf(planet), skin, model: foe?.model ?? kind, scale: foe?.scale };
+        }),
+      );
+      game.go(new WreckScreen(game, run, wrecks, planet, 7, () => flow.toChart(game)));
     } else if (screen === 'results') {
       const { Results } = await import('./screens/results');
       const { convoyRoles } = await import('./sim/convoy');
@@ -125,7 +149,7 @@ async function boot() {
       // &heist=cfj: a heist's results (c caught, f fell, j jumped; a D on the end: taken down)
       const hq = q.get('heist');
       const spec = levelSpec(PLANETS[0], home ? 'escort' : hq ? 'heist' : 'raid', 1, 0.2);
-      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [60, 60], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] } };
+      const res = { cleared: true, scrap: 42, score: 12345, loot: [[{ id: 'seeker', tier: 'epic' as const, mods: [{ k: 'dmg' as const, roll: 0.6 }, { k: 'rate' as const, roll: 0.3 }] }], []], hull: [60, 60], stats: run.crew.map(() => ({ hits: 2, grazes: 30, kills: 80, crashes: 0 })), report: { rank: 'A', lines: ['KILLED 30/34  WAVES WIPED 5/8  +40 SCRAP', 'BOUNTIES 1/2'] }, wrecks: [] };
       if (home) {
         const n = home.filter(Boolean).length;
         Object.assign(res, { convoy: { delivered: n, home, paid: n * 17, roles: convoyRoles(spec.seed) }, report: { rank: 'CBAS'[n], lines: [`HAULERS HOME ${n}/3  +${n * 17} SCRAP`, `${3 - n} CRATES LOST WITH THEM`] } });
