@@ -8,8 +8,10 @@ The history behind Rustwing Raiders, the story happening now, and the languages 
 - [Minds](minds.md): the cores that wake up as people, and the powers that wipe them, worship them or sign contracts with them.
 - [History](history.md): from the gate-builders to the present, with dates.
 - [Peoples](peoples.md): who lives in the Reach, and how they got there.
+- [The Tonkva](tonkva.md): the dead order that built the gates and the Engine: how they lived, and why they died of being kept.
 - [Languages](languages.md): the old tongue, how it changed in each mouth, and where every name comes from.
 - [The Waking](the-waking.md): the story happening now, what each faction wants from it, and the secrets only we know.
+- [Tone](tone.md): how the Reach should feel (several orders of civilisation grinding together in a backwater, with the rustwings in the cracks; never robbers and police) and how a place, a person or a boss is told.
 - The powers themselves, each with its full background: [`docs/factions/`](../factions/README.md).
 
 The places, factions and people this explains: [`planets/`](../planets/README.md), [`factions/`](../factions/README.md), [`npcs/`](../npcs/README.md), [`bosses/`](../bosses/README.md).
@@ -24,7 +26,7 @@ The Reach is a backwater: thirty systems on the rim of **the Spur**, a span of f
 
 Four hundred years ago the Throne sentenced the rebels of the forge-world Ostrand, whose crime was forcing a gate, to the **Long Dark**: three sleeper arks aimed at the Uncounted. They crawled into the Reach, slower than light, with their crews asleep, and landed on Halcyon. In the year 94 they forced the first gate open with brute reactor power and a Hoowae's ear, on credit from a consortium of lenders: **the Kindling**. Every gate lit since runs **unlevel**. The lenders, now **the Syndicate**, keep the lanes from tearing by charging tolls in the one thing a lane accepts as payment: metal that has already crossed. That is **scrap**, and that is why scrap is money.
 
-The **Toll War** (231–246 L) between the human republic of the arks, **the Halcyon Compact**, and Kessra's merchant houses, **the Uukhvar**, over the junction world of Sankven, left it a glassed graveyard (**Ashgrave**), bankrupted both sides, and handed the Syndicate the paper on every gate. Losing, the Compact forced the Throat to buy help from outside, and the empire that had exiled its founders came through (**the Opening**, 241 L). The Throne ended the war, forbade the Compact a navy (it kept one, painted as customs, and called it **the Port Authority**), and chartered the Syndicate to rule the Reach in its name. Since then tribute has flowed out through a forced gate, and the Throne has told the rest of the Spur that the Uncounted is still dead. Today it leases each gate to a local power, the **Warden**, and its **Sweep** combs each system for anyone who crossed without paying. Pilots who do that, in ships patched out of other people's wrecks, are **rustwings**. The players are rustwings.
+The **Toll War** (231–246 L) between the human republic of the arks, **the Halcyon Compact**, and Kessra's merchant houses, **the Uukhvar**, over the junction world of Sankven, left it a glassed graveyard (**Ashgrave**), bankrupted both sides, and handed the Syndicate the paper on every gate. Losing, the Compact forced the Throat to buy help from outside, and the empire that had exiled its founders came through (**the Opening**, 241 L). The Throne ended the war, forbade the Compact a navy (it kept one, painted as customs, and called it **the Port Authority**), and chartered the Syndicate to rule the Reach in its name. Since then tribute has flowed out through a forced gate, and the Throne has told the rest of the Spur that its lane-readers reopened the Throat level, as the Tonkva built it. Today it leases each gate to a local power, the **Warden**, and its **Sweep** combs each system for anyone who crossed without paying. Pilots who do that, in ships patched out of other people's wrecks, are **rustwings**. The players are rustwings.
 
 And now the ice on Glacis is thawing, miners have been digging cores out of the Engine for two hundred years, and **the Engine is waking up**. When it does, it will read four centuries of unpaid crossings, and it will want them back, from the Reach and from the Throne. And its beacons will read the Reach's ledger out through the Throat, where the whole Spur can hear what the Throne has done.
 
@@ -56,7 +58,7 @@ And in the hulls of all their ships, the **cores**: grown Tonkva machine-hearts 
 | A beacon "singing in prime numbers" | a beacon reading out its part of the ledger |
 | "Lantern" (Mutual, Gazette, Kelp, the Old Lantern system) | cant for a lit gate |
 | The Warden at the gate, the run crossing three systems | a crew running towards the Throat, through the Throne's margin |
-| Asset Recovery Unit 0 | Vantorr's copy of the Engine's own collectors |
+| Asset Recovery Unit 0 | one of the Engine's own recovery units, dug out of the ice and painted as Vantorr's |
 | A young volcanic world full of giants | Oru-Tal was seeded: a Tonkva preserve |
 
 ## Known seams

@@ -65,4 +65,4 @@ Vantorr thinks it is the only power ready for it. It is the most wrong of all of
 ## In the game
 
 - Cinder's enemies and boss. The REPOSSESSION signature.
-- [ ] ARU-0's voice: notices, fees, warnings, and once in the last phase, nineteen seconds of silence.
+- [ ] ARU-0's fight: Lien, the nineteen seconds, and the rename to the Engine's unit: designed on [its page](../bosses/aru-0.md). Its notices under the bar are in.

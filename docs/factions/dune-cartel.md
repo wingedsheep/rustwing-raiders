@@ -24,7 +24,7 @@ Human trading houses on Kessra began as Vhossk houses' junior partners, from abo
 - **150–230 L.** Kessra out-trades Fersdeck. The houses refuse the Compact's fees on Kessra's own gates and pay the Syndicate direct.
 - **231–246 L. The Toll War**, for Sankven, the junction both sides needed. The Uukhvar hires more than it raises, builds titans of its own (*Grovvakh's Answer* held the Five Mouths for nine days), and lays the mine fields that still drift between Kessra's rocks.
 - **246 L. Nine Wells.** The Uukhvar loses its gates like everyone else, but keeps its trade. It pays its war debt in fifteen years. The Compact is still paying.
-- **288 L.** The Sandking is built, from the legs of a dead titan and the hull of a war barge, so that the Table never sits in any one house's city again.
+- **288 L.** The Sandking is built, from the legs of three dead titans and the hull of a war barge, so that the Table never sits in any one house's city again. Its deck stands so high on them it walks through the sky.
 - **246 L to now.** Imperial merchants arrive through the Throat. Bluepalm becomes the Reach's market with the Spur, and the human houses grow rich on it.
 - **409 L.** The Uukhvar raids the last free salt-caravans for back tolls. The refugees of Odo Brask's convoy are some of them.
 
@@ -64,4 +64,4 @@ The Table is split exactly in two, and Ghorrum-Vesst is the tie.
 ## In the game
 
 - Kessra's enemies and boss; the mine field; Odo Brask's refugees ("the Cartel took the rest").
-- [ ] Give the Sandking's fight its two heads: the Chair arguing over the radio as the moves change.
+- [ ] The Sandking's fight with its two heads, the Vote, and its legs walking north: designed on [its page](../bosses/sandking.md).

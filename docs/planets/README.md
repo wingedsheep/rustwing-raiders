@@ -23,7 +23,7 @@ Code: `src/world/planets.ts` (`PLANETS`: biomes, local enemies, boss name and co
 
 - **Four biomes**, flown in order, each with a one-line card as it slides in, its own land shape, sea (or lava, or chemicals), props, creatures, particles and light.
 - **Six local enemies** (`enemies` in `planets.ts`): the older archetypes (dart, swarm, turret, gunship, serpent, brute, lancer, carrier, bomber) in the planet's own names and colours. The faction's new kinds come on top, skinned to lean towards the planet's colours (`foeSkin`).
-- **A boss**, met as the Warden at the sector's gate.
+- **A boss**, met at the sector's gate: the Warden who holds its lease (on Glacis the Engine itself, which needs no lease; on Mirefall the Mother-of-Spores, whose gate the bloom grew over).
 - **A market**: dealers sell one class of part cheap (what its faction flies with) and pay double for another. Rollo Stax's news can make one class pay ×3 for a sector. Hated: +25% and +1 danger; friends: −20%.
 - **Mood** with its faction, −3 to +3 (`run.mood`, keyed by the faction's name), moved by events, escorts and heists.
 

@@ -11,7 +11,11 @@
 Not a mind and not a monster: the account-keeping machine the Tonkva grew under their capital to keep every lane level, broken at the Breaking and a thousand years late for work ([the faction](../factions/waking-engine.md), [the Waking](../lore/the-waking.md)). It has no anger at you. It measures you. Every move is a reading, a count or a balance, and every one is drawn out in light before it happens (the lattice tell), so it's fair through foresight. Its menace is that it's diligent, and that it's only now waking up.
 
 - **Vibe:** vast, patient, clerical, cold; clockwork under ice. Clean struck tones, a click before a beam, a groan of machinery as it comes awake. Under its bar it doesn't say it *sees* you, it **logs** you (`LOGS: HANGING BACK`, `LOGS: EXCESS VELOCITY`, `LOGS: UNWITNESSED CROSSINGS` for your dashes).
-- **Arc:** dozing (I) → stirring, the ice breaking (II) → awake (III). The opposite of Vask, who sheds her guns as she frees herself: the Engine *gains* things as it wakes. Its guns thaw, its count starts, its arms come free of the ice.
+- **Arc:** dozing (I) → stirring, the ice breaking (II) → awake (III).
+- **Owes:** the ledger itself. **Wants from you:** your crossed metal back. It doesn't read anyone's books; it follows mass, and you carry more than anyone.
+- **Sad truth:** it keeps the accounts of a people who are gone. The Hoowae who are left can feel it lean, and can't speak to it.
+- **The call:** it *is* the call. Its tolls are heard again in the Mother-of-Spores's second phase and in ARU-0's last.
+- **Its words:** none. As it comes, a count of tones; under its bar it logs you; as it goes, it goes back to sleep. The opposite of Vask, who sheds her guns as she frees herself: the Engine *gains* things as it wakes. Its guns thaw, its count starts, its arms come free of the ice.
 
 ## The dance
 

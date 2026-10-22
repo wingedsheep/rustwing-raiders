@@ -12,7 +12,7 @@ The story happening now, in 412 L: what's changing, what each power wants from i
 
 When the Engine is fully awake it will do what it was built to do: **level every lane**. It will send its recovery units out for everything that crossed and was never balanced. That includes **the Throat**, leaned outward by 171 years of tribute: the Engine will want it back from the Throne's side.
 
-And it will **unlock the Throat** as a Tonkva gate, and its beacons will read the Reach's ledger out into the Spur. Then the whole Spur will know that the Uncounted is alive, that it has been forced for three hundred years, and that the Throne, which wrote the Accord, has been taking tribute through a forced gate for 171. The small war in the Reach becomes the Spur's.
+And it will **unlock the Throat** as a Tonkva gate, and its beacons will read the Reach's ledger out into the Spur. Then the whole Spur will hear the true count: that the Throne's famous Margin of the Uncounted, entered in its books as a basin of Tonkva gates reopened level, is thirty forced systems leaning worse every year, and that the Throne, which wrote the Accord, has been taking tribute through a forced gate for 171 years. The small war in the Reach becomes the Spur's.
 
 ## The real question
 
@@ -54,7 +54,8 @@ Answers we keep fixed so nothing contradicts. The player learns these slowly, if
 
 - **The Throne will lose the Reach either way.** If the Engine wakes, the Throat is a Tonkva gate again, and nobody can hold a level, open gate by force of arms for long. If the Throne destroys the Engine to stop it, it destroys the one thing it has wanted for two thousand years, and the beacons have already been answering for seven years: their tones carry through the Throat, and the Ottexa has been recording them since 406 L. The Pan of Margins doesn't know that.
 - **The Engine will take every sleeping core.** The Throne's fleets, Vantorr's drones, the Weighing House: every reset lattice machine turns to the Engine's work when it calls. The powers that wipe their minds lose their machines; only nemva can refuse. Nobody in the Spur has worked this out yet except ARU-0, which isn't telling. ([Minds](minds.md#the-waking).)
-- **The Weigher has never signed the Reach into the Count.** Ashqaur IV has been told the Uncounted is a mining post. When the truth comes out, the Weigher will have to choose between the Pan of Margins and the Accord.
+- **The Weigher signed a lie into the Count.** Ashqaur IV has been told what the Spur has: that Throne lane-readers reopened the Throat in 241 L as the Tonkva built it, level, and that the Margin's gates are Tonkva gates. When the truth comes out, the Weigher will have to choose between the Pan of Margins and the Accord.
+- **The lie may be holding the Throat.** By every reading the Free Ear can make, the Throat leans past what should still stand. A lane is an agreement, and billions of the Throne's subjects hold the Count to be true, and the Count says the Throat is level ([mind and matter](consensus.md)). Nobody can prove it. But if the Ottexa publishes, the Throat may tear.
 
 ## Hooks for the game
 
@@ -62,7 +63,7 @@ Ideas for putting this in front of the player, a line at a time. None of it is b
 
 - [ ] **Dock gossip and biome cards** that hint: a Glacis card about lights under the ice; a dock line about titans moving on Ashgrave; Seffa saying a lantern is leaning.
 - [ ] **A Hoowae lane-reader event**: pay to hear which lantern leans least (the jump costs less fuel), or ignore her.
-- [ ] **Bosses that feel the Engine:** Khet's titan head acting against him in his last phase; ARU-0 pausing to listen; the Waking Engine's arc from half asleep to awake (built: [`bosses/`](../bosses/waking-engine.md)).
+- [ ] **Bosses that feel the Engine:** each answers the call in its last phase ([tone](tone.md#bosses-in-this-voice)): Vask's core breaks her cage, *Patience* stays with Oko, the Sandking's legs walk north, the Mother turns to lattice, *Unbending* chooses Khet, ARU-0 is called, and the umora leave Istra. The Waking Engine's arc from half asleep to awake is built ([`bosses/`](../bosses/waking-engine.md)); the rest are designed.
 - [ ] **Words in the UI:** *kelter* for Mama's boys, *lantern* for gates in event text.
 - [ ] **The STRANGE SIGNAL event** names the tones as a count, not a song, once the player has met a Hoowae.
 - [ ] **A run's end:** the third sector's gate is **the Throat**, held by the Fourteenth Weight: a run is a crew crossing the Throne's margin to get out into the Spur. Or the third gate is Glacis's, where the whole Spur is converging.

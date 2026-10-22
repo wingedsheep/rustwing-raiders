@@ -8,6 +8,7 @@ What the Spur learnt about reality: that mind isn't a passenger in the universe 
 - **Where there is little agreement, the world is soft.** Between stars, matter is thin and minds are few. Out there, what *is* depends partly on what is witnessed, and by how many.
 - **A lane is an agreement.** Two stars that are, by consensus, near each other. Lanes exist because something has always held them: the **umora**, vast and slow, whose minds travel the lanes every season. The lanes are the paths of their attention.
 - **Crossing is witnessing.** When mass crosses, the lane takes notice of it, and it's marked. That's why only crossed mass levels a lane, and why the Hoowae say crossed metal "sits right": it has been agreed on both ends. Metal no lane has witnessed is "loud". Scrap is money because it has been seen.
+- **Minds weigh more than mass.** A crate crossing is witnessed by the lane; a person crossing, even asleep, witnesses it back. A mind leans a lane as much as many tonnes of freight. That's how the Ossevane's Crowded Fleets held gates open, why the Throne's ballast is people, and why a crewed ship leans a lane more than a drone barge ten times its size.
 - **The lean is a disagreement.** A lane leans when its two ends no longer agree on how much has gone between them. Too much, and the agreement fails: the lane **tears**.
 
 ## The rules

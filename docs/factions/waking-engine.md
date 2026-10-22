@@ -12,7 +12,7 @@
 
 ## What it is
 
-The Engine kept the whole Reach's ledger: every gate reported to it, and it sent **recovery units** along any lane that leaned, carrying ballast back. Its waste heat kept the Tonkva homeworld warm. When an eruption broke its heat-taps, every gate locked and the world froze (see [history](../lore/history.md)).
+The Engine kept the whole Reach's ledger: every gate reported to it, and it sent **recovery units** along any lane that leaned, carrying ballast back. It also ran the heat-taps that kept the Tonkva's valleys warm under their glass. When an eruption broke the taps, every gate locked and the ice closed over the valleys (see [history](../lore/history.md)).
 
 It is not a god or a sleeping people. It's an account-keeping machine the size of a city, doing what it was built to do, a thousand years late.
 
@@ -35,7 +35,7 @@ When it has the counts, it will **level every lane**, the only way it knows: by 
 
 ## Who wants it
 
-Every power in the Spur. The [Throne](qaushen-throne.md) has been trying to grow one from its cores for three centuries, and its fleet is gathering behind the Throat. The [Aulin](aulin.md) would call it a relic, or a weapon. The [Ottexa](ottexa.md) wants what it has counted. In the Reach, the Syndicate, the Compact and Vantorr each plan to hold it.
+Every power in the Spur. The [Throne](qaushen-throne.md) has been trying to grow one from its cores for fourteen centuries, in earnest since 246 L, and its fleet is gathering behind the Throat. The [Aulin](aulin.md) would call it a relic, or a weapon. The [Ottexa](ottexa.md) wants what it has counted. In the Reach, the Syndicate, the Compact and Vantorr each plan to hold it.
 
 ## Forces (lattice)
 

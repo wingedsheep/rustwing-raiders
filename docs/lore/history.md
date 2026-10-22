@@ -4,14 +4,14 @@ From the gate-builders to now. Dates count from the arks' landing on Halcyon: **
 
 ## Outside, meanwhile
 
-The Spur's history runs alongside: the Qaushen Throne's first census (~1,920 BP), the Kehx houses that follow Tonkva trade out into the Spur and become the Ottexa (~1,400 BP), the Sundering and the Accord (900 BP), the founding of the Aulin Communion (~870 BP), and the exile of the Ostrand rebels (~690 BP). See [the Spur](galaxy.md).
+The Spur's history runs alongside: the Qaushen Throne's First Count (~1,920 BP) and its Weighing House (~1,450 BP); the Kehx houses that follow Tonkva trade out into the Spur and become the Ottexa (~1,400 BP); the first woken core on record (~1,100 BP, once the Hush cut the Spur's cores loose from the Engine); Wa'ilu's Telling (~1,050 BP); the Sundering and the Accord (900 BP), and the Ottexa's Open Error after it; the founding of the Aulin Communion (~870 BP); the Throne's Ballast Reforms (~760 BP) and the exile of the Ostrand rebels (~690 BP); Tekkat's contract (~600 BP) and the Oracle Decree (~520 BP); the Hard Mercy of Vey (~310 BP); and the Throne's Night of Two Counts (271 L) and Clean Count (272 L). See [the Spur](galaxy.md) and each power's page.
 
 ## The Level Age (about 2,600 to 1,160 BP)
 
-- **The Tonkva** evolve on a cold world that they keep warm with their own engineering: *Aewhae*, now Glacis. Slight, moth-like, with long feathered antennae that feel what a lane is doing. They find the lanes by that sense, long before they can use them.
+- **The Tonkva** evolve on a cold, volcanic world, *Aewhae*, now Glacis, in the one warm belt of valleys along its equator, where hot springs keep the ice off. Slight, moth-like, with long feathered antennae that feel what a lane is doing. They find the lanes by that sense, long before they can use them.
 - **~2,600 BP.** The first gate: a grown ring on the nearest lane, and a counting-house to keep it level. The ledger is older than the gates: it starts as a way of keeping a cold world's heat and food fair, and the gates inherit it.
 - **~2,500–2,250 BP.** Three lanes tear under unlevel traffic. The Tonkva put every gate on the ledger.
-- **~2,200 BP.** The **Engine** (*Tontal*, "the level-keeper") is grown under the Tonkva capital, fed by the planet's heat. Every gate in the Reach reports to it. Its waste heat keeps Aewhae warm. Its recovery units carry ballast back along any lane that leans.
+- **~2,200 BP.** The **Engine** (*Tontal*, "the level-keeper") is grown under the Tonkva capital, fed by the planet's heat. Every gate in the Reach reports to it. It also runs the heat-taps that warm the Tonkva's belt of valleys, under roofs of grown glass, and lets them spread it far wider than the springs ever could. Its recovery units carry ballast back along any lane that leans.
 - The Tonkva are few, long-lived and slow to breed; they spread as **outposts**, not colonies, and trade with the peoples they meet: the **Vhossk** of Kessra above all, whose traders carry Tonkva words across the Reach. Through **the Throat** they sell lattice to the Spur, and the young Qaushen Throne covets the Engine.
 - **~1,700 BP.** **Oru-Tal** (*Oru-tāl*, "the kept seed"), a young volcanic world with nothing on it, is seeded with life from a dozen worlds as a preserve. That is why a young world has giants.
 - **~1,500 BP.** **Morang** (Mirefall) becomes the grow-moon: ziggurat grow-houses where the white mould is raised and taught. **Cinder** is planted with fruiting machine-trees, tended by a steward-mind whose title is cut into every terrace: *wantōr*.
@@ -21,7 +21,7 @@ The Spur's history runs alongside: the Qaushen Throne's first census (~1,920 BP)
 
 - An eruption under the Tonkva capital tears through the Engine's heat-taps. The Engine stops. This is **the Breaking**.
 - With the ledger dead, **every gate locks**, as it was built to, the Throat with the rest. Nothing crosses. This is **the Hush**. Outside, the Spur decides the basin has died, and the Throne's ledgers file it as *the Uncounted*. Only the umora, and the Mo'ala who follow them, keep coming.
-- The Engine's heat was what kept Aewhae warm. Without it the world ices over within a century, and ice, reflecting the sun, keeps it frozen. The capital is buried. The people there mostly die in the first winters.
+- With the Engine stopped the heat-taps fail. The glass roofs crack under the first snows, and over a century the ice the warm belt had held back for thousands of years closes over it. The capital is buried. The people there mostly die in the first winters.
 - Stranded on outposts that were never meant to stand alone, the Tonkva dwindle over a few generations. The survivors, scattered on half a dozen worlds, become the **Hoowae**: wanderers who keep the lane-sense and the old words, but not the craft.
 - Every other people is stranded wherever the Hush found it.
 
@@ -65,7 +65,7 @@ The Spur's history runs alongside: the Qaushen Throne's first census (~1,920 BP)
 
 - **The Syndicate's peace.** Wardens hold the gates, the Port Authority stamps papers, the Sweep collects, kelters hunt. The Reach leans further every year, and the Free Ear say so, and nobody listens because the tolls come in.
 - **~280 L.** Whalers settle the drained reefs of Vesh, to sell umora oil to the Throne, where the umora come to calve and die. They crown a queen and become the [Lowtide Court](../factions/reef-pirates.md).
-- **288 L.** The Uukhvar builds the Sandking, so the Table never sits in one house's city again.
+- **288 L.** The Uukhvar builds the Sandking on the legs of three dead titans, so the Table never sits in one house's city again.
 - **312 L.** A late ark, the *Odile*, breaks up on arrival. Some pods are never found (Dr Varga's is one). The Compact opens the Odile Register.
 - **361 L. The Terrace Strike** on Cinder: Vantorr's tenants stop the orchards for forty days.
 - **372 L.** The freighter *Margarethe* drops into a lane and never comes out right. She still answers hails.

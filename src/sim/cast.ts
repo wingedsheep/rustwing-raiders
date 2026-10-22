@@ -26,7 +26,7 @@ export const CAST = {
   // ---- humans ----
   mama: { name: 'MAMA RUZZ', role: 'MONEYLENDER · HUMAN', kind: 'human', color: '#ff8a7a', pace: 70, voice: 'mama' },
   spoke: { name: 'SPOKE', role: 'WHO RUNS THE REELS · HUMAN', kind: 'human', color: '#ffd04a', pace: 80, voice: 'spoke' },
-  holloway: { name: 'INSPECTOR HOLLOWAY', role: 'PORT AUTHORITY · HUMAN', kind: 'human', color: '#8ad0ff', pace: 55, voice: 'holloway' },
+  holloway: { name: 'LIEUTENANT HOLLOWAY', role: 'PORT AUTHORITY (NAVY) · HUMAN', kind: 'human', color: '#8ad0ff', pace: 55, voice: 'holloway' },
   pip: { name: 'PIP HOLLOW', role: 'LANTERN MUTUAL · HUMAN', kind: 'human', color: '#ff8ae0', pace: 95, voice: 'pip' },
   nell: { name: 'BIG NELL', role: 'FUEL MERCHANT · HUMAN', kind: 'human', color: '#ffb04a', pace: 75, voice: 'nell' },
   rollo: { name: 'ROLLO STAX', role: 'THE VOICE OF THE LANES · HUMAN', kind: 'human', color: '#ffe08a', pace: 100, voice: 'rollo' },

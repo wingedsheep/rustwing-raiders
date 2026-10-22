@@ -2,7 +2,7 @@
 
 *A reef world, half drained. Pink coral flats, a lagoon where sky-whales feed, islands made of old bones, and caves the tide hollowed out.* The other planets: [the overview](README.md).
 
-**Held by** [the Lowtide Court](../factions/reef-pirates.md), met as the **Reef Pirates** (scrap). **Boss:** [Queen Istra](../bosses/istra.md), pirate queen in a hollowed sky-whale. **Market:** guns cheap, pays ×2 for engines. Code: `vesh` in `src/world/planets.ts`.
+**Held by** [the Lowtide Court](../factions/reef-pirates.md), met as the **Reef Pirates** (scrap). **Boss:** [Queen Istra](../bosses/istra.md), pirate queen in a hollowed lane-whale. **Market:** guns cheap, pays ×2 for engines. Code: `vesh` in `src/world/planets.ts`.
 
 **Older names and lore:** Vhossk *Vesk*, Tonkvan \*Wesk, "the ebb". Where the umora calve and come to die. See [`docs/lore/`](../lore/languages.md#places).
 

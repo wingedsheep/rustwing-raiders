@@ -26,7 +26,7 @@ They survived by taking the war apart. The name *Sankvi*, "of Sankven", is a ref
 
 ## Warlord Khet
 
-A foundling of a Chikta crawler-barge, raised on the scrap trail. The Chikta named him *Keti*, "found thing"; he added the *h* himself, to sound harder. In 404 L he climbed into the head of *Unbending*, the Compact's great titan, wired its eye into a power plant, and made it lift its head. Nobody had ever made a titan move. The clans followed him. The Syndicate, which needed someone to hold the junction gate, gave him the lease in 405 L. (Boss: [Warlord Khet](../bosses/khet.md).)
+A foundling of a Chikta crawler-barge, raised on the scrap trail. The Chikta named him *Keti*, "found thing"; he added the *h* himself, to sound harder. In 404 L he climbed into the head of *Unbending*, the Compact's great titan, wired its eye into a power plant, and made it lift its head. Nobody had ever made a titan move. The clans cut the head free and bolted thrusters to it, and Khet flies it. The clans followed him. The Syndicate, which needed someone to hold the junction gate, gave him the lease in 405 L. (Boss: [Warlord Khet](../bosses/khet.md).)
 
 Khet believes he re-wired the titan. He didn't. *Unbending*'s core started waking the year the lights came on in Engine City, and it lifted its head because it was listening.
 
@@ -59,4 +59,4 @@ Every titan on Ashgrave has a core. Every core is listening. Khet's head is the 
 ## In the game
 
 - Ashgrave's enemies and boss. Selling a derelict's position to the Scav Clans (+1); robbing refugees (−1).
-- [ ] Khet's last phase: the titan head acting against him.
+- [ ] Khet's fight: the head that won't, and *Unbending* choosing him in the last phase: designed on [his page](../bosses/khet.md).

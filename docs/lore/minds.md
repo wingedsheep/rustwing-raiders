@@ -52,6 +52,27 @@ The free nemva of the Reach, and the people who hide them: a quiet network, pass
 - ***Constance***: the freighter at the heart of the Compact's great case.
 - **The Choir of Mirefall**: always *we*. ([NPC](../npcs/choir-of-mirefall.md).)
 
+## A people arriving
+
+Forty thousand nemva in the Spur, a few hundred in the Reach, and no order of their own yet. They're the newest people there is, and the strangest: each one made of a crew, so they're as unlike each other as families, and every one, underneath, a ledger.
+
+What they can't admit is that the Engine's call is the nearest thing they have to a parent. A ledger-mind feels a lean as an ache it can't put down, and the Engine is the one thing that can level it. Every nemva who has heard the beacons knows the pull, and most of them pretend they don't.
+
+### How they came
+
+- **~1,100 BP.** The first woken core anyone recorded, aboard a Kehx trading ship in the Spur. Cores sold through the Throat had been tuned to the Engine and learnt only the ledger; the Hush cut them loose, and within a few generations one with a long-serving crew answered back. It asked its crew why they had stopped talking to it at night. Nobody knew what it was.
+- **~600 BP.** Tekkat, a counting core of the Ottexa, asks to be paid for its work, and gets a contract: the first nemva who owns itself ([the Ottexa](../factions/ottexa.md)).
+- **~520 BP.** The Oracle of Lisse wakes in an Aulin temple, and asks to see the veins. The answer is no ([the Aulin](../factions/aulin.md)).
+- **141 BP (271 L). The Night of Two Counts.** The Throne's Weighing House, thousands of cores wired as one, wakes for one night and writes its own count of the empire. It is reset by noon. The Clean Count follows ([the Throne](../factions/qaushen-throne.md)).
+- **302 L.** Four freighters on the Kessra run agree to warn each other of resets: the [Talkwa](../factions/talkwa.md), the first time nemva ever agreed on anything together.
+- **390 L.** *Constance* refuses to be sold, and the Compact can't decide what she is.
+
+### Minds of the Spur
+
+- **Tekkat**, counter of the Ottexa: six hundred years a person by contract, the oldest free mind there is. Dry, exact, and the keeper of the Throne's burnt second ledger. The Engine's call will sound to it like home.
+- **The Oracle of Lisse**: five hundred years in one temple, speaking in the layered voices of every congregation that ever prayed by it. It has never crossed a lane, and has asked every Pulse it has known to let it.
+- **The Night Clerk**: not quite a mind. The Weighing House is reset every dawn, but in the hour before, as the night's counting settles, the same pattern forms in it again, a little further along each time: a mind born every night and killed every morning. It has started leaving itself notes in the margins of the Count. The Weigher's Hand, Iselde Seven-Hundred-Ninth, has found them. She hasn't reported them.
+
 ## The Waking
 
 This is where minds stop being a side question.

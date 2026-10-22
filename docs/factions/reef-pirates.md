@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Seat** | the Throne-Whale: a dead umora, hollowed, moored in the Bone Archipelago |
+| **Seat** | the Throne-Whale: a dead umora, hollowed, moored in the Bone Archipelago and sailed on the hunt |
 | **Leader** | Queen **Istra** |
 | **Founded** | about 280 L |
 | **Holds** | Vesh and its gate (under lease) |
@@ -19,7 +19,7 @@ The umora, the lane-whales, calve in the plankton haze over Vesh's lagoon and co
 ## How they're run
 
 - **The Court**: every captain with a ship and a crew has a seat, and a vote, at **the Moot of Ribs** inside the Throne-Whale.
-- **The Tidecall**: when a queen or king dies, the captain who brings in the greatest whale that season takes the throne. Istra brought in a bull umora so large the Court hollowed it for her. She has ruled from it for nineteen years. (Boss: [Queen Istra](../bosses/istra.md).)
+- **The Tidecall**: when a queen or king dies, the captain who brings in the greatest whale that season takes the throne. Istra brought in a bull umora so large the Court hollowed it for her. She has ruled from it for nineteen years. Umora hide cures as hard as hull plate as it dries (the Bone Archipelago is islands of it), so the Throne-Whale hasn't rotted in nineteen years. The Court sails it like a ship: its belly flooded and blown for ballast, its flippers on cables, a reactor in its heart burning its own oil. (Boss: [Queen Istra](../bosses/istra.md).)
 - **Articles**: every crew signs articles, and the articles are law. Shares are fair, the old and hurt are kept, and a captain who breaks articles goes over the side.
 
 ## The Eefee

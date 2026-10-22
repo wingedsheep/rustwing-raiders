@@ -1,6 +1,6 @@
 # Rustwings
 
-*Pilots who cross without paying.* Smugglers, runners, salvagers, raiders, in ships patched out of other people's wrecks. **The players are rustwings.** Overview: [the factions](README.md).
+*Free crews who cross without the Syndicate's leave.* Smugglers, runners and salvagers, in fast ships patched out of other people's wrecks, with a debt that's always nearly due. **The players are rustwings.** Overview: [the factions](README.md).
 
 | | |
 |---|---|
@@ -37,7 +37,9 @@ Rustwing hulls are patched from wrecks, cores included, and old cores in long-cr
 
 ## Why everyone hates them
 
-Every unpaid crossing leans a lane, and nobody else pays for it. The [Syndicate](syndicate.md) wants them collected, the [Compact](halcyon-compact.md) wants them fined, [Vantorr](vantorr.md) wants its runaway tenants back, and the [Kelterage](kelterage.md) wants the writs on their heads. The [Seppakva](seppakva.md) don't report them, and serve them tea.
+Every unpaid crossing leans a lane, and nobody else pays for it. The [Syndicate](syndicate.md) wants them collected, the [Compact](halcyon-compact.md)'s harbourmasters need to be seen stopping them, [Vantorr](vantorr.md) wants its runaway tenants back, and the [Kelterage](kelterage.md) wants the writs on their heads. The [Seppakva](seppakva.md) don't report them, and serve them tea.
+
+They belong to no order. The Reach is the one place in the Spur where the orders don't agree, and the gap between them is where a patched ship can fly. Everything that needs to slip between them goes on a rustwing hull: the Talkwa's nemva, Vantorr's runaway tenants, the cores for the Quiet Yard, letters from the Ottexa. Nobody says thank you, and nobody writes it down.
 
 ## The Throat
 

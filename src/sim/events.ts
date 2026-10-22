@@ -170,6 +170,15 @@ const takeHeld = (run: Run, h: { who: number; it: Item }) => {
   c.splice(c.indexOf(h.it), 1);
 };
 const anyHeld = (run: Run) => run.crew.some((c) => c.cargo.length > 0);
+/** The best part in anyone's hold with a core in it (drives and specials), for Holloway's yard. */
+function coreHeld(run: Run): { who: number; it: Item } | null {
+  let best: { who: number; it: Item } | null = null;
+  run.crew.forEach((c, who) => c.cargo.forEach((it) => {
+    const cls = partById(it.id).cls;
+    if ((cls === 'engine' || cls === 'special') && (!best || worth(it) > worth(best.it))) best = { who, it };
+  }));
+  return best;
+}
 
 /** Saint Ferrule's blessing: whose hold, the part made better, and the one given up for it. */
 function blessing(run: Run): { who: number; keep: Item; give: Item } | null {
@@ -684,80 +693,65 @@ export const EVENTS: RunEvent[] = [
   },
   {
     id: 'customs',
-    title: 'CUSTOMS CUTTER',
+    title: 'A ROUTINE INSPECTION',
     art: 'customs',
     who: 'holloway',
-    danger: 1,
+    danger: 0,
     weight: 7,
     where: 'any',
     open: false,
-    rumour: 'A Port Authority cutter. Inspector Holloway does love a hold full of parts.',
+    rumour: 'A customs cutter with a gun deck. Lieutenant Holloway is buying, not searching.',
     text: (run) =>
-      `"Cut your engines and open your hold. Anything undeclared will be confiscated, and anything confiscated will be declared. Paperwork."${run.bounty ? ' He looks at your face, then at a poster, then at your face.' : ''}${run.aboard.includes('wren') ? ' The Wren goes very quiet in your hold.' : ''}`,
+      `"Lieutenant Holloway, Port Authority. For the record, this is a routine inspection." He switches the recorder off. "Off the record, I'm buying. Anything with a core in it. The Navy pays better than the dealers, and the Navy doesn't exist."${run.aboard.includes('wren') ? ' He glances at your hold, and the Wren goes very quiet. "Not her. We don\'t buy people."' : ''}`,
     choices: [
       {
-        label: 'OPEN THE HOLD',
-        chips: (run) => [
-          ...(run.bounty ? [c.lose(`A PART PER BOUNTY (${run.bounty})`)] : []),
-          c.rep('Port Authority', 1),
-          ...(run.aboard.includes('wren') ? [c.crew('HE WILL FIND THE WREN', 'bad')] : []),
-        ],
-        outcome: (run, p) => {
-          run.mood('Port Authority', 1);
-          let took = 0;
-          for (let k = 0; k < run.bounty; k++) {
-            const cr = run.crew.find((cr) => cr.cargo.length);
-            if (!cr) break;
-            cr.cargo.splice(Math.floor(p.r() * cr.cargo.length), 1);
-            took++;
-          }
-          if (run.aboard.includes('wren')) {
-            run.aboard.splice(run.aboard.indexOf('wren'), 1);
-            run.bounty++;
-            run.mood('Talkwa', -1);
-            run.did('wren', 'found');
-            return { text: `He finds the Wren's core under a tarp, and reads the writ number off it with real pleasure. "Absconded asset. Vantorr will be so pleased." She says nothing at all as they carry her out.${took ? ` He takes ${took} part${took > 1 ? 's' : ''} as well, while he's there.` : ''}`, mood: 'pleased' };
-          }
-          return { text: took ? `Holloway confiscates ${took} part${took > 1 ? 's' : ''} "pending enquiries". There will be no enquiries.` : 'Clean. Holloway is almost disappointed. He stamps something.', mood: took ? 'pleased' : 'annoyed' };
+        label: 'SELL HIM A CORE',
+        item: (run) => coreHeld(run)?.it ?? null,
+        chips: (run) => {
+          const h = coreHeld(run);
+          return [...(h ? [c.lose(name(h.it).toUpperCase()), c.scrap(worth(h.it) * 2)] : []), c.rep('Port Authority', 1)];
         },
-      },
-      {
-        label: 'BRIBE HIM',
-        chips: (run) => [c.scrap(-25), ...(run.bounty ? [c.bounty(-1)] : []), c.reveal(1)],
-        locked: lacks(25),
+        note: () => 'TWICE WHAT A DEALER PAYS',
+        locked: (run) => (coreHeld(run) ? null : 'NOTHING WITH A CORE IN IT'),
         outcome: (run) => {
-          run.scrap -= 25;
-          if (run.bounty) run.bounty--;
-          run.chart.reveal(1);
-          return { text: 'He pockets it without looking up, loses a page of his file on you, and mentions where his colleagues are not.' };
+          const h = coreHeld(run)!;
+          takeHeld(run, h);
+          run.scrap += worth(h.it) * 2;
+          run.mood('Port Authority', 1);
+          return { text: `He turns the ${name(h.it)} over like a jeweller, pays without haggling, and writes "nothing of interest" on his slate.`, mood: 'pleased' };
         },
       },
       {
-        label: 'LET 7-HOLLY HANDLE IT',
+        label: 'CARRY HIS CRATE',
+        if: (run) => !run.contract,
+        chips: (run, _, s) => [c.scrap(110), c.rep('Port Authority', 1), c.crew(`LAND ON ${run.farPlanet(s.node).name} BEFORE THE GATE`)],
+        note: () => '1 IN 4, THE CENSUS OFFICE SCANS YOU ON THE WAY',
+        odds: () => 0.75,
+        outcome: (run, p) => {
+          const to = run.farPlanet(p.node);
+          run.contract = { planet: to.id, pay: 110, from: 'HOLLOWAY' };
+          run.mood('Port Authority', 1);
+          if (!p.won) {
+            run.holdSweep(-1);
+            return { text: `A stolen core for a yard that doesn't exist, bound for ${to.name}. An imperial cutter scans you before you're out of sight of his, and logs a crate it can't open. The Sweep has your position.`, mood: 'pleased' };
+          }
+          return { text: `A crate with "BALLAST" stencilled on it, and a hum inside. Land on ${to.name} before the gate and it's 110. "For the record," he says, "you were never here."`, mood: 'pleased' };
+        },
+      },
+      {
+        label: 'LET 7-HOLLY FILE HIS REPORT',
         if: (run) => run.aboard.includes('holly') && !run.has('holly', 'customs'),
-        chips: (run) => [...(run.bounty ? [c.bounty(-1)] : []), c.rep('Port Authority', 1), c.crew('ONCE A RUN')],
+        chips: () => [c.rep('Port Authority', 1), c.reveal(2), c.crew('ONCE A RUN')],
         outcome: (run) => {
           run.did('holly', 'customs');
-          if (run.bounty) run.bounty--;
           run.mood('Port Authority', 1);
-          return { text: '7-Holly produces a docket, a counter-docket, and a form Holloway has never seen, filled in perfectly in triplicate. Holloway reads all of it. He looks up, a changed man. "Who trained you?" "Nobody," says 7-Holly, glowing. "I read the manual."', mood: 'pleased' };
+          run.chart.reveal(2);
+          return { text: '7-Holly writes up the inspection: a docket, a counter-docket, and an annex in triplicate, so complete and so dull that the Census Office will never read past the first page. Holloway reads all of it. "Who trained you?" "Nobody," says 7-Holly, glowing. "I read the manual." He marks where the imperial cutters are this week, by way of thanks.', mood: 'pleased' };
         },
       },
       {
-        label: 'RUN FOR IT',
-        game: 'thread',
-        chips: (_, bold) => (bold ? [c.scrap(40), c.bounty(1), c.hull(-2)] : [c.bounty(1), c.rep('Port Authority', -1), c.hull(-1)]),
-        note: (_, bold) => (bold ? 'THROUGH THE MINES: LOSE HIM AND PICK THROUGH HIS PODS' : 'LOSE HIM IN THE ROCKS'),
-        outcome: (run, p) => {
-          run.bounty++;
-          run.mood('Port Authority', -1);
-          if (tier(p.score) <= 1) {
-            run.hurt(p.bold ? 2 : 1);
-            return { text: 'His guns find you twice before the rocks do. You get away, just, and now there is a poster.' };
-          }
-          if (p.bold) run.scrap += 40;
-          return { text: p.bold ? 'He follows you into the mines, and the mines get him. You pick through his cargo pods on the way out.' : 'You leave him reading the rocks. There will be a poster.' };
-        },
+        label: 'NO THANK YOU',
+        outcome: () => ({ text: '"Then for the record, I inspected you and found nothing." He switches the recorder back on. "Easiest line I\'ll write all week."' }),
       },
     ],
   },
@@ -1592,7 +1586,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'TAKE IT WITH YOU',
         if: (run) => !run.aboard.includes('holly'),
-        chips: () => [c.crew('7-HOLLY JOINS YOU', 'good'), c.favour('HANDLES CUSTOMS, KASPAR AND MAMA'), c.rep('Port Authority', -1)],
+        chips: () => [c.crew('7-HOLLY JOINS YOU', 'good'), c.favour('HANDLES HOLLOWAY, KASPAR AND MAMA'), c.rep('Port Authority', -1)],
         note: () => 'THE PORT AUTHORITY WILL CALL IT THEFT. 7-HOLLY WILL CALL IT A TRANSFER',
         outcome: (run) => {
           run.aboard.push('holly');
@@ -1741,7 +1735,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'CARRY HER CORE',
-        chips: () => [c.crew('THE WREN RIDES IN YOUR HOLD', 'good'), c.favour('AT THE GATE, THE TALKWA PAY YOUR DEBT'), c.risk('CUSTOMS COULD FIND HER')],
+        chips: () => [c.crew('THE WREN RIDES IN YOUR HOLD', 'good'), c.favour('AT THE GATE, THE TALKWA PAY YOUR DEBT')],
         note: () => 'NO DEBT? THEY PAY 100 SCRAP INSTEAD',
         if: (run) => !run.aboard.includes('wren'),
         outcome: (run) => {

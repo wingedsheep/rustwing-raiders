@@ -172,6 +172,51 @@ const READ_OWN: Record<string, Partial<Record<Read, string>>> = {
     close: 'SAYS: BOLD. SHE LIKES BOLD',
     dash: 'SAYS: SHOW-OFF',
   },
+  // Oko has to be seen to stop you (the Census Office is watching his gate), and he's sorry
+  halcyon: {
+    back: 'HAILS: HEAVE TO, PILOT',
+    still: 'SAYS: YOU SHOULD HAVE RUN',
+    side: 'HAILS: KEEP TO THE',
+    boost: 'SAYS: FAST SHIP. SHAME',
+    close: 'SAYS: NOT PERSONAL, PILOT',
+    dash: 'SAYS: ANSMOR FLYING, THAT',
+  },
+  // the Long Table aboard, its two-headed Chair never once agreeing with itself
+  kessra: {
+    back: 'VOTES: RUN IT DOWN',
+    still: 'VOTES: LET IT WAIT',
+    side: 'VOTES: CLOSE THE',
+    boost: 'VOTES: CHARGE IT INTEREST',
+    close: 'SPLITS: IT WANTS TO DEAL',
+    dash: 'SPLITS, SIX TO SIX',
+  },
+  // the Choir speaks for her: always we, always polite, slightly wrong (a freighter's intercom)
+  mirefall: {
+    back: 'SINGS: WE SEE YOU, LITTLE ONE',
+    still: 'SINGS: PLEASE REMAIN SEATED',
+    side: 'SINGS: WE MAKE ROOM ON THE',
+    boost: 'SINGS: NO RUNNING ON DECK',
+    close: 'SINGS: WE ARE SO GLAD YOU CAME',
+    dash: 'SINGS: WE FELT THAT',
+  },
+  // Khet, playing to the clans; he thinks he's the one steering
+  ashgrave: {
+    back: 'YELLS: SCARED OF A HEAD?',
+    still: 'YELLS: HOLD STILL!',
+    side: 'YELLS: GOT YOU ON THE',
+    boost: 'YELLS: RUN, RUSTWING!',
+    close: 'YELLS: OFF MY TITAN!',
+    dash: 'LAUGHS: SLIPPERY!',
+  },
+  // Vantorr's account voice: you are an asset under recovery
+  cinder: {
+    back: 'ISSUES: ASSET WITHHELD',
+    still: 'ISSUES: ASSET LOCATED',
+    side: 'ISSUES: ASSET EVADING',
+    boost: 'APPLIES A LATE FEE',
+    close: 'SERVES YOU IN PERSON',
+    dash: 'ISSUES: FINAL NOTICE',
+  },
 };
 
 /** What a boss says it read, under its bar. */

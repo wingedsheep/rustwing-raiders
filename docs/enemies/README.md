@@ -80,7 +80,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 
 ## Scrap
 
-The pirate clans. Tell grammar: **flare** (engines flare red, then they commit, `TELL` in `src/sim/factions.ts:188`). Roster and weights at `src/sim/factions.ts:131`. Their models are in `tools/models/enemies_scrap.py`.
+Metal you bolted together yourself: the Hesk, the Uukhvar, the Sankvi and the Lowtide Court. Each is to get one foe of its own on top of this shared roster ([scrap](../factions/scrap.md#each-powers-own-designed-not-built)). Tell grammar: **flare** (engines flare red, then they commit, `TELL` in `src/sim/factions.ts:188`). Roster and weights at `src/sim/factions.ts:131`. Their models are in `tools/models/enemies_scrap.py`.
 
 - [Ramjack](ramjack.md)
 - [Rattler](rattler.md)
@@ -103,7 +103,7 @@ The native beasts, on any biome with creatures (`factionsIn`, `src/sim/factions.
 
 ## Lattice
 
-The old machine and its copies. Tell grammar: **draw** (the whole attack in light first, a full second). Their models are in `tools/models/enemies_order.py`.
+The old machine and its copies. Tell grammar: **draw** (the whole attack in light first, a full second). Designed, not built: a lattice foe now and then **listens** to the Engine instead of attacking, and a few elites have **woken** cores and can yield ([lattice](../factions/lattice.md#listening-designed-not-built)). Their models are in `tools/models/enemies_order.py`.
 
 - [Warden](warden.md)
 - [Prism](prism.md)
@@ -151,4 +151,5 @@ Each planet's own roster (`src/world/planets.ts`), drawn by `spawnArch` (`src/si
 6. **Open windows have no common length.** Recovers run from 0.6 s (Gunship) to 2.5 s (Rattler), and the Ace has none. Settle a band (say 1.0–1.8 s, longer on elites) and tune to it on the autopilot bench (`just autopilot --foes <kind>`).
 7. **The old guard lags the faction foes** on pattern: five of nine have no real tell. Either bring them up to the loop, or keep them as fodder on purpose and say so.
 8. **Deaths are all the same.** A beast and a machine go up in the same fireball. A beast should fall, a machine break up, a bloom burst into spores.
-9. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Swooper, Spitter, Warden, Prism, and the old guard's Gunship, Brute and Lancer.
+9. **The old guard has no owner in the lore.** Dart, swarm, gunship and the rest are worn under planet names, but nobody in the lore flies "a gunship". Each planet's version should be a thing its power would build (the Patrol Cutter is the Compact's dart; the Hesk Skiff the Hesk's), named on its own page, or folded into the faction rosters.
+10. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Swooper, Spitter, Warden, Prism, and the old guard's Gunship, Brute and Lancer.

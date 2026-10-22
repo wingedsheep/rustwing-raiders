@@ -47,5 +47,5 @@ For the first time in a thousand years something is telling the mould where to g
 
 ## In the game
 
-- Mirefall's enemies and boss.
+- Mirefall's enemies and boss (her fight, turning from bloom to lattice: [her page](../bosses/mother-of-spores.md)).
 - [ ] No event moves Hive mood yet. Idea: the Choir's growing parts (raises Hive mood, others grow wary).

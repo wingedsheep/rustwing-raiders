@@ -190,8 +190,8 @@ export const PLANETS: Planet[] = [
     ],
     enemies: [
       { archetype: 'dart', name: 'Hesk Skiff', kind: 'mech', colors: [0xc8a040, 0x5a3a2a, 0xff6a3a] },
-      { archetype: 'swarm', name: 'Pterosaur', kind: 'beast', colors: [0xb86a4a, 0xe8c890, 0x3a2a2a] },
-      { archetype: 'turret', name: 'Tusk Battery', kind: 'mech', colors: [0x8a7a5a, 0x3a3030, 0xff8a3a] },
+      { archetype: 'swarm', name: 'Pterosaur', kind: 'beast', colors: [0xd0703a, 0xf0d8a0, 0x5a2a22] },
+      { archetype: 'turret', name: 'Tusk Battery', kind: 'mech', colors: [0xd0a040, 0x3a2a24, 0xff8a3a] },
       { archetype: 'gunship', name: 'Hesk Trawler', kind: 'mech', colors: [0xc8a040, 0x4a3a3a, 0xff5a2a] },
       { archetype: 'serpent', name: 'Jade Wyrm', kind: 'beast', colors: [0x3f9a6a, 0xd8e8a0, 0xff3a6a] },
       { archetype: 'brute', name: 'Armoured Thunderhide', kind: 'beast', colors: [0x6a5a4a, 0xa89070, 0xff8a2a] },
@@ -301,9 +301,9 @@ export const PLANETS: Planet[] = [
       { archetype: 'swarm', name: 'Lantern Jelly', kind: 'beast', colors: [0xff8ac8, 0xffe0f0, 0x8affff] },
       { archetype: 'lancer', name: 'Harbour Lancer', kind: 'mech', colors: [0xe8e0d0, 0x2a2a3a, 0xff3a5a] },
       { archetype: 'carrier', name: 'Customs Tender', kind: 'mech', colors: [0xb0b0a0, 0x3a4a5a, 0x4ae8ff] },
-      { archetype: 'bomber', name: 'Depth Charger', kind: 'mech', colors: [0x8a8a7a, 0x2a3a4a, 0xffa03a] },
+      { archetype: 'bomber', name: 'Depth Charger', kind: 'mech', colors: [0xe0d4b0, 0x2a4a7a, 0xffa03a] },
     ],
-    boss: { name: 'HARBOURMASTER OKO', title: 'a crane-armed fortress barge', kind: 'mech', colors: [0xd0c8b0, 0x2a4a7a, 0xffd04a] },
+    boss: { name: 'HARBOURMASTER OKO', title: 'aboard Patience, a warship dressed as a crane barge', kind: 'mech', colors: [0xd0c8b0, 0x2a4a7a, 0xffd04a] },
   },
   {
     id: 'kessra',
@@ -416,13 +416,13 @@ export const PLANETS: Planet[] = [
     ],
     enemies: [
       { archetype: 'dart', name: 'Sand Skimmer', kind: 'mech', colors: [0xd0a060, 0x5a2a1a, 0xff3a2a] },
-      { archetype: 'turret', name: 'Dune Mortar', kind: 'mech', colors: [0xb08a5a, 0x3a2a1a, 0xffaa2a] },
+      { archetype: 'turret', name: 'Dune Mortar', kind: 'mech', colors: [0xb4482a, 0x3a2a1a, 0xffaa2a] },
       { archetype: 'serpent', name: 'Rust Worm', kind: 'beast', colors: [0x8a4a3a, 0xd0a080, 0xffe04a] },
       { archetype: 'gunship', name: 'Cartel Hauler', kind: 'mech', colors: [0xd0a060, 0x3a2a2a, 0xff5a2a] },
       { archetype: 'lancer', name: 'Glass Lancer', kind: 'mech', colors: [0xe8e0d0, 0x8a3a2a, 0x4affe0] },
       { archetype: 'bomber', name: 'Scarab Bomber', kind: 'beast', colors: [0x3a6a8a, 0xd0a040, 0x4affe0] },
     ],
-    boss: { name: 'THE SANDKING', title: 'a walking cartel fortress on six legs', kind: 'mech', colors: [0xd0a060, 0x5a2a1a, 0xff3a2a] },
+    boss: { name: 'THE SANDKING', title: 'the Long Table’s court, walking on titan legs', kind: 'mech', colors: [0xd0a060, 0x5a2a1a, 0xff3a2a] },
   },
   {
     id: 'mirefall',
@@ -525,13 +525,13 @@ export const PLANETS: Planet[] = [
     ],
     enemies: [
       { archetype: 'swarm', name: 'Glowmoth', kind: 'beast', colors: [0x8a6ac0, 0xd0c0ff, 0x8aff8a] },
-      { archetype: 'dart', name: 'Hive Needle', kind: 'beast', colors: [0x4a3a6a, 0x8aff8a, 0xff4aff] },
+      { archetype: 'dart', name: 'Hive Needle', kind: 'beast', colors: [0xd8a848, 0x8aff8a, 0xff4aff] },
       { archetype: 'turret', name: 'Spitter Pod', kind: 'beast', colors: [0x5a4a6a, 0x8aff8a, 0xffe04a] },
       { archetype: 'brute', name: 'Bog Shellback', kind: 'beast', colors: [0x3a4a3a, 0x7a8a5a, 0x8aff8a] },
       { archetype: 'carrier', name: 'Brood Sac', kind: 'beast', colors: [0x8a5a7a, 0xe0b0c0, 0x8aff8a] },
-      { archetype: 'serpent', name: 'Mire Eel', kind: 'beast', colors: [0x2a3a3a, 0x6a8a6a, 0xff4aff] },
+      { archetype: 'serpent', name: 'Mire Eel', kind: 'beast', colors: [0x4e6e66, 0xc0dca0, 0xff4aff] },
     ],
-    boss: { name: 'THE MOTHER-OF-SPORES', title: 'a floating mycelium heart', kind: 'beast', colors: [0x6a3a8a, 0x8aff8a, 0xff4aff] },
+    boss: { name: 'THE MOTHER-OF-SPORES', title: 'the old grow-heart of Morang, floating free', kind: 'beast', colors: [0x6a3a8a, 0x8aff8a, 0xff4aff] },
   },
   {
     id: 'glacis',
@@ -741,13 +741,13 @@ export const PLANETS: Planet[] = [
     ],
     enemies: [
       { archetype: 'dart', name: 'Scav Kite', kind: 'mech', colors: [0x8a7a6a, 0x3a3030, 0xffaa2a] },
-      { archetype: 'turret', name: 'Junk Flak', kind: 'mech', colors: [0x6a6058, 0x2a2a2a, 0xff5a2a] },
+      { archetype: 'turret', name: 'Junk Flak', kind: 'mech', colors: [0xb07040, 0x2a2a2a, 0xff5a2a] },
       { archetype: 'gunship', name: 'Clan Rig', kind: 'mech', colors: [0x9a6a4a, 0x2a2a2a, 0xffaa2a] },
       { archetype: 'brute', name: 'Revived Titan Torso', kind: 'mech', colors: [0x6a7a6a, 0x3a3a3a, 0x4aff8a] },
       { archetype: 'bomber', name: 'Scrap Hauler', kind: 'mech', colors: [0x7a6a5a, 0x3a3030, 0xff5a2a] },
       { archetype: 'lancer', name: 'Glass Sniper', kind: 'mech', colors: [0x5a6a5a, 0x2a2a2a, 0x4aff8a] },
     ],
-    boss: { name: 'WARLORD KHET', title: 'riding a re-wired titan head', kind: 'mech', colors: [0x6a7a6a, 0x9a6a4a, 0x4aff8a] },
+    boss: { name: 'WARLORD KHET', title: 'riding the head of the titan Unbending', kind: 'mech', colors: [0x6a7a6a, 0x9a6a4a, 0x4aff8a] },
   },
   {
     id: 'vesh',
@@ -867,7 +867,7 @@ export const PLANETS: Planet[] = [
       { archetype: 'turret', name: 'Clam Battery', kind: 'beast', colors: [0xd88a98, 0xf0e8d0, 0x4affff] },
       { archetype: 'brute', name: 'Crab Dreadnought', kind: 'beast', colors: [0xd04a3a, 0xf0c0a0, 0xffe04a] },
     ],
-    boss: { name: 'QUEEN ISTRA', title: 'pirate queen in a hollowed sky-whale', kind: 'beast', colors: [0x5a8ab0, 0xf0e8d8, 0xff4a6a] },
+    boss: { name: 'QUEEN ISTRA', title: 'pirate queen in a hollowed lane-whale', kind: 'beast', colors: [0x5a8ab0, 0xf0e8d8, 0xff4a6a] },
   },
   {
     id: 'cinder',
@@ -987,7 +987,7 @@ export const PLANETS: Planet[] = [
       { archetype: 'lancer', name: 'Cutter Rig', kind: 'mech', colors: [0xd08a3a, 0x2a2a2a, 0xff3a3a] },
       { archetype: 'bomber', name: 'Crop Duster', kind: 'mech', colors: [0xa8b84a, 0x3a3a3a, 0xb04aff] },
     ],
-    boss: { name: 'ASSET RECOVERY UNIT 0', title: 'Vantorr’s debt collector', kind: 'mech', colors: [0xe8e8e0, 0xd08a3a, 0xff3a3a] },
+    boss: { name: 'ASSET RECOVERY UNIT 0', title: 'Vantorr’s debt collector, dug out of the ice', kind: 'mech', colors: [0xe8e8e0, 0xd08a3a, 0xff3a3a] },
   },
 ];
 

@@ -2,7 +2,7 @@
 
 A style guide for how the game looks, sounds and talks, and a proposed cast of creatures and events. It works alongside `docs/design-research.md`, which covers mechanics.
 
-**Tone target: mostly Star Wars, a little Gazillionaire.** The base is a lived-in frontier with strange but believable aliens, droids, smugglers, debts and bounty hunters. Gazillionaire supplies a pinch of whimsy in the economy and the lenders. Characters should feel like they could sit at a cantina bar, not in a cartoon.
+**Tone target: a lived-in frontier, a little Gazillionaire.** The base is strange but believable aliens, droids, smugglers, debts and bounty hunters; the look borrows Star Wars' used universe, but the world is its own: several orders of civilisation grinding together, not an empire and its rebels ([tone](lore/tone.md)). Gazillionaire supplies a pinch of whimsy in the economy and the lenders. Characters should feel like they could sit at a cantina bar, not in a cartoon.
 
 ---
 
@@ -44,7 +44,7 @@ What to take from it:
 - **Silly goods, real economics.** Absurd names make a dry buy-low/sell-high loop memorable.
 - **Every character makes a sound.** A two-second creature noise does more for personality than a paragraph of text.
 
-**Our events already follow this pattern** (`src/sim/events.ts`: Mama Ruzz the moneylender, Pip Hollow of Lantern Mutual, Spoke's reels, Inspector Holloway, Big Nell, Rollo Stax, Kaspar). The cast is **entirely human**, though. What is missing is the *aliens, droids and creatures* that make a Star Wars port feel crowded and strange.
+**Our events already follow this pattern** (`src/sim/events.ts`: Mama Ruzz the moneylender, Pip Hollow of Lantern Mutual, Spoke's reels, Lieutenant Holloway, Big Nell, Rollo Stax, Kaspar). The cast is **entirely human**, though. What is missing is the *aliens, droids and creatures* that make a Star Wars port feel crowded and strange.
 
 **How much Gazillionaire:** take its *structure* (lenders, insurers, a prince who pays triple, market shocks, a sound for every character) and its dry humour about money. Leave out its surrealism (eyeball ships, umbrellas as cargo). Keep the weirdness at Star Wars level.
 

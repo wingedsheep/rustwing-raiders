@@ -21,7 +21,7 @@ Patrol Cutter (dart), Toll Barge (gunship), Lantern Jelly (swarm, beast), Harbou
 
 ## The story so far
 
-The seat of the Compact, the human republic of the three arks: its capital Fersdeck stands round the *Halcyon*'s landing struts. Stiltport Nhal is its smugglers' port, half Bahwoh, where nobody saw you. The Port Authority, the Compact's navy in customs paint, is Harbourmaster Oko's, and [Inspector Holloway](../npcs/inspector-holloway.md)'s (his cutter can turn up anywhere). Hidden in the Colony Bones: the Quiet Yard.
+The seat of the Compact, the human republic of the three arks: its capital Fersdeck stands round the *Halcyon*'s landing struts. Stiltport Nhal is its smugglers' port, half Bahwoh, where nobody saw you. The Port Authority, the Compact's navy in customs paint, is Harbourmaster Oko's, and [Lieutenant Holloway](../npcs/inspector-holloway.md)'s (his cutter can turn up anywhere). Hidden in the Colony Bones: the Quiet Yard.
 
 ## Ideas
 

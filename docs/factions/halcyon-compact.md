@@ -41,12 +41,12 @@ Four centuries of the cant have worn the names: the Hulls are **Halcyon**, **Per
 
 - **The Assembly of Hulls** sits in the hull of the *Halcyon*, in Fersdeck: 40 seats for Halcyon, 40 for Pertua, 60 for Ansmor, 12 for the deckless.
 - **The Steward** is chosen by the Assembly for ten years. Amaury Quell, in his second term, is a careful man who has kept the Syndicate happy and the Compact poor.
-- **The Port Authority**: customs, toll collection, patrol, and, quietly, the fleet. Headed by the **Harbourmaster of Halcyon**, **Teodor Oko** of Hull Ansmor, who served as a midshipman under the last admiral and has run the fleet as a navy for thirty years. His flag is the crane-barge *Patience*, a fortress built to look like a cargo handler. (Boss: [Harbourmaster Oko](../bosses/oko.md).)
+- **The Port Authority**: customs, toll collection, patrol, and, quietly, the fleet. The customs work is the cover: Oko's officers don't much care what a rustwing carries, only who's watching them. Headed by the **Harbourmaster of Halcyon**, **Teodor Oko** of Hull Ansmor, who served as a midshipman under the last admiral and has run the fleet as a navy for thirty years. His flag is the crane-barge *Patience*, a fortress built to look like a cargo handler. (Boss: [Harbourmaster Oko](../bosses/oko.md).)
 - **The Odile Register**: the office that still searches for the pods of the *Odile*, the late ark that broke up in 312 L. It pays for every sleeper brought in alive (Dr Varga's pod).
 
 ## People and culture
 
-Halcyon's sun never sets: the towns sit in the long evening, and Compact people keep ship's time, with ship's bells, as the arks did. They are formal, bureaucratic and stubbornly decent: a Compact officer will fine you, and then make sure you get home. **Landing Day** is the one holiday the whole Reach knows. Every child learns the **Exile Hymn**, which calls the Throne *the Cawshen*, the old Ostrand word for it, and still has a verse nobody sings in front of the Census Office. Stiltport Nhal, half Bahwoh and all smugglers, is the Compact's embarrassment and its favourite port.
+Halcyon's sun never sets: the towns sit in the long evening, and Compact people keep ship's time, with ship's bells, as the arks did. They are formal, bureaucratic and stubbornly decent: a Compact officer will do their duty by you, and then make sure you get home. **Landing Day** is the one holiday the whole Reach knows. Every child learns the **Exile Hymn**, which calls the Throne *the Cawshen*, the old Ostrand word for it, and still has a verse nobody sings in front of the Census Office. Stiltport Nhal, half Bahwoh and all smugglers, is the Compact's embarrassment and its favourite port.
 
 ## Inside
 
@@ -70,7 +70,9 @@ Split down the middle: the Steward wants the Engine kept asleep, the Return want
 
 All Port Authority, all built round Engine cores, all painted as customs: **Patrol Cutter** (dart), **Toll Barge** (gunship), **Harbour Lancer** (lancer), **Customs Tender** (carrier), **Depth Charger** (bomber). The Warden on Halcyon's gate is Oko's *Patience*.
 
+The names are the cover, and they stay bland. The joke is that nobody is fooled once they're shot at, so the ships should show it (designed, not built): customs cream over navy grey, chipped at every gun port; gun decks where a tender would have cargo doors; cutters flying line abreast and answering each other with signal lamps. An elite's plate gives its paper name and its real one: `TOLL BARGE 6, EX-RESOLUTE`. They don't fine, search or arrest: they fight like a navy that isn't allowed to be seen fighting, and break off before anyone can log it.
+
 ## In the game
 
-- Halcyon's enemies and boss. [Inspector Holloway](../npcs/inspector-holloway.md) and his cutter. The events that move "Port Authority" mood: towing Juno Pell, the colony pod, Holloway, the refugees.
+- Halcyon's enemies and boss. [Lieutenant Holloway](../npcs/inspector-holloway.md) and his cutter (a navy lieutenant in customs paint, buying cores for the Quiet Yard). The events that move "Port Authority" mood: towing Juno Pell, the colony pod, Holloway, the refugees.
 - Idea: [Unit 7-Holly](../npcs/unit-7-holly.md) is a Port Authority toll droid, from before the war.

@@ -19,7 +19,7 @@ Humans, aliens, woken machines and creatures, all from `events.ts`; who they are
 |---|---|---|---|---|---|
 | [Mama Ruzz](mama-ruzz.md), moneylender | human | MAMA RUZZ'S BARGE, MAMA'S BOYS | debt | yes | `loan` |
 | [Spoke](spoke.md), who runs the reels | human | SPOKE'S TABLE | gambling, rumours | yes | `dice` |
-| [Inspector Holloway](inspector-holloway.md), Port Authority | human | CUSTOMS CUTTER | the law, bounty | no | `customs` |
+| [Lieutenant Holloway](inspector-holloway.md), Port Authority | human | A ROUTINE INSPECTION | a navy buying cores | no | `customs` |
 | [Pip Hollow](pip-hollow.md), Lantern Mutual | human | LANTERN MUTUAL | insurance | yes | `insurance` |
 | [Big Nell](big-nell.md), fuel merchant | human | BIG NELL'S TANKER | fuel | yes | `tanker` |
 | [Rollo Stax](rollo-stax.md), the voice of the lanes | human | THE LANTERN GAZETTE | market news, your deeds | no | `gazette` |
