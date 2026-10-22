@@ -56,7 +56,8 @@ export const CARGO = 6;
 export const SHOP_PARTS = 3;
 export const SECTORS = 3;
 
-export const PRICE: Record<Rarity, number> = { common: 30, rare: 60, epic: 110 };
+// a level pays about 180 scrap with the starter ship: about one part, not the whole stall
+export const PRICE: Record<Rarity, number> = { common: 75, rare: 150, epic: 270 };
 export const SELL: Record<Rarity, number> = { common: 10, rare: 20, epic: 40 };
 export const REPAIR = 12;
 export const FUEL_PRICE = 12;
