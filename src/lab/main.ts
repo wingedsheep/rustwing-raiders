@@ -5,7 +5,7 @@
  */
 
 import { PLANETS } from '../world/planets';
-import type { Mode } from '../sim/level';
+import { hullGrowth, type Mode } from '../sim/level';
 import { DANGERS, LADDER, expectedAt } from './catalog';
 import { mountComposer } from './composer';
 import { mountRange } from './range';
@@ -40,7 +40,7 @@ function renderStage() {
     h('label', { class: 'field' }, 'Sector', seg([1, 2, 3].map((v) => ({ value: v, label: String(v) })), s.sector, (v) => store.set({ sector: v }), 'Sector')),
     h('label', { class: 'field' }, 'Stop', stop, h('b', { class: 'num', style: 'color:var(--cream);width:10px' }, String(s.stop))),
     h('label', { class: 'field hide-narrow' }, 'Site', seg(DANGERS.map((d) => ({ value: d.id, label: d.name, title: `+${d.extra} difficulty` })), s.danger, (v) => store.set({ danger: v }), 'Site danger')),
-    h('div', { class: 'diff', title: `Difficulty: enemy hull ×${(1 + store.difficulty * 0.9).toFixed(2)}, their hits ×${(1 + store.difficulty * 0.3).toFixed(2)}. Likely ship: ${LADDER[expectedAt(store.stage)].name}.` }, h('span', null, 'difficulty'), h('b', { class: 'num' }, store.difficulty.toFixed(2))),
+    h('div', { class: 'diff', title: `Difficulty: enemy hull ×${hullGrowth(store.difficulty).toFixed(2)}, their hits ×${(1 + store.difficulty * 0.3).toFixed(2)}. Likely ship: ${LADDER[expectedAt(store.stage)].name}.` }, h('span', null, 'difficulty'), h('b', { class: 'num' }, store.difficulty.toFixed(2))),
     h('label', { class: 'field' }, planet),
     h('label', { class: 'field' }, mode),
   );

@@ -204,7 +204,7 @@ export function mountRange(root: HTMLElement, onLight: (id: number) => void) {
       coop ? h('label', { class: 'field' }, 'P2', shipSelect(s.ship2, (v) => store.set({ ship2: v }), 'P2 ship')) : null,
       h(
         'label',
-        { class: 'field', title: 'Every enemy’s hull times this (try the co-op multiplier the bench suggests)' },
+        { class: 'field', title: 'Every enemy’s hull times this, on top of the game’s own (try the co-op multiplier the bench suggests)' },
         'Enemy hull ×',
         h('input', { type: 'number', min: '0.1', max: '10', step: '0.1', value: String(s.tough), onchange: (e: Event) => store.set({ tough: Math.max(0.1, Number((e.target as HTMLInputElement).value) || 1) }) }),
       ),

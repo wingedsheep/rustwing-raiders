@@ -1566,10 +1566,14 @@ export class Level {
 
   // --- enemies -----------------------------------------------------------------------------
 
+  /** What an enemy's base hull is multiplied by here: the run's growth, two ships, the testing aid. */
+  hullScale() {
+    return hullGrowth(this.spec.difficulty) * (this.players.length > 1 ? COOP_HULL : 1) * this.tough;
+  }
+
   spawn(arch: Enemy['arch'], skin: EnemySkin, x: number, z: number, d: EnemyData, opts: Partial<Enemy> = {}): Enemy {
-    const diff = this.spec.difficulty;
     const foe = isFoe(arch) ? FOES[arch] : undefined;
-    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * (1 + diff * 0.9) * (opts.elite ? 2.4 : 1) * this.tough;
+    const base = (foe ? foe.hp : HP[arch as Archetype | 'boss']) * this.hullScale() * (opts.elite ? 2.4 : 1);
     const e: Enemy = {
       id: this.id(),
       arch,
@@ -3371,6 +3375,14 @@ function sweep<T extends { dead: boolean }>(xs: T[]) {
   for (let i = 0; i < xs.length; i++) if (!xs[i].dead) xs[j++] = xs[i];
   xs.length = j;
 }
+
+/**
+ * How much tougher enemies get as the run goes on: under their base hull at the first stop
+ * (the start guns are all you have), about double by the third sector, growing with the ship.
+ */
+export const hullGrowth = (difficulty: number) => 0.6 + difficulty;
+/** Enemy hull with two ships shooting at it (the boss's too). */
+export const COOP_HULL = 1.5;
 
 export const HP: Record<Archetype | 'boss', number> = {
   dart: 10,

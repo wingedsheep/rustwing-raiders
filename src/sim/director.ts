@@ -4,7 +4,7 @@
  */
 
 import type { Archetype, EnemySkin } from '../world/planets';
-import type { Enemy, HazardKind, Level } from './level';
+import { COOP_HULL, type Enemy, type HazardKind, type Level } from './level';
 import { HALF_H, HALF_W, toFlight } from './types';
 import { LOOT } from './build';
 import { bossHull, makeBoss } from './boss';
@@ -512,7 +512,7 @@ export class Director {
     for (const e of lv.enemies) if (!e.dead) e.d.flee = 1e-3;
     lv.emit({ type: 'bossWarning', name: p.boss.name, title: p.boss.title });
     const skin: EnemySkin = { archetype: 'brute', name: p.boss.name, kind: p.boss.kind, colors: p.boss.colors };
-    const hp = 2400 * bossHull(p.id) * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? 1.5 : 1);
+    const hp = 2400 * bossHull(p.id) * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? COOP_HULL : 1);
     lv.spawn('boss', skin, 0, lv.top - 20, {}, { boss: makeBoss(p.id), hp, max: hp, t: -2.5 });
   }
 

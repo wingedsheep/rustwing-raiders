@@ -4,7 +4,7 @@
  * its groups come at once.
  */
 
-import { Level } from '../sim/level';
+import { Level, hullGrowth } from '../sim/level';
 import { levelSpec } from '../sim/run';
 import { PLANETS } from '../world/planets';
 import { GROUPS, groupOf, kindsFor, type Kind } from './catalog';
@@ -54,7 +54,7 @@ export function levelEnd() {
 }
 
 /** Hull a wave's enemies have at this stage, for one group (a guess: groups vary in size). */
-const hullAt = (k: Kind, elite: boolean) => Math.round(k.hp * (1 + store.difficulty * 0.9) * (elite ? 2.4 : 1));
+const hullAt = (k: Kind, elite: boolean) => Math.round(k.hp * hullGrowth(store.difficulty) * (elite ? 2.4 : 1));
 
 export function mountComposer(root: HTMLElement) {
   const list = h('div', { class: 'waves', role: 'list' });

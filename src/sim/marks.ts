@@ -22,7 +22,7 @@
  * The Catalyst (a dash mod) sets off whatever single mark an enemy carries as you dash past it.
  */
 
-import type { Enemy, Level } from './level';
+import { hullGrowth, type Enemy, type Level } from './level';
 import type { MarkKind, Tag } from '../game/parts';
 import { DT } from './types';
 import { go } from './combat';
@@ -134,7 +134,7 @@ export function marksOn(e: Enemy) {
 export const markTaken = (e: Enemy) => (e.mk.crack > 0 ? 1 + CRACK_TAKEN * e.mk.crackP : 1);
 
 /** A reaction's damage: the base, grown with the run, at the marks' strength. */
-const reactDmg = (lv: Level, pow: number) => REACT_DMG * (1 + lv.spec.difficulty * 0.9) * pow;
+const reactDmg = (lv: Level, pow: number) => REACT_DMG * hullGrowth(lv.spec.difficulty) * pow;
 
 /**
  * A hit leaves `bits` on it, at `pow` strength. A new mark different from one it carries reacts

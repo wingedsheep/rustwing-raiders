@@ -114,7 +114,7 @@ export class Heist {
     this.z = lv.scroll + this.hold;
     const skin = lv.spec.planet.enemies.find((s) => s.archetype === 'carrier') ?? lv.spec.planet.enemies[0];
     const part = (kind: PartKind, k: number, p: { x: number; z: number }, arch: Enemy['arch'], hp: number, r: number, scrap: number, score: number) => {
-      const hard = (1 + lv.spec.difficulty * 0.9) * lv.tough;
+      const hard = lv.hullScale();
       const e = lv.spawn(arch, skin, this.x + p.x, this.z + p.z, { qp: kind, qk: k }, { ground: false, y: 10, hp: hp * hard, r, scrap, score });
       e.hp = e.max;
       return e;

@@ -139,13 +139,17 @@ export interface Ship {
   tier: Tier;
 }
 
-/** The ladder: the ship a crew is likely to fly at each point of a run, weakest first. */
+/**
+ * The ladder: the ship a crew is likely to fly at each point of a run, weakest first. One frame
+ * (a frame is picked at the start, not grown into), gaining a part or two a level, each at the
+ * tier the loot rolls when it came (see path: in sim/loadouts.ts). `tier` is the best on it.
+ */
 export const LADDER: Ship[] = [
-  { id: 'starter', name: 'Starter', note: 'The Kestrel as it leaves the yard', loadout: 'starter', frame: 'kestrel', tier: 'common' },
-  { id: 'starter+', name: 'Starter, tuned', note: 'Same guns, rare rolls on them', loadout: 'starter', frame: 'kestrel', tier: 'rare' },
-  { id: 'mid', name: 'Mid-run', note: 'A Mule with a tool on every hardpoint, rare parts', loadout: 'strong', frame: 'mule', tier: 'rare' },
-  { id: 'late', name: 'Late', note: 'The same Mule, all epic', loadout: 'strong', frame: 'mule', tier: 'epic' },
-  { id: 'end', name: 'Endgame', note: 'All legendary, traits and all', loadout: 'strong', frame: 'mule', tier: 'legendary' },
+  { id: 'starter', name: 'Starter', note: 'The Kestrel as it leaves the yard: two rivets', loadout: 'path:0', frame: 'kestrel', tier: 'common' },
+  { id: 'early', name: 'Early', note: 'Three common parts from the first sector', loadout: 'path:3', frame: 'kestrel', tier: 'common' },
+  { id: 'mid', name: 'Mid-run', note: 'Five parts, the later ones rare', loadout: 'path:5', frame: 'kestrel', tier: 'rare' },
+  { id: 'late', name: 'Late', note: 'Eight parts, rare and a first epic', loadout: 'path:8', frame: 'kestrel', tier: 'epic' },
+  { id: 'end', name: 'Endgame', note: 'A full deck: ten parts, the last ones epic', loadout: 'path:10', frame: 'kestrel', tier: 'epic' },
 ];
 
 /** The build archetypes: some will be strong and some weak, and that's fine; they're benched against the ladder. */
@@ -159,15 +163,16 @@ export const ARCHETYPES: { loadout: string; name: string; note: string }[] = [
 
 /** The ladder's ship you'd most likely have at a stage (the assumption the bench's diagonal draws). */
 export function expectedAt(s: Stage): number {
-  if (s.sector === 1) return s.stop <= 4 ? 0 : 1;
-  if (s.sector === 2) return 2;
+  if (s.sector === 1) return s.stop <= 2 ? 0 : 1;
+  if (s.sector === 2) return s.stop <= 4 ? 2 : 3;
   return s.stop <= 4 ? 3 : 4;
 }
 
 export const TIER_OF_LADDER: Tier[] = LADDER.map((s) => s.tier);
 
 export function buildOf(ship: Pick<Ship, 'loadout' | 'frame' | 'tier'>): Build {
-  return withTier(loadout(ship.loadout, ship.frame), ship.tier);
+  // (a run's path rolls each part at its own tier)
+  return ship.loadout.startsWith('path:') ? loadout(ship.loadout, ship.frame) : withTier(loadout(ship.loadout, ship.frame), ship.tier);
 }
 
 export const loadouts = () => Object.keys(LOADOUTS);

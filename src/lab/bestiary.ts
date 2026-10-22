@@ -12,6 +12,7 @@ import { toon } from '../render/toon';
 import { FOES } from '../sim/factions';
 import { PLANETS, type EnemySkin } from '../world/planets';
 import { TILT } from '../sim/types';
+import { hullGrowth } from '../sim/level';
 import { GROUPS, groupOf, kindsFor, type Kind } from './catalog';
 import { kinds, planetOf } from './composer';
 import { store, waveId } from './state';
@@ -312,7 +313,7 @@ export function mountBestiary(root: HTMLElement, fly: () => void) {
     const r = k.r * (elite ? 1.3 : 1);
     const span = head;
     const ratio = r / Math.max(0.01, span);
-    const hull = Math.round(k.hp * (1 + store.difficulty * 0.9) * (elite ? 2.4 : 1));
+    const hull = Math.round(k.hp * hullGrowth(store.difficulty) * (elite ? 2.4 : 1));
     info.replaceChildren(
       h(
         'div',

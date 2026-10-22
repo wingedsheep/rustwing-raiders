@@ -14,6 +14,7 @@ import { lineChart } from './charts';
 import { FILL, INKS, verdict, verdictPill, type Verdict } from './verdict';
 import { fmt, h, hideTip, icon, kids, mean, median, tip, tipRows, toast } from './ui';
 import type { Build } from '../sim/build';
+import { COOP_HULL } from '../sim/level';
 
 type Crew = 'solo' | 'coop';
 
@@ -197,6 +198,8 @@ export function mountBench(root: HTMLElement) {
       const raw = localStorage.getItem(SAVED);
       if (!raw) return;
       const d = JSON.parse(raw);
+      // (a run kept before the bench counted hull taken and fliers that got away: fly it again)
+      if (d.results.some(([, rs]: [string, FlyResult[]]) => rs.some((r) => !r.taken))) return;
       for (const [k, v] of d.results) results.set(k, v);
       ({ want, got, ranWith, ranRows, ranCrews, ranPlan, ranCoopHp, errors } = d);
       t0 = performance.now() - d.took;
@@ -290,7 +293,7 @@ export function mountBench(root: HTMLElement) {
       box(b.archetypes, 'Build archetypes', (v) => store.setBench({ archetypes: v }), 'Also fly the five build archetypes, at the tier the ladder has at each stage'),
       h(
         'label',
-        { class: 'field', title: 'Enemy hull in co-op, times this. The game has none for waves today (the boss gets 1.5×).' },
+        { class: 'field', title: 'Enemy hull in co-op, times this, on top of the game’s own ×' + COOP_HULL + ' for two ships.' },
         'Co-op enemy hull ×',
         num(b.coopHp, (v) => store.setBench({ coopHp: Math.max(0.2, Math.min(5, v || 1)) }), { min: 0.2, max: 5, step: 0.1, label: 'Co-op enemy hull' }),
       ),
@@ -329,14 +332,14 @@ export function mountBench(root: HTMLElement) {
     const runs = results.get(key(row, col, crew)) ?? [];
     const b = store.s.bench;
     const ttks = runs.flatMap((r) => r.waves.filter((w) => w.end !== null).map((w) => w.end! - w.start));
-    const total = runs.reduce((s, r) => s + r.killed + r.missed, 0);
+    const total = runs.reduce((s, r) => s + r.airTotal, 0);
     const c: Cell = {
       runs,
       want: b.seeds,
       ttk: median(ttks),
-      hullLost: mean(runs.map((r) => mean(r.hull.map((hp, i) => 1 - hp / r.hullMax[i])))),
+      hullLost: mean(runs.map((r) => mean(r.taken.map((t, i) => t / r.hullMax[i])))),
       failed: runs.length ? runs.filter((r) => r.outcome === 'failed').length / runs.length : 0,
-      leaks: total ? runs.reduce((s, r) => s + r.missed, 0) / total : 0,
+      leaks: total ? runs.reduce((s, r) => s + r.airMissed, 0) / total : 0,
       dps: mean(runs.map((r) => r.dps)),
       hits: mean(runs.map((r) => r.hits)),
       v: null,
@@ -542,8 +545,11 @@ export function mountBench(root: HTMLElement) {
         rows[j].runs++;
         rows[j].hits += t.hits;
         rows[j].dmg += t.dmg;
-        tot[j][0] += t.missed;
-        tot[j][1] += t.total;
+        // (a ground wave scrolling past isn't one getting away)
+        if (!t.ground) {
+          tot[j][0] += t.missed;
+          tot[j][1] += t.total;
+        }
         if (t.end !== null) ttk[j].push(t.end - t.start);
       });
     }

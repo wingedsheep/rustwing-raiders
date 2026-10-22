@@ -32,6 +32,8 @@ export interface WaveTally {
   index: number;
   kinds: string[];
   elite: boolean;
+  /** Everything in it on the ground (scrolling past one isn't it getting away). */
+  ground: boolean;
   /** Distance flown when it came (to tell which of the lab's waves it is). */
   flown: number;
   /** Seconds into the level it came, and was over (killed or gone), or null if it never was. */
@@ -55,6 +57,8 @@ export interface FlyResult {
   progress: number;
   hull: number[];
   hullMax: number[];
+  /** Hull each ship lost over the level, all told (what's left at the end hides it: hull mends). */
+  taken: number[];
   hits: number;
   /** Hits a shield took instead. */
   blocked: number;
@@ -67,6 +71,9 @@ export interface FlyResult {
   busy: number;
   killed: number;
   missed: number;
+  /** Fliers that came, and that got away (ground things scroll past and don't count). */
+  airTotal: number;
+  airMissed: number;
   waves: WaveTally[];
   /** Hits that came while no wave was about (the land, hazards). */
   stray: number;
@@ -109,6 +116,10 @@ export function fly(job: FlyJob): FlyResult {
   let downs = 0;
   let stray = 0;
   let busy = 0;
+  const taken = lv.players.map(() => 0);
+  const grounded = new Map<number, boolean>();
+  let airTotal = 0;
+  let airMissed = 0;
   const limit = 60 * 60 * 6;
   for (let f = 0; f < limit; f++) {
     const seen = lv.waves.length;
@@ -120,6 +131,7 @@ export function fly(job: FlyJob): FlyResult {
         index: w,
         kinds: [...new Set(of.map((e) => e.arch))],
         elite: of.some((e) => e.elite),
+        ground: of.length > 0 && of.every((e) => e.ground),
         flown: -lv.scroll,
         start: lv.time,
         end: null,
@@ -137,14 +149,23 @@ export function fly(job: FlyJob): FlyResult {
     for (const e of lv.events) {
       if (e.type === 'spawn') {
         const en = lv.enemies.find((x) => x.id === e.enemy);
-        if (en) pool.set(en.id, en.max + en.armourMax);
+        if (en) {
+          pool.set(en.id, en.max + en.armourMax);
+          grounded.set(en.id, en.ground);
+          if (!en.ground) airTotal++;
+        }
       } else if (e.type === 'kill') {
         dealt += Math.max(0, pool.get(e.enemy) ?? 0);
         pool.delete(e.enemy);
-      } else if (e.type === 'escaped') pool.delete(e.enemy);
+      } else if (e.type === 'escaped') {
+        pool.delete(e.enemy);
+        if (grounded.get(e.enemy) === false) airMissed++;
+      }
       else if (e.type === 'playerHit') {
         if (e.shield) blocked++;
         if (!live.length) stray++;
+        const pi = lv.players.findIndex((p) => p.id === e.id);
+        if (pi >= 0) taken[pi] += e.dmg ?? 0;
         for (const t of live) {
           t.hits++;
           t.dmg += e.dmg ?? 0;
@@ -180,6 +201,7 @@ export function fly(job: FlyJob): FlyResult {
     progress: lv.progress,
     hull: lv.players.map((p) => Math.max(0, p.down ? 0 : p.hp)),
     hullMax: lv.players.map((p) => p.stats.hp),
+    taken,
     hits: lv.players.reduce((s, p) => s + p.hits, 0) - blocked,
     blocked,
     downs,
@@ -189,6 +211,8 @@ export function fly(job: FlyJob): FlyResult {
     busy,
     killed: lv.killed,
     missed: lv.missed,
+    airTotal,
+    airMissed,
     waves: tallies,
     stray,
   };
