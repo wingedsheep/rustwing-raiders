@@ -85,6 +85,9 @@ export interface EnemyData {
   combo?: number;
   /** A move's counter (volleys fired, flanks used). */
   k?: number;
+  /** Fliers: how far across it's swung out of its way round an obstacle, and where it last asked to go (see foes.ts veer). */
+  veer?: number;
+  vin?: number;
 }
 
 export function enemyRadius(arch: Enemy['arch']) {

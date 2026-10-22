@@ -463,10 +463,10 @@ export class Threats {
     const fill = this.planes.take(e.hitT < 0.07 ? 0xffffff : f > 0.5 ? 0xfff0c0 : f > 0.25 ? 0xffb04a : 0xff5a3a, 0.95 * fade);
     fill.position.set(e.x - (w * (1 - f)) / 2, Y + 0.05, z);
     fill.scale.set(Math.max(0.05, w * f), 1, 0.3);
-    // an elite's armour: a gold band over it, to break first
+    // plating: a band over it, to break first (an elite's gold, the rest steel)
     if (e.armourMax > 0 && e.armour > 0) {
       const g = clamp(e.armour / e.armourMax, 0, 1);
-      const band = this.planes.take(e.hitT < 0.07 ? 0xffffff : 0xffd04a, fade);
+      const band = this.planes.take(e.hitT < 0.07 ? 0xffffff : e.elite ? 0xffd04a : 0xc8d4e8, fade);
       band.position.set(e.x - (w * (1 - g)) / 2, Y + 0.07, z - 0.42);
       band.scale.set(Math.max(0.05, w * g), 1, 0.32);
       const back = this.planes.take(INK, 0.75 * fade);

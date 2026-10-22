@@ -12,7 +12,7 @@ import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { TORPEDO } from '../sim/level';
+import { TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
@@ -37,6 +37,11 @@ const SCRAP_GLOW = new THREE.SpriteMaterial({ map: SOFT, color: 0xffc04a, transp
 const SCRAP_TRAIL = new THREE.Color(0xffd070);
 /** Hot crates (see Level.hotCrate). */
 const HOT_HEX = 0xff6a2a;
+/** The Weld (see hud.ts WELD): mending green. */
+const WELD_COLOR = 0x8affb0;
+const WELD_HEX = '#8affb0';
+/** Plating (see combat.ts): steel, where an elite's armour is gold. */
+const PLATE_HEX = 0xc8d4e8;
 
 /** A heist's colour (see hud.ts HEIST). */
 const HEIST_HEX = '#5ae0c0';
@@ -356,8 +361,9 @@ export class LevelView {
             const ev = this.enemies.get(e.enemy);
             if (ev) ev.punch = Math.min(1, ev.punch + 0.25);
             if (!e.dot) {
-              this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z + 0.6, e.dmg >= 10 ? 6 : 2, 0xffd04a, 14, 0.15, 0.14);
-              audio.play('hit_armor', { pan: e.x / HALF_W, vol: e.dmg >= 10 ? 0.5 : 0.25, pitch: 1.1 + Math.random() * 0.2 });
+              this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z + 0.6, e.blow ? 8 : 2, lv.enemies.find((o) => o.id === e.enemy)?.elite ? 0xffd04a : PLATE_HEX, e.blow ? 18 : 10, 0.15, 0.14);
+              // the stream glancing off it ticks; a blow rings
+              audio.play('hit_armor', { pan: e.x / HALF_W, vol: e.blow ? 0.55 : 0.18, pitch: (e.blow ? 0.9 : 1.3) + Math.random() * 0.2 });
             }
             break;
           }
@@ -846,14 +852,17 @@ export class LevelView {
           audio.music('boss');
           break;
         case 'armourBreak': {
-          // the armour comes off in plates: it reels, wide open
+          // the armour comes off in plates: it reels, wide open (an elite's gold is the big one;
+          // plain plating is steel, and says OPEN: dash through it)
           const en = lv.enemies.find((o) => o.id === e.enemy);
-          this.shards(e.x, e.z, 16, 0xffd04a);
-          this.fx.ring(e.x, FLIGHT_Y, e.z, (en?.r ?? 2) * 2.4, 0.3, true, 0xffd04a);
+          const elite = !!en?.elite;
+          const col = elite ? 0xffd04a : PLATE_HEX;
+          this.shards(e.x, e.z, elite ? 16 : 10, col);
+          this.fx.ring(e.x, FLIGHT_Y, e.z, (en?.r ?? 2) * 2.4, 0.3, true, col);
           this.fx.add({ x: e.x, y: FLIGHT_Y + 1.2, z: e.z, size: 5, grow: 1.4, life: 0.1, color: HOT, carried: true });
-          this.pop('ARMOUR BROKEN', e.x, e.z - 3, '#ffd04a', true);
-          this.hitstop = Math.max(this.hitstop, 5);
-          this.trauma = Math.min(1, this.trauma + 0.35);
+          this.pop(elite ? 'ARMOUR BROKEN' : 'OPEN', e.x, e.z - 3, elite ? '#ffd04a' : '#e8eef8', elite);
+          this.hitstop = Math.max(this.hitstop, elite ? 5 : 3);
+          this.trauma = Math.min(1, this.trauma + (elite ? 0.35 : 0.2));
           audio.play('shield_break', { pan: e.x / HALF_W, pitch: 0.6 });
           audio.play('explode_small', { pan: e.x / HALF_W, pitch: 0.7, vol: 0.6 });
           break;
@@ -916,10 +925,33 @@ export class LevelView {
           this.bolt([p.x - p.dashX * 6, p.z - p.dashZ * 6, e.x + p.dashX * 4, e.z + p.dashZ * 4], 0xfff4d0);
           this.fx.ring(e.x, FLIGHT_Y, e.z, e.boss ? 12 : 6, 0.3, true, 0xffffff);
           this.shards(e.x, e.z, e.boss ? 22 : 14, 0xffe08a);
-          this.pop(e.heal ? 'TAKEDOWN  +KIT' : 'TAKEDOWN', e.x, e.z - 3, e.heal ? '#8affb0' : '#fff4d0', true);
+          this.pop('TAKEDOWN', e.x, e.z - 3, e.big ? WELD_HEX : '#fff4d0', true);
           audio.play('react_shatter', { pan: e.x / HALF_W, pitch: 0.8 });
           audio.play('ram', { pan: e.x / HALF_W, pitch: 0.7 });
           audio.duck(0.5);
+          break;
+        }
+        case 'weld': {
+          const p = lv.players[e.id];
+          if (e.state === 'ready') {
+            // full: a ring in the weld's colour and a ping, so you know it's there to spend
+            this.fx.ring(p.x, FLIGHT_Y, p.z, 4, 0.3, true, WELD_COLOR);
+            audio.play('aux_ready', { pan: p.x / HALF_W, pitch: 0.8 });
+          } else if (e.state === 'start') {
+            audio.play('hook', { pan: p.x / HALF_W, pitch: 1.4, vol: 0.6 });
+          } else if (e.state === 'done') {
+            this.fx.ring(p.x, FLIGHT_Y, p.z, 6, 0.35, true, WELD_COLOR);
+            this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 24, WELD_COLOR, 18, 0.4, 0.2);
+            this.flash = Math.max(this.flash, 0.25);
+            this.flashColor.setHex(WELD_COLOR);
+            this.pop('WELDED', p.x, p.z - 3, WELD_HEX, true);
+            audio.play('heal', { pan: p.x / HALF_W });
+          } else {
+            // hit in it: the torch sputters out, everything spent
+            this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 14, 0x806040, 12, 0.3, 0.2);
+            this.pop('WELD LOST', p.x, p.z - 3, '#ff6a4a', true);
+            audio.play('overheat', { pan: p.x / HALF_W, pitch: 0.7 });
+          }
           break;
         }
         case 'affix': {
@@ -1723,6 +1755,11 @@ export class LevelView {
       // a down ship smokes; a partner reviving it gets a ring
       if (p.down && Math.random() < 0.3) this.fx.add({ x: p.x, y: FLIGHT_Y, z: p.z, vy: 3, vz: 4, size: 0.8, grow: 2.5, life: 1, color: new THREE.Color(0x4a4040), to: new THREE.Color(0x2a2228), carried: true });
       if (p.down && p.revive > 0 && Math.random() < 0.5) this.fx.sparks(p.x, FLIGHT_Y, p.z, 2, 0x8affb0, 6, 0.3, 0.2);
+      // welding: a torch's sparks spitting off the hull
+      if (p.weldT >= WELD.hold && !p.down) {
+        if (Math.random() < 0.7) this.fx.sparks(p.x + (Math.random() - 0.5) * 1.6, FLIGHT_Y + 0.6, p.z + (Math.random() - 0.5) * 1.6, 2, WELD_COLOR, 10, 0.25, 0.12);
+        if (Math.random() < 0.15) audio.play('hit_armor', { pan: p.x / HALF_W, vol: 0.15, pitch: 1.6 + Math.random() * 0.4 });
+      }
       // the parry's window: a bright rim round the ship while it's open
       if (p.parryT > 0) this.fx.add({ x: p.x, y: FLIGHT_Y + 0.8, z: p.z, size: 5, grow: 1.1, life: 0.04, color: this.c.setHex(0xffffff).multiplyScalar(0.5), carried: true });
       // the siphon: a purple whirl pulling in

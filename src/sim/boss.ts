@@ -326,6 +326,12 @@ export const poiseOf = (e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.
 /** The name of the signature it's making, if it is. */
 export const sigName = (e: Enemy) => (e.boss && e.boss.move === e.boss.sig && (e.state === 'windup' || e.state === 'attack') ? MOVE_NAME[e.boss.sig] : undefined);
 
+/** A perfect dash through its attack: a read. It wears its poise half through; through its signature, it breaks it. */
+export function bossRead(lv: Level, e: Enemy) {
+  const b = e.boss!;
+  bossHurt(lv, e, e.max * POISE * (b.move === b.sig ? 1 : 0.5));
+}
+
 /** Hit: its poise gives, and when it breaks it's STAGGERED, whatever it was doing. */
 export function bossHurt(lv: Level, e: Enemy, dmg: number) {
   const b = e.boss!;

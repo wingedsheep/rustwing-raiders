@@ -54,6 +54,9 @@ interface Result extends Job {
   perfects: number;
   /** Dashes through something staggered. */
   takedowns: number;
+  /** Welds finished, and lost to a hit. */
+  welds: number;
+  weldsLost: number;
   /** Hot crates: what came of each (o opened, b blown, l lost at the end or downed; '' none taken). */
   crates: string;
   /** Crits from the guns' edges. */
@@ -203,6 +206,8 @@ function fly(job: Job): Result {
     grazes: lv.players.reduce((s, p) => s + p.grazes, 0),
     perfects: lv.players.reduce((s, p) => s + p.perfects, 0),
     takedowns: lv.players.reduce((s, p) => s + p.takedowns, 0),
+    welds: lv.players.reduce((s, p) => s + p.welds, 0),
+    weldsLost: lv.players.reduce((s, p) => s + p.weldsLost, 0),
     crates,
     edges: lv.players.reduce((s, p) => s + Object.values(p.edges).reduce((a, n) => a + (n ?? 0), 0), 0),
     parries: lv.players.reduce((s, p) => s + p.parries, 0),
@@ -276,7 +281,7 @@ if (!isMainThread) {
         console.log(
           `${mark} ${r.planet.padEnd(9)} ${r.mode.padEnd(5)} seed ${String(r.seed).padEnd(3)} ${r.time.toFixed(0).padStart(4)}s  ` +
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
-            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
+            `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}  welds ${r.welds}${r.weldsLost ? ` (lost ${r.weldsLost})` : ''}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}${r.convoy ? `  convoy ${r.convoy}` : ''}`,
         );
@@ -297,6 +302,7 @@ if (!isMainThread) {
       `Average hits ${(results.reduce((s, r) => s + r.hits, 0) / results.length).toFixed(1)}, ` +
       `perfects ${(results.reduce((s, r) => s + r.perfects, 0) / results.length).toFixed(1)}, ` +
       `takedowns ${(results.reduce((s, r) => s + r.takedowns, 0) / results.length).toFixed(1)}, ` +
+      `welds ${(results.reduce((s, r) => s + r.welds, 0) / results.length).toFixed(1)} (lost ${(results.reduce((s, r) => s + r.weldsLost, 0) / results.length).toFixed(1)}), ` +
       `crates ${['o', 'b', 'l'].map((k) => `${{ o: 'opened', b: 'blown', l: 'lost' }[k]} ${results.reduce((s, r) => s + r.crates.split('').filter((c) => c === k).length, 0)}`).join(' ')}, ` +
       `aux ${(results.reduce((s, r) => s + r.aux, 0) / results.length).toFixed(1)} (parried ${(results.reduce((s, r) => s + r.parries, 0) / results.length).toFixed(1)}), ` +
       `boost ${Math.round((results.reduce((s, r) => s + r.boost, 0) / results.length) * 100)}%, ` +

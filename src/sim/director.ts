@@ -326,7 +326,7 @@ export class Director {
       const x = lerp(-HALF_W + 4, HALF_W - 4, r());
       const zg = lv.top - 14 - r() * 10;
       const h = lv.terrain.height(x, zg);
-      if (h < lv.terrain.water(zg) + 0.2 || h > 7) continue;
+      if (h < lv.terrain.water(zg) + 0.2 || h > 7 || lv.terrain.occupied(x, zg, 1.6)) continue;
       const zf = toFlight(zg, h);
       if (lv.enemies.some((e) => e.ground && Math.abs(e.x - x) < 5 && Math.abs(e.z - zf) < 5)) continue;
       lv.spawn(foe, skin, x, zf, {}, { ...opts, y: h });
@@ -420,7 +420,7 @@ export class Director {
           const x = lerp(-HALF_W + 3, HALF_W - 3, r());
           const zg = lv.top - 14 - r() * 10;
           const h = lv.terrain.height(x, zg);
-          if (h < lv.terrain.water(zg) + 0.2 || h > 7) continue;
+          if (h < lv.terrain.water(zg) + 0.2 || h > 7 || lv.terrain.occupied(x, zg, 1.4)) continue;
           const zf = toFlight(zg, h);
           if (lv.enemies.some((e) => e.ground && Math.abs(e.x - x) < 4 && Math.abs(e.z - zf) < 4)) continue;
           lv.spawn('turret', skin, x, zf, {}, { ...opts, y: h });

@@ -42,6 +42,8 @@ export interface Placed {
   biome: number;
   /** A set piece (see world/looks.ts): placed as built, never leant or tinted. */
   role?: SetRole;
+  /** How far round it the ground is its own (a set piece or a landmark: see `occupied`). */
+  foot?: number;
 }
 
 export interface Wildlife {
@@ -409,6 +411,26 @@ export class Terrain {
     return out;
   }
 
+  /**
+   * Is the ground at (x, z) taken: inside an obstacle's columns, or under a set piece, a landmark
+   * or a big tree or rock? (`pad`: the room the thing being put down needs.) For setting things on
+   * the land, so a turret never stands in a pillar.
+   */
+  occupied(x: number, z: number, pad = 0) {
+    for (const c of this.chunksBetween(z - 30, z + 30))
+      for (const p of c.props) {
+        for (const k of p.cols) if ((k.x - x) ** 2 + (k.z - z) ** 2 < (k.r + pad) ** 2) return true;
+        if (p.obstacle || p.role === 'span') continue;
+        let foot = p.foot;
+        if (foot === undefined) {
+          const m = metaOf(p.kind, p.variant);
+          foot = m ? Math.min(m.max[0] - m.min[0], m.max[2] - m.min[2]) * p.s * 0.4 : 0;
+        }
+        if ((p.x - x) ** 2 + (p.z - z) ** 2 < (foot + pad) ** 2) return true;
+      }
+    return false;
+  }
+
   /** Every obstacle collider near (x, z). */
   *colliders(x: number, z: number, reach = 6): Generator<{ x: number; z: number; r: number }> {
     for (const c of this.chunksBetween(z - reach - 12, z + reach + 12))
@@ -436,13 +458,17 @@ export class Terrain {
     const crowded = !!set || this.setRole(index - 1) === 'gate' || this.setRole(index + 1) === 'gate';
     if (set) {
       props.push(set.p);
-      if (set.p.role !== 'span') marks.push({ x: set.p.x, z: set.p.z, r: set.foot });
+      if (set.p.role !== 'span') {
+        marks.push({ x: set.p.x, z: set.p.z, r: set.foot });
+        set.p.foot = set.foot;
+      }
     }
     if (!start && !set && r() < LANDMARK_CHANCE) {
       const p = this.landmark(biome, zNear, r, bi);
       if (p) {
         props.push(p);
-        marks.push({ x: p.x, z: p.z, r: p.cols[0]?.r ?? 6 });
+        p.foot = p.cols[0]?.r ?? 6;
+        marks.push({ x: p.x, z: p.z, r: p.foot });
         p.cols = [];
       }
     }

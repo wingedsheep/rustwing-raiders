@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Enemy, Level, Player } from '../sim/level';
+import { WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, READ_LINE, sigName } from '../sim/boss';
 import { FOES, type Foe } from '../sim/factions';
 import { FLIGHT_Y } from '../sim/types';
@@ -35,6 +35,8 @@ export const GOLD = '#ffd04a';
 /** Hot crates: the fuse, the crate. */
 export const HOT = '#ff6a2a';
 export const RED = '#ff5a4a';
+/** The Weld: mending green. */
+export const WELD = '#8affb0';
 export const GREEN = '#8affb0';
 export const CYAN = '#8affe0';
 
@@ -289,6 +291,24 @@ export class Hud {
     this.motes = this.motes.filter((m) => m.t < FLY);
   }
 
+  /**
+   * The Weld at the ship: a bar over it filling as the weld goes (pale while it's only held, then
+   * green and committed); full with the hull short, a quiet WELD READY under it now and then.
+   */
+  private welding(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
+    if (p.weldT > 0) {
+      const gw = 26;
+      const k = clamp((p.weldT - WELDING.hold) / WELDING.time, 0, 1);
+      ctx.fillStyle = 'rgba(14,10,22,0.7)';
+      ctx.fillRect(Math.round(x - gw / 2) - 1, Math.round(y - 20), gw + 2, 5);
+      ctx.fillStyle = p.weldT < WELDING.hold ? '#4a8a68' : WELD;
+      ctx.fillRect(Math.round(x - gw / 2), Math.round(y - 19), Math.max(1, Math.round(gw * (p.weldT < WELDING.hold ? p.weldT / WELDING.hold : k))), 3);
+      if (p.weldT >= WELDING.hold) drawText(ctx, 'WELDING', x, y - 30, WELD, { align: 'center' });
+    } else if (p.weld >= 1 && p.hp < p.stats.hp && this.time % 4 < 1.2) {
+      drawText(ctx, 'WELD READY: GUNS OFF, HOLD FOCUS', x, y + 30, WELD, { align: 'center' });
+    }
+  }
+
   /** A player's plate: hull, shield, dashes, special, at one end of the top bar. */
   private player(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, side: 'left' | 'right') {
     const s = p.stats;
@@ -309,6 +329,19 @@ export class Hud {
       drawText(ctx, '◆', cx, 7, i < p.shield ? CYAN : '#3a2e48', { shadow: false });
       cx += 7;
     }
+    // the Weld: a cell filling as you hit things; full, a cross that pulses while the hull is short
+    cx += 2;
+    const full = p.weld >= 1;
+    ctx.fillStyle = '#3a2e48';
+    ctx.fillRect(cx, 7, 7, 8);
+    ctx.fillStyle = full ? (p.hp < s.hp && Math.floor(this.time * 3) % 2 ? '#ffffff' : WELD) : '#4a8a68';
+    ctx.fillRect(cx, 7 + Math.round(8 * (1 - p.weld)), 7, Math.round(8 * p.weld));
+    if (full) {
+      ctx.fillStyle = '#1a1020';
+      ctx.fillRect(cx + 3, 8, 1, 6);
+      ctx.fillRect(cx + 1, 10, 5, 2);
+    }
+    cx += 9;
     // dashes: pips, the next one filling
     cx += 3;
     for (let i = 0; i < s.dashes; i++) {
@@ -603,6 +636,7 @@ export class Hud {
         ctx.fillRect(Math.round(s.x - gw / 2), Math.round(s.y + 14), Math.round(gw * (jam ? 1 : heat)), 2);
       }
       this.rounds(ctx, lv, p, s.x, s.y + 22);
+      this.welding(ctx, p, s.x, s.y);
       if (p.crate) this.fuse(ctx, p, s.x, s.y - 26);
       // how it's loaded, said once as the level starts (steady goes without saying)
       if (lv.time > 1.2 && lv.time < 4.5 && p.stats.loadClass !== 'steady' && (lv.time < 3.6 || Math.floor(this.time * 8) % 2)) {

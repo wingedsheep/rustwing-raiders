@@ -26,8 +26,19 @@ function turn(a: number, b: number, rate: number) {
 /** Put a flier at screen position (x, s), facing the way it moved. */
 export function moveTo(lv: Level, e: Enemy, x: number, s: number) {
   const nz = lv.scroll + s;
-  // (down a canyon: between its walls, not into them)
-  if (!e.ground) x = lv.terrain.intoCanyon(x, nz, e.r);
+  if (!e.ground) {
+    // (down a canyon: between its walls, not into them)
+    x = lv.terrain.intoCanyon(x, nz, e.r);
+    // round what stands in its way. Some moves ask for a spot worked out from where it is (its swing
+    // already in it), some for a spot on a path of their own (not): whichever this is nearer to
+    const d = e.d;
+    const v0 = d.veer ?? 0;
+    const own = Math.abs(x - (d.vin ?? x)) < Math.abs(x - e.x);
+    d.vin = x;
+    const v = veer(lv, e, own ? x : x - v0, nz, s, v0);
+    d.veer = v;
+    x += own ? v : v - v0;
+  }
   const dx = x - e.x;
   const dz = nz - e.z;
   e.vx = dx / DT;
@@ -35,6 +46,70 @@ export function moveTo(lv: Level, e: Enemy, x: number, s: number) {
   if (Math.abs(dx) + Math.abs(s - (e.z - lv.scroll)) > 1e-4) e.heading = lerpAngle(e.heading, Math.atan2(dx, s - (e.z - lv.scroll)), 0.15);
   e.x = x;
   e.z = nz;
+}
+
+/** How far ahead (s) a flier looks for an obstacle in its way, how far it'll swing out round one, and how quick it swings out and back (units/s). */
+const VEER_LOOK = 1.1;
+const VEER_MAX = 16;
+const VEER_OUT = 24;
+const VEER_BACK = 7;
+
+/**
+ * A flier's swing round the obstacles. It looks along the way it's going over the land (the land
+ * comes down the screen at it): if the first column in its way would have it, it swings out past
+ * it, on the side it's already on unless that's shut (the field's edge, or more columns), and back
+ * once it's by. `x` is where it means to be, without the swing; returns the swing. A lunge doesn't
+ * swerve: what it lined up on, it hits.
+ */
+function veer(lv: Level, e: Enemy, x: number, z: number, s: number, v0: number): number {
+  if (e.tele?.shape === 'line' && (e.state === 'windup' || e.state === 'attack')) return v0;
+  // (not while it's still coming in from off the top or the sides)
+  if (s < -HALF_H - 2 || Math.abs(x) > HALF_W + 2) return v0 + clamp(-v0, -VEER_BACK * DT, VEER_BACK * DT);
+  const vx = clamp(e.vx, -30, 30);
+  const vz = clamp(e.vz, -30, 30) - lv.speedNow;
+  const r = e.r + 0.8;
+  const reach = Math.abs(vz) * VEER_LOOK + r + 4;
+  const cols = [...lv.terrain.colliders(x + v0, z + (vz * VEER_LOOK) / 2, reach)];
+  let want = 0;
+  let soonest = Infinity;
+  for (const c of cols) {
+    // the first moment on the way it means to go that it would be in the column, and where across
+    const span = c.r + r;
+    let k = -1;
+    for (let i = 0; i <= 8; i++) {
+      const ki = (i / 8) * VEER_LOOK;
+      if (Math.abs(z + vz * ki - c.z) < span && Math.abs(x + vx * ki - c.x) < span) {
+        k = ki;
+        break;
+      }
+    }
+    if (k < 0 || k >= soonest) continue;
+    const px = x + vx * k;
+    // past it on either side (and past whatever stands next to it), as near where it is as will do
+    const at = px + v0;
+    const mine = Math.sign(at - c.x) || -Math.sign(c.x) || 1;
+    let best = Infinity;
+    let pick = 0;
+    for (const side of [mine, -mine]) {
+      let to = c.x + side * span;
+      for (let n = 0; n < 4; n++) {
+        const b = cols.find((o) => o !== c && Math.abs(o.z - c.z) < o.r + r && Math.abs(o.x - to) < o.r + r);
+        if (!b) break;
+        to = b.x + side * (b.r + r);
+      }
+      if (Math.abs(to) > HALF_W - 1 || Math.abs(to - px) > VEER_MAX) continue;
+      const cost = Math.abs(to - at) + (side === mine ? 0 : 3);
+      if (cost < best) {
+        best = cost;
+        pick = to - px;
+      }
+    }
+    if (best === Infinity) continue;
+    soonest = k;
+    want = pick;
+  }
+  const rate = Math.abs(want) > Math.abs(v0) || want * v0 < 0 ? VEER_OUT : VEER_BACK;
+  return v0 + clamp((want - v0) * 6, -rate, rate) * DT;
 }
 
 /** Ease towards a screen spot (a hover), at up to `max` units/s. */
@@ -85,6 +160,12 @@ function drive(lv: Level, e: Enemy, x: number, zg: number, boat = false) {
   e.x = x;
   e.y = h;
   e.z = toFlight(zg, h);
+}
+
+/** The obstacle column standing at (x, ground z), if any (`pad`: the room it needs round it). */
+function column(lv: Level, x: number, zg: number, pad: number) {
+  for (const c of lv.terrain.colliders(x, zg, pad + 2)) if ((c.x - x) ** 2 + (c.z - zg) ** 2 < (c.r + pad) ** 2) return c;
+  return null;
 }
 
 /** Is there water to float on at (x, ground z)? */
@@ -824,6 +905,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.state === 'idle' || e.state === 'recover') {
         const sp = (e.state === 'recover' ? 7 : 15) * slow;
         d.tz = zg + 3.5 * DT;
+        // round a pillar in the road, not through it
+        const c = column(lv, e.x + dir * (e.r + 1.5), d.tz, e.r);
+        if (c) d.tz += Math.sign(d.tz - c.z || 1) * sp * 0.8 * DT;
         drive(lv, e, e.x + dir * sp * DT, d.tz);
         e.heading = lerpAngle(e.heading, Math.atan2(dir * sp, 3.5), 0.15);
       } else {

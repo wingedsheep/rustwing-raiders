@@ -284,10 +284,26 @@ export function foeTaken(lv: Level, e: Enemy, from: { x: number; z: number } | n
   return e.taken;
 }
 
-/** It was hit (after damage): the counters some foes have. */
-export function foeHurt(lv: Level, e: Enemy, dmg: number) {
+/**
+ * Plating: everything bigger than fodder wears a band of it over its hull (an elite's is its gold
+ * armour). The stream glances off it, at PLATE_GLANCE; blows (heavy rounds, the dash-strike, crits,
+ * blasts, what's parried back, any big hit) break it at full strength. Broken, it reels, open to a
+ * takedown. Left alone for PLATE_WAIT, it grows back.
+ */
+const PLATED = new Set(['gunship', 'bomber', 'brute', 'carrier', 'hookjaw', 'rigger', 'ace', 'burrower', 'warden', 'prism', 'gunboat', 'blimp', 'spindle', 'halo', 'manta', 'rook']);
+export const plated = (arch: string) => PLATED.has(arch);
+/** Plating, as a share of the hull. */
+export const PLATE = 0.4;
+/** What the stream does to plating. */
+export const PLATE_GLANCE = 0.35;
+/** Seconds unhit before plating grows back, and how fast it does (shares of it a second). */
+const PLATE_WAIT = 2.5;
+const PLATE_BACK = 0.2;
+
+/** It was hit (after damage): the counters some foes have. `poise`: what it does to a boss's poise (blows: more). */
+export function foeHurt(lv: Level, e: Enemy, dmg: number, poise = dmg) {
   e.hitT = 0;
-  if (e.boss) bossHurt(lv, e, dmg);
+  if (e.boss) bossHurt(lv, e, poise);
   // a hooked player is let go if the hook takes enough
   if (e.grab >= 0) {
     e.d.yank = (e.d.yank ?? 0) + dmg;
@@ -408,6 +424,7 @@ export const winded = (e: Enemy) =>
 export function tickFoe(lv: Level, e: Enemy) {
   e.stateT += DT;
   e.hitT += DT;
+  if (e.armour < e.armourMax && e.state !== 'stagger' && e.hitT > PLATE_WAIT) e.armour = Math.min(e.armourMax, e.armour + e.armourMax * PLATE_BACK * DT);
   if (e.d.refl) e.d.refl -= DT;
   e.taken = e.boss ? bossTaken(lv, e, false) : takenNow(lv, e);
 }

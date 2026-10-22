@@ -12,8 +12,8 @@ import { stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
-import type { BossState, BossStyle, Read } from './boss';
-import { CHAIN, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
+import { bossRead, type BossState, type BossStyle, type Read } from './boss';
+import { CHAIN, PLATE, PLATE_GLANCE, plated, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, Edge, MarkKind } from '../game/parts';
@@ -179,6 +179,16 @@ export interface Player {
   /** A hot crate carried (see HOT): what's in it, and its fuse (0 it blows, 1 it's open). */
   crate?: Item;
   fuse: number;
+  /**
+   * The Weld (see WELD): 0..1, charged by hitting things. Full, let go of the trigger and hold
+   * focus: `weldT` counts up, and past WELD.hold the weld is under way (committed, slow, the guns
+   * quiet) until WELD.hold + WELD.time, when a hull point comes back. A hit in it loses the lot.
+   */
+  weld: number;
+  weldT: number;
+  /** Welds finished, and lost to a hit (for the autopilot's report). */
+  welds: number;
+  weldsLost: number;
 }
 
 /** SENTINEL: a copy of a gun left behind by a dash, firing on its own until it winks out. */
@@ -247,6 +257,8 @@ export interface Shot {
   oz: number;
   /** Fired in a dash-strike: it hits harder. */
   strike?: boolean;
+  /** A HEAVY gun's round: a blow (it breaks plating at full strength). */
+  heavy?: boolean;
   /** BOOMERANG: it turns at the end of its flight; `back`: it has, and is on its way home. */
   boomerang?: boolean;
   back?: boolean;
@@ -287,6 +299,8 @@ export interface Bullet {
   hp: number;
   /** Seekers: the turns it has made, how long it's been on this leg, and (`halt` > 0) how long it still holds (of `hold`), pointing (dx, dz) down its next. */
   leg?: { n: number; t: number; halt: number; hold: number; dx: number; dz: number };
+  /** Been out in the open air: from then on the land stops it (a gun dug into a cliff still gets its shots out). */
+  open: boolean;
   dead: boolean;
 }
 
@@ -406,8 +420,8 @@ export type LevelEvent =
   | { type: 'reload'; id: number; gun: number; perfect: boolean; rounds: number }
   /** `dot`: a burn's tick, not a blow. */
   /** `edge`: the crit was the gun's edge; `strike`: a dash-strike's. */
-  /** `armour`: it landed on an elite's armour. */
-  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean; armour?: boolean }
+  /** `armour`: it landed on plating; `blow`: a hit that breaks plating at full strength (see isBlow). */
+  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean; armour?: boolean; blow?: boolean }
   | { type: 'explode'; x: number; z: number; y: number; size: number; color: number; enemy?: number }
   | { type: 'enemyShot'; x: number; z: number; color: number; look?: Faction }
   /** A bullet cancelled (by a bomb, a perfect, a hit): it pops instead of vanishing. */
@@ -504,8 +518,10 @@ export type LevelEvent =
   | { type: 'feed'; id: number; x: number; z: number; full: boolean }
   /** An affix did its thing (the view names it over the ship, now and then). */
   | { type: 'affix'; id: number; affix: AffixId; x: number; z: number }
-  /** A dash through something staggered: `heal`, it left a repair kit (an elite's, a boss's first a phase). */
-  | { type: 'takedown'; id: number; enemy: number; x: number; z: number; kill: boolean; heal: boolean; boss: boolean }
+  /** A dash through something staggered: `big`, an elite's or a boss's first a phase (it fills the Weld half). */
+  | { type: 'takedown'; id: number; enemy: number; x: number; z: number; kill: boolean; big: boolean; boss: boolean }
+  /** The Weld: `ready` (just full), `start` (committed), `done` (a hull point back), `lost` (hit in it). */
+  | { type: 'weld'; id: number; state: 'ready' | 'start' | 'done' | 'lost'; x: number; z: number }
   /** A hot crate: there to take (`id` -1), taken, cracked open (the part's yours), blown (a hull and the part gone), or let go at the level's end. */
   | { type: 'hot'; id: number; state: 'appear' | 'on' | 'open' | 'blown' | 'lost'; x: number; z: number; part?: Item }
   /** A shocked enemy seized up for a beat. */
@@ -592,8 +608,10 @@ export class Level {
   readonly sentinels: Sentinel[] = [];
   /** A special going off right now: what it kills doesn't feed a RAVENOUS special. */
   private inSpecial = false;
-  /** Boss phases a takedown has already paid a repair kit in. */
+  /** Boss phases a takedown has already filled the Weld half in. */
   private readonly tookPhase = new Set<number>();
+  /** Inside a blast: its hits are blows (see isBlow). */
+  private blowing = 0;
   private nextId = 1;
   private biomeShown = -1;
 
@@ -690,6 +708,10 @@ export class Level {
         wind: false,
         takedowns: 0,
         fuse: 0,
+        weld: 0,
+        weldT: 0,
+        welds: 0,
+        weldsLost: 0,
       });
     });
     this.convoy = spec.mode === 'escort' ? new Convoy(this) : null;
@@ -940,6 +962,7 @@ export class Level {
     p.spiteT = Math.max(0, p.spiteT - DT);
     p.primeT = Math.max(0, p.primeT - DT);
     p.focus = i.focus;
+    const welding = this.updateWeld(p, i);
     if (p.frenzyT > 0 && (p.frenzyT -= DT) <= 0) {
       p.frenzy = 0;
       this.emit({ type: 'frenzy', id: p.id, stacks: 0 });
@@ -957,7 +980,7 @@ export class Level {
     // (less grip)
     const b = p.boosting;
     if (Math.hypot(mx, mz) < 0.1) mz = -SURGE_PUSH * b;
-    const top = s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b);
+    const top = welding ? s.speed * WELD.crawl : s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b);
     if (p.dashT > 0) {
       p.dashT -= DT;
       p.vx = p.dashX * DASH_SPEED;
@@ -989,7 +1012,7 @@ export class Level {
       p.dashes++;
       p.dashCd = s.dashCooldown;
     }
-    if (i.dash && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
+    if (i.dash && !welding && p.dashes > 0 && p.dashT <= 0 && p.dashLock <= 0) {
       p.dashes--;
       if (p.dashCd <= 0) p.dashCd = s.dashCooldown;
       const dl = Math.hypot(mx, mz);
@@ -1014,16 +1037,16 @@ export class Level {
     const was = p.charge;
     p.charge = Math.min(1, p.charge + DT * 0.012 * s.specialRate);
     if (was < 1 && p.charge >= 1 && s.special) this.emit({ type: 'specialReady', id: p.id });
-    if (i.special && s.special && p.charge >= 1) {
+    if (i.special && !welding && s.special && p.charge >= 1) {
       p.charge = 0;
       this.special(p, s.special);
     }
 
     // guns
-    p.firing = i.fire && this.state !== 'clear';
+    p.firing = i.fire && !welding && this.state !== 'clear';
     p.heavyT += DT;
     let fired = 0;
-    const press = i.heavy && this.state !== 'clear';
+    const press = i.heavy && !welding && this.state !== 'clear';
     for (let k = 0; k < s.guns.length; k++) {
       if (s.guns[k].heavy) fired += this.updateHeavy(p, k, press);
       else this.updateGun(p, k, p.firing);
@@ -1032,7 +1055,7 @@ export class Level {
       if (fired) p.heavyT = 0;
       this.emit({ type: 'heavy', id: p.id, x: p.x, z: p.z, fired });
     }
-    this.updateKit(p, i);
+    this.updateKit(p, welding ? { ...i, aux: false } : i);
   }
 
   /** Shield comes back if you stop getting hit. */
@@ -1280,6 +1303,7 @@ export class Level {
       s.edge = sp.edge;
       s.edgeMul = g.edgeMul;
       if (strike) s.strike = true;
+      if (g.heavy) s.heavy = true;
     }
   }
 
@@ -1401,6 +1425,13 @@ export class Level {
     }
     p.shieldWait = 0;
     p.hits++;
+    // hit in a weld: it's lost
+    if (p.weldT >= WELD.hold) {
+      p.weld = 0;
+      p.weldsLost++;
+      this.emit({ type: 'weld', id: p.id, state: 'lost', x: p.x, z: p.z });
+    }
+    p.weldT = 0;
     p.causes[cause] = (p.causes[cause] ?? 0) + 1;
     // Burn Engine: the price of the power
     if (p.stats.gamble > 0) p.burn = 0;
@@ -1487,7 +1518,7 @@ export class Level {
       e.armour = e.armourMax = e.max * 0.45;
       e.d.chain = CHAIN[arch] ?? 0;
       if (!e.title && arch !== 'boss') e.title = pick(this.rand, ELITE_NAMES[lookOf(this, e)]);
-    }
+    } else if (plated(arch)) e.armour = e.armourMax = e.max * PLATE;
     this.enemies.push(e);
     this.emit({ type: 'spawn', enemy: e.id });
     // counted for full clears if the director sent it (not the boss, not what's launched later)
@@ -1514,6 +1545,7 @@ export class Level {
     if (af === 'executioner' && e.boss && e.hp < e.max * 0.25) dmg *= 1.5;
     // a BLASTING crit bursts (not its own burst's hits: those come in with no shot and no affix)
     if (af === 'blasting' && crit) this.blast(e.x, e.z, BLAST_R, dmg * 0.45, owner, { quiet: false });
+    const blow = !dot && this.isBlow(p, dmg, crit, s);
     // armour, shields, exposed after an attack (see combat.ts)
     const k = foeTaken(this, e, from === undefined ? (p ? { x: p.x, z: p.z } : null) : from, crit);
     if (k <= 0) {
@@ -1523,13 +1555,18 @@ export class Level {
     }
     // cracked open: it takes more
     dmg *= k * markTaken(e);
+    // a boss shrugs off the stream unless it's open
+    if (e.boss && !blow && !dot && e.state !== 'recover' && e.state !== 'stagger') dmg *= BOSS_GLANCE;
     if (!dot) e.flash = 0.08;
     if (p) p.charge = Math.min(1, p.charge + dmg * 0.0018 * p.stats.specialRate);
-    // armour first (what's left over from the blow that breaks it is lost); broken, it reels
+    // plating first (what's left over from the blow that breaks it is lost); the stream only chips
+    // it; broken, it reels
     if (e.armour > 0) {
-      e.armour -= dmg * (dot ? 0.5 : 1);
+      const bite = dot ? 0.5 : blow ? 1 : PLATE_GLANCE;
+      e.armour -= dmg * bite;
+      if (p && !dot) this.feedWeld(p, Math.min(dmg * bite, WELD.cap) * (blow ? WELD.blow : WELD.stream));
       foeHurt(this, e, 0);
-      this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill: false, crit, dot, edge, strike: s?.strike, armour: true });
+      this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg: dmg * bite, kill: false, crit, dot, edge, strike: s?.strike, armour: true, blow });
       if (e.armour <= 0) {
         e.armour = 0;
         e.stun = Math.max(e.stun, 1.2);
@@ -1547,9 +1584,11 @@ export class Level {
       e.hp = 0;
       if (p) this.emit({ type: 'affix', id: p.id, affix: af, x: e.x, z: e.z });
     }
-    foeHurt(this, e, dmg);
+    // blows wear a boss's poise harder
+    foeHurt(this, e, dmg, dmg * (blow ? POISE_BLOW : 1));
+    if (p && !dot) this.feedWeld(p, Math.min(dmg, WELD.cap) * (blow ? WELD.blow : WELD.stream));
     const kill = e.hp <= 0;
-    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike });
+    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike, blow });
     if (!kill) return;
     // a VOLATILE gun's kill: its marks jump to the nearest
     if (s?.volatile) spread(this, e, owner);
@@ -1643,18 +1682,18 @@ export class Level {
     r.markStr = s.markStr;
   }
 
-  /** A dash through something staggered: the big hit. An elite's, or a boss's first in a phase, leaves a repair kit. */
+  /** A dash through something staggered: the big hit. It charges the Weld, an elite's (or a boss's first in a phase) by half. */
   private takedown(p: Player, e: Enemy) {
     e.d.td = 1;
     p.takedowns++;
-    let heal = false;
+    let big = false;
     if (e.boss) {
       const ph = e.boss.phase;
       if (!this.tookPhase.has(ph)) {
         this.tookPhase.add(ph);
-        heal = true;
+        big = true;
       }
-    } else heal = e.elite;
+    } else big = e.elite;
     const dmg = e.boss ? e.max * TAKEDOWN_BOSS : Math.max(TAKEDOWN_MIN, e.max * TAKEDOWN_FOE);
     // back on its heels: its poise doesn't count this one, and it goes on reeling
     this.damage(e, dmg, p.id, true, null);
@@ -1662,9 +1701,8 @@ export class Level {
     p.burn = Math.min(1, p.burn + BURN_TAKEDOWN);
     p.inv = Math.max(p.inv, 0.5);
     p.strike = Math.max(p.strike, STRIKE_TIME);
-    // the kit pops out towards you, so it's yours if you want it
-    if (heal) this.drop('repair', lerp(e.x, p.x, 0.5), lerp(e.z, p.z, 0.5), 1);
-    this.emit({ type: 'takedown', id: p.id, enemy: e.id, x: e.x, z: e.z, kill: e.dead, heal, boss: !!e.boss });
+    this.feedWeld(p, big ? WELD.bigTakedown : WELD.takedown);
+    this.emit({ type: 'takedown', id: p.id, enemy: e.id, x: e.x, z: e.z, kill: e.dead, big, boss: !!e.boss });
   }
 
   /** `close`: a point-blank kill, double scrap. */
@@ -1699,10 +1737,12 @@ export class Level {
     if (!opts.quiet) this.emit({ type: 'explode', x, z, y: FLIGHT_Y, size: rr * 0.5, color: 0xffc060 });
     // everything in reach first, then the hits (a hit can set off a reaction that moves the list)
     const caught = this.enemies.filter((e) => !e.dead && (e.x - x) ** 2 + (e.z - z) ** 2 < (rr + e.r) ** 2);
+    this.blowing++;
     for (const e of caught) {
       this.damage(e, dmg, owner, false, null);
       if (opts.bits) mark(this, e, opts.bits, opts.pow ?? 1, owner);
     }
+    this.blowing--;
   }
 
   /** Enemy fire. Angle 0 is down the screen (towards the players). */
@@ -1727,6 +1767,7 @@ export class Level {
       seek: -1,
       hp: 0,
       seed: (((this.time * 13.7 + x * 0.31 + z * 0.17 + angle * 0.53) % 1) + 1) % 1,
+      open: false,
       dead: false,
       ...opts,
     });
@@ -1871,6 +1912,13 @@ export class Level {
         }
         if (b.kind === 'torpedo' && b.t > b.life && !b.dead) this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
         b.dead = true;
+      } else if (!this.terrain.solid(b.x, b.z, 0)) b.open = true;
+      else if (b.open) {
+        // the land stops fire as it stops yours: it flies at your height, not over the hills
+        b.dead = true;
+        if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
+        else if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });
+        else this.emit({ type: 'bulletPop', x: b.x, z: b.z, color: b.color, look: b.look });
       }
     }
   }
@@ -1937,6 +1985,8 @@ export class Level {
   private updateLasers() {
     for (let i = this.lasers.length - 1; i >= 0; i--) {
       const l = this.lasers[i];
+      // (a read can stagger a boss mid-loop, and that puts its beams out)
+      if (!l) continue;
       const owner = this.enemies.find((e) => e.id === l.owner);
       if (!owner || owner.dead) {
         this.lasers.splice(i, 1);
@@ -2372,6 +2422,8 @@ export class Level {
         }
         // and every bullet thrown back feeds the special
         p.charge = Math.min(1, p.charge + PARRY_CHARGE_EACH * parried);
+        // (the Weld once a use)
+        if (!p.parried) this.feedWeld(p, WELD.parry);
         p.parried += parried;
         p.parries += parried;
         this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: parried });
@@ -2406,7 +2458,10 @@ export class Level {
   private parryLaser(p: Player, l: Level['lasers'][number], owner: Enemy) {
     l.on = 0;
     this.damage(owner, PARRY_LASER * p.stats.auxStr, p.id, true);
-    if (!p.parried) p.burn = Math.min(1, p.burn + PARRY_BURN);
+    if (!p.parried) {
+      p.burn = Math.min(1, p.burn + PARRY_BURN);
+      this.feedWeld(p, WELD.parry);
+    }
     p.parried++;
     p.parries++;
     this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: 1 });
@@ -2745,6 +2800,47 @@ export class Level {
     sweep(this.sentinels);
   }
 
+  /**
+   * The Weld: full, with the hull short and the trigger let go, holding focus starts it. For the
+   * first WELD.hold it's only a hold (let go and nothing's lost); then it's under way and can't be
+   * stopped: the ship crawls, the guns are quiet. Returns whether it's under way.
+   */
+  private updateWeld(p: Player, i: Intent) {
+    if (p.weldT >= WELD.hold) {
+      p.weldT += DT;
+      if (p.weldT >= WELD.hold + WELD.time) {
+        p.hp = Math.min(p.stats.hp, p.hp + 1);
+        p.weld = 0;
+        p.weldT = 0;
+        p.welds++;
+        this.emit({ type: 'weld', id: p.id, state: 'done', x: p.x, z: p.z });
+        return false;
+      }
+      return true;
+    }
+    const can = p.weld >= 1 && p.hp < p.stats.hp && i.focus && !i.fire && p.dashT <= 0 && !p.hook && this.state !== 'clear';
+    p.weldT = can ? p.weldT + DT : 0;
+    if (p.weldT < WELD.hold) return false;
+    this.emit({ type: 'weld', id: p.id, state: 'start', x: p.x, z: p.z });
+    return true;
+  }
+
+  /** The Weld charging: `k` of a full one. */
+  feedWeld(p: Player, k: number) {
+    // (not what a special does: that's its own reward)
+    if (p.down || p.weld >= 1 || k <= 0 || this.inSpecial) return;
+    p.weld = Math.min(1, p.weld + k);
+    if (p.weld >= 1) this.emit({ type: 'weld', id: p.id, state: 'ready', x: p.x, z: p.z });
+  }
+
+  /** A blow: a hit that breaks plating at full strength (the stream only chips it). */
+  private isBlow(p: Player | undefined, dmg: number, crit: boolean, s?: Shot) {
+    if (crit || this.blowing > 0 || dmg >= BLOW_DMG) return true;
+    if (s) return !!s.heavy || !!s.strike || s.tag === 'reflect' || s.tag === 'mirror' || s.tag === 'nova';
+    // beams and arcs: out of a dash
+    return !!p && p.strike > 0;
+  }
+
   /** A dash out of fire, timed right: what would have hit where you were is soaked up, and the dash given back. */
   perfectDash(p: Player) {
     let absorbed = 0;
@@ -2775,6 +2871,9 @@ export class Level {
       p.crit = p.stats.crit;
     }
     p.burn = Math.min(1, p.burn + BURN_PERFECT);
+    this.feedWeld(p, WELD.perfect);
+    // a perfect read: through a boss's attack it wears its poise hard, through its signature it breaks it
+    for (const e of this.enemies) if (e.boss && !e.dead && e.state === 'attack') bossRead(this, e);
     this.emit({ type: 'perfect', id: p.id, x: p.x, z: p.z, absorbed });
     const af = p.stats.affixes;
     // DEFLECTING: what it soaked goes back at them (at least a few, to the nearest)
@@ -3052,6 +3151,30 @@ const LINGER = 1.5;
  * and how much more Burn it gives. The reach is past touching, so a dash that skims it counts.
  */
 const TAKEDOWN_FOE = 0.6;
+/** A hit this big is a blow whatever fired it (see isBlow). */
+const BLOW_DMG = 20;
+/** A boss takes the stream at this, unless it's open (after a move, or staggered). */
+const BOSS_GLANCE = 0.7;
+/** Blows wear a boss's poise this much harder. */
+const POISE_BLOW = 1.5;
+/**
+ * The Weld: `hold` before it's under way, `time` it takes then, the speed it crawls at (of top).
+ * What charges it, as shares of a full one: per point of damage from the stream and from blows
+ * (a hit counts up to `cap`), and per perfect dash, parry (a use) and takedown (an elite's, or a
+ * boss's first a phase: `bigTakedown`). About 40 s of good fighting fills it.
+ */
+export const WELD = {
+  hold: 0.2,
+  time: 1,
+  crawl: 0.2,
+  stream: 1 / 6000,
+  blow: 1 / 1000,
+  cap: 60,
+  perfect: 1 / 30,
+  parry: 1 / 25,
+  takedown: 1 / 6,
+  bigTakedown: 0.5,
+};
 const TAKEDOWN_MIN = 60;
 const TAKEDOWN_BOSS = 0.045;
 const TAKEDOWN_REACH = 1;

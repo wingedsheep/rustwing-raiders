@@ -41,7 +41,7 @@ export function controlsCard(ctx: CanvasRenderingContext2D, dev: DeviceId, p: Pl
     ['boost', 'BOOST (HOLD)', 'SPENDS BURN', null],
     ['special', 'SPECIAL', s.special ? SPECIAL_NAME[s.special] : 'NONE FITTED', 'SPECIAL'],
     ['aux', 'AUX', s.aux ? AUX_NAME[s.aux] : 'NONE FITTED', 'AUX'],
-    ['focus', 'FOCUS (HOLD)', 'SLOW AND STEADY', null],
+    ['focus', 'FOCUS (HOLD)', 'SLOW AND STEADY; GUNS OFF: WELD', null],
   ];
   rows.forEach(([a, what, on, verb], k) => {
     const ry = y + 22 + k * 11;

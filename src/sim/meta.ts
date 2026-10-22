@@ -8,6 +8,14 @@ import creatures from '../generated/creatures.json';
 import enemies from '../generated/enemies.json';
 import ships from '../generated/ships.json';
 import bosses from '../generated/bosses.json';
+import setOrutal from '../generated/set_orutal.json';
+import setHalcyon from '../generated/set_halcyon.json';
+import setKessra from '../generated/set_kessra.json';
+import setMirefall from '../generated/set_mirefall.json';
+import setGlacis from '../generated/set_glacis.json';
+import setAshgrave from '../generated/set_ashgrave.json';
+import setVesh from '../generated/set_vesh.json';
+import setCinder from '../generated/set_cinder.json';
 
 export interface Meta {
   kind: string;
@@ -19,7 +27,7 @@ export interface Meta {
   mounts: { type: string; p: [number, number, number] }[];
 }
 
-const ALL: Record<string, Meta> = Object.assign({}, propsA, propsB, creatures, enemies, ships, bosses) as Record<string, Meta>;
+const ALL: Record<string, Meta> = Object.assign({}, propsA, propsB, creatures, enemies, ships, bosses, setOrutal, setHalcyon, setKessra, setMirefall, setGlacis, setAshgrave, setVesh, setCinder) as Record<string, Meta>;
 
 /** Every variant of a kind (an empty list if the models haven't been built). */
 const byKind = new Map<string, Meta[]>();
