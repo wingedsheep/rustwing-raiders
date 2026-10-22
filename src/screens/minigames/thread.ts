@@ -121,14 +121,14 @@ export class Thread implements Minigame {
     this.v = this.cruise;
     // the share of the run you must spend burning to get there in time
     this.goal = Math.round(this.limit * (this.cruise + byLevel(d, 0.4, 0.55) * (this.burnV - this.cruise)));
-    this.pullMax = byLevel(d, 14, 24);
-    this.pullSp = byLevel(d, 30, 50);
+    this.pullMax = byLevel(d, 12, 20);
+    this.pullSp = byLevel(d, 28, 44);
     this.fuseT = byLevel(d, 0.5, 0.32);
 
     // columns of mines, each with a gap that moves only so far from the last one, so there's always a way
     const step = byLevel(d, 76, 60);
-    const gw = byLevel(d, 58, 40);
-    const shift = byLevel(d, 56, 70);
+    const gw = byLevel(d, 58, 42);
+    const shift = byLevel(d, 56, 64);
     const weights: [Kind | 'sweep', number][] = [
       ['mine', byLevel(d, 75, 20)],
       ['bob', byLevel(d, 25, 20)],
@@ -277,8 +277,8 @@ export class Thread implements Minigame {
         m.prev = dx;
         continue;
       }
-      // magnets drift towards you as you come
-      if (m.kind === 'magnet' && dx > 0 && dx < 90) {
+      // magnets drift towards you as you come, and hold still for the last moment before you pass
+      if (m.kind === 'magnet' && dx > 28 && dx < 110) {
         const want = clamp(this.y - m.y, -this.pullMax, this.pullMax);
         const s = this.pullSp * dt;
         m.pull += clamp(want - m.pull, -s, s);
@@ -541,7 +541,7 @@ export class Thread implements Minigame {
       const v = Math.cos(this.time * m.rate + m.phase);
       ctx.fillRect(x, y - Math.round(v * 8), 1, Math.round(v * 8));
     }
-    if (m.kind === 'magnet' && m.tug && Math.abs(m.pull) < this.pullMax && m.x > this.dist) {
+    if (m.kind === 'magnet' && m.tug && Math.abs(m.pull) < this.pullMax && m.x - this.dist > 28) {
       // field lines reaching for you
       const [, shipY] = this.scr(0, this.y);
       ctx.fillStyle = '#6ab0ff';

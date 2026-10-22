@@ -65,6 +65,8 @@ export class Shake implements Minigame {
   private readonly gripRate: number;
   private readonly window: [number, number];
   private readonly zapCdMax: number;
+  /** Zaps a big one takes. */
+  private readonly bigHp: number;
   private roll = 0;
   private rollV = 0;
   private lastSide = 0;
@@ -97,9 +99,10 @@ export class Shake implements Minigame {
   ) {
     this.r = rng(seed);
     const d = (this.d = hardness(level));
-    this.gripRate = byLevel(d, 0.95, 1.4);
+    this.gripRate = byLevel(d, 1.25, 1.6);
     this.window = [byLevel(d, 0.15, 0.2), byLevel(d, 0.62, 0.42)];
     this.zapCdMax = byLevel(d, 0.5, 0.8);
+    this.bigHp = level >= 5 ? 3 : 2;
     this.plan();
   }
 
@@ -110,7 +113,7 @@ export class Shake implements Minigame {
     let n = 0;
     let a = this.r() * TAU;
     while (t < this.limit - 2.5) {
-      const count = Math.max(1, Math.round(byLevel(d, 2.6, 3.2) + (this.r() - 0.4) * 1.2 + (t / this.limit) * 0.8));
+      const count = Math.max(1, Math.round(byLevel(d, 2.8, 3) + (this.r() - 0.4) * 1.2 + (t / this.limit) * 0.8));
       const kinds: Kind[] = [];
       for (let k = 0; k < count; k++) kinds.push(this.level >= 4 && this.r() < byLevel(d, 0, 0.3) ? 'skitter' : 'small');
       if (this.level >= 3 && n % 2 === 1) kinds.push('big');
@@ -126,7 +129,7 @@ export class Shake implements Minigame {
   private spawn(kind: Kind, a: number) {
     const x = this.cx + Math.cos(a) * 270;
     const y = this.cy + Math.sin(a) * 170;
-    this.leeches.push({ kind, x, y, vx: 0, vy: 0, at: null, grip: 0, hp: kind === 'big' ? 3 : 1, dodge: kind === 'skitter' ? 1 : 0, gone: 0, flap: this.r() * TAU, hurt: 0 });
+    this.leeches.push({ kind, x, y, vx: 0, vy: 0, at: null, grip: 0, hp: kind === 'big' ? this.bigHp : 1, dodge: kind === 'skitter' ? 1 : 0, gone: 0, flap: this.r() * TAU, hurt: 0 });
   }
 
   private get on() {
@@ -228,7 +231,7 @@ export class Shake implements Minigame {
 
   /** How hard a roll at this combo is: it flings anything holding looser than this. */
   private power(combo = this.combo) {
-    return 0.25 + 0.44 * Math.min(5, combo);
+    return 0.2 + 0.45 * Math.min(5, combo);
   }
 
   /** A roll: in time with the last one it chains harder; everything loose enough comes off. */
@@ -242,7 +245,7 @@ export class Shake implements Minigame {
     }
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     this.lastThrow = this.time;
-    this.strain += byLevel(this.d, 0.13, 0.16);
+    this.strain += byLevel(this.d, 0.15, 0.17);
     const c = this.combo;
     this.fx.shake(2 + Math.min(5, c));
     audio.play('dash', { vol: 0.55, pitch: 0.8 + Math.min(5, c) * 0.1 });
@@ -347,7 +350,7 @@ export class Shake implements Minigame {
     this.fx.burst(l.x, l.y, 10, 80, ['#b48aff', '#ffffff']);
     if (l.hp <= 0) this.fling(l, true);
     else {
-      this.fx.word(`ZAP ${3 - l.hp}/3`, l.x, l.y - 14, '#b48aff');
+      this.fx.word(`ZAP ${this.bigHp - l.hp}/${this.bigHp}`, l.x, l.y - 14, '#b48aff');
       this.fx.shake(2);
       audio.play('hit_armor', { vol: 0.5 });
     }
@@ -410,7 +413,7 @@ export class Shake implements Minigame {
     const a = l.at.a + this.roll * 0.3;
     l.x = this.cx + Math.cos(a) * l.at.r;
     l.y = this.cy + Math.sin(a) * l.at.r * 0.75;
-    const sip = (l.kind === 'big' ? 0.024 : 0.014) * (1 + l.grip * 0.25) * byLevel(this.d, 1, 1.15);
+    const sip = (l.kind === 'big' ? 0.04 : 0.04) * (1 + l.grip * 0.25);
     this.fuel = Math.max(0, this.fuel - dt * sip);
     this.drain += sip;
     if (this.r() < dt * 3) this.fx.spark(l.x, l.y, (this.r() - 0.5) * 40, (this.r() - 0.5) * 40, 0.3, '#ffd04a', { glow: true });
@@ -688,9 +691,9 @@ export class Shake implements Minigame {
     }
     // a big one's zaps to go
     if (l.kind === 'big' && !l.gone) {
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < this.bigHp; k++) {
         ctx.fillStyle = k < l.hp ? '#ffd04a' : '#3a2e48';
-        ctx.fillRect(x - 5 + k * 4, y - 11, 3, 2);
+        ctx.fillRect(x - this.bigHp * 2 + 1 + k * 4, y - 11, 3, 2);
       }
     }
     // the grip you can see: yellow comes off a roll, orange needs a chain, red needs a zap

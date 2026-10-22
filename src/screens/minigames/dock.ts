@@ -453,25 +453,28 @@ export class Dock implements Minigame {
         ctx.fillRect(Math.round(cx + ca * d) - sz / 2, Math.round(cy + sa * d) - sz / 2, sz, sz);
       }
       glow(ctx, cx + ca * R * 1.2, cy + sa * R * 1.2, 8, '#ffb04a', 0.5);
-      // after contact, the jaws: they slam in across the collar, and stay shut if they caught
+      // after contact, the jaws: a clamp band slams down over each bracket, and stays if it caught
       if (this.contact >= 0 && k < this.slammed) {
         const shut = k < this.catches;
         const since = this.contact - (0.12 + k * 0.13);
-        const open = shut ? 0 : Math.min(1, since * 3);
-        const reach = R * (1.32 + open * 0.2);
-        const col = shut ? '#8affb0' : '#ff8a7a';
-        for (const side of [-1, 1]) {
-          const ja = a + side * (0.1 + open * 0.1);
-          ctx.strokeStyle = 'rgba(10,7,16,0.85)';
-          ctx.lineWidth = 6;
-          ctx.beginPath();
-          ctx.moveTo(cx + Math.cos(ja) * reach, cy + Math.sin(ja) * reach);
-          ctx.lineTo(cx + Math.cos(a) * (R * 0.92), cy + Math.sin(a) * (R * 0.92));
-          ctx.stroke();
-          ctx.strokeStyle = col;
-          ctx.lineWidth = 3;
-          ctx.stroke();
-        }
+        const drop = Math.max(0, 1 - since * 9);
+        const rr = R * (shut ? 1.06 + drop * 0.35 : 1.06 + Math.min(1, since * 2) * 0.3);
+        const span = shut ? 0.16 : 0.1;
+        ctx.globalAlpha = shut ? 1 : Math.max(0, 1 - since * 1.5);
+        ctx.strokeStyle = 'rgba(10,7,16,0.9)';
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, a - span, a + span);
+        ctx.stroke();
+        ctx.strokeStyle = shut ? '#8affb0' : '#ff8a7a';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr - 2, a - span, a + span);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
         if (shut) glow(ctx, cx + ca * R, cy + sa * R, 14, '#8affb0', since < 0.2 ? 0.9 : 0.4);
       }
     }

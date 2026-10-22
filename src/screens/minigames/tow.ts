@@ -455,11 +455,15 @@ export class Tow implements Minigame {
     if (this.hold && this.result === null && fx.rand() < 0.6)
       fx.spark(ax + 22 + fx.rand() * 4, ay + (fx.rand() - 0.5) * 3, 50 + fx.rand() * 40, (fx.rand() - 0.5) * 20, 0.35, fx.rand() < 0.5 ? '#ffd04a' : '#ff8a3a');
     fx.drawSparks(ctx);
-    fx.drawWords(ctx);
     ctx.restore();
     vignette(ctx, w, h, 0.5);
 
     this.gauge(ctx, w, h, t);
+    // words over the gauge too, shaken with the scene
+    ctx.save();
+    ctx.translate(ox, oy);
+    fx.drawWords(ctx);
+    ctx.restore();
     timer(ctx, w, this.limit - this.time, this.limit, t);
     fx.drawFlash(ctx, w, h);
   }
