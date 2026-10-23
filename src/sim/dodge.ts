@@ -45,8 +45,11 @@ export function threatCost(lv: Level, x: number, z: number, t: number, core: num
       case 'harpoon':
         if (d2 < (1.2 + m) ** 2) c += bad;
         break;
-      default:
-        if (st > s.warn - 0.35 && st < s.warn + s.active + 0.05 && d2 < (s.r + m) ** 2) c += bad;
+      default: {
+        // (a cloud the size of the Glassing's is worth leaving well before it bursts)
+        const lead = s.kind === 'puddle' && s.r > 4 ? 1.1 : 0.35;
+        if (st > s.warn - lead && st < s.warn + s.active + 0.05 && d2 < (s.r + m) ** 2) c += bad;
+      }
     }
   }
   // a heist's runner: the wash behind its engines

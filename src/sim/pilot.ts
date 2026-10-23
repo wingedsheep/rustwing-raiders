@@ -202,6 +202,13 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   // a broadside (Istra's): run with her, in the gap under her waist
   const broad = lv.enemies.find((e) => !e.dead && e.boss?.move === 'broadside' && e.tele?.shape === 'gate');
   if (broad && broad.tele?.shape === 'gate') return { x: clamp(broad.tele.gx, -HALF_W + 3, HALF_W - 3), z: clamp(p.z, lv.scroll - 2, bottom) };
+  // a kneel (Khet's titan): its shield follows you slowly, so draw it out to one side and cut
+  // back under it to the other
+  const kneel = lv.enemies.find((e) => !e.dead && e.boss?.move === 'kneel' && e.guard > 0);
+  if (kneel) {
+    const side = kneel.aim > 0.12 ? -1 : kneel.aim < -0.12 ? 1 : p.x > kneel.x ? 1 : -1;
+    return { x: clamp(kneel.x + side * 24, -HALF_W + 4, HALF_W - 4), z: clamp(kneel.z + 18, lv.top + 6, bottom) };
+  }
   // an escort: boarders on a hull (or lining up on one) come first
   if (lv.convoy) {
     let board: { x: number; z: number } | undefined;

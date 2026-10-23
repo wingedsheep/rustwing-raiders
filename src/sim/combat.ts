@@ -256,7 +256,8 @@ export function foeShot(lv: Level, e: Enemy, s: Shot) {
   if (e.arch === 'cache' && !e.d.cracked && (s.vx * s.t) ** 2 + (s.vz * s.t) ** 2 < 7 * 7) return 1 / Math.max(e.taken, 0.05);
   if (e.guard > 0 && blocked(e, s.x - s.vx * s.t, s.z - s.vz * s.t)) {
     lv.emit({ type: 'guard', enemy: e.id, x: s.x, z: s.z });
-    wearGuard(lv, e, s.dmg);
+    // (a boss's shield doesn't wear through: it's there to be got round)
+    if (!e.boss) wearGuard(lv, e, s.dmg);
     return 0;
   }
   return 1;
@@ -389,6 +390,8 @@ export function puff(lv: Level, x: number, z: number, color: number) {
 /** No ram damage: winded (stagger, recover), a boss under the sea, or a swooper not yet down at its shadow or already climbing away. */
 export const winded = (e: Enemy) =>
   !!e.boss?.under ||
+  // (a boss in the air over you, on a leap: it's the landing that hurts)
+  (e.boss?.move === 'leap' && e.state === 'attack') ||
   ((e.state === 'stagger' || e.state === 'recover') && e.arch !== 'rattler') ||
   (e.arch === 'swooper' && (e.state === 'idle' || e.state === 'windup' || (e.state === 'attack' && Math.abs(e.stateT / (e.d.len ?? 0.6) - 1) > 0.25)));
 

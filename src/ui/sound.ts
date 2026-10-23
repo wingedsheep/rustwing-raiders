@@ -16,6 +16,8 @@ const ROWS = [
 const NOTCHES = 10;
 export const SOUND_W = 200;
 export const SOUND_H = ROWS.length * 12 + 10;
+/** Where the notches start, from the panel's left. */
+const BAR_X = 18 + textWidth('MASTER') + 10;
 
 export class SoundPanel {
   row = 0;
@@ -38,6 +40,21 @@ export class SoundPanel {
     }
   }
 
+  /** A click at (x, y), relative to the panel: on a row's notches it sets that level. Whether it hit the panel. */
+  click(x: number, y: number) {
+    if (x < 0 || y < 0 || x >= SOUND_W || y >= SOUND_H) return false;
+    const i = Math.floor((y - 3) / 12);
+    if (i < 0 || i >= ROWS.length) return true;
+    this.row = i;
+    const n = Math.round((x - BAR_X + 1) / 8);
+    if (n < 0 || n > NOTCHES) return true;
+    const v = audio.volumes;
+    v[ROWS[i][0]] = n / NOTCHES;
+    audio.volume(v.master, v.music, v.sfx);
+    audio.play('ui_move');
+    return true;
+  }
+
   draw(ctx: CanvasRenderingContext2D, x: number, y: number) {
     frame(ctx, x, y, SOUND_W, SOUND_H, 'rgba(18,12,24,0.94)', EDGE);
     const v = audio.volumes;
@@ -46,7 +63,7 @@ export class SoundPanel {
       const ry = y + 6 + i * 12;
       if (on) drawText(ctx, '>', x + 8, ry, GOLD);
       drawText(ctx, word, x + 18, ry, on ? INK : DIM);
-      const bx = x + 18 + textWidth('MASTER') + 10;
+      const bx = x + BAR_X;
       const n = Math.round(v[k] * NOTCHES);
       for (let j = 0; j < NOTCHES; j++) {
         ctx.fillStyle = j < n ? (on ? GOLD : DIM) : DARK;

@@ -60,6 +60,11 @@ export type BossMove =
   | 'pursuit'
   | 'lien'
   | 'ballast'
+  | 'ram'
+  | 'leap'
+  | 'glassing'
+  | 'kneel'
+  | 'measure'
   // the signatures: one each
   | 'skydive'
   | 'crane'
@@ -160,6 +165,15 @@ export interface BossState {
   /** Ballast thrown down its lanes, coming back once it reaches the edge; and the lanes drawn while it tells. */
   thrown: { s: Strike; back: boolean }[];
   lanes: Laser[];
+  /** Whose tell it is (Khet's flare, or *Unbending*'s light): the colour it's drawn in (null: the danger red). */
+  look: 'scrap' | 'lattice' | null;
+  /** Khet's call that *Unbending* won't make: what it does instead, once the flare's gone on long enough. */
+  turn: BossMove | null;
+  /** The Glassing's fire plan: the circles still to draw, in order. */
+  plan: { x: number; z: number }[];
+  /** Where the eye last laid glass; and where a leap left from. */
+  glass: { x: number; z: number };
+  from: { x: number; z: number };
 }
 
 type Laser = Level['lasers'][number];
@@ -273,6 +287,11 @@ const ANSWERS: Record<BossMove, Read[]> = {
   pursuit: ['back'],
   lien: ['still', 'close'],
   ballast: ['side', 'still'],
+  ram: ['back', 'still'],
+  leap: ['close', 'still'],
+  glassing: ['still', 'side'],
+  kneel: ['close', 'still'],
+  measure: ['back', 'side'],
   slam: ['close', 'still'],
   sweep: ['side', 'still'],
   gate: ['side', 'back'],
@@ -297,9 +316,9 @@ const READ_SAY = 0.55;
 /** How often it strings another move on, by phase (none in the first: it's learnt in order). */
 const COMBO = [0, 0.35, 0.6];
 
-type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost' | 'tide' | 'ledger';
+type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost' | 'tide' | 'ledger' | 'salvo';
 
-const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2, tide: 4.4, ledger: 4 };
+const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2, tide: 4.4, ledger: 4, salvo: 3.6 };
 
 /** Bosses lean on patterns that suit them. */
 const FAVOURITES: Record<string, Pattern[]> = {
@@ -347,6 +366,10 @@ const OWN: Record<string, BossMove[][]> = {
   // ARU-0 by the contract: it repossesses, reels in the scrap as a lien and sends its collectors;
   // in arrears it reels twice running; called, it throws its company hull away as ballast
   cinder: [['lien', 'summon'], ['lien', 'summon'], ['ballast', 'lien', 'ballast']],
+  // Khet rides: he rams, he leaps, he calls his clans, all on a flare. Then the head won't (the
+  // same calls, but now and then *Unbending* draws something else and does that). Then it has
+  // decided: Khet held in its jaw, and the titan fights the Compact's way, by the book
+  ashgrave: [['ram', 'leap', 'summon'], ['ram', 'leap', 'summon'], ['glassing', 'kneel', 'measure']],
 };
 
 /** A boss whose signature opens each phase instead of coming second (ARU-0 serves notice first). */
@@ -359,10 +382,21 @@ const CHASE: Record<string, { len: number; moves: BossMove[] }> = { cinder: { le
 const LAST_OWN: Record<string, BossMove[]> = {
   // ballast down every lane, a Lien on everything on the field, and the lanes again
   cinder: ['ballast', 'lien', 'ballast', 'repossess'],
+  // the whole field glassed with one way out, then the eye twice
+  ashgrave: ['glassing', 'eye', 'eye'],
 };
 
 /** ARU-0's nineteen seconds: its last phase opens with it standing still and silent, facing Glacis, before it's called. */
 const HUSH: Record<string, number> = { cinder: 19 };
+
+/**
+ * A boss with two minds: its tells are drawn in the colour of whichever one is making the move
+ * (Khet's in scrap amber, a flare; *Unbending*'s in lattice blue, drawn in light).
+ */
+const TWO_LOOKS = new Set(['ashgrave']);
+
+/** A boss whose last phase is somebody else's: it's called as that phase starts, and goes by this name (*Unbending* sets Khet in its jaw and fights by the book). */
+const DECIDES: Record<string, string> = { ashgrave: 'UNBENDING' };
 
 /**
  * A boss's own filler, a list a phase, in place of its planet's favourites. The Engine's guns are
@@ -375,6 +409,9 @@ const FILLER: Record<string, Pattern[][]> = {
   vesh: [['curves', 'fans'], ['splitters', 'fans'], ['tide']],
   // ARU-0: the company's orderly walls and its mines; then fees (beams); called, the Engine's own
   cinder: [['walls', 'splitters'], ['lasers', 'walls'], ['spiral', 'lasers']],
+  // Khet's junk guns bolted to the head (fans, walls; then rain as it fights him); with them
+  // blown off, the titan's own: a file of rounds down a line, and rings
+  ashgrave: [['fans', 'walls'], ['fans', 'rain'], ['salvo', 'rings']],
 };
 
 /**
@@ -382,13 +419,19 @@ const FILLER: Record<string, Pattern[][]> = {
  * is the last entry. The Engine is half asleep, then stirring, then wide awake. (A lattice tell is
  * never under a second, however awake.)
  */
-const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85], cinder: [1, 0.92, 0.95, 0.85] };
+const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85], cinder: [1, 0.92, 0.95, 0.85], ashgrave: [1, 0.94, 1, 0.88] };
+
+/** How long its filler runs between moves, against the usual (Khet doesn't stand about: he's riding). */
+const FILL: Record<string, number> = { ashgrave: 0.55 };
+
+/** What a hit is worth on it while it's closed (not open after a move), if not its style's: a titan's head is armour. */
+const CLOSED: Record<string, [number, number]> = { ashgrave: [0.55, 0.8] };
 
 /** The phase from which a boss has no guns left: no patterns, just its moves (Vask, free). */
 const BARE: Record<string, number> = { orutal: 2 };
 
 /** The beat of a boss's theme (its rings and wing beats land on it). */
-const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120, vesh: 60 / 126, cinder: 60 / 112 };
+const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120, vesh: 60 / 126, cinder: 60 / 112, ashgrave: 60 / 116 };
 
 const KIND: Record<BossMove, AttackKind> = {
   charge: 'charge',
@@ -406,6 +449,11 @@ const KIND: Record<BossMove, AttackKind> = {
   pursuit: 'shell',
   lien: 'beam',
   ballast: 'slam',
+  ram: 'charge',
+  leap: 'slam',
+  glassing: 'shell',
+  kneel: 'beam',
+  measure: 'beam',
   slam: 'slam',
   sweep: 'sweep',
   gate: 'gate',
@@ -448,6 +496,9 @@ export const MOVE_NAME: Partial<Record<BossMove, string>> = {
   pursuit: 'PURSUIT',
   lien: 'LIEN',
   ballast: 'BALLAST',
+  glassing: 'THE GLASSING',
+  kneel: 'THE KNEEL',
+  measure: 'THE MEASURE',
 };
 /** Called, ARU-0 names its moves in the Engine's words. */
 const CALLED_NAME: Partial<Record<BossMove, string>> = { repossess: 'RECOVERY' };
@@ -455,6 +506,9 @@ const CALLED_NAME: Partial<Record<BossMove, string>> = { repossess: 'RECOVERY' }
 /** Damage that breaks its poise (a share of its hull), and how fast poise comes back. */
 const POISE = 0.075;
 const POISE_BACK = 0.012;
+/** A boss that's harder to rock (a titan's head), as a share of its hull. */
+const POISE_OWN: Record<string, number> = { ashgrave: 0.12 };
+const poiseAt = (lv: Level) => POISE_OWN[lv.spec.planet.id] ?? POISE;
 /** Below this share of its hull it makes its last stand. */
 const LAST = 0.08;
 
@@ -462,7 +516,7 @@ const LAST = 0.08;
  * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
  * teach something, so each needs time: half again as long.
  */
-const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4, cinder: 2.2 };
+const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4, cinder: 2.2, ashgrave: 2.6 };
 export const bossHull = (planet: string) => HULL[planet] ?? 1;
 
 /** Who comes when it calls. */
@@ -492,8 +546,6 @@ export function makeBoss(planet: string): BossState {
   const fav = shuffle(r, [...(FAVOURITES[planet] ?? ['fans', 'rings', 'spiral', 'walls'])]);
   const style = STYLE[planet] ?? 'brawler';
   const moves = (OWN[planet] ?? MOVES[style]).map((l) => [...l]);
-  // Khet hooks you in his last phase; the others slam
-  if (planet === 'ashgrave') moves[2][1] = 'harpoon';
   // its own move comes second in every phase (seen early, and every time round)
   const sig = SIGNATURE[planet] ?? 'skydive';
   for (const l of moves) l.splice(SIG_FIRST.has(planet) ? 0 : 1, 0, sig);
@@ -556,11 +608,16 @@ export function makeBoss(planet: string): BossState {
     tows: [],
     thrown: [],
     lanes: [],
+    look: TWO_LOOKS.has(planet) ? 'scrap' : null,
+    turn: null,
+    plan: [],
+    glass: { x: 0, z: 0 },
+    from: { x: 0, z: 0 },
   };
 }
 
 /** How near its poise is to breaking, 0..1 (1 while it's staggered). */
-export const poiseOf = (e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.poise / (e.max * POISE), 0, 1));
+export const poiseOf = (lv: Level, e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.poise / (e.max * poiseAt(lv)), 0, 1));
 
 /** The name of the move it's making, if it has one (its signature, and a few others). */
 export const sigName = (e: Enemy) =>
@@ -569,7 +626,7 @@ export const sigName = (e: Enemy) =>
 /** A perfect dash through its attack: a read. It wears its poise half through; through its signature, it breaks it. */
 export function bossRead(lv: Level, e: Enemy) {
   const b = e.boss!;
-  bossHurt(lv, e, e.max * POISE * (b.move === b.sig ? 1 : 0.5));
+  bossHurt(lv, e, e.max * poiseAt(lv) * (b.move === b.sig ? 1 : 0.5));
 }
 
 /** Hit: its poise gives, and when it breaks it's STAGGERED, whatever it was doing. */
@@ -580,7 +637,7 @@ export function bossHurt(lv: Level, e: Enemy, dmg: number) {
   if (!b.last) e.hp = Math.max(e.hp, e.max * (b.phase === 0 ? 2 / 3 : b.phase === 1 ? 1 / 3 : LAST) - 1);
   if (e.t < 3.5 || e.shielded || b.poiseCd > 0 || e.state === 'stagger') return;
   b.poise += dmg;
-  if (b.poise < e.max * POISE) return;
+  if (b.poise < e.max * poiseAt(lv)) return;
   stagger(lv, e, b);
   lv.emit({ type: 'bossStagger', enemy: e.id, x: e.x, z: e.z });
 }
@@ -596,6 +653,9 @@ function stagger(lv: Level, e: Enemy, b: BossState) {
   if (e.grab >= 0) release(lv, e, true);
   b.move ??= 'summon';
   b.next = null;
+  b.turn = null;
+  // (a kneel's shield drops with it)
+  e.guard = 0;
   // knocked out of a string of moves
   b.combo = 0;
   b.comboed = false;
@@ -634,10 +694,14 @@ export function bossTaken(lv: Level, e: Enemy, crit: boolean) {
   const b = e.boss!;
   // ARU-0 in its nineteen seconds: nobody's there to hurt
   if (b.hush > 0) return crit ? 0.35 : 0.25;
+  // *Unbending* kneeling over Khet: what gets past its shield gets him (what doesn't, never arrives)
+  if (e.guard > 0) return crit ? 2 : 1.6;
   const open = e.state === 'recover' || e.state === 'stagger';
   if (crit && open) lv.emit({ type: 'weakHit', enemy: e.id, x: e.x, z: e.z, dmg: 0 });
   // poise broken: wide open, whatever it is
   if (e.state === 'stagger' && !(b.style === 'hive' && lv.enemies.some((o) => !o.dead && o.links.includes(e.id)))) return crit ? 2.2 : 1.8;
+  const shut = CLOSED[lv.spec.planet.id];
+  if (shut && !open) return shut[crit ? 1 : 0];
   switch (b.style) {
     case 'brawler':
       return open ? 1.5 : crit ? 1 : 0.8;
@@ -717,6 +781,7 @@ export function updateBoss(lv: Level, e: Enemy) {
       b.phase = want;
       b.moveN = 0;
       if (want === 2 && HUSH[lv.spec.planet.id]) b.hush = HUSH[lv.spec.planet.id];
+      if (want === 2 && DECIDES[lv.spec.planet.id]) decide(lv, e, b);
     }
     b.current = 0;
     b.pt = 0;
@@ -728,6 +793,8 @@ export function updateBoss(lv: Level, e: Enemy) {
     dropBall(b);
     letGo(b);
     b.tide.length = 0;
+    b.turn = null;
+    e.guard = 0;
     if (e.grab >= 0) release(lv, e, false);
     go(lv, e, 'idle');
     lv.chase = false;
@@ -752,8 +819,8 @@ export function updateBoss(lv: Level, e: Enemy) {
 
   if (b.move) runMove(lv, e, b);
   else home(lv, e, b);
-  // up from under the sea (a breach cut short: staggered as she rose)
-  if (b.move !== 'breach') {
+  // up from under the sea (a breach cut short: staggered as she rose); down from a leap
+  if (b.move !== 'breach' && !(b.move === 'leap' && e.state !== 'recover' && e.state !== 'stagger')) {
     b.under = false;
     e.y += (FLIGHT_Y - e.y) * Math.min(1, DT * 6);
   }
@@ -769,7 +836,7 @@ export function updateBoss(lv: Level, e: Enemy) {
   const onChase = chasing(b);
   const bare = b.phase >= b.bare;
   // in its last stand it hardly stops to breathe between moves
-  const len = bare ? 0.2 : onChase || b.last ? 0.6 : LENGTH[pat];
+  const len = bare ? 0.2 : onChase || b.last ? 0.6 : LENGTH[pat] * (FILL[lv.spec.planet.id] ?? 1);
   b.pt += DT;
   if (b.pt > len + 0.9) {
     b.current++;
@@ -808,6 +875,19 @@ function hush(lv: Level, e: Enemy, b: BossState) {
   b.shieldT = 1.2;
   for (const r of Object.keys(b.read) as Read[]) b.read[r] = 0;
   lv.emit({ type: 'bossBeat', enemy: e.id, move: 'called', k: 0, x: e.x, z: e.z });
+}
+
+/**
+ * *Unbending* has decided: it blows the clans' plating and junk guns off itself, takes Khet into
+ * its jaw like a cub, and from here fights the way it was built to. Everything is drawn, a full
+ * second at least; it goes by the book (in order); it says nothing.
+ */
+function decide(lv: Level, e: Enemy, b: BossState) {
+  b.called = true;
+  b.name = DECIDES[lv.spec.planet.id];
+  b.look = 'lattice';
+  for (const r of Object.keys(b.read) as Read[]) b.read[r] = 0;
+  lv.emit({ type: 'bossBeat', enemy: e.id, move: 'decided', k: 0, x: e.x, z: e.z });
 }
 
 /** Drifting about its home spot (or, on a chase, about the spot behind you). */
@@ -854,6 +934,11 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
   const aim = Math.atan2(px - e.x, pz - e.z);
   e.aim = aim;
   const line = (len: number, w: number, lock: number, body = false): Tele => ({ shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * len, z2: e.z + Math.cos(aim) * len, w, lock, body });
+  if (TWO_LOOKS.has(lv.spec.planet.id)) {
+    // whose move it is: Khet's on a flare, until *Unbending* has decided
+    b.look = b.called || UNBENDING.has(m) ? 'lattice' : 'scrap';
+    b.turn = b.phase === 1 && !b.last ? defy(lv, e, b, m, px, pz) : null;
+  }
   switch (m) {
     case 'charge':
     case 'rake':
@@ -866,6 +951,19 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
     case 'slam':
       go(lv, e, 'windup', 0.9, 'slam', { shape: 'ring', x: e.x, z: e.z, r: 22, w: 1.2 });
       break;
+    case 'ram':
+      // the thrusters flare: the head's about to come down the line at you
+      b.len = clamp(Math.hypot(px - e.x, pz - e.z) + RAM_PAST, 16, 42);
+      go(lv, e, 'windup', 1.1 * slow(b), 'charge', line(b.len, e.r * 1.4, 0.75 * slow(b), true));
+      break;
+    case 'leap': {
+      // the jaw drops and the head rears: where it'll come down is drawn on you, and follows you
+      // until it locks
+      b.mx = clamp(px, -HALF_W + LEAP_R, HALF_W - LEAP_R);
+      b.ms = lane(lv, pz);
+      go(lv, e, 'windup', 1.05 * slow(b), 'slam', { shape: 'circle', x: b.mx, z: lv.scroll + b.ms, r: LEAP_R, ground: false });
+      break;
+    }
     case 'sweep':
       b.mx = b.phase >= 2 ? -1 : 1;
       go(lv, e, 'windup', 1.1, 'sweep', { shape: 'sweep', x: e.x, z: e.z, a0: b.mx > 0 ? 1.1 : 0.15, a1: b.mx > 0 ? 0.15 : 1.1, len: 70, w: 1 });
@@ -1118,6 +1216,29 @@ function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
       go(lv, e, 'windup', (b.k ? 0.8 : 1.4) * fast, 'sweep', { shape: 'gate', x: -HALF_W, x2: HALF_W, z: e.z + 4, gx: b.mx, gap: BROAD_GAP });
       break;
     }
+    case 'glassing':
+      // *Unbending* raises its eye and plots the fire: the circles are drawn across the field one
+      // by one, the Compact's way, and each air-bursts in turn into a cloud of molten glass
+      b.plan = glassPlan(lv, b, px, pz);
+      go(lv, e, 'windup', tell(b, 0.9 * fast), 'shell', { shape: 'ring', x: e.x, z: e.z, r: 7, w: 1.5 });
+      break;
+    case 'kneel':
+      // it bows its head over Khet, and its shield is drawn round him, facing you
+      e.aim = Math.atan2(px - e.x, pz - e.z);
+      go(lv, e, 'windup', tell(b, 1 * fast), 'beam', { shape: 'ring', x: e.x, z: e.z, r: e.r + 2, w: 1 });
+      break;
+    case 'measure': {
+      // a lane drawn in light from its eye through you, edge to edge: it follows you until it's
+      // set, and then the eye burns straight down it (it doesn't follow: it measured you)
+      e.aim = Math.atan2(px - e.x, pz - e.z);
+      const warn = tell(b, (b.k ? 1.6 : 2) * beatOf(lv) * fast);
+      const len = laneLen(e.x, e.z, e.aim, lv);
+      const l: Laser = { x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * len, z2: e.z + Math.cos(e.aim) * len, warn, on: MEASURE_ON, color: LIGHT, owner: e.id };
+      lv.lasers.push(l);
+      b.lanes = [l];
+      go(lv, e, 'windup', warn, 'beam', { shape: 'line', x: e.x, z: e.z, x2: l.x2, z2: l.z2, w: 2, lock: warn * 0.6 });
+      break;
+    }
   }
 }
 
@@ -1297,6 +1418,100 @@ function aimLane(lv: Level, e: Enemy, l: Laser, a: number) {
   l.z2 = e.z + Math.cos(a) * len;
 }
 
+/** KHET'S RAM: how far past you it carries, how fast, and the retro-burn that stops it (its thrusters fired back up the line: how many, how wide a fan, how fast, how far they go). */
+const RAM_PAST = 7;
+const RAM_V = 38;
+const RETRO_N = 7;
+const RETRO_FAN = 0.3;
+const RETRO_V = 17;
+const RETRO_LIFE = 0.95;
+/** His leap: the ring it comes down in, when the ring stops following you (a share of the tell), how long it's in the air, how high it goes, and the junk thrown off where it lands (gaps where its thrusters are). */
+const LEAP_R = 7;
+const LEAP_LOCK = 0.62;
+const LEAP_AIR = 0.5;
+const LEAP_UP = 7;
+const leapJunk = (b: BossState) => 16 + b.phase * 4;
+/** The eye's glass: laid this far apart along where the beam crosses you, this wide, burning this long. */
+const GLASS_STEP = 2.8;
+const GLASS_R = 1.6;
+const glassBurn = (b: BossState) => 2.2 + b.phase * 0.5;
+const GLASS = 0x4aff8a;
+/** *Unbending*'s light (its tells, its lanes, its plan). */
+const LIGHT = 0x4ae8ff;
+/** The moves that are *Unbending*'s, not Khet's: drawn, never flared. */
+const UNBENDING = new Set<BossMove>(['glassing', 'kneel', 'measure']);
+/** Phase II: how long Khet's flare goes on before the light overrides it, and how often it does when Khet's call isn't reckless. */
+const FLARE = 0.55;
+const DEFY = 0.4;
+/** THE GLASSING: the grid's columns and rows (screen z), a cloud's size, how long from drawn to burst, how fast the plan is drawn, how long a cloud burns. */
+const GLASS_COLS = [-30, -18, -6, 6, 18, 30];
+const glassRows = (b: BossState) => (b.last ? [-15, -4.5, 6, 16.5] : [-5, 5.5, 16]);
+const CLOUD_R = 6.6;
+const CLOUD_WARN = 1.35;
+const CLOUD_DRAW = 0.085;
+const cloudBurn = (b: BossState) => (b.phase >= 2 ? 3.4 : 2.6);
+/** THE KNEEL: its shield's half-arc, how fast it turns after you, how long it kneels, and the lances down its middle (drawn two beats, burning this long). */
+const KNEEL_GUARD = 0.55;
+const KNEEL_TURN = 0.48;
+const KNEEL_T = 6.2;
+const LANCE_ON = 0.4;
+/** THE MEASURE: lanes a time (two when it overrides a ram, three by the book), how long the eye burns down each. */
+const measures = (b: BossState) => (b.phase >= 2 ? 3 : 2);
+const MEASURE_ON = 0.7;
+
+/**
+ * Phase II: Khet calls a move and the thrusters flare for it; *Unbending* doesn't have to do it.
+ * It won't when it's reckless (a ram into the edge of the field; a leap down on its own clans),
+ * and now and then it just doesn't. What it does instead: a ram becomes THE MEASURE, a leap a
+ * small GLASSING. (Never its signature, never his clans: those it lets him have.)
+ */
+function defy(lv: Level, e: Enemy, b: BossState, m: BossMove, px: number, pz: number): BossMove | null {
+  if (m !== 'ram' && m !== 'leap') return null;
+  let reckless = false;
+  if (m === 'ram') {
+    const a = Math.atan2(px - e.x, pz - e.z);
+    const len = clamp(Math.hypot(px - e.x, pz - e.z) + RAM_PAST, 16, 42);
+    reckless = Math.abs(e.x + Math.sin(a) * len) > HALF_W - 7 || e.z + Math.cos(a) * len > lv.bottom - 3;
+  } else reckless = lv.enemies.some((o) => !o.dead && !o.boss && o.arch === 'ramjack' && Math.hypot(o.x - px, o.z - pz) < LEAP_R + 6);
+  if (!reckless && lv.rand() >= DEFY) return null;
+  return m === 'ram' ? 'measure' : 'glassing';
+}
+
+/** The flare has gone on long enough: the light is drawn over it, and the head does that instead. */
+function override(lv: Level, e: Enemy, b: BossState) {
+  const p = lv.nearest(e.x, e.z);
+  b.move = b.turn!;
+  b.lastMove = b.move;
+  b.turn = null;
+  b.look = 'lattice';
+  b.k = 0;
+  for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+  lv.emit({ type: 'bossBeat', enemy: e.id, move: 'defy', k: 0, x: e.x, z: e.z });
+  startSig(lv, e, b, p?.x ?? 0, p?.z ?? lv.bottom - 8);
+}
+
+/**
+ * The Glassing's plan: by the book, a grid of air-bursts over the field, row by row from the top,
+ * with one way through it (a column a row, never more than one over from the row before, and the
+ * bottom one near you). Overriding a leap, only five: one on you and four about it (go corner-wise).
+ */
+function glassPlan(lv: Level, b: BossState, px: number, pz: number) {
+  const plan: { x: number; z: number }[] = [];
+  if (!b.called && !b.last) {
+    const z = lane(lv, pz);
+    for (const [dx, dz] of [[0, -9], [-9, 0], [0, 0], [9, 0], [0, 9]])
+      plan.push({ x: clamp(px + dx, -HALF_W + 3, HALF_W - 3), z: clamp(z + dz, -HALF_H + 4, HALF_H - 3) });
+    return plan;
+  }
+  const rows = glassRows(b);
+  const near = GLASS_COLS.reduce((k, x, i) => (Math.abs(x - px) < Math.abs(GLASS_COLS[k] - px) ? i : k), 0);
+  const holes: number[] = [];
+  holes[rows.length - 1] = clamp(near + Math.floor(lv.rand() * 3) - 1, 0, GLASS_COLS.length - 1);
+  for (let r = rows.length - 2; r >= 0; r--) holes[r] = clamp(holes[r + 1] + Math.floor(lv.rand() * 3) - 1, 0, GLASS_COLS.length - 1);
+  rows.forEach((z, r) => GLASS_COLS.forEach((x, c) => c !== holes[r] && plan.push({ x, z })));
+  return plan;
+}
+
 /** The Engine's scan: how wide it sweeps (each side of straight down), the reading ring's two distances and its half-width. */
 const SCAN_A = 1.2;
 const SCAN_NEAR = 15;
@@ -1399,7 +1614,7 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     const tl = e.tele;
     // the line rides with it (and tracks you, until it locks)
     if (tl && tl.shape === 'line') {
-      if ((m === 'charge' || m === 'rake' || m === 'harpoon') && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.08);
+      if ((m === 'charge' || m === 'rake' || m === 'harpoon' || m === 'ram') && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.08);
       const len = m === 'harpoon' ? 60 : b.len;
       tl.x = e.x;
       tl.z = e.z;
@@ -1409,6 +1624,11 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     if (tl && tl.shape === 'circle' && p && e.stateT < 0.3) {
       tl.x = p.x;
       tl.z = p.z;
+    }
+    // Khet's flare, and then the light: *Unbending* won't
+    if (b.turn && e.stateT >= FLARE * slow(b)) {
+      override(lv, e, b);
+      return;
     }
     sigWindup(lv, e, b);
     if (!over(e)) return;
@@ -1463,8 +1683,9 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
   switch (m) {
     case 'charge':
     case 'rake':
+    case 'ram':
     case 'lunge': {
-      const sp = (m === 'lunge' ? 32 : m === 'rake' ? 36 : 34) * (e.stun > 0 ? 0.3 : 1);
+      const sp = (m === 'lunge' ? 32 : m === 'rake' ? 36 : m === 'ram' ? RAM_V : 34) * (e.stun > 0 ? 0.3 : 1);
       b.sx += Math.sin(e.aim) * sp * DT;
       b.ss += Math.cos(e.aim) * sp * DT;
       b.gone += sp * DT;
@@ -1476,6 +1697,8 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
         if (m === 'charge') strike(lv, 'wave', b.sx, lv.scroll + b.ss, { v: 12, w: 1, rMax: 18, warn: 0.05, active: 2, air: true, owner: e.id, color: col });
         // a charge into the wall, or into a parry, leaves it reeling
         const reel = b.parried || (edge && m !== 'lunge');
+        // Khet's thrusters fired back to stop it: a fan of fire back up the line it came down
+        if (m === 'ram' && !b.parried) retro(lv, e, b);
         // a rake turns and comes back at you (a shorter tell), unless it's reeling
         if (m === 'rake' && !reel && ++b.k < rakes(b)) rakeAgain(lv, e, b);
         else endMove(lv, e, b, reel ? 2.2 : m === 'lunge' ? 2 : 1.6, reel);
@@ -1519,6 +1742,10 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     case 'pursuit':
     case 'lien':
     case 'ballast':
+    case 'leap':
+    case 'glassing':
+    case 'kneel':
+    case 'measure':
       sigAttack(lv, e, b);
       break;
     default:
@@ -1601,6 +1828,48 @@ function sigWindup(lv: Level, e: Enemy, b: BossState) {
         tl.z2 = e.z + Math.cos(e.aim) * b.len;
         const offs = ballastLanes(b);
         b.lanes.forEach((l, k) => aimLane(lv, e, l, e.aim + offs[k + 1]));
+      }
+      break;
+    case 'leap': {
+      // rearing; the ring on you until it locks
+      const u = clamp(e.stateT / e.stateDur, 0, 1);
+      e.y = FLIGHT_Y + smooth(u) * 1.5;
+      if (p && u < LEAP_LOCK) {
+        b.mx += (clamp(p.x, -HALF_W + LEAP_R, HALF_W - LEAP_R) - b.mx) * Math.min(1, DT * 8);
+        b.ms += (lane(lv, p.z) - b.ms) * Math.min(1, DT * 8);
+      }
+      if (tl && tl.shape === 'circle') {
+        tl.x = b.mx;
+        tl.z = lv.scroll + b.ms;
+      }
+      break;
+    }
+    case 'kneel':
+      // bowing: its shield drawn up round Khet as it goes down
+      e.guard = KNEEL_GUARD * clamp(e.stateT / e.stateDur / 0.5, 0, 1);
+      kneelTurn(lv, e);
+      if (tl && tl.shape === 'ring') {
+        tl.x = e.x;
+        tl.z = e.z;
+      }
+      break;
+    case 'measure': {
+      // the lane follows you until it's set
+      const l = b.lanes[0];
+      if (tl && tl.shape === 'line' && e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.07);
+      if (l) aimLane(lv, e, l, e.aim);
+      if (l && tl && tl.shape === 'line') {
+        tl.x = e.x;
+        tl.z = e.z;
+        tl.x2 = l.x2;
+        tl.z2 = l.z2;
+      }
+      break;
+    }
+    case 'glassing':
+      if (tl && tl.shape === 'ring') {
+        tl.x = e.x;
+        tl.z = e.z;
       }
       break;
     case 'broadside':
@@ -1809,6 +2078,32 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
       e.tele = null;
       return true;
     }
+    case 'leap':
+      // up and over: it flies to the ring and comes down in it
+      b.from = { x: b.sx, z: b.ss };
+      b.gone = 0;
+      go(lv, e, 'attack', LEAP_AIR, 'slam');
+      return true;
+    case 'glassing':
+      b.k = 0;
+      b.fire = 0;
+      go(lv, e, 'attack', b.plan.length * CLOUD_DRAW + 0.3, 'shell');
+      e.tele = null;
+      return true;
+    case 'kneel':
+      // the first lance a beat in; then one every two
+      b.k = 0;
+      b.fire = beatOf(lv);
+      e.guard = KNEEL_GUARD;
+      go(lv, e, 'attack', KNEEL_T * slow(b), 'beam');
+      e.tele = null;
+      return true;
+    case 'measure':
+      b.lanes.length = 0;
+      go(lv, e, 'attack', MEASURE_ON, 'beam');
+      e.tele = null;
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'measure', k: b.k, x: e.x, z: e.z });
+      return true;
     case 'breach':
       // under: the ring keeps on you a while, then sets, and up she comes
       b.under = true;
@@ -1927,6 +2222,8 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       const da = Math.atan2(Math.sin(want - e.aim), Math.cos(want - e.aim));
       e.aim += clamp(da, -rate * DT, rate * DT);
       aimBeams(lv, e, e.aim, 1);
+      // Khet's eye glasses the ground where it crosses you: don't turn back through it
+      if (TWO_LOOKS.has(lv.spec.planet.id) && p) layGlass(lv, e, b, Math.hypot(p.x - e.x, p.z - e.z));
       if (over(e)) {
         for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
         endMove(lv, e, b, 2.1);
@@ -2194,6 +2491,68 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       }
       break;
     }
+    case 'leap': {
+      // in the air (out of reach), coming down in the ring
+      const u = clamp(e.stateT / e.stateDur, 0, 1);
+      b.sx = lerp(b.from.x, b.mx, smooth(u));
+      b.ss = lerp(b.from.z, b.ms, smooth(u));
+      e.y = FLIGHT_Y + 1.5 + Math.sin(u * Math.PI) * LEAP_UP - u * 1.5;
+      if (over(e)) {
+        e.y = FLIGHT_Y;
+        const x = e.x;
+        const z = lv.scroll + b.ss;
+        strike(lv, 'slam', x, z, { r: LEAP_R, warn: 0, active: 0.3, air: true, owner: e.id, color: col });
+        // the junk shaken off it as it lands, in a ring: no junk where its thrusters are (either side)
+        const n = leapJunk(b);
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2;
+          if (Math.abs(Math.cos(a)) < 0.2) continue;
+          lv.bullet(x, z, a, 9 + (k % 2) * 2, { color: JUNK, kind: 'big', r: 0.55 });
+        }
+        e.tele = null;
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'land', k: 0, x, z });
+        // down where you were: winded, close
+        endMove(lv, e, b, 1.5);
+      }
+      break;
+    }
+    case 'glassing': {
+      // the plan drawn circle by circle, each bursting into glass when its time comes
+      b.fire -= DT;
+      while (b.fire <= 0 && b.plan.length) {
+        b.fire += CLOUD_DRAW;
+        const c = b.plan.shift()!;
+        strike(lv, 'puddle', c.x, lv.scroll + c.z, { r: CLOUD_R, warn: CLOUD_WARN * slow(b), active: cloudBurn(b), air: true, owner: e.id, color: LIGHT });
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'plot', k: b.k++, x: c.x, z: lv.scroll + c.z });
+      }
+      if (over(e)) endMove(lv, e, b, 2.2);
+      break;
+    }
+    case 'kneel': {
+      // the shield follows you, slower than you fly; and down its middle, the eye, every two beats
+      kneelTurn(lv, e);
+      b.fire -= DT;
+      if (b.fire <= 0) {
+        b.fire += 2 * beatOf(lv);
+        const len = laneLen(e.x, e.z, e.aim, lv);
+        lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * len, z2: e.z + Math.cos(e.aim) * len, warn: 2 * beatOf(lv) * 0.9, on: LANCE_ON, color: LIGHT, owner: e.id });
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'lance', k: b.k++, x: e.x, z: e.z });
+      }
+      if (over(e)) {
+        e.guard = 0;
+        for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'rise', k: 0, x: e.x, z: e.z });
+        endMove(lv, e, b, 1.8);
+      }
+      break;
+    }
+    case 'measure':
+      // and the next lane, from where you went; by the book, three
+      if (over(e)) {
+        if (++b.k < measures(b) + (b.last ? 1 : 0)) startSig(lv, e, b, p?.x ?? 0, p?.z ?? 0);
+        else endMove(lv, e, b, 1.7);
+      }
+      break;
     case 'breath': {
       // in: everything near is drawn to her intake (boost against it; a dash is free of it)
       for (const q of lv.players) {
@@ -2226,6 +2585,35 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       break;
     }
   }
+}
+
+/** Khet's junk, thrown off the head. */
+const JUNK = 0xff7a2a;
+
+/** The ram stopped by its thrusters: a fan of fire straight back up the line it came down. */
+function retro(lv: Level, e: Enemy, b: BossState) {
+  const a = e.aim + Math.PI;
+  for (let k = 0; k < RETRO_N; k++) {
+    const off = (k / (RETRO_N - 1) - 0.5) * 2 * RETRO_FAN;
+    lv.bullet(b.sx, lv.scroll + b.ss, a + off, RETRO_V + (k % 2) * 3, { color: JUNK, kind: 'big', r: 0.6, life: RETRO_LIFE });
+  }
+  lv.emit({ type: 'bossBeat', enemy: e.id, move: 'retro', k: 0, x: b.sx, z: lv.scroll + b.ss });
+}
+
+/** Kneeling, its shield (and its eye, down the shield's middle) turns after you, slower than you fly. */
+function kneelTurn(lv: Level, e: Enemy) {
+  const want = lv.aim(e.x, e.z);
+  const da = Math.atan2(Math.sin(want - e.aim), Math.cos(want - e.aim));
+  e.aim += clamp(da, -KNEEL_TURN * DT, KNEEL_TURN * DT);
+}
+
+/** Glass laid where the eye's beam is `d` out from it (where it crosses you), spaced along the way it's gone. */
+function layGlass(lv: Level, e: Enemy, b: BossState, d: number) {
+  const x = e.x + Math.sin(e.aim) * d;
+  const z = e.z + Math.cos(e.aim) * d;
+  if (e.stateT < 0.25 || Math.hypot(x - b.glass.x, z - lv.scroll - b.glass.z) < GLASS_STEP || !lv.onScreen(x, z, -1)) return;
+  b.glass = { x, z: z - lv.scroll };
+  strike(lv, 'puddle', x, z, { r: GLASS_R, warn: 0.3, active: glassBurn(b), air: true, owner: e.id, color: GLASS });
 }
 
 /** On its line: you're reeled in (dash to break free, and it reels). */
@@ -2407,6 +2795,15 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
         lv.bullet(x, e.z + 2, 0, 6, { color: col, kind: 'needle', r: 0.35 });
       }
       b.fire = 1.5;
+      break;
+    }
+    case 'salvo': {
+      // *Unbending*'s guns, by the book: a file of rounds down one line at you, then a step
+      // across and another (fire on a line, not a spray: step off it)
+      const a = lv.aim(e.x, e.z) + ((b.shots % 3) - 1) * 0.18;
+      for (let k = 0; k < 5; k++) lv.bullet(e.x, e.z + 2, a, 12 + k * 1.6, { color: col, kind: 'needle', r: 0.4 });
+      lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
+      b.fire = 0.75;
       break;
     }
     case 'curves': {

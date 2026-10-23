@@ -7,6 +7,7 @@ import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { DARK, DIM, EDGE, GOLD, H, INK, RED, VIEW, W, frame, hex, schematic } from '../ui/hud';
 import { hints, type Action } from '../ui/widgets';
+import { SoundPanel, SOUND_H, SOUND_W } from '../ui/sound';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { flat, GEO, part, toon } from '../render/toon';
@@ -70,6 +71,13 @@ const TILE_H = 64;
 const TILE_Y = 264;
 /** Where a tile sits: in a row across the foot, or stacked under the logo when the window's too narrow (a phone). */
 const narrow = () => VIEW.w < MODES.length * (TILE_W + 12) + 8;
+/** The SOUND chip in the top-right corner of the window, and the levels it opens, in the middle. */
+const CHIP_W = 52;
+const CHIP_H = 15;
+const chipPos = () => ({ x: VIEW.w - VIEW.ox - CHIP_W - 8, y: -VIEW.oy + 8 });
+const soundPos = () => ({ x: Math.round(W / 2 - SOUND_W / 2), y: Math.round(H / 2 - SOUND_H / 2) });
+/** A speaker, for the chip. */
+const SPEAKER = ['0001000', '0011010', '1111001', '1111001', '1111001', '0011010', '0001000'];
 const tilePos = (i: number) =>
   narrow()
     ? { x: Math.round(W / 2 - TILE_W / 2), y: 132 + i * (TILE_H + 10) }
@@ -167,12 +175,20 @@ export class Title implements Screen {
   /** The mouse, in safe-area texels, and a click waiting to be read. */
   private mouse: { x: number; y: number } | null = null;
   private click = false;
+  /** The sound levels, open over the front. */
+  private sound = new SoundPanel();
+  private soundOpen = false;
   private onMove = (e: PointerEvent) => {
     const s = this.game.uiScale / (window.devicePixelRatio || 1);
     this.mouse = { x: e.clientX / s - VIEW.ox, y: e.clientY / s - VIEW.oy };
+    const front = !this.seats.length && !lobbyOpen();
+    if (this.soundOpen) {
+      document.body.style.cursor = 'pointer';
+      return;
+    }
     const over = this.tileAt(this.mouse.x, this.mouse.y);
-    if (!this.seats.length && !lobbyOpen() && over >= 0 && over !== this.pick) this.choose(over);
-    document.body.style.cursor = !this.seats.length && over >= 0 ? 'pointer' : '';
+    if (front && over >= 0 && over !== this.pick) this.choose(over);
+    document.body.style.cursor = front && (over >= 0 || this.onChip(this.mouse.x, this.mouse.y)) ? 'pointer' : '';
   };
   private onDown = (e: PointerEvent) => {
     this.onMove(e);
@@ -226,6 +242,33 @@ export class Title implements Screen {
     });
   }
 
+  private onChip(x: number, y: number) {
+    const c = chipPos();
+    return x >= c.x && x < c.x + CHIP_W && y >= c.y && y < c.y + CHIP_H;
+  }
+
+  /** The sound levels while they're open: any device turns them; back (or the button that opened them, or a click outside) shuts them. */
+  private soundMenu(click: boolean) {
+    for (const d of ['keys', ...input.padIds()] as DeviceId[]) {
+      const m = this.game.menuOf(d);
+      if (m.back || m.alt || m.confirm || m.start) {
+        this.shown = d;
+        this.soundOpen = false;
+        audio.play('ui_back');
+        return;
+      }
+      if (m.up || m.down || m.left || m.right) this.shown = d;
+      this.sound.update(m);
+    }
+    if (click && this.mouse) {
+      const p = soundPos();
+      if (!this.sound.click(this.mouse.x - p.x, this.mouse.y - p.y)) {
+        this.soundOpen = false;
+        audio.play('ui_back');
+      }
+    }
+  }
+
   private choose(i: number) {
     this.pick = i;
     audio.play('ui_move');
@@ -248,12 +291,27 @@ export class Title implements Screen {
   private menu() {
     const click = this.click;
     this.click = false;
+    if (this.soundOpen) {
+      this.soundMenu(click);
+      return;
+    }
+    if (click && this.mouse && this.onChip(this.mouse.x, this.mouse.y)) {
+      this.soundOpen = true;
+      audio.play('ui_select');
+      return;
+    }
     if (input.keyPressed('KeyO')) {
       this.online();
       return;
     }
     for (const d of ['keys', ...input.padIds()] as DeviceId[]) {
       const m = this.game.menuOf(d);
+      if (m.alt) {
+        this.shown = d;
+        this.soundOpen = true;
+        audio.play('ui_select');
+        return;
+      }
       const step = m.left || m.up ? -1 : m.right || m.down ? 1 : 0;
       if (!step) continue;
       this.shown = d;
@@ -595,10 +653,32 @@ export class Title implements Screen {
     if (on > 0) {
       ctx.globalAlpha = on;
       const hy = narrow() ? tilePos(MODES.length - 1).y + TILE_H + 14 : 342;
-      const hw = hints(ctx, this.shown, [['move', 'CHOOSE'], ['confirm', 'GO']], W / 2 - 30, hy, 'center');
+      const hw = hints(ctx, this.shown, [['move', 'CHOOSE'], ['confirm', 'GO'], ['alt', 'SOUND']], W / 2 - 30, hy, 'center');
       drawText(ctx, 'OR CLICK', W / 2 - 30 + hw / 2 + 14, hy, DIM);
       ctx.globalAlpha = 1;
     }
+    this.chip(ctx);
+    if (this.soundOpen) this.levels(ctx);
+  }
+
+  /** The SOUND chip up in the corner, lit when the mouse is on it or the levels are open. */
+  private chip(ctx: CanvasRenderingContext2D) {
+    const { x, y } = chipPos();
+    const on = this.soundOpen || (this.mouse !== null && this.onChip(this.mouse.x, this.mouse.y));
+    frame(ctx, x, y, CHIP_W, CHIP_H, on ? 'rgba(26,16,38,0.94)' : 'rgba(18,12,26,0.8)', on ? GOLD : EDGE);
+    const muted = audio.volumes.master === 0;
+    icon(ctx, SPEAKER, x + 5, y + 4, muted ? RED : on ? GOLD : '#a898c0', 1);
+    drawText(ctx, 'SOUND', x + 15, y + 4, on ? INK : DIM);
+  }
+
+  /** The sound levels, over the front darkened. */
+  private levels(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = 'rgba(10,8,18,0.6)';
+    ctx.fillRect(-VIEW.ox, -VIEW.oy, VIEW.w, VIEW.h);
+    const { x, y } = soundPos();
+    drawText(ctx, 'SOUND', W / 2, y - 26, INK, { scale: 2, align: 'center' });
+    this.sound.draw(ctx, x, y);
+    hints(ctx, this.shown, [['move', 'SET'], ['back', 'DONE']], W / 2, y + SOUND_H + 14, 'center');
   }
 
   /** A way in: an icon, what it's for, and a lit frame when it's the one picked. */
