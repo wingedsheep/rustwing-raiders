@@ -7,7 +7,7 @@ Done work is deleted from here; git and the design docs keep the record.
 ## Now
 
 ### 1. Readability: what can hurt you, what you can take
-The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix comes in small pushes, each finished and checked on its own before the next, and each judged on many screenshots against the principles: [readability](readability.md). The paintings in [`art-direction/planets/`](art-direction/planets/) are the reference for the cleanness and contrast we want, not a look to copy: each planet keeps its own style.
+The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix comes in small pushes, each finished and checked on its own before the next, and each judged on many screenshots against the [level design](level-design.md) rules; the pushes are in [readability](readability.md). The paintings in [`art-direction/planets/`](art-direction/planets/) are the reference for the cleanness and contrast we want, not a look to copy: each planet keeps its own style.
 - **The level generator** (8–11): walls that read as walls, colliders that look solid, a layout per biome on a shared toolkit, foes on their routes.
 - **Every biome through the generator** (12–19): a family of biomes at a time, judged and improved from screenshots.
 - **The look, the foes, then a planet at a time** (20 on).

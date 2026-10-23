@@ -4,98 +4,11 @@ Item 1 of the [backlog](backlog.md), split into pushes. The goal: a screen you c
 
 Each push is small enough to finish and check on its own, and is checked before the next one starts. Each one lists only the checks that fit it, with the line it has to pass. Done pushes are deleted from here.
 
-**How it looks in screenshots outweighs every metric and guideline here.** The numbers, lines and rules help find problems; they don't decide. If the screenshots look good and a number fails, question the number. If every number passes and the screenshots look wrong, the push isn't done.
-
-## What the paintings are for
-
-The paintings in [`art-direction/planets/`](art-direction/planets/) are a reference, not a target to copy. Take from them:
-
-- **the graphical style**: the pixel grain, the banded light, the brushwork;
-- **the cleanness**: a calm lane, busy edges, nothing in the frame that doesn't need to be there;
-- **the contrast**: danger, walls and your ship stand out from the world at once;
-- **the grouping, placement and sizes** of things: props in groups that frame the lane, a few big things rather than many small ones, objects sized to their layer.
-
-Don't copy their palettes, props or layouts one to one. Each planet gets its own style and palette, and so can each side of a planet. The levels are generated, so no frame will ever match a painting anyway. A biome passes when its screenshots read as cleanly as the paintings do, not when they look like them.
-
-## The principles
-
-**The game comes first.** A biome can be as strange and beautiful as it likes, as long as these hold:
-
-1. **Obstacles are clear.** You can see at a glance what in the terrain you will hit and where you can fly.
-2. **Danger is unmistakable.** Enemy fire is always told apart from the world, from your own shots and from pickups, on every ground and in every light.
-3. **Levels are designed.** Every object is where it is for a reason: along a riverbank, on a ridge, at the mouth of a canyon, round a depot. Nothing looks strewn about at random.
-4. **Foes belong where they are.** Each one moves and stands in a way the terrain explains:
-   - a boat follows the waterways, and a level with boats has water to carry them;
-   - an armoured car keeps to a road or track, and turns where the road turns;
-   - a turret sits where someone would build one: on a wall, at a choke, guarding a bridge or a depot, on high ground with a view of the lane;
-   - fliers are free, but come from somewhere (a hangar, a nest, over the horizon);
-   - grown things root where they would grow: in the wet, on the rock, round the vents.
-5. **Each planet is its own place.** Its own light, its own palette, its own shapes, alive in its own way: wind, water, life at ground level. You should know where you are from a thumbnail.
-6. **Contrast where it counts.** The lane stays calm, at mid-value. The strongest contrast goes to danger, walls and your ship; the world's richest colour goes to the edges.
-7. **Big shapes and small details, balanced.** A good screen has a few large forms (a cliff, a titan's hand, a crater, a cap tree) that give it its shape, mid-sized groups that frame the lane, and small details gathered round them that give texture up close. All small things look like noise; all big things look empty and blocky; the same size everywhere looks like a pattern. The big forms are placed first and the details follow them (rubble at a cliff's foot, shards round a crater's rim), never sprinkled evenly. This is one of the main things that makes a level look great.
-8. **Props are beautiful, and make the biome its own.** Every prop is worth looking at, and the props are much of what makes a biome feel unique: shapes, materials and life you won't see on any other planet. A biome never makes do with another biome's props or with generic rocks and trees. If a layout needs something that doesn't exist (a jetty, a road, a fallen titan's rib, a vent cone, a better cliff piece), model it in Blender (`tools/models/`, see [AGENTS.md](../AGENTS.md)). Then check the result and refine it: look at it in `just preview` and in game screenshots, fix what's off, and look again until it's right. A model isn't done when it builds.
-
-## How a biome is checked: screenshots, many of them
-
-Looking is the main check, and it wins over every other. While working on a planet, take many screenshots, look at every one, and fix what fails before going on. The numbers and tools below help find problems; they don't replace looking, and passing them doesn't make a biome good.
-
-1. **Take a set** with `just look` (see Tools): several seeds, several moments (calm flight, mid-fight, a landmark, a breather, the boss's approach), and the whole level as a strip. One good frame proves nothing; a dozen bad ones are easy to miss without a set.
-2. **Look at each one against the principles**, and write down what fails:
-   - Where can I fly? What will I hit? Is any solid thing hard to see, or any harmless thing easy to mistake for solid?
-   - What will hurt me? Can I find every enemy shot in a second? Does anything else look like one?
-   - Does the placement make sense? Could I say why each group is where it is? Does any screen look like a random scatter, or a clutter?
-   - Do the foes fit the ground? Boats on water, cars on roads, turrets where they guard something?
-   - Are big shapes and small details balanced? Does each screen have a few large forms giving it shape, with the details gathered round them, or is it all crumbs, all blocks, or one size everywhere?
-   - Is it this planet, and nowhere else? Is it alive? Is it beautiful in its own way? Are the props worth looking at, and could they only be from here?
-   - Beside a painting: is it as clean, as contrasted and as well grouped, even though it looks different?
-3. **Fix, then shoot the set again** at the same seeds and moments, so before and after sit side by side.
-4. **Repeat until the list is empty.** Then fly it by hand and run the bench.
-
-A push isn't done until its last set of screenshots has been looked at and passes.
-
-## Laying out a level
-
-**The level generator is one of the most important things to get right**, and building it is one of the biggest steps in this plan. Good art on a random layout still looks like clutter; a well laid-out level reads even in plain grey. Placement comes from algorithms that build the level the way the place would have formed or been built, never from scattering props at random x.
-
-**Each biome has its own layout.** A canyon, a salt flat, a reef and a buried city aren't the same algorithm with different props: they grow different bones, group things by different rules and give foes different routes. Today every biome shares one generator and differs only in its terrain `shape` and prop weights (`src/world/planets.ts`, `src/sim/terrain.ts`). That has to become one layout per biome, built on a shared toolkit.
-
-### The shared toolkit
-
-Every biome's layout runs the same steps, in order, but each step is its own per biome:
-
-1. **The bones**: the big features first. Canyon walls, a river and its banks, a road or a rail line, ridges, craters, a coast, a fault, a street grid. They run with the scroll and give the level its beats.
-2. **The lane**: the open space the ship flies through, kept at least three ship widths wide, opened and narrowed on purpose.
-3. **Groups along the bones, big to small**: the large forms go down first, then mid-sized groups, then the small details round them. Props cluster where the features say they would (reeds on the banks, rubble under the cliffs, wrecks along the road, caps in the wet hollows), at the sides of the lane, framing it. Each biome sets its own mix of sizes, and a density budget per screen.
-4. **Landmarks at chosen beats**: at most one per screen, where the level turns or opens.
-5. **Foes on the features they need**: route-bound foes are only spawned where their route exists, and follow it (boats on the water, vehicles on the road). Turrets are placed at the spots the bones make worth guarding. Free fliers fill the rest.
-6. **Breathers**: stretches with little scenery and no fire, so the busy parts read as busy.
-
-The toolkit gives the shared parts (a route the sim can follow, a lane carved through the bones, group placement along a curve or round a point, big-to-small placement, the budget, the beat clock). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
-
-### Each biome's layout
-
-A first idea for each painted biome, to be tried in screenshots and changed. Every other biome writes its row before its push starts.
-
-| Biome | Bones | Groups | Routes and posts | Beats |
-|---|---|---|---|---|
-| Salt Pans | flat salt, crossed by dry cracks and a few old haul tracks | salt pillars in tight clusters on the crack lines, wide bare salt between | skimmers race the tracks; mortars at track crossings | a stranded hauler; long bright breathers |
-| Red Mesa Run | a winding gorge, its walls, a dry wash on the floor | rubble and scrub under the cliffs and along the wash | vehicles in the wash and on ledge tracks; guns dug into the walls at the narrows | the broken arch; the depot in the wall |
-| Glowcap Forest | wet hollows and the dry rises between them | caps in groups in the hollows at the sides | crawlers along the rises; spitter pods in the hollows | a ring of giant caps; a clearing |
-| Spore Vents | a field of vent lines along buried faults | vents in rows on the faults, growth thickest round them | grown things root by the vents; fliers come out of the fog | a vent column; a dead quiet stretch |
-| Aurora Shelf | a shelf edge and its crevasses | ice spires in threes and fives on the ridges | sledges on the shelf road; pylons on the ridges | a calving face; open ice |
-| Engine City | a buried street grid under the ice | districts in blocks along the streets, lit from below | ground units on the streets; guns at junctions and gates | a laser gate across an avenue; a dark district |
-| Titan Graveyard | the titans' fallen bodies | wrecks and scavenger camps round the bodies | crawlers along the spines; guns on the ribs | one titan's hand framing the lane |
-| Glass Craters | crater rims and floors | glass shards on the rims, the floors glowing | rollers round the rims; emplacements on the high rims | a big crater to cross |
-| Calving Haze | no ground, a haze sea in layers | drift-calves in herds below, cloud banks at the sides | skiffs along wind lanes; harpoon posts on the floating rocks | a calf rising past |
-| Tide Caves | close reef walls and channels between them | wet growth on the lips, shell beds in the shallows | boats in the channels; guns in the cave mouths | a flooded hall; a narrows |
-
-### Layout first, art after
-
-Each biome's layout is built and judged before its full new look. Its screenshots (in today's models plus whatever the layout needed modelled, and in the grey frame and the strip) must already read as a designed place: clear bones, grouped props, an open lane, foes on their routes. New models on a bad layout don't fix it.
+**The level design rules are in [level design](level-design.md)**: the principles every screen must pass (it looks great and plays clearly), what the paintings are for, how a level is laid out (the shared toolkit and each biome's layout), modelling props, and the screenshot loop every push is judged by. Read it before starting any push here. How it looks in screenshots outweighs every metric and guideline in this document.
 
 ## The checks
 
-`just look` builds these (see Tools). Each push names the ones it needs; every push also takes the screenshot set above, and that set has the last word.
+`just look` builds these (see Tools). Each push names the ones it needs; every push also takes the [screenshot set](level-design.md#checking-a-level-screenshots-many-of-them), and that set has the last word.
 
 **Stills**
 - **Look**: `just look <planet> <biome>` saves a painting and the game side by side, at a fixed seed with the sim paused at a set moment. `--all` makes a contact sheet of every biome.
@@ -162,7 +75,7 @@ Today a prop is a collider at 11 or taller and scenery reaches 8.5, with nothing
 - **Pass, look:** fly into a collider. It stays solid all the way.
 
 ### Push 10: the generator, and Red Mesa's layout
-The [shared toolkit](#the-shared-toolkit) and the first biome layout on it, Red Mesa Run's [row](#each-biomes-layout). Today each chunk scatters props at random x, landmarks up to 26 wide included. Build the toolkit so a second, very different layout (Salt Pans or Tide Caves) fits it without changes: try it as a sketch before the push closes.
+The [shared toolkit](level-design.md#the-shared-toolkit) and the first biome layout on it, Red Mesa Run's [row](level-design.md#each-biomes-layout). Today each chunk scatters props at random x, landmarks up to 26 wide included. Build the toolkit so a second, very different layout (Salt Pans or Tide Caves) fits it without changes: try it as a sketch before the push closes.
 
 - **Pass, screenshots:** a set of twelve seeds, calm and mid-fight, in today's models. On every screen you can say why each group is where it is.
 - **Pass, big and small:** every screen has a few big forms with details gathered round them. No screen is all crumbs, all blocks, or one size everywhere.
@@ -183,7 +96,7 @@ The generator places the foes: vehicles along the wash and the canyon tracks, tu
 
 ## Every biome through the generator
 
-Then every biome gets its own layout on the generator, a family at a time. Today's models are the start; anything a layout needs that's missing or not good enough (its bones, its big forms, the props that make it its own) is modelled in Blender as part of the push. Biomes that share bones share most of their layout code, and each gets its own rules on top. A family is one push. Inside it, for each biome: write its [layout row](#each-biomes-layout), build it, put its foes on their routes, then take a screenshot set, look, fix and reshoot until it looks right. When a family needs the toolkit to change, reshoot the families already done.
+Then every biome gets its own layout on the generator, a family at a time. Today's models are the start; anything a layout needs that's missing or not good enough (its bones, its big forms, the props that make it its own) is modelled in Blender as part of the push. Biomes that share bones share most of their layout code, and each gets its own rules on top. A family is one push. Inside it, for each biome: write its [layout row](level-design.md#each-biomes-layout), build it, put its foes on their routes, then take a screenshot set, look, fix and reshoot until it looks right. When a family needs the toolkit to change, reshoot the families already done.
 
 A first guess at the families, to be changed as the rows get written:
 

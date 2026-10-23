@@ -21,6 +21,8 @@ low resolution through banded toon lighting and dark depth outlines, so they rea
   for lava, neon, bioluminescence, engine nozzles and eyes — glow reads beautifully at low res.
 - **Variants.** Make 2–4 variants of common kinds (`variant=0,1,2…`) — different shapes, not
   just sizes — so a forest isn't one tree repeated. The runtime also scales and rotates them.
+  Where a kind needs more variety (rocks, trees, shards, rubble), generate the variants
+  procedurally from a seed in the script instead of shaping each by hand.
 
 ## Units and axes
 
