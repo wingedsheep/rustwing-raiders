@@ -1,5 +1,5 @@
 """The player ships: five frames (hull + cockpit) and the parts that bolt onto their socket grids,
-plus the two pickups.
+plus the pickups.
 
 Conventions (shared with src/game/parts.ts and the runtime):
 - `frame_<id>`: root empty at the origin; the socket grid is centred on it. CELL = 0.8, row 0 at
@@ -9,7 +9,8 @@ Conventions (shared with src/game/parts.ts and the runtime):
 - `part_<id>`: root empty at the centre of its cell [0,0], standing on z = 0. Extra cells go +x
   (column offset) and -y (row offset). Guns point +y, engines blow towards -y.
 - Liveries: Skin a = hull paint, b = trim, c = accent glow. Metal and rubber are fixed colours.
-- `pickup_part` (salvage crate) and `pickup_scrap` (a chunky gear).
+- `pickup_part` (salvage crate), `pickup_scrap` (a bent tin coin), `pickup_scrap_big` (two wired
+  together) and `pickup_repair` (a riveted patch).
 - `demo_<frame>`: an assembled ship with its start parts, for previews only (built when the
   command line has --preview, or SHIPS_DEMO=1).
 """
@@ -1935,24 +1936,67 @@ def pickup_part():
     m.box((1.24, 0.94, 0.08), (0, 0, 0.66), "#8a9098")
     m.box((0.5, 0.4, 0.04), (-0.2, 0.05, 0.71), HAZARD)                      # salvage label
     m.box((0.2, 0.4, 0.04), (0.35, 0.05, 0.71), "#2a2c30")
-    for x in (-0.35, 0.35):                                                    # glowing straps
-        m.box((0.12, 0.96, 0.74), (x, 0, 0.36), "#6affb0", glow=True)
-    m.box((1.26, 0.12, 0.74), (0, 0, 0.36), "#6affb0", glow=True)
+    for x in (-0.35, 0.35):                                                    # chalk-white straps (what you take is white)
+        m.box((0.12, 0.96, 0.74), (x, 0, 0.36), CHALK)
+    m.box((1.26, 0.12, 0.74), (0, 0, 0.36), CHALK)
     for x, y in ((-0.55, -0.4), (0.55, -0.4), (-0.55, 0.4), (0.55, 0.4)):
         m.box((0.16, 0.16, 0.76), (x, y, 0.36), STEEL)
     m.build(root)
 
 
+# Pickups are chalk-white, matte and angular (docs/art-direction/pickups/sheet.png): nothing round
+# or glowing, so nothing you take looks like a bullet.
+CHALK = "#ece6d8"
+CHALK_DIM = "#b8b0a0"
+TIN_RUST = "#a0562e"
+HOLE = "#1a161c"
+
+
+def coin(m: Model, z: float, seed: int):
+    """A bent tin coin: a stamped disc of salvage, its outline dented, a punched hole, one edge
+    bent up, a patch of rust. About 0.6 across, lying flat at height z."""
+    n = 9
+    pts = []
+    for i in range(n):
+        a = TAU * i / n
+        r = 0.3 * (1 - 0.18 * ((i * 7 + seed * 3) % 4 == 0) - 0.06 * math.sin(a * 3 + seed))
+        pts.append((math.cos(a) * r, math.sin(a) * r))
+    m.slab(pts, z, z + 0.06, CHALK)
+    m.slab([(x * 0.96, y * 0.96) for x, y in pts], z - 0.02, z, CHALK_DIM)          # its underside rim
+    m.box((0.2, 0.2, 0.05), (0.27, -0.04, z + 0.07), CHALK, rot=(0, -0.55, 0.2))  # the bent edge
+    m.cyl(0.055, 0.03, (-0.12, 0.1, z + 0.06), HOLE, segs=6)                      # punched hole
+    m.box((0.12, 0.09, 0.012), (0.06, -0.15, z + 0.065), TIN_RUST, rot=(0, 0, 0.4))
+
+
 def pickup_scrap():
     root = group("pickup_scrap", kind="pickup_scrap")
-    m = Model("gear")
-    m.cyl(0.15, 0.1, (0, 0, 0.0), "#b0b4ba", segs=8)
-    for i in range(6):
-        a = TAU * i / 6
-        m.box((0.1, 0.1, 0.1), (math.cos(a) * 0.17, math.sin(a) * 0.17, 0.05), "#b0b4ba", rot=(0, 0, a))
-    m.cyl(0.06, 0.12, (0, 0, 0.0), "#ffc24a", segs=6, glow=True)
-    m.cyl(0.05, 0.22, (0.0, 0.0, 0.08), "#7a7e86", segs=6, rot=(0.5, 0.3, 0))   # bolt through it
-    m.cyl(0.08, 0.06, (0.0, 0.0, 0.08), "#7a7e86", segs=6, rot=(0.5, 0.3, 0))
+    m = Model("coin")
+    coin(m, 0.0, 1)
+    m.build(root)
+
+
+def pickup_scrap_big():
+    """A bundle: two coins stacked and wired together."""
+    root = group("pickup_scrap_big", kind="pickup_scrap_big")
+    m = Model("bundle")
+    coin(m, 0.0, 2)
+    coin(m, 0.1, 4)
+    m.box((0.08, 0.66, 0.2), (0.02, 0, 0.08), HOLE)                               # the wire round them
+    m.box((0.1, 0.1, 0.06), (0.02, 0.0, 0.2), STEEL)                               # its twist
+    m.build(root)
+
+
+def pickup_repair():
+    """A riveted repair patch: a square of chalk tin, a rivet at each corner, a stitched cross."""
+    root = group("pickup_repair", kind="pickup_repair")
+    m = Model("patch")
+    m.box((0.66, 0.66, 0.07), (0, 0, 0.035), CHALK)
+    m.box((0.62, 0.62, 0.03), (0, 0, -0.01), CHALK_DIM)
+    for x, y in ((-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)):
+        m.cyl(0.06, 0.06, (x, y, 0.08), STEEL, segs=6)
+    for k in range(-2, 3):                                                         # the stitches
+        for sx, sy in ((1, 1), (1, -1)):
+            m.box((0.1, 0.035, 0.02), (k * 0.085 * sx, k * 0.085 * sy, 0.075), HOLE, rot=(0, 0, math.atan2(sy, sx) + math.pi / 2))
     m.build(root)
 
 
@@ -2275,6 +2319,8 @@ def build():
         fn(root)
     pickup_part()
     pickup_scrap()
+    pickup_scrap_big()
+    pickup_repair()
     for v in range(3):
         hauler(v)
     runner()

@@ -58,6 +58,9 @@ interface Giant {
   t: number;
 }
 
+/** How much of a fight is on (0 calm, 1 hot): the air, the clouds and the flocks thin out with it. */
+export const busy = (lv: Level) => Math.min(1, lv.bullets.length / 24 + lv.enemies.length / 10);
+
 export class Life {
   private flocks: Flock[] = [];
   private giants: Giant[] = [];
@@ -81,7 +84,7 @@ export class Life {
 
   private birds(dt: number, lv: Level, b: Biome, halfW: number) {
     this.flockT -= dt;
-    if (this.flockT <= 0 && birdy(b) && this.flocks.length < 3) {
+    if (this.flockT <= 0 && birdy(b) && this.flocks.length < (busy(lv) > 0.5 ? 1 : 3)) {
       this.flockT = 5 + Math.random() * 9;
       // in from one side, crossing with the wind, low over the land
       const side = Math.random() < 0.5 ? -1 : 1;

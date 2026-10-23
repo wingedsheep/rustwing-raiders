@@ -6,10 +6,11 @@ import type { Faction } from '../sim/factions';
 import { FLIGHT_Y, TILT, fromFlight } from '../sim/types';
 
 /**
- * Enemy fire, as things in the world: small models lit by the same sun as the ships, drawn into
- * the scene so the paint, the outlines, the grade and the bloom take them like everything else.
- * What burns is unlit and brighter than white, so it blooms; around it, soft light that adds (a
- * halo, a tracer, afterimages, an exhaust glow). Each faction's fire is made of its own stuff, so
+ * Enemy fire: small models drawn in the view's overlay, over the finished picture, so the paint,
+ * the grade, the bloom and the black lift never flatten them (the world is painted; the danger
+ * isn't). They carry their own light, the same in every biome, and their own sRGB encoding (the
+ * overlay draws straight into the graded picture). What burns is white-hot; around it, soft light
+ * that adds (a halo, a tracer, afterimages, an exhaust glow), and under it a near-black plate. Each faction's fire is made of its own stuff, so
  * a bullet still says who fired it:
  *
  *  - scrap:   hot metal. White-hot slugs trailing tracers, iron flak glowing through its plates,
@@ -204,11 +205,12 @@ export const FLAME = new THREE.ConeGeometry(0.15, 1.5, 10, 1, true).rotateX(-Mat
 
 // ── the shapes, in the order of FAMILY ───────────────────────────────────────────────────────
 // a scrap round's jacket: an iron sleeve, open at the front, a rim round its base
-const JACKET = lathe([[0.001, -0.62], [0.44, -0.62], [0.5, -0.56], [0.5, -0.46], [0.47, -0.42], [0.47, 0.18], [0.44, 0.2]], 14);
+const JACKET = lathe([[0.001, -0.62], [0.36, -0.62], [0.42, -0.56], [0.42, -0.46], [0.39, -0.42], [0.39, 0.0], [0.36, 0.02]], 14);
 const slug = (needle: boolean): ShapeDef => ({
   parts: [
     // a hot slug in an iron jacket: the faction's colour glowing out of the front, white at the tip
-    { geo: SPHERE, stuff: 'light', at: needle ? place(0, 0, 0.35, 0.33, 0.33, 0.8) : place(0, 0, 0.22, 0.45, 0.45, 0.62), color: (x, o) => o.copy(x.col).lerp(HOT, 0.2).multiplyScalar(1.7) },
+    // (fat enough to show over its jacket from above: the colour is what you see first)
+    { geo: SPHERE, stuff: 'light', at: needle ? place(0, 0, 0.3, 0.4, 0.4, 0.85) : place(0, 0, 0.12, 0.54, 0.54, 0.7), color: (x, o) => o.copy(x.col).multiplyScalar(1.15) },
     { geo: SPHERE, stuff: 'light', at: needle ? place(0, 0, 0.75, 0.17, 0.17, 0.35) : place(0, 0, 0.5, 0.24, 0.24, 0.3), color: (_, o) => o.copy(HOT).lerp(WHITE, 0.6).multiplyScalar(3) },
     { geo: JACKET, stuff: 'metal', at: needle ? place(0, 0, 0, 0.7, 0.7, 1.3) : place(0, 0, -0.05, 1, 1, 0.9), color: (x, o) => o.copy(GUNMETAL).lerp(x.col, 0.08) },
   ],
@@ -457,6 +459,21 @@ export function instanced(geo: THREE.BufferGeometry, mat: THREE.Material, max: n
   return m;
 }
 
+/**
+ * Into the overlay: the material's colour encoded to sRGB, as the graded picture it draws over is.
+ * Past white it's scaled back, not clipped, so a hot colour stays its hue instead of going pastel.
+ */
+function graded(mat: THREE.Material) {
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <colorspace_fragment>',
+      '#include <colorspace_fragment>\n\tgl_FragColor.rgb /= max(1.0, max(gl_FragColor.r, max(gl_FragColor.g, gl_FragColor.b)));\n\tgl_FragColor = sRGBTransferOETF(gl_FragColor);',
+    );
+  };
+  mat.customProgramCacheKey = () => 'graded';
+  return mat;
+}
+
 export class BulletArt {
   readonly group = new THREE.Group();
   /** Per shape, per part: its mesh. */
@@ -481,18 +498,28 @@ export class BulletArt {
     const mats = new Map<Stuff, THREE.Material>();
     this.meshes = SHAPES.map(sh =>
       sh.parts.map(def => {
-        if (!mats.has(def.stuff)) mats.set(def.stuff, material(def.stuff));
+        if (!mats.has(def.stuff)) {
+          // (all drawn in the transparent pass, so the order holds: the dark plate first, the
+          // body over it; an opaque body would go down first and the plate would bury it)
+          const m = graded(material(def.stuff));
+          m.transparent = true;
+          mats.set(def.stuff, m);
+        }
         // see-through things after the solid ones
         const mesh = instanced(def.geo, mats.get(def.stuff)!, MAX, def.stuff === 'glass' || def.stuff === 'haze' ? 27 : 26);
         this.group.add(mesh);
         return mesh;
       }),
     );
-    const soft = new THREE.MeshBasicMaterial({ map: SOFT, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    // their own light: a white key from the upper left and a fill, whatever the biome's sky
+    const key = new THREE.DirectionalLight(0xffffff, 2.6);
+    key.position.set(-0.6, 1, 0.5);
+    this.group.add(key, new THREE.HemisphereLight(0xffffff, 0x50485a, 2.2));
+    const soft = graded(new THREE.MeshBasicMaterial({ map: SOFT, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     // halos go down first, the shadow plate over them and the bullet over that: a dark rim, light beyond
     this.glow = instanced(new THREE.PlaneGeometry(1, 1), soft, MAX_GLOW, 24);
-    this.streaks = instanced(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: STREAK, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }), MAX_GLOW, 28);
-    this.backing = instanced(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: PLATE, transparent: true, depthWrite: false, opacity: 0.8 }), MAX, 25);
+    this.streaks = instanced(new THREE.PlaneGeometry(1, 1), graded(new THREE.MeshBasicMaterial({ map: STREAK, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })), MAX_GLOW, 28);
+    this.backing = instanced(new THREE.PlaneGeometry(1, 1), graded(new THREE.MeshBasicMaterial({ map: PLATE, transparent: true, depthWrite: false, opacity: 0.8 })), MAX, 25);
     this.group.add(this.glow, this.streaks, this.backing);
   }
 
@@ -603,10 +630,26 @@ const BULLET_Y = FLIGHT_Y + 1;
 const BACKING = new THREE.Color(0.02, 0.015, 0.035);
 const hsl = { h: 0, s: 0, l: 0 };
 
-/** An enemy's accent can be dark or dull; its fire never is: lifted to a bright, saturated colour. */
+/**
+ * An enemy's accent can be dark or dull; its fire never is: lifted to a deep, saturated colour
+ * (in linear light: lighter than this goes pastel once it's encoded for the screen).
+ */
 function vivid(c: THREE.Color) {
+  // (the hue as the eye sees it, then the depth in linear light)
+  c.getHSL(hsl, THREE.SRGBColorSpace);
+  c.setHSL(ownHue(hsl.h), hsl.s, hsl.l, THREE.SRGBColorSpace);
   c.getHSL(hsl);
-  return c.setHSL(hsl.h, Math.max(hsl.s, 0.65), Math.min(Math.max(hsl.l, 0.6), 0.75));
+  return c.setHSL(hsl.h, Math.max(hsl.s, 0.88), Math.min(Math.max(hsl.l, 0.45), 0.58));
+}
+
+/**
+ * Rust, orange and gold are the player's (their ship, their slugs, their engine): an enemy's
+ * accent in that band fires flare red below its middle and acid yellow above it. Every other hue
+ * is the foe's own.
+ */
+function ownHue(h: number) {
+  if (h < 12 / 360 || h > 52 / 360) return h;
+  return h < 30 / 360 ? 355 / 360 : 60 / 360;
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));

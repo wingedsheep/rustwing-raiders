@@ -7,9 +7,9 @@ import { xray } from './xray';
 import { HazardView } from './hazard-view';
 import { Fx } from './fx';
 import { Strokes } from './strokes';
-import { Life } from './life';
+import { Life, busy } from './life';
 import { GLASSY, TELL_COLOR, Threats } from './threats';
-import { BulletArt, SOFT } from './bullets';
+import { BulletArt } from './bullets';
 import { ShotArt } from './shots';
 import { Guards, Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
@@ -45,8 +45,6 @@ import { HOT as HOT_TEXT } from '../ui/hud';
 import { EDGES, type Edge } from '../game/parts';
 
 /** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
-const SCRAP_GLOW = new THREE.SpriteMaterial({ map: SOFT, color: 0xffc04a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
-const SCRAP_TRAIL = new THREE.Color(0xffd070);
 /** A tug's tow line: a rod of hard light, stretched from the tug to its strongbox. */
 const TOW = new THREE.CylinderGeometry(0.08, 0.08, 1, 5);
 const TOW_D = new THREE.Vector3();
@@ -70,12 +68,13 @@ const MARGIN = 3;
 const SHOT_COLORS: Record<string, number> = {
   slug: 0xffe08a,
   pellet: 0xffc070,
-  rail: 0x9af0ff,
+  // (the player's fire is rust and cream: the rail and the beam white-hot, not the lattice's cyan)
+  rail: 0xfff0d4,
   missile: 0xffffff,
   flak: 0xffb050,
   flame: 0xff9a3a,
-  mine: 0xff5a3a,
-  beam: 0x8af8ff,
+  mine: 0xff8a3a,
+  beam: 0xffe8b8,
   arc: 0xc8b0ff,
 };
 
@@ -398,7 +397,8 @@ export class LevelView {
       this.overlay.add(g);
       this.hitboxes.push(g);
     });
-    this.scene.add(this.bullets.group, this.shotArt.group, this.looks.group, this.kitArt.group);
+    this.overlay.add(this.bullets.group);
+    this.scene.add(this.shotArt.group, this.looks.group, this.kitArt.group);
     this.shots = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500);
     this.shots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(1500 * 3), 3);
     this.shots.frustumCulled = false;
@@ -2275,6 +2275,10 @@ export class LevelView {
     u.uTime.value = this.time;
     const hot = (bi: Biome) => (bi.waterGlow && bi.waterGlow >= 1 ? 0.6 : 0);
     u.uHeat.value = lerp(hot(a), hot(b), bl.t);
+    // the ground under the lane calmed (the camera sits 120 off the flight plane, which is further
+    // off up the picture than down it)
+    u.uLane.value = 1;
+    u.uPlane.value.set(120 + this.camera.bottom * Math.tan(TILT), 120 + this.camera.top * Math.tan(TILT));
   }
 
   /**
@@ -3065,9 +3069,9 @@ export class LevelView {
         u.uLen.value = len;
         u.uColor.value.setHex(i === 0 ? SHOT_COLORS.beam : LIVERY[i][2]);
         // where it bites: a hot glow
-        this.fx.add({ x: x + Math.sin(g.dir) * len, y: FLIGHT_Y + 0.8, z: z - Math.cos(g.dir) * len, size: 1.6 + Math.random() * 0.6, grow: 0.5, life: 0.05, color: this.c.setHex(0xc8faff).multiplyScalar(1.2), carried: true });
+        this.fx.add({ x: x + Math.sin(g.dir) * len, y: FLIGHT_Y + 0.8, z: z - Math.cos(g.dir) * len, size: 1.6 + Math.random() * 0.6, grow: 0.5, life: 0.05, color: this.c.setHex(0xfff4dc).multiplyScalar(1.2), carried: true });
         this.fx.add({ x, y: FLIGHT_Y + 0.8, z: z - 0.4, size: 1.2, grow: 0.4, life: 0.04, color: HOT, carried: true });
-        if (Math.random() < 0.5) this.fx.sparks(x + Math.sin(g.dir) * len, FLIGHT_Y + 0.6, z - Math.cos(g.dir) * len, 1, 0x8af8ff, 10, 0.15, 0.25);
+        if (Math.random() < 0.5) this.fx.sparks(x + Math.sin(g.dir) * len, FLIGHT_Y + 0.6, z - Math.cos(g.dir) * len, 1, 0xffe8b8, 10, 0.15, 0.25);
         k++;
       });
     });
@@ -3083,6 +3087,11 @@ export class LevelView {
         m = part(GEO.box, flat(0xffffff, { own: true }), [0, 0, 0], 1);
         m.renderOrder = 27;
         (m.material as THREE.Material).depthTest = false;
+        // a dark edge either side of it while it burns, so the white reads on snow and salt too
+        const edge = part(GEO.box, flat(0x0c0812, { own: true }), [0, -0.2, 0], [1.9, 0.8, 1]);
+        edge.renderOrder = 26;
+        (edge.material as THREE.Material).depthTest = false;
+        m.add(edge);
         this.laserMeshes.push(m);
         this.scene.add(m);
       }
@@ -3097,6 +3106,7 @@ export class LevelView {
       m.position.set(x0 + dx / 2, FLIGHT_Y + 0.9, z0 + dz / 2);
       m.rotation.y = Math.atan2(dx, dz);
       const mat = m.material as THREE.MeshBasicMaterial;
+      m.children[0].visible = l.warn <= 0 && !l.tow;
       if (l.warn > 0) {
         // the warning: a thin flickering line, faster as it's about to fire
         const on = Math.floor(this.time * (8 + (1 - l.warn) * 30)) % 2 === 0;
@@ -3111,8 +3121,9 @@ export class LevelView {
         mat.color.setHex(pulse > 0.9 ? 0xffffff : l.color);
         if (Math.random() < 0.08) this.fx.sparks(l.x2, FLIGHT_Y + 0.8, l.z2, 1, l.color, 6, 0.2, 0.12, true);
       } else {
+        // white-hot, the firer's colour only flickering through it
         m.scale.set(1.6 + Math.sin(this.time * 70) * 0.25, 0.3, len);
-        mat.color.setHex(Math.floor(this.time * 30) % 2 ? 0xffffff : l.color);
+        mat.color.setHex(Math.floor(this.time * 30) % 4 ? 0xffffff : l.color);
         this.trauma = Math.max(this.trauma, 0.2);
       }
       k++;
@@ -3131,28 +3142,32 @@ export class LevelView {
         let inst: Instance | null = null;
         let obj: THREE.Object3D;
         if (k.kind === 'scrap') {
-          // bigger than the model, and lit from underneath so it reads against any ground
-          inst = library.clone('pickup_scrap');
+          // a bent tin coin (a bundle of two for more), chalk-white and inked round like a foe, so
+          // it reads on any ground; no glow (what glows is fire)
+          inst = library.clone(k.value > 1 ? 'pickup_scrap_big' : 'pickup_scrap');
           obj = new THREE.Group();
-          obj.add(inst?.obj ?? part(GEO.oct, toon(0xc8b080), [0, 0, 0], 0.3), new THREE.Sprite(SCRAP_GLOW));
-          obj.children[1].position.y = 0.15;
+          obj.add(inst?.obj ?? part(GEO.oct, toon(0xece6d8), [0, 0, 0], 0.3));
         } else if (k.kind === 'part') {
           inst = library.clone('pickup_part');
           obj = inst?.obj ?? part(GEO.box, toon(0x5a8a6a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]);
         } else if (k.kind === 'hot') {
-          // a volatile strongbox: hazard orange, black bands, a warning light on top, and a red ring
-          // pulsing round it on the ground
+          // a volatile strongbox: hazard orange, black bands, a warning light on top, and a chalk
+          // ring pulsing round it on the ground (white like everything you can take: red is fire)
           obj = new THREE.Group();
           obj.add(part(GEO.box, toon(HOT_HEX, { glow: 0.4 }), [0, 0, 0], [1.4, 1, 1]));
           obj.add(part(GEO.box, toon(0x1a1014), [0, 0, 0], [1.5, 0.2, 1.1]));
-          obj.add(part(GEO.oct, flat(0xff2a2a), [0, 0.8, 0], 0.38));
+          obj.add(part(GEO.oct, flat(0xfff4e0), [0, 0.8, 0], 0.38));
           obj.add(part(GEO.box, toon(0x1a1014), [-0.45, 0, 0], [0.18, 1.1, 1.1]), part(GEO.box, toon(0x1a1014), [0.45, 0, 0], [0.18, 1.1, 1.1]));
         } else if (k.kind === 'repair') {
+          // a riveted repair patch: chalk tin, a stitched cross (green is the bloom's)
+          inst = library.clone('pickup_repair');
           obj = new THREE.Group();
-          obj.add(part(GEO.box, flat(0x8affb0), [0, 0, 0], [1, 0.3, 0.35]), part(GEO.box, flat(0x8affb0), [0, 0, 0], [0.35, 0.3, 1]));
+          obj.add(inst?.obj ?? part(GEO.box, toon(0xece6d8), [0, 0, 0], [0.7, 0.1, 0.7]));
+          obj.scale.setScalar(2.2);
         } else {
           obj = part(new THREE.TorusGeometry(2.4, 0.22, 4, 18), toon(0xffd04a, { glow: 0.6 }), [0, 0, 0], 1);
         }
+        if (k.kind === 'scrap' || k.kind === 'repair') outlined(obj);
         this.scene.add(obj);
         v = { obj, inst, beacon: (k.kind === 'part' || k.kind === 'hot') && k.part ? this.beacon(tierOf(k.part)) : undefined };
         if (v.beacon) this.scene.add(v.beacon);
@@ -3167,26 +3182,27 @@ export class LevelView {
         v.obj.rotation.x = -TILT * 0.4;
         v.obj.visible = !done || Math.floor(this.time * 20) % 2 === 0;
         v.obj.scale.setScalar(done ? 1.3 : 1);
+      } else if (k.kind === 'scrap' || k.kind === 'repair') {
+        // a coin or a patch turns over as it bobs, showing its thin edge now and then: it drifts,
+        // it never streaks
+        v.obj.rotation.set(-0.5 + 0.9 * Math.sin(this.time * 2.2 + k.x), this.time * 1.3 + k.z, 0);
+        if (k.kind === 'scrap') {
+          const big = k.value > 1;
+          // it pops out of the wreck
+          const f = Math.min(1, k.t / 0.22);
+          const pop = f * (1 + 0.5 * Math.sin(f * Math.PI));
+          v.obj.scale.setScalar((big ? 2.3 : 2) * pop);
+        }
       } else {
-        v.obj.rotation.y += dt * (k.kind === 'part' || k.kind === 'hot' ? 1.5 : 5);
+        v.obj.rotation.y += dt * 1.5;
         // the strongbox's light blinks: it's live
         if (k.kind === 'hot') {
           v.obj.children[2].visible = Math.floor(this.time * 5) % 2 === 0;
-          if (k.t % 0.7 < dt) this.fx.ring(k.x, FLIGHT_Y, k.z, 7, 0.5, false, 0xff2a2a);
-        }
-        if (k.kind === 'scrap') {
-          // it pops out of the wreck, glints as it drifts, and streaks when the magnet has it
-          const big = k.value > 1;
-          const f = Math.min(1, k.t / 0.22);
-          const pop = f * (1 + 0.5 * Math.sin(f * Math.PI));
-          v.obj.scale.setScalar((big ? 2.5 : 1.8) * pop);
-          v.obj.children[1].scale.setScalar((big ? 2.2 : 1.6) * (1 + 0.2 * Math.sin(this.time * 9 + k.x * 3)));
-          if (Math.random() < (big ? 0.06 : 0.025)) this.fx.sparks(k.x, FLIGHT_Y + 0.9, k.z, 1, 0xffffff, 1.5, 0.3, 0.35);
-          if (k.vx * k.vx + k.vz * k.vz > 100) this.fx.add({ x: k.x, y: FLIGHT_Y + 0.5, z: k.z, life: 0.16, size: big ? 0.45 : 0.32, grow: 0.2, color: SCRAP_TRAIL });
+          if (k.t % 0.7 < dt) this.fx.ring(k.x, FLIGHT_Y, k.z, 7, 0.5, false, 0xfff4e0);
         }
         if (k.kind === 'part' || k.kind === 'hot') {
           const tier = k.part ? tierOf(k.part) : 'common';
-          const col = k.kind === 'hot' && Math.random() < 0.5 ? HOT_HEX : tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
+          const col = k.kind === 'hot' && Math.random() < 0.5 ? HOT_HEX : tier === 'common' ? 0xfff4e0 : TIER_HEX[tier];
           v.obj.scale.setScalar((k.kind === 'hot' ? 2 : 1) * (1 + Math.sin(this.time * 6) * 0.08));
           if (Math.random() < (tier === 'legendary' ? 0.6 : tier === 'epic' ? 0.35 : 0.15)) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, col, tier === 'legendary' ? 7 : 4, 0.4, 0.2);
           if (v.beacon) {
@@ -3247,7 +3263,11 @@ export class LevelView {
     if (it?.affix) this.pop(`✦ ${AFFIXES[it.affix].name}`, x, z + (tier === 'legendary' ? 4 : 3.5), AFFIX_COLOR);
   }
 
-  /** The air of the place: ash, embers, spores, snow, rain… drifting through the view. */
+  /**
+   * The air of the place: ash, embers, spores, snow, rain… drifting through the view. None of it may
+   * look like a shot: it stays well under the flight plane, bigger, softer and dimmer than any
+   * bullet, mostly covering rather than glowing, and it thins out while a fight is on.
+   */
   private ambient(dt: number) {
     const lv = this.lv;
     const b = lv.terrain.biome(lv.scroll);
@@ -3256,36 +3276,40 @@ export class LevelView {
     this.air = this.air.filter((t) => t > this.time);
     if (kind === 'none') return;
     const add = (o: Parameters<Fx['add']>[0]) => void this.air.push(this.time + this.fx.add(o).life);
-    this.ambientT += dt * (kind === 'rain' ? 60 : kind === 'snow' || kind === 'ash' ? 22 : 12);
+    // a fight on: enemy fire and foes about thin the air out to a third
+    const fight = busy(lv);
+    this.ambientT += dt * (kind === 'rain' ? 60 : kind === 'snow' || kind === 'ash' ? 22 : 12) * (1 - 0.65 * fight);
+    const dim = (c: THREE.Color, k = 0.5) => this.c.copy(c).multiplyScalar(k);
     while (this.ambientT > 1) {
       this.ambientT--;
       const x = (Math.random() - 0.5) * HALF_W * 2.4;
       const z = lv.scroll + (Math.random() - 0.6) * HALF_H * 2.2;
-      const y = 2 + Math.random() * 14;
+      // (low: from just over the ground to a few units under the ships)
+      const y = 1 + Math.random() * (FLIGHT_Y - 5);
       switch (kind) {
         case 'ash':
-          add({ x, y: y + 6, z, vx: 1.5, vy: -2, vz: 1, size: 0.18, life: 3, glow: false, color: ASH });
+          add({ x, y, z, vx: 1.5, vy: -1, vz: 1, size: 0.45, life: 3, glow: false, color: dim(ASH, 0.7) });
           break;
         case 'snow':
-          add({ x, y: y + 6, z, vx: 2, vy: -3, vz: 1, size: 0.2, life: 3, glow: false, color: SNOW });
+          add({ x, y, z, vx: 2, vy: -1.5, vz: 1, size: 0.5, life: 3, glow: false, color: dim(SNOW, 0.75) });
           break;
         case 'embers':
-          add({ x, y: Math.random() * 4, z, vx: (Math.random() - 0.5) * 2, vy: 4, size: 0.16, life: 2.2, color: EMBER, to: EMBER_END });
+          add({ x, y: Math.random() * 3, z, vx: (Math.random() - 0.5) * 2, vy: 1.5, size: 0.5, grow: 1.6, life: 2.2, color: dim(EMBER, 0.45), to: EMBER_END });
           break;
         case 'spores':
-          add({ x, y, z, vx: Math.sin(z) * 0.8, vy: 0.6, size: 0.18, life: 3, color: Math.random() < 0.5 ? SPORE : SPORE2 });
+          add({ x, y, z, vx: Math.sin(z) * 0.8, vy: 0.3, size: 0.55, grow: 1.5, life: 3, glow: false, color: dim(Math.random() < 0.5 ? SPORE : SPORE2, 0.45) });
           break;
         case 'pollen':
-          add({ x, y, z, vx: 1.2, vy: 0.3, size: 0.14, life: 3, color: POLLEN });
+          add({ x, y, z, vx: 1.2, vy: 0.2, size: 0.45, grow: 1.4, life: 3, glow: false, color: dim(POLLEN, 0.55) });
           break;
         case 'motes':
-          add({ x, y, z, vy: 0.4, size: 0.16, grow: 0.2, life: 2.5, color: new THREE.Color(b.light) });
+          add({ x, y, z, vy: 0.3, size: 0.5, grow: 1.5, life: 2.5, color: dim(new THREE.Color(b.light), 0.35) });
           break;
         case 'sand':
-          add({ x: x - 10, y: Math.random() * 6, z, vx: 18, vz: 2, size: 0.15, life: 1.4, glow: false, color: new THREE.Color(b.ground[2]) });
+          add({ x: x - 10, y: Math.random() * 4, z, vx: 18, vz: 2, size: 0.4, life: 1.4, glow: false, color: new THREE.Color(b.ground[2]) });
           break;
         case 'rain':
-          add({ x, y: 18, z: z - 4, vx: 3, vy: -40, vz: 6, size: 0.14, life: 0.45, glow: false, color: RAIN });
+          add({ x, y: FLIGHT_Y - 2, z: z - 4, vx: 3, vy: -40, vz: 6, size: 0.14, life: 0.2, glow: false, color: dim(RAIN, 0.7) });
           break;
         case 'steam':
           if (Math.random() < 0.4) add({ x, y: Math.max(lv.terrain.height(x, z), lv.terrain.water(z)), z, vy: 2.5, size: 1.4, grow: 2.5, life: 2, glow: false, color: STEAM, to: new THREE.Color(b.sky) });
@@ -3310,7 +3334,7 @@ export class LevelView {
         this.clouds.splice(i, 1);
       }
     }
-    if (b.clouds !== null && this.clouds.length < 7 && Math.random() < dt * 0.8) {
+    if (b.clouds !== null && this.clouds.length < (busy(lv) > 0.5 ? 3 : 7) && Math.random() < dt * 0.8) {
       const obj = new THREE.Group();
       const col = new THREE.Color(b.clouds);
       const n = 5 + Math.floor(Math.random() * 6);

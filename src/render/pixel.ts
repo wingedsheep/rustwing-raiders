@@ -120,6 +120,8 @@ export class PixelRenderer {
         uTone: { value: 0.3 },
         uVignette: { value: 0.5 },
         uBloom: { value: 0.5 },
+        uLane: { value: 0 }, // the ground under the lane calmed this much: less bloom and colour there, the richest at the edges
+        uPlane: { value: new THREE.Vector2(120, 120) }, // how far off the flight plane is at the picture's bottom and top
         uPaint: { value: 1 },
         uFlash: { value: new THREE.Vector4(1, 1, 1, 0) }, // rgb + amount: a whole-screen flash
         uHurt: { value: 0 }, // red at the edges when you're hit
@@ -154,6 +156,8 @@ export class PixelRenderer {
         uniform float uTone;
         uniform float uVignette;
         uniform float uBloom;
+        uniform float uLane;
+        uniform vec2 uPlane;
         uniform float uPaint;
         uniform vec4 uFlash;
         uniform float uHurt;
@@ -281,13 +285,21 @@ export class PixelRenderer {
             }
           }
 
+          // the lane: the ground well under the flight plane, in the middle, goes quieter (what
+          // flies and what stands up to it is left alone); the edges keep the richest colour
+          float ground = 0.0, mid = 0.0;
+          if (uLane > 0.0 && !sky) {
+            ground = smoothstep(2.0, 6.0, z - mix(uPlane.x, uPlane.y, vUv.y)) * uLane;
+            mid = 1.0 - smoothstep(0.2, 0.62, abs(q.x));
+          }
+
           // bloom: what glows lights the air around it
-          col += texture2D(tBloom, vUv).rgb * uBloom;
+          col += texture2D(tBloom, vUv).rgb * uBloom * (1.0 - 0.6 * ground * mid);
 
           // lift the blacks towards the shadow colour: dark places stay readable, like a painting's ground
           if (!sky) col = col * 0.9 + uShade * 0.07;
           float l = dot(col, vec3(0.299, 0.587, 0.114));
-          col = mix(vec3(l), col, uGrade.x);
+          col = mix(vec3(l), col, uGrade.x * (1.0 - ground * (0.3 * mid - 0.12 * (1.0 - mid))));
           col = (col - 0.5) * uGrade.y + 0.5;
           col *= uGrade.z;
 
@@ -437,6 +449,8 @@ export class PixelRenderer {
       this.pass(this.blur, this.bloomA);
     }
     this.pass(this.post, this.graded);
+    // (the lane is set fresh each frame by the flight that wants it; other views don't)
+    this.post.uniforms.uLane.value = 0;
     if (overlay) {
       const auto = r.autoClear;
       r.autoClear = false;

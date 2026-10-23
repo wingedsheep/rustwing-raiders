@@ -121,6 +121,8 @@ Each biome's layout is built and judged before its new art. Its screenshots in t
 
 `just look <planet> <biome>` and `just look --all` (`tools/look.ts`): a painting beside the game at a fixed seed and moment, and the grey frame, which keeps `readers()` in `src/view/level-view.ts` (the ships and their shots, foes, their fire and tells, hazards, pickups, and anything tagged `userData.lip`). `--at <s>` picks the moment, so a set is a few calls at different seeds and moments. The *before* for every later push is [`readability/before.jpg`](readability/before.jpg): seed 1, 15 s into a raid.
 
+The owner sheet, `sheet.html` on the dev server (`src/lab/sheet.ts`): every kind of enemy fire in every accent its foes fire in, a row per faction, then the player's shots and the pickups, through the game's own renderer on flat grey (`?ground=efe8dc` for salt, `?ground=1a1430` for night). Take it with `just shot "" --url http://localhost:5190/sheet.html`. It's the quickest way to see whether fire, shots and pickups can be told apart.
+
 `--stats` adds the numbers (20 s in, when every biome's foes are firing) and the Value, Squint and Strip sheets, with a `-found.png` showing each bullet and look-alike it measured. `--seeds` makes the Seeds sheet. The measures are in `tools/look-stats.ts`. Bullet contrast is the OKLab distance (lightness and colour), because the Salt Pans painting's orange shots on white salt read by colour. The paintings' numbers come from the bullets the look-alike finder finds in them.
 
 The lines are rough, from one run. They only need to point at what looks chaotic. When a line and the screenshots disagree, the screenshots win, and the line gets moved:
@@ -136,48 +138,6 @@ The lines are rough, from one run. They only need to point at what looks chaotic
 | Most on a screen (scenery / colliders / landmarks) | – | up to 162 / 9 / 2 | 60 / 8 / 1 |
 
 Today's game fails detail, bullet contrast and colour, and clumping everywhere. Glowcap, Spore Vents, Glass Craters and Engine City are full of look-alikes, and every biome puts two landmarks on a screen. The lane is open everywhere.
-
-## The four layers, game-wide
-
-No new biome art. After these four pushes, every biome shows the [four layers](art-direction.md#the-four-layers) apart, even before its world is redone.
-
-### Push 3: threats above the grade
-Enemy bullets go into the overlay pass, so bloom, split tone and the black lift stop flattening them. (The comment at `level-view.ts:132` says they are drawn there already; they aren't.) Tone down the ground under the lane: less bloom and saturation there, the richest colour at the edges.
-
-- **Pass, screenshots:** a mid-fight set of every biome. Every enemy shot is found in a second.
-- **Pass, bullet contrast:** the worst bullet in every biome clears the threshold (ΔE ≥ 0.2).
-- **Pass, saturation rule:** holds in all biomes.
-- **Pass, value:** bullets still stand out in the greyscale frame.
-- **Pass, squint:** each biome's thumbnail still reads as its own place next to the *before* sheet. Toning down the ground mustn't wash the biomes out.
-
-### Push 4: the colour contract
-Enemy fire in faction hues on the dark plate, player shots in rust and cream only, pickups chalk-white, laser gates white-hot cores with a dark edge. Fix what breaks it:
-- the legacy roster's orange and yellow bullets (`src/world/planets.ts`);
-- the player's rail in lattice cyan, the player's mine and missile in scrap red;
-- the scrap glow in the player's slug gold;
-- repair green, the same as bloom bullets and spores;
-- the hot strongbox's red lamp and ring;
-- laser gates in scrap red;
-- grafts recolouring player shots to faction hues.
-
-Checks:
-- **Pass, owner sheet:** every bullet, shot, pickup and gate drawn on neutral grey, grouped by owner (player, each faction, pickups, colliders). No hue family shows up in two groups.
-- **Pass, value:** in the colour-blind frames, the player's shots and enemy fire still differ by lightness or shape.
-- **Pass, hand:** a fight with grafts fitted. Your shots stay rust and cream.
-
-### Push 5: pickups by shape
-Paint a pickup sheet with Codex first (a bent tin coin for scrap, a riveted repair patch, at in-flight size on two of the paintings' grounds), then model them. They bob and turn and never streak; today scrap is a glowing blob, like an orb bullet.
-
-- **Pass, silhouettes:** every pickup and every bullet as black shapes at in-game size on one sheet. No pickup could be taken for a bullet.
-- **Pass, motion:** a short clip of pickups and bullets on screen together. The pickups drift and the bullets travel.
-- **Pass, five seconds:** three people asked "what can you take?" point to the pickups and nothing else.
-
-### Push 6: nothing ambient looks like a bullet
-Spores, embers, pollen, ash and glints stay below the flight plane, bigger and softer than any shot, and thin out while a fight is on. The same goes for low clouds and flocks.
-
-- **Pass, look-alikes:** zero blobs found, in every biome, both in a calm moment and mid-fight.
-- **Pass, budget:** the ambient count mid-fight is at most half the calm count, read from the sim.
-- **Pass, grey:** the contact sheet shows no ambient specks.
 
 ## Red Mesa Run, piece by piece
 
@@ -233,7 +193,7 @@ The models and light. Codex paints the biome's pieces on flat grey from the in-f
 - **Pass, squint:** the thumbnail reads as Red Mesa next to every other biome's.
 - **Pass, detail ratio:** at least the painting's lower bound, the lane calmer than the edges.
 - **Pass, paint-over:** Codex repaints a still in the game's style without moving anything. What it changes is the to-do list, and the push is done when that list is small.
-- **Re-run:** the checks from pushes 3, 6, 10 and 11.
+- **Re-run:** bullet contrast, saturation, look-alikes and squint, and the checks from pushes 10 and 11.
 - **Keep:** the final set's best still as `art-direction/planets/kessra-mesarun-game.png`.
 
 ## More biomes

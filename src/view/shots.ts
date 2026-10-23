@@ -143,10 +143,12 @@ const SHAPES: Record<Kind, ShapeDef> = {
 const COLORS: Record<Kind, number> = {
   slug: 0xffc24a,
   pellet: 0xff9a40,
-  rail: 0x8ae8ff,
+  // (white-hot cream, not the lattice's cyan)
+  rail: 0xfff0d4,
   missile: 0xff7a3a,
   flak: 0xffa040,
-  mine: 0xff5a3a,
+  // (rust, not the scrappers' flare red)
+  mine: 0xff8a3a,
 };
 
 export class ShotArt {
@@ -216,8 +218,8 @@ export class ShotArt {
       if (s.tag === 'reflect' || s.tag === 'mirror') x.col.lerp(WHITE, 0.4);
       // a VENGEFUL nova's shrapnel burns orange; a dash-strike's rounds run white-hot
       else if (s.tag === 'nova') x.col.setHex(0xff8a4a);
-      // a graft's shots burn in its faction's light
-      else if (s.graft) x.col.setHex(graftShotColor(s.graft)!).lerp(WHITE, 0.2);
+      // a graft's shots are still yours, with a touch of its faction's light
+      else if (s.graft) x.col.lerp(this.c.setHex(graftShotColor(s.graft)!), 0.3);
       // a forge gun's own colour
       if (s.ax?.tint !== undefined && !s.tag && !s.graft) x.col.setHex(s.ax.tint);
       if (s.strike) x.col.lerp(WHITE, 0.5).multiplyScalar(1.3);

@@ -791,14 +791,16 @@ export class HazardView {
     const lv = this.lv;
     const fx = this.fx;
     const g = new THREE.Group();
+    // a white-hot core in a dark edge, whatever the place; the theme's colour only in the haze
+    // about it, the lamps and the charging line
     const pal = theme === 'frost'
-      ? { beam: 0xff8a2a, core: 0xfff0c0, lamp: 0xffa040 }
+      ? { beam: 0x8ad8ff, core: 0xffffff, lamp: 0xa0e0ff }
       : theme === 'chem'
-        ? { beam: 0xc04aff, core: 0xf0d8ff, lamp: 0xa0ff4a }
-        : { beam: 0xff3a3a, core: 0xffe0d0, lamp: 0xff4a3a };
+        ? { beam: 0xc04aff, core: 0xffffff, lamp: 0xa0ff4a }
+        : { beam: 0xffffff, core: 0xffffff, lamp: 0xfff0e0 };
     // (the beam draws over the land: it cuts the whole field, walls and all)
-    const coreM = mat(pal.core, 1, true, true);
-    const beamM = mat(pal.beam, 0.7, true, true);
+    const coreM = mat(pal.core, 1, false, true);
+    const beamM = mat(0x0c0812, 0.85, false, true);
     const hazeM = mat(pal.beam, 0.25, true, true);
     const lineM = mat(pal.beam, 0, true, true);
     const lampM = new THREE.SpriteMaterial({ map: SOFT, color: pal.lamp, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -806,9 +808,9 @@ export class HazardView {
     const X = HALF_W - 0.5;
     const W = X * 2 - 1.6;
     const beam = new THREE.Group();
-    beam.add(part(GEO.box, hazeM, [0, 0.6, 0], [W, 0.1, 2.2]), part(GEO.box, beamM, [0, 0.6, 0], [W, 0.4, 1.1]), part(GEO.box, coreM, [0, 0.62, 0], [W, 0.3, 0.32]));
+    beam.add(part(GEO.box, hazeM, [0, 0.6, 0], [W, 0.1, 2.6]), part(GEO.box, beamM, [0, 0.6, 0], [W, 0.4, 1.2]), part(GEO.box, coreM, [0, 0.62, 0], [W, 0.3, 0.6]));
     beam.visible = false;
-    for (const m of beam.children) m.renderOrder = 8;
+    beam.children.forEach((m, i) => (m.renderOrder = 8 + i));
     const line = part(GEO.box, lineM, [0, 0.6, 0], [W, 0.06, 0.14]);
     g.add(beam, line);
     const lamps: THREE.Sprite[] = [];
