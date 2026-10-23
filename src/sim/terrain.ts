@@ -505,6 +505,12 @@ export class Terrain {
     return this.height(x, z) > FLIGHT_Y - margin;
   }
 
+  /** Is a body of radius `r` at (x, z) in the land: its middle, or its edge left, right, ahead or behind? */
+  touches(x: number, z: number, r: number, margin = 0.6) {
+    if (this.solid(x, z, margin)) return true;
+    return this.solid(x - r, z, margin) || this.solid(x + r, z, margin) || this.solid(x, z - r, margin) || this.solid(x, z + r, margin);
+  }
+
   chunk(index: number): Chunk {
     let c = this.chunks.get(index);
     if (!c) {

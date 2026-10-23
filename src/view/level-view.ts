@@ -663,9 +663,6 @@ export class LevelView {
           }
           this.trauma = Math.min(1, this.trauma + 0.75);
           this.shove(e.nx, e.nz, 1.5);
-          this.flash = Math.max(this.flash, 0.32);
-          this.flashColor.set(0xffb070);
-          this.hurt = Math.max(this.hurt, 0.8);
           this.crashT[e.id] = 1;
           this.crashN[e.id] = [e.nx, e.nz];
           audio.play('hull_crash', { pan: p.x / HALF_W });
@@ -2014,8 +2011,8 @@ export class LevelView {
         break;
       }
       case 'crash':
-        // into the rock: a longer frame than a shot, the colours torn, the view slammed in
-        this.impact(0xffc890, 0.09);
+        // into the rock: the frame to ink as for a hull hit, the colours torn, the view slammed in
+        this.impact(0xffc890, 0.05);
         this.aberr = 1;
         this.punch(1);
         break;

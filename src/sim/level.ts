@@ -50,6 +50,10 @@ const BURN_CRASH = 0.2;
 const BURN_WAIT = 0.6;
 /** Skimming: within this far of the land or an obstacle (without touching) counts. */
 const SKIM = 1.6;
+/** The ship's body against the land and obstacles: how far round its middle it touches. */
+const BODY = 0.7;
+/** Round the body's edge: where the land is felt for. */
+const RIM = Array.from({ length: 12 }, (_, k) => [Math.cos((k / 12) * Math.PI * 2), Math.sin((k / 12) * Math.PI * 2)]);
 /** A kill this close is point-blank: a little Burn. */
 const POINT_BLANK = 7;
 /**
@@ -3194,7 +3198,7 @@ export class Level {
       const dx = p.x - c.x;
       const dz = p.z - c.z;
       const d = Math.hypot(dx, dz) || 1;
-      const g = d - c.r - 0.7; // 0.7: where collideLand says you've touched
+      const g = d - c.r - BODY;
       if (g < gap) {
         gap = Math.max(0, g);
         nx = c.x + (dx / d) * c.r;
@@ -3202,6 +3206,7 @@ export class Level {
       }
     }
     // the land itself (canyon walls): look round at the edge of reach first, closer in if it's there
+    // (all from the body's edge, where collideLand feels it)
     const solidAt = (r: number) => {
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2;
@@ -3211,11 +3216,11 @@ export class Level {
       }
       return null;
     };
-    if (solidAt(SKIM)) {
-      for (const r of [0.4, 0.8, 1.2, SKIM]) {
-        const hit = r - 0.2 < gap ? solidAt(r) : null;
+    if (solidAt(BODY + SKIM)) {
+      for (const g of [0.2, 0.6, 1, SKIM]) {
+        const hit = g - 0.2 < gap ? solidAt(BODY + g) : null;
         if (hit) {
-          gap = r - 0.2;
+          gap = g - 0.2;
           nx = hit.x;
           nz = hit.z;
           break;
@@ -3260,40 +3265,74 @@ export class Level {
     }
   }
 
-  /** Into the land or an obstacle: pushed off it, and a hit. Returns whether it touched. */
+  /**
+   * Where the body is in the land at (x, z): the middle of the rock it's in, and the way out of it
+   * (away from that rock, round the body's edge), or null if it's clear.
+   */
+  private landTouch(x: number, z: number): { x: number; z: number; nx: number; nz: number } | null {
+    const t = this.terrain;
+    let n = 0;
+    let sx = 0;
+    let sz = 0;
+    for (const [cx, cz] of RIM) {
+      if (!t.solid(x + cx * BODY, z + cz * BODY)) continue;
+      n++;
+      sx += cx;
+      sz += cz;
+    }
+    const mid = t.solid(x, z);
+    if (!n && !mid) return null;
+    const l = Math.hypot(sx, sz);
+    if (n && n < RIM.length && l > 0.2) return { x: x + (sx / n) * BODY, z: z + (sz / n) * BODY, nx: -sx / l, nz: -sz / l };
+    // in it all round (or squeezed from both sides): out the way the ground falls away, or a canyon's way out
+    if (t.biome(z).shape === 'canyon') {
+      const o = t.outOfRock(x, z);
+      const ol = Math.hypot(o.x, o.z) || 1;
+      return { x, z, nx: o.x / ol, nz: o.z / ol };
+    }
+    const e = 0.8;
+    const gx = t.height(x + e, z) - t.height(x - e, z);
+    const gz = t.height(x, z + e) - t.height(x, z - e);
+    const g = Math.hypot(gx, gz) || 1;
+    return { x, z, nx: -gx / g, nz: -gz / g };
+  }
+
+  /** Into the land or an obstacle: put back outside it, thrown off it, and a hit. Returns whether it touched. */
   private collideLand(p: Player): boolean {
     const t = this.terrain;
-    let push: { x: number; z: number } | null = null;
-    if (t.solid(p.x, p.z)) {
-      // out the way the ground falls away
-      const e = 0.8;
-      const gx = t.height(p.x + e, p.z) - t.height(p.x - e, p.z);
-      const gz = t.height(p.x, p.z + e) - t.height(p.x, p.z - e);
-      const g = Math.hypot(gx, gz) || 1;
-      push = { x: -gx / g, z: -gz / g };
-      if (t.biome(p.z).shape === 'canyon') {
-        const o = t.outOfRock(p.x, p.z);
-        push = { x: o.x, z: o.z + 0.3 };
-      }
-    } else {
-      for (const c of t.colliders(p.x, p.z, 3)) {
-        const dx = p.x - c.x;
-        const dz = p.z - c.z;
-        const d = Math.hypot(dx, dz);
-        if (d < c.r + 0.7) {
-          push = { x: dx / (d || 1), z: dz / (d || 1) };
-          break;
-        }
+    // the obstacle it's deepest in, against the land it's in
+    let hit: { x: number; z: number; nx: number; nz: number } | null = null;
+    let deep = 0;
+    for (const c of t.colliders(p.x, p.z, 3)) {
+      const dx = p.x - c.x;
+      const dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const over = c.r + BODY - d;
+      if (over <= deep) continue;
+      deep = over;
+      const nx = d > 1e-6 ? dx / d : 0;
+      const nz = d > 1e-6 ? dz / d : 1;
+      hit = { x: c.x + nx * c.r, z: c.z + nz * c.r, nx, nz };
+    }
+    if (hit) {
+      p.x += hit.nx * (deep + 0.05);
+      p.z += hit.nz * (deep + 0.05);
+    }
+    const land = this.landTouch(p.x, p.z);
+    if (land) {
+      hit ??= land;
+      // out along the way it came in, till the body's clear (a wall scrolling on can bury it a way)
+      for (let k = 0; k < 30 && this.landTouch(p.x, p.z); k++) {
+        p.x += land.nx * 0.15;
+        p.z += land.nz * 0.15;
       }
     }
-    if (!push) return false;
-    p.vx = push.x * 22;
-    p.vz = push.z * 22 + 4;
-    p.x += push.x * 0.5;
-    p.z += push.z * 0.5;
+    if (!hit) return false;
+    p.vx = hit.nx * 22;
+    p.vz = hit.nz * 22 + 4;
     if (p.inv <= 0) {
       p.crashes++;
-      this.emit({ type: 'crash', id: p.id, x: p.x - push.x * 0.9, z: p.z - push.z * 0.9, nx: push.x, nz: push.z });
+      this.emit({ type: 'crash', id: p.id, x: hit.x, z: hit.z, nx: hit.nx, nz: hit.nz });
       // a crash costs momentum: some Burn
       p.burn = Math.max(0, p.burn - BURN_CRASH);
     }

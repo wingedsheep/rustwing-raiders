@@ -362,7 +362,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       const t = DASH_TIME * f;
       const x = p.x + dx * DASH_SPEED * t;
       const z = p.z + dz * DASH_SPEED * t - scroll * t;
-      if (lv.terrain.solid(x, z, 1.4) || [...lv.terrain.colliders(x, z, 3)].some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 1.3) ** 2)) way += 5;
+      if (lv.terrain.touches(x, z, 1.3) || [...lv.terrain.colliders(x, z, 3)].some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 1.3) ** 2)) way += 5;
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.4;
         if ((b.x + b.vx * t - x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) way += 2;
@@ -388,7 +388,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       for (const e of lv.enemies) if (!e.dead && !e.ground && e.t >= 0 && (e.x - ex) ** 2 + (e.z - z) ** 2 < (e.r + 1.5) ** 2) danger++;
       if (threatCost(lv, ex, z, t, core) >= 500) danger++;
     }
-    if (lv.terrain.solid(ex, ez, 1.6) || [...lv.terrain.colliders(ex, ez, 3)].some((c) => (c.x - ex) ** 2 + (c.z - ez) ** 2 < (c.r + 1.5) ** 2)) danger += 5;
+    if (lv.terrain.touches(ex, ez, 1.5) || [...lv.terrain.colliders(ex, ez, 3)].some((c) => (c.x - ex) ** 2 + (c.z - ez) ** 2 < (c.r + 1.5) ** 2)) danger += 5;
     for (const l of lv.lasers) {
       const lx = l.x2 - l.x;
       const lz = l.z2 - l.z;
@@ -463,7 +463,8 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
       c += threatCost(lv, x, z, t, s.core) * weight;
     }
     if (p.phase <= t) {
-      if (lv.terrain.solid(x, z, 1.4)) c += 950 * weight;
+      // (the body, 0.7 round, and a little room: as for the obstacles below)
+      if (lv.terrain.touches(x, z, 1.3)) c += 950 * weight;
       for (const col of lv.terrain.colliders(x, z, 3)) {
         const dd = (col.x - x) ** 2 + (col.z - z) ** 2;
         if (dd < (col.r + 1.3) ** 2) {
