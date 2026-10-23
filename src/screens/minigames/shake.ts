@@ -352,6 +352,7 @@ export class Shake implements Minigame {
   }
 
   update(dt: number, pad: Pad) {
+    if (typeof location !== 'undefined' && location.search.includes('shakebot') && this.result === null) pad = this.tempBot(); // TEMPBOT
     this.fx.frozen(dt);
     this.promptT -= dt;
     this.blind = Math.max(0, this.blind - dt);
@@ -384,6 +385,20 @@ export class Shake implements Minigame {
     for (const c of [...this.crawlers]) this.crawl(c, dt);
     this.hum(dt);
   }
+
+  private tempCd = 0; // TEMPBOT
+  private tempBot(): Pad { // TEMPBOT
+    const live = this.live.filter((b) => b.z < 13).sort((a, b) => a.z - b.z); // TEMPBOT
+    const c = this.crawlers[0]; // TEMPBOT
+    const tg = c ? [c.x, c.y] : live[0] ? this.proj(live[0].x, live[0].y, live[0].z) : null; // TEMPBOT
+    if (!tg) return { x: 0, y: 0, hold: false, press: false }; // TEMPBOT
+    const dx = tg[0] - this.ax, dy = tg[1] - this.ay; // TEMPBOT
+    const d = Math.hypot(dx, dy) || 1; // TEMPBOT
+    this.tempCd -= 1 / 60; // TEMPBOT
+    const press = this.over === 1 && this.tempCd <= 0; // TEMPBOT
+    if (press) this.tempCd = 0.15; // TEMPBOT
+    return { x: d > 3 ? dx / d : 0, y: d > 3 ? dy / d : 0, hold: false, press }; // TEMPBOT
+  } // TEMPBOT
 
   /** The lane coming past: stars, lanterns, rocks; faster as you boost away at the end. */
   private fly(dt: number) {
