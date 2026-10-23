@@ -1386,9 +1386,9 @@ export class Level {
     const dx = Math.sin(dir);
     const dz = -Math.cos(dir);
     let len = HALF_H * 2.2;
-    // the land stops a beam
+    // the land and anything tall stop a beam
     for (let d = 0; d < len; d += 1) {
-      if (this.terrain.solid(x + dx * d, z + dz * d, 0)) {
+      if (this.terrain.blocks(x + dx * d, z + dz * d)) {
         len = d;
         break;
       }
@@ -2138,8 +2138,8 @@ export class Level {
         this.emit({ type: 'shotLand', x: s.x, z: s.z, bounce: true, heavy: false, src: s.src });
       }
       if (!this.onScreen(s.x, s.z, s.back ? 12 : 4)) s.dead = true;
-      else if (s.kind !== 'rail' && this.terrain.solid(s.x, s.z, 0)) {
-        // the land stops shots
+      else if (s.kind !== 'rail' && this.terrain.blocks(s.x, s.z)) {
+        // the land and anything tall stop shots
         const bounce = s.bounce > 0;
         if (bounce) {
           s.bounce--;
@@ -2182,9 +2182,9 @@ export class Level {
         }
         if (b.kind === 'torpedo' && b.t > b.life && !b.dead) this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
         b.dead = true;
-      } else if (!this.terrain.solid(b.x, b.z, 0)) b.open = true;
+      } else if (!this.terrain.blocks(b.x, b.z)) b.open = true;
       else if (b.open) {
-        // the land stops fire as it stops yours: it flies at your height, not over the hills
+        // the land and anything tall stop fire as they stop yours: it flies at your height, not over the hills
         b.dead = true;
         if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
         else if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });

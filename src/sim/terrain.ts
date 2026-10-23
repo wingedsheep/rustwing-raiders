@@ -515,6 +515,17 @@ export class Terrain {
     return this.height(x, z) > FLIGHT_Y - margin;
   }
 
+  /** Does a shot at (x, z) hit something: land higher than you fly, or a tall obstacle's column? */
+  blocks(x: number, z: number) {
+    if (this.solid(x, z, 0)) return true;
+    for (const c of this.chunksBetween(z - 12, z + 12))
+      for (const p of c.props) {
+        if (!p.obstacle) continue;
+        for (const k of p.cols) if ((k.x - x) ** 2 + (k.z - z) ** 2 < k.r * k.r) return true;
+      }
+    return false;
+  }
+
   /** Is a body of radius `r` at (x, z) in the land: its middle, or its edge left, right, ahead or behind? */
   touches(x: number, z: number, r: number, margin = 0.6) {
     if (this.solid(x, z, margin)) return true;
