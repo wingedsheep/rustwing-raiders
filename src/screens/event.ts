@@ -90,7 +90,7 @@ export class EventScreen implements Screen {
   private roll = { odds: 0.5, won: true, final: 0.5, last: 0 };
   /** Changes shown so far in the outcome's tally. */
   private shown = 0;
-  private fits = new Map<Item, ReturnType<typeof bestFit>>();
+  private fits = new Map<Item, Map<number, ReturnType<typeof bestFit>>>();
   /** Co-op: who wants which answer (a choice's place in the list), or to go on. */
   private accord: Accord<number | 'on'>;
   /** Co-op: who plays the game (whoever took it on). */
@@ -561,9 +561,22 @@ export class EventScreen implements Screen {
     if (it && y - 82 > 72) {
       const ch = Math.min(124, y - 82);
       const cy = y - ch - 8;
-      let fit = this.fits.get(it);
-      if (!fit) this.fits.set(it, (fit = bestFit(this.run.crew[0].build, it)));
-      lootCard(ctx, it, this.run.crew[0].build, W - 8 - 184, cy, 184, ch, { t: this.t, fit, terse: true });
+      // (co-op: what it'd do on each ship in turn, whose it is tagged on the corner)
+      const crew = this.run.crew;
+      const who = crew.length > 1 ? Math.floor(this.t / 2.5) % crew.length : 0;
+      let byWho = this.fits.get(it);
+      if (!byWho) this.fits.set(it, (byWho = new Map()));
+      let fit = byWho.get(who);
+      if (!fit) byWho.set(who, (fit = bestFit(crew[who].build, it)));
+      const cx = W - 8 - 184;
+      lootCard(ctx, it, crew[who].build, cx, cy, 184, ch, { t: this.t, fit, terse: true, livery: who });
+      if (crew.length > 1) {
+        tag(ctx, who, cx + 184 - 17, cy + ch - 12);
+        crew.forEach((_, i) => {
+          ctx.fillStyle = i === who ? hex(LIVERY[i][2]) : '#3a2e48';
+          ctx.fillRect(cx + 184 - 26 - (crew.length - 1 - i) * 5, cy + ch - 8, 3, 3);
+        });
+      }
     }
     this.choices.forEach((c, k) => {
       const on = k === this.at;

@@ -11,6 +11,7 @@ import { CYAN, DARK, DIM, EDGE, GOLD, INK, RED, W, frame, hex } from '../ui/hud'
 import { backdrop, heading, hints } from '../ui/widgets';
 import { coreBall, disc, knotIcon, ring, seal } from '../ui/core-icon';
 import { LIVERY } from '../view/ship-model';
+import { tag } from '../ui/accord';
 import { rng } from '../util';
 import { stats, type Stats } from '../sim/build';
 import type { KnackId } from '../game/core';
@@ -107,6 +108,10 @@ interface Turn {
   msgT: number;
   /** Each vein's pulse as motes land (0..1, falling). */
   pulse: Record<Vein, number>;
+  /** The tally on its way into this core. */
+  motes: Mote[];
+  /** Finished here. */
+  done: boolean;
 }
 
 /**
@@ -115,15 +120,19 @@ interface Turn {
  * lays out three imprints to copy; the sixth knot wakes it. Between fights (from the chart), the
  * same screen without the learning: look at the veins, take imprints up or let them go.
  *
- * Co-op: each pilot's core in turn, on their own device.
+ * Co-op: each pilot's core in turn, on their own device. Online, where each of you has a screen,
+ * both at once: each sees their own core (the other's goes on unseen and unheard).
  */
 export class CoreScreen implements Screen {
   private turns: Turn[];
   private k = 0;
   private time = 0;
-  private motes: Mote[] = [];
   private sparks: Spark[] = [];
   private leaving = -1;
+  /** Online co-op: every turn at once, each on its own screen. */
+  private together: boolean;
+  /** Stepping a turn that isn't on this screen: no sparks, no sound. */
+  private quiet = false;
 
   constructor(
     private game: Game,
@@ -159,12 +168,15 @@ export class CoreScreen implements Screen {
           msg: '',
           msgT: 0,
           pulse: { nerve: 0, steel: 0, grease: 0 },
+          motes: [],
+          done: false,
         };
         t.at = this.bestKnot(t);
         return t;
       })
       // after a fight, only the cores that grew (or have a knot owed) take a turn
       .filter((t) => look || t.core.growths > 0);
+    this.together = !!game.net && this.turns.length > 1;
     if (!this.turns.length) this.leaving = 0;
     audio.music('hangar');
     audio.play('core_hum', { vol: 0.6 });
@@ -174,7 +186,7 @@ export class CoreScreen implements Screen {
   devOffer() {
     const t = this.turn;
     t.lines = t.fed?.lines.length ?? 0;
-    this.motes = [];
+    t.motes = [];
     t.offer = imprintOffer(rng(this.run.seed), t.core, 'nerve');
     t.offerAt = 0;
     t.phase = 'imprint';
@@ -186,8 +198,10 @@ export class CoreScreen implements Screen {
     return stats(this.run.crew[t.i].build);
   }
 
+  /** The turn on this screen: in turn, the one up; together, yours (none to take: theirs, to watch). */
   private get turn() {
-    return this.turns[this.k];
+    if (!this.together) return this.turns[this.k];
+    return this.turns.find((t) => t.i === this.game.net!.me) ?? this.turns[0];
   }
 
   private dev(t: Turn) {
@@ -253,7 +267,16 @@ export class CoreScreen implements Screen {
       if (this.leaving > 0.3) this.onDone();
       return;
     }
-    const t = this.turn;
+    const shown = this.turn;
+    for (const t of this.together ? this.turns.filter((o) => !o.done) : [shown]) {
+      this.quiet = t !== shown;
+      this.step(t, dt);
+    }
+    this.quiet = false;
+  }
+
+  /** One pilot's turn, a frame on. */
+  private step(t: Turn, dt: number) {
     t.t += dt;
     t.msgT = Math.max(0, t.msgT - dt);
     for (const v of VEINS) t.pulse[v] = Math.max(0, t.pulse[v] - dt * 2.2);
@@ -273,7 +296,7 @@ export class CoreScreen implements Screen {
       case 'wake':
         t.wakeT += dt;
         if (m.confirm && t.wakeT > 2.2) {
-          audio.play('ui_select');
+          this.play('ui_select');
           this.afterGrow(t);
         }
         break;
@@ -291,24 +314,24 @@ export class CoreScreen implements Screen {
       const ly = this.lineY(t.lines);
       // a mote a point, a few at most for a big line (they each count more)
       const n = Math.min(l.n, 6);
-      for (let k = 0; k < n; k++) this.motes.push({ vein: l.vein, x: PANEL.x + 8, y: ly + 3, t: -k * 0.07, bend: (Math.random() - 0.5) * 80, done: false });
+      for (let k = 0; k < n; k++) t.motes.push({ vein: l.vein, x: PANEL.x + 8, y: ly + 3, t: -k * 0.07, bend: (Math.random() - 0.5) * 80, done: false });
       // (what the motes don't carry lands with the last of them)
-      if (l.n > n) for (let k = n; k < l.n; k++) this.motes.push({ vein: l.vein, x: PANEL.x + 8, y: ly + 3, t: -(n - 1) * 0.07, bend: 0, done: false });
-      audio.play('ui_move', { pitch: 1.2 + t.lines * 0.06, vol: 0.6 });
+      if (l.n > n) for (let k = n; k < l.n; k++) t.motes.push({ vein: l.vein, x: PANEL.x + 8, y: ly + 3, t: -(n - 1) * 0.07, bend: 0, done: false });
+      this.play('ui_move', { pitch: 1.2 + t.lines * 0.06, vol: 0.6 });
       t.lines++;
     }
     if (skip && t.t > 0.3) {
       // everything in at once
       t.lines = lines.length;
-      for (const mo of this.motes) if (!mo.done) this.land(t, mo, true);
-      this.motes = [];
+      for (const mo of t.motes) if (!mo.done) this.land(t, mo, true);
+      t.motes = [];
       t.shown = t.core.learnt;
       t.shownGrows = t.core.growths;
     }
-    if (t.lines >= lines.length && !this.motes.length && t.t > 0.6) {
+    if (t.lines >= lines.length && !t.motes.length && t.t > 0.6) {
       t.phase = t.core.growths ? 'grow' : 'done';
       t.at = this.bestKnot(t);
-      if (t.phase === 'done') this.next();
+      if (t.phase === 'done') this.next(t);
     }
   }
 
@@ -317,11 +340,11 @@ export class CoreScreen implements Screen {
   }
 
   private updateMotes(t: Turn, dt: number) {
-    for (const mo of this.motes) {
+    for (const mo of t.motes) {
       mo.t += dt;
       if (mo.t >= MOTE && !mo.done) this.land(t, mo);
     }
-    this.motes = this.motes.filter((mo) => !mo.done);
+    t.motes = t.motes.filter((mo) => !mo.done);
   }
 
   /** A point of learning lands in the core: the meter ticks, and full, it grows. */
@@ -330,12 +353,12 @@ export class CoreScreen implements Screen {
     t.pulse[mo.vein] = 1;
     t.shown++;
     const need = toGrow(t.base + t.shownGrows);
-    if (!quiet) audio.play('core_feed', { pitch: 0.9 + (t.shown / need) * 0.6 });
+    if (!quiet) this.play('core_feed', { pitch: 0.9 + (t.shown / need) * 0.6 });
     if (t.shown >= need) {
       t.shown -= need;
       t.shownGrows++;
       if (!quiet) {
-        audio.play('core_grow', { pitch: 1.2 });
+        this.play('core_grow', { pitch: 1.2 });
         this.burst(CORE.x, CORE.y, 40, '#f4ecd8', 60);
       }
     }
@@ -351,7 +374,7 @@ export class CoreScreen implements Screen {
     }
     if (m.next || m.prev) {
       t.panel = t.panel === 'tree' ? 'room' : 'tree';
-      audio.play('ui_move');
+      this.play('ui_move');
       return;
     }
     if (t.panel === 'room') return this.room(t, m);
@@ -377,26 +400,26 @@ export class CoreScreen implements Screen {
       });
       if (best >= 0) {
         t.at = best;
-        audio.play('ui_move');
+        this.play('ui_move');
       } else if (m.right && !m.left) {
         t.panel = 'room';
-        audio.play('ui_move');
+        this.play('ui_move');
       }
     }
     if (m.confirm) {
       if (t.phase === 'grow' && canGrow(c, t.at)) {
         t.growing = { k: t.at, t: 0 };
-        audio.play('core_grow');
+        this.play('core_grow');
       } else if (t.phase === 'grow') {
-        audio.play('ui_error');
+        this.play('ui_error');
         this.say(t, this.why(t, t.at));
-      } else this.next();
+      } else this.next(t);
     }
     if (m.back || m.start) {
       if (t.phase === 'grow') {
-        audio.play('ui_error');
+        this.play('ui_error');
         this.say(t, 'GROW A KNOT FIRST');
-      } else this.next();
+      } else this.next(t);
     }
   }
 
@@ -406,20 +429,20 @@ export class CoreScreen implements Screen {
     const n = c.owned.length;
     if (m.left) {
       t.panel = 'tree';
-      audio.play('ui_move');
+      this.play('ui_move');
       return;
     }
     if (n) {
       if (m.up) t.roomAt = (t.roomAt + n - 1) % n;
       if (m.down) t.roomAt = (t.roomAt + 1) % n;
-      if (m.up || m.down) audio.play('ui_move');
+      if (m.up || m.down) this.play('ui_move');
       t.roomAt = Math.min(t.roomAt, n - 1);
     }
     if (m.confirm && n) {
       const id = c.owned[t.roomAt];
       if (c.held.includes(id)) {
         c.held = c.held.filter((o) => o !== id);
-        audio.play('ui_back');
+        this.play('ui_back');
         if (id === 'unbending') {
           const crew = this.run.crew[t.i];
           crew.hull = Math.min(crew.hull, crewHull(crew));
@@ -427,27 +450,27 @@ export class CoreScreen implements Screen {
         this.say(t, `LET ${IMPRINTS[id].name} GO`);
       } else if (canHold(c, id)) {
         c.held.push(id);
-        audio.play('imprint');
+        this.play('imprint');
         const s = this.roomRow(t.roomAt);
         this.burst(s.x + 8, s.y + 5, 6, IMPRINTS[id].color, 16);
         const pair = agreementsOf(c.held).find((p) => (p.a === id || p.b === id));
         if (pair) {
-          audio.play('bond_wake', { vol: 0.6, pitch: 1.2 });
+          this.play('bond_wake', { vol: 0.6, pitch: 1.2 });
           this.say(t, `THEY AGREE: ${pair.name}`);
         } else if (leaning(c)) {
-          audio.play('ui_error', { pitch: 0.7 });
+          this.play('ui_error', { pitch: 0.7 });
           this.say(t, 'IT LEANS: EVERY HIT SHAKES THE NEWEST LOOSE');
         }
       } else {
-        audio.play('ui_error');
+        this.play('ui_error');
         this.say(t, leaning(c) ? 'IT’S LEANING ALREADY: LET ONE GO' : 'NO ROOM');
       }
     }
     if (m.back || m.start) {
       if (t.phase === 'grow') {
         t.panel = 'tree';
-        audio.play('ui_back');
-      } else this.next();
+        this.play('ui_back');
+      } else this.next(t);
     }
   }
 
@@ -475,9 +498,9 @@ export class CoreScreen implements Screen {
     const kn = c.tree[k];
     const p = this.knotAt(kn);
     const col = VEIN_COLOR[kn.vein];
-    audio.play('graft_bolt', { pitch: 1.4, vol: 0.6 });
+    this.play('graft_bolt', { pitch: 1.4, vol: 0.6 });
     this.burst(p.x, p.y, kn.pos === 'foot' ? 14 : 9, col, kn.pos === 'foot' ? 70 : 34);
-    if (kn.kind === 'talisman') audio.play('loot_legendary', { pitch: 0.9, vol: 0.8 });
+    if (kn.kind === 'talisman') this.play('loot_legendary', { pitch: 0.9, vol: 0.8 });
     if (kn.kind === 'room') this.say(t, 'MORE ROOM: IT CAN HOLD ANOTHER IMPRINT');
     t.shownGrows = c.growths;
     if (kn.kind === 'imprint') {
@@ -485,7 +508,7 @@ export class CoreScreen implements Screen {
       t.offerAt = 0;
       t.phase = 'imprint';
       t.t = 0;
-      audio.play('graft_deal');
+      this.play('graft_deal');
       if (woke) t.wakeT = -1;
       return;
     }
@@ -496,7 +519,7 @@ export class CoreScreen implements Screen {
   private wake(t: Turn) {
     t.phase = 'wake';
     t.wakeT = 0;
-    audio.play('core_wake');
+    this.play('core_wake');
     this.burst(CORE.x, CORE.y, 30, '#ffffff', 140);
   }
 
@@ -520,29 +543,36 @@ export class CoreScreen implements Screen {
     if (m.right) t.offerAt = (t.offerAt + 1) % (n + 1);
     if (m.down) t.offerAt = n;
     if (m.up && t.offerAt === n) t.offerAt = Math.floor((n - 1) / 2);
-    if (m.left || m.right || m.up || m.down) audio.play('ui_move');
+    if (m.left || m.right || m.up || m.down) this.play('ui_move');
     if (m.confirm) {
       if (t.offerAt < n) {
         const id = t.offer[t.offerAt];
         imprint(t.core, id);
-        audio.play('imprint');
+        this.play('imprint');
         const r = this.offerRect(t, t.offerAt);
         this.burst(r.x + r.w / 2, r.y + 30, 20, IMPRINTS[id].color, 40);
         this.say(t, t.core.held.includes(id) ? `IT COPIED ${IMPRINTS[id].name}` : `COPIED, BUT NO ROOM: HOLD IT FROM THE ROOM`);
-      } else audio.play('ui_back');
+      } else this.play('ui_back');
       t.offer = [];
       if (t.wakeT < 0) return this.wake(t);
       this.afterGrow(t);
     }
   }
 
-  private next() {
-    audio.play('ui_select');
-    if (this.k + 1 < this.turns.length) this.k++;
-    else this.leaving = 0;
+  private next(t: Turn) {
+    this.play('ui_select');
+    t.done = true;
+    if (!this.together && this.k + 1 < this.turns.length) this.k++;
+    else if (this.turns.every((o) => o.done)) this.leaving = 0;
+  }
+
+  /** A sound, if the turn it's from is on this screen. */
+  private play(...a: Parameters<typeof audio.play>) {
+    if (!this.quiet) audio.play(...a);
   }
 
   private burst(cx: number, cy: number, r: number, color: string, n: number) {
+    if (this.quiet) return;
     for (let k = 0; k < n; k++) {
       const a = Math.random() * Math.PI * 2;
       const v = 25 + Math.random() * 80;
@@ -570,11 +600,19 @@ export class CoreScreen implements Screen {
       : t.phase === 'wake' ? 'A NEMVA: ONE WHO LISTENS'
       : c.woke ? `${c.woke.name} · AWAKE` : 'ASLEEP · IT LEARNS AS YOU FLY';
     heading(ctx, c.woke && t.phase !== 'wake' ? c.woke.name : coop ? `P${t.i + 1}'S CORE` : 'THE CORE', sub, c.woke ? VEIN_COLOR[c.woke.temper] : INK);
-    if (coop) drawText(ctx, `P${t.i + 1}`, 14, 14, hex(LIVERY[t.i][2]), { scale: 2 });
+    if (coop) {
+      drawText(ctx, `P${t.i + 1}`, 14, 14, hex(LIVERY[t.i][2]), { scale: 2 });
+      // whose core is up after this one (online, at the same time on their own screen)
+      const rest = this.turns.filter((o) => o !== t && !o.done);
+      if (rest.length) {
+        drawText(ctx, this.together ? 'ALSO AT IT' : 'THEN', 14, 34, DIM);
+        rest.forEach((o, n) => tag(ctx, o.i, 14 + (this.together ? 66 : 30) + n * 17, 34));
+      }
+    }
     this.tree(ctx, t);
     this.panel(ctx, t);
     if (t.phase === 'imprint') this.offerCards(ctx, t);
-    for (const mo of this.motes) this.mote(ctx, mo);
+    for (const mo of t.motes) this.mote(ctx, mo);
     for (const s of this.sparks) {
       ctx.globalAlpha = Math.min(1, (s.life / s.max) * 1.5);
       ctx.fillStyle = s.color;
@@ -584,6 +622,16 @@ export class CoreScreen implements Screen {
     ctx.globalAlpha = 1;
     if (t.phase === 'wake') this.waking(ctx, t);
     this.footer(ctx, t);
+    if (t.done) {
+      // online, done with yours: the other's still choosing on their screen
+      ctx.fillStyle = 'rgba(12,8,18,0.72)';
+      ctx.fillRect(0, 0, W, 360);
+      drawText(ctx, 'YOUR CORE IS SET', W / 2, 160, INK, { scale: 2, align: 'center' });
+      const left = this.turns.filter((o) => !o.done);
+      const w = 74 + left.length * 17;
+      drawText(ctx, 'WAITING ON', W / 2 - w / 2, 186, DIM);
+      left.forEach((o, n) => tag(ctx, o.i, W / 2 - w / 2 + 66 + n * 17, 186));
+    }
   }
 
   private mote(ctx: CanvasRenderingContext2D, mo: Mote) {

@@ -128,6 +128,7 @@ export class ChartScreen implements Screen {
   private stage = new Stage(MAP_W, H, 7, 38);
   private bodies: THREE.Object3D[] = [];
   private ship: ShipModel;
+  private ships: ShipModel[];
   /** The watch being shown (eases towards the chart's). */
   private shown: number;
   private sel = 0;
@@ -154,9 +155,13 @@ export class ChartScreen implements Screen {
     this.shown = c.time;
     this.accord = new Accord(run.crew.length);
     this.build();
-    this.ship = new ShipModel(run.crew[0].build, LIVERY[0]);
-    this.ship.root.scale.setScalar(0.55);
-    this.stage.scene.add(this.ship.root);
+    // the crew's ships: the lead, and in co-op a wingman off its quarter
+    this.ships = run.crew.map((cr, i) => new ShipModel(cr.build, LIVERY[i]));
+    this.ship = this.ships[0];
+    for (const sh of this.ships) {
+      sh.root.scale.setScalar(0.55);
+      this.stage.scene.add(sh.root);
+    }
     this.refresh();
     audio.music('map');
   }
@@ -308,12 +313,12 @@ export class ChartScreen implements Screen {
         this.shown = c.time;
         this.refresh();
       }
-      this.ship.update(dt);
+      for (const sh of this.ships) sh.update(dt);
       this.shownPreview?.update(dt);
       return;
     }
     this.shown = c.time;
-    this.ship.update(dt);
+    for (const sh of this.ships) sh.update(dt);
     this.shownPreview?.update(dt);
     // (co-op: a jump, a drift or a fight is the crew's, so it waits for everyone; see Accord)
     const ms = this.game.crewMenus();
@@ -461,6 +466,14 @@ export class ChartScreen implements Screen {
       const from = this.world(this.anim.from);
       this.ship.root.rotation.y = Math.atan2(-(to.x - from.x), -(to.z - from.z));
     } else this.ship.root.rotation.y += 0.01;
+    // (the wingman holds station behind and to the lead's right, turning with it)
+    this.ships.slice(1).forEach((w, k) => {
+      const yaw = this.ship.root.rotation.y;
+      const ox = 1.3 * (k + 1);
+      const oz = 1.1 * (k + 1);
+      w.root.position.set(this.ship.root.position.x + Math.cos(yaw) * ox + Math.sin(yaw) * oz, 1.4, this.ship.root.position.z - Math.sin(yaw) * ox + Math.cos(yaw) * oz);
+      w.root.rotation.y = yaw;
+    });
     g.clearGL();
     this.stage.render(g, 0, 0);
     // the card's picture, under the panel (which leaves a hole for it)
@@ -1070,7 +1083,7 @@ export class ChartScreen implements Screen {
   }
 
   dispose() {
-    this.ship.dispose();
+    for (const sh of this.ships) sh.dispose();
     for (const p of this.previews.values()) p.dispose();
   }
 }
