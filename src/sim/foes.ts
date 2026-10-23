@@ -152,6 +152,9 @@ function leave(lv: Level, e: Enemy, dx = 0) {
 
 const ps = (lv: Level, p: Player) => p.z - lv.scroll;
 
+/** How long a burrower takes to pour itself back down its hole (the view draws it going). */
+export const BURROW_SINK = 0.45;
+
 /** A ground vehicle to (x, ground z): up on the land (or the water) there. */
 function drive(lv: Level, e: Enemy, x: number, zg: number, boat = false) {
   const t = lv.terrain;
@@ -627,6 +630,13 @@ export function updateFoe(lv: Level, e: Enemy): void {
     case 'burrower': {
       // under the ground (untouchable), a ripple coming for you: then it erupts
       if (e.state === 'idle' && e.t < 0.1) go(lv, e, 'hidden', 1.8);
+      // (going back down its hole it's still there to be shot, and it doesn't move)
+      const sinking = e.state === 'hidden' && e.stateT < BURROW_SINK && (d.n ?? 0) > 0;
+      if (sinking) {
+        e.shielded = false;
+        moveTo(lv, e, e.x, s);
+        break;
+      }
       if ((d.n ?? 0) >= 3 && (e.state === 'hidden' || e.state === 'idle')) {
         e.shielded = true;
         e.y = 1;
@@ -651,14 +661,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         e.y = FLIGHT_Y - 1;
         moveTo(lv, e, e.x, s);
-        if (over(e)) go(lv, e, 'recover', 1.8);
+        if (over(e)) go(lv, e, 'recover', 2.4);
       } else {
         // up, exposed, then back under
         e.y = FLIGHT_Y - 1;
         moveTo(lv, e, e.x, s);
         if (over(e)) {
           d.n = (d.n ?? 0) + 1;
-          go(lv, e, 'hidden', 1.6);
+          go(lv, e, 'hidden', 1.6 + BURROW_SINK);
         }
       }
       break;
@@ -1214,17 +1224,69 @@ export function updateFoe(lv: Level, e: Enemy): void {
       break;
     }
     case 'vault': {
-      // a strongbox: it reseals itself between hits, so only a quick burst cracks it
+      // a strongbox, hauled off by two tugs: iron while they hold it (see takenNow). Shoot them
+      // down and it drops, and bursts open on the ground
+      if (d.fall !== undefined) {
+        e.shielded = true;
+        d.fall += DT;
+        const gz = d.gz ?? e.z;
+        const h = Math.max(0, lv.terrain.height(e.x, gz));
+        e.y = Math.max(h, FLIGHT_Y - 15 * d.fall * d.fall);
+        d.fvx = (d.fvx ?? 0) * 0.97;
+        e.x += d.fvx * DT;
+        e.z = toFlight(gz, e.y);
+        e.heading += DT * 6;
+        if (e.y <= h) lv.kill(e, d.prey ?? 0);
+        break;
+      }
+      // where the tugs are taking it: down onto the screen, a weave, then up and away
       const life = e.bounty?.life ?? 10;
       const hx = d.hx ?? 0;
-      if (e.t < 1.4) moveTo(lv, e, hx, lerp(-HALF_H - 4, -13, smooth(e.t / 1.4)));
-      else if (e.t > life - 1) moveTo(lv, e, e.x, s - 30 * DT * Math.min(1, (e.t - life + 1) * 3));
-      else ease(lv, e, hx + Math.sin(e.t * 0.5) * 8, -13 + Math.sin(e.t * 0.8) * 2, 1, 6);
+      d.tx = e.t < 1.4 ? hx : hx + Math.sin(e.t * 0.5) * 8;
+      d.ts = e.t < 1.4 ? lerp(-HALF_H - 4, -13, smooth(e.t / 1.4)) : e.t > life - 1 ? (d.ts ?? -13) - 30 * DT : -13 + Math.sin(e.t * 0.8) * 2;
       e.heading += DT * 0.6;
-      if (e.hitT > 0.3) e.hp = Math.min(e.max, e.hp + e.max * 0.45 * DT);
-      // the tumblers: how close it is to opening
-      if (e.state === 'idle' && e.hp < e.max * 0.5) go(lv, e, 'recover', 0);
-      else if (e.state === 'recover' && e.hp > e.max * 0.6) go(lv, e, 'idle');
+      const tugs = lv.enemies.filter((o) => o.arch === 'tug' && o.d.host === e.id && !o.dead);
+      if (tugs.length < (d.n ?? 2)) {
+        d.n = tugs.length;
+        d.prey = p?.id ?? 0;
+        if (!tugs.length) {
+          // cut loose: it falls where it is, still drifting the way it swung
+          d.fall = 0;
+          d.gz = e.z;
+          d.fvx = e.vx * 0.5;
+          e.ground = true;
+          if (e.bounty) e.bounty.life = e.t + 5;
+          break;
+        }
+        // one line snapped: it lurches and swings from the other
+        const t = tugs[0];
+        d.a = Math.atan2(e.x - t.x, s - sz(lv, t));
+        d.ph = (d.ph ?? 0) + (t.d.side ?? 1) * 2.5;
+      }
+      if (tugs.length === 2) {
+        moveTo(lv, e, (tugs[0].x + tugs[1].x) / 2, (sz(lv, tugs[0]) + sz(lv, tugs[1])) / 2 + 2.6);
+        break;
+      }
+      // a pendulum under the one that's left
+      const t = tugs[0];
+      d.ph = ((d.ph ?? 0) - Math.sin(d.a ?? 0) * 9 * DT) * 0.992;
+      d.a = (d.a ?? 0) + d.ph * DT;
+      moveTo(lv, e, t.x + Math.sin(d.a) * 3.2, sz(lv, t) + Math.cos(d.a) * 3.2);
+      break;
+    }
+    case 'tug': {
+      // a strongbox's hauler, hooked on above it. Left on its own it panics: it bolts from side to
+      // side, faster, the box swinging under it. The box gone, it's off
+      const box = lv.enemies.find((o) => o.id === d.host && !o.dead && o.d.fall === undefined);
+      if (!box) {
+        leave(lv, e);
+        break;
+      }
+      const side = d.side ?? 1;
+      const alone = (box.d.n ?? 2) < 2;
+      const tx = (box.d.tx ?? e.x) + (alone ? Math.sin(e.t * 2.6 + side) * 9 : side * 3.4);
+      ease(lv, e, clamp(tx, -HALF_W + 3, HALF_W - 3), (box.d.ts ?? -13) - 2.6, alone ? 2.2 : 4, alone ? 22 : 16);
+      e.heading = lerpAngle(e.heading, Math.PI, 0.1);
       break;
     }
     case 'cache': {

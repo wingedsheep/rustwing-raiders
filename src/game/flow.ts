@@ -12,6 +12,8 @@ import { Flight, type FlightResult } from '../screens/flight';
 import { BoardingScreen } from '../screens/boarding';
 import { BoardChoice } from '../screens/board-choice';
 import type { BoardResult, BoardSpec } from '../sim/boarding';
+import type { Condition, Family, ShipSize } from '../sim/deck';
+import { factionOf } from '../sim/factions';
 import { ChartScreen } from '../screens/chart';
 import { Results } from '../screens/results';
 import { WreckScreen } from '../screens/wreck';
@@ -114,7 +116,7 @@ function arrive(game: Game, node: ChartNode) {
       const d = run.danger(node);
       const planet = node.planet!;
       const name = `${planet.faction.toUpperCase()} FREIGHTER`;
-      game.go(new BoardChoice(game, run, name, boardSpec(run, node), (aboard) => (aboard ? board(game, node) : fly(game, planet, 'heist', node.seed, DANGER_HARDER[d], undefined, node))));
+      game.go(new BoardChoice(game, run, name, boardSpec(run, node, game.params), (aboard) => (aboard ? board(game, node) : fly(game, planet, 'heist', node.seed, DANGER_HARDER[d], undefined, node))));
       return;
     }
     case 'gate': {
@@ -283,10 +285,37 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
   );
 }
 
-/** A boarding at a site: as hard as the run and the site, the kelters as quick as your price. */
-function boardSpec(run: Run, node: ChartNode): BoardSpec {
-  return { seed: node.seed ^ 0xb0a4d, hard: run.difficulty() + DANGER_HARDER[run.danger(node)], bounty: run.bounty, heroes: run.crew.length };
+/**
+ * A boarding at a site: as hard as the run and the site, the kelters as quick as your price.
+ * Her crew is her owners' (a planet of beasts has poachers aboard: scrap, with cages), she's as
+ * big as the site's danger (now and then a size bigger: at the top, a bulker), and now and then
+ * she's in a state, from the site's seed. For testing:
+ * &family=lattice|bloom|scrap, &size=0|1|2|3, &cond=dark|cages|breach|none.
+ */
+export function boardSpec(run: Run, node: ChartNode, params?: URLSearchParams): BoardSpec {
+  const planet = node.planet ?? run.chart.bossPlanet;
+  const fac = factionOf(planet);
+  const family: Family = fac === 'lattice' || fac === 'bloom' ? fac : 'scrap';
+  const danger = run.danger(node);
+  const r = rng(node.seed ^ 0xc0d17);
+  const size = clampSize(danger - 1 + (r() < 0.22 ? 1 : 0));
+  const poachers = fac === 'wild' || planet.faction === 'Hesk Poachers';
+  const roll = r();
+  const condition: Condition = poachers && roll < 0.55 ? 'cages' : roll < 0.16 ? 'dark' : roll < 0.3 ? 'breach' : roll < 0.4 && family === 'scrap' ? 'cages' : 'none';
+  const spec: BoardSpec = {
+    seed: node.seed ^ 0xb0a4d, hard: run.difficulty() + DANGER_HARDER[danger], bounty: run.bounty, heroes: run.crew.length, family, size, condition,
+    // near the Engine its cores hear it louder
+    listen: planet.id === 'glacis' ? 2 : 1,
+  };
+  const f = params?.get('family');
+  if (f === 'scrap' || f === 'lattice' || f === 'bloom') spec.family = f;
+  const sz = params?.get('size');
+  if (sz) spec.size = clampSize(Number(sz));
+  const c = params?.get('cond');
+  if (c === 'dark' || c === 'cages' || c === 'breach' || c === 'none') spec.condition = c;
+  return spec;
 }
+const clampSize = (n: number): ShipSize => Math.max(0, Math.min(3, Math.round(n))) as ShipSize;
 
 /**
  * Boarding a freighter: on foot through her crew, then the results. Boarding at all puts a price
@@ -303,9 +332,11 @@ export function board(game: Game, node: ChartNode) {
   run.landing = node;
   run.bounty++;
   game.go(
-    new BoardingScreen(game, boardSpec(run, node), skin, (r: BoardResult) => {
+    new BoardingScreen(game, boardSpec(run, node, game.params), skin, (r: BoardResult) => {
       run.levels++;
-      const res = boardResult(r, run.crew.map((c, i) => hull[i] - (r.outcome === 'escaped' ? 0 : r.outcome === 'downed' ? 2 : 3) * HULL_STEP).map((h) => Math.max(1, h)));
+      // thrown out (or left down aboard) costs you hull, whatever the rest of you did
+      const lost = (i: number) => (r.outcome === 'escaped' ? (r.heroes[i]?.out ? 2 : 0) : r.outcome === 'downed' ? 2 : 3);
+      const res = boardResult(r, run.crew.map((c, i) => hull[i] - lost(i) * HULL_STEP).map((h) => Math.max(1, h)));
       for (const s of res.stats) {
         run.stats.kills += s.kills;
         run.stats.hits += s.hits;
@@ -328,7 +359,7 @@ export function board(game: Game, node: ChartNode) {
       }
       run.scrap += res.scrap;
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
-      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + (r.outcome === 'escaped' ? HULL_STEP : 0))));
+      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + (r.outcome === 'escaped' && !r.heroes[i]?.out ? HULL_STEP : 0))));
       const was = run.crew.map((c) => ({ ...c.core, life: { ...c.core.life } }));
       const grows = run.crew.map((c, i) => learn(c.core, res.fed[i]));
       const next = () => toChart(game);
@@ -338,13 +369,24 @@ export function board(game: Game, node: ChartNode) {
   );
 }
 
-/** A boarding as the results read it: a heist's three cards, each a crate carried out (or left aboard). */
+/** What the rank pays on top, by ship size. */
+const RANK_PAY: Record<string, number> = { S: 40, A: 20, B: 8, C: 0 };
+const MEDAL_LINE: Record<BoardResult['medals'][number], string> = { ghost: 'NO ALARM', clean: 'UNTOUCHED', full: 'FULL HOLD', core: 'HER CORE', quick: 'QUICK' };
+
+/**
+ * A boarding as the results read it: a heist's three cards, each a crate carried out (or left
+ * aboard: a skiff only ever has two). A hauler's fourth crate pays scrap; the rank pays a bonus.
+ */
 function boardResult(r: BoardResult, hull: number[]): FlightResult {
   const got = r.outcome === 'escaped';
+  const opened = r.crates.filter(Boolean).length;
+  const spare = Math.max(0, opened - 3) * 35;
+  const bonus = r.rank ? Math.round(RANK_PAY[r.rank] * [0.7, 1, 1.4, 1.8][r.size]) : 0;
   const lines = [
-    got ? `CRATES CARRIED OUT ${r.crates.filter(Boolean).length}/3${r.strongbox ? `  STRONGBOX +${r.pay} SCRAP` : ''}` : r.outcome === 'caught' ? 'THE KELTERS COLLECTED YOU' : 'THROWN OUT THE LOCK',
-    `TINS +${r.tins} SCRAP${r.core ? '  HER CORE PULLED' : ''}${got && r.spare > 0 ? `  ${Math.floor(r.spare)}S TO SPARE` : ''}`,
+    got ? `CRATES ${opened}/${r.crates.length}${r.strongbox ? `  STRONGBOX +${r.pay}` : ''}${spare ? `  SPARE +${spare}` : ''}` : r.outcome === 'caught' ? 'COLLECTED' : 'THROWN OUT',
+    `TINS +${r.tins}${bonus ? `  RANK +${bonus}` : ''}${got && r.spare > 0 ? `  ${Math.floor(r.spare)}S SPARE` : ''}`,
   ];
+  if (r.medals.length) lines.push(r.medals.map((m) => MEDAL_LINE[m]).join('  '));
   const fed = r.heroes.map((h): Fed => {
     const out: Fed = { vein: { nerve: 0, steel: 0, grease: 0 }, lines: [] };
     const add = (vein: Fed['lines'][number]['vein'], n: number, text: string) => {
@@ -359,14 +401,14 @@ function boardResult(r: BoardResult, hull: number[]): FlightResult {
   });
   return {
     cleared: true,
-    scrap: r.tins + r.pay,
+    scrap: r.tins + r.pay + spare + bonus,
     score: 0,
     loot: r.heroes.map(() => []),
     hull,
     stats: r.heroes.map((h) => ({ hits: h.hits, grazes: h.perfects, kills: h.kills, crashes: 0 })),
-    report: { rank: null, lines },
+    report: { rank: r.rank, lines },
     title: got ? 'AWAY CLEAN' : r.outcome === 'caught' ? 'COLLECTED' : 'THROWN OUT',
-    heist: { fate: r.crates.map((c) => (c ? 'caught' : 'aboard')), downed: r.core, paid: r.pay },
+    heist: { fate: [0, 1, 2].map((k) => (k < Math.min(3, opened) ? 'caught' : 'aboard')), downed: r.core, paid: r.pay },
     wrecks: [],
     fed,
     spent: r.heroes.map(() => []),

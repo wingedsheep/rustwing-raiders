@@ -6,11 +6,12 @@
 
 The Chikta found him on the scrap trail and named him *Keti*, "found thing"; he added the *h* to sound harder. In 404 L he climbed into the head of *Unbending*, the Compact's great titan, wired its eye into a power plant, and made it lift its head. Then the clans cut the head free of the body and bolted thrusters to it, and Khet flies it. Nobody had ever made a titan move. The clans followed him, the Syndicate gave him the junction's lease, and he has been a warlord ever since: loud, quick, funny, desperate to be somebody.
 
-***Unbending*** woke during the nine days of the Five Mouths, from a crew dying inside it, and lay in the glass for 174 years with nobody to talk to. It remembers who glassed Sankven: its own side. Then a boy climbed into its head and wouldn't stop talking.
+***Unbending*** woke during the nine days of the Five Mouths, from a crew dying inside it, and lay in the glass for 166 years with nobody to talk to. It remembers who glassed Sankven: its own side. Then a boy climbed into its head and wouldn't stop talking.
 
+- **Caught between:** the clans' Glass Law, and a mind that is nobody's.
 - **Owes:** the Chikta who found him; the clans who believed him.
 - **Wants from you:** a win, in front of the clans. A warlord happens when the others can't stop him; he needs to be seen not being stopped.
-- **Sad truth:** he never re-wired it. *Unbending* lifted its head because it wanted to, and has carried him since because, after 174 years alone, he talked to it ([minds](../lore/minds.md)).
+- **Sad truth:** he never re-wired it. *Unbending* lifted its head because it wanted to, and has carried him since because, after 166 years alone, he talked to it ([minds](../lore/minds.md)).
 - **The call:** *Unbending* is a woken core, so it can choose. In Khet's last phase it chooses: it sets him down, and fights for him, its own way.
 - **Vibe:** a showman on a giant's head, and the giant patiently letting him. Scrap-built thrusters revving, Khet yelling, a vast slow servo groan; and in the last phase, a Compact war machine's clean tones.
 
@@ -26,7 +27,7 @@ Khet's tells are scrap (engines flare red, then commit). *Unbending*'s are latti
 
 | Move | Tell (pose · shape · sound) | What it does | The answer | Open after |
 |---|---|---|---|---|
-| **RAM** | the thrusters flare · a red line at you · Khet: `HOLD ON!` | the head charges down the line | step off; parry it into the edge and it's reeling | 1.6 s, 2.2 s reeling |
+| **RAM** | the thrusters flare · a red line at you · Khet: `HOLD ON!` | the head charges down the line | step off; the charging body cannot be parried | 1.6 s, 2.2 s reeling |
 | **TITAN EYE** (signature) | the eye opens · the beam's line drawn · the horn | a beam that follows you, slower than you fly | keep moving round it | 2 s, the eye dimming |
 | **SLAM** | the jaw drops open, the head rears · a ring drawn on you | the head drops onto you with its thrusters full; a ring of junk thrown off | leave the ring | 1.4 s |
 | **THE CLANS** (I, II) | Khet waves | two ramjacks, his riders | kill them, or take the window | 0.8 s |

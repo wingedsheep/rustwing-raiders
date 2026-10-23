@@ -91,7 +91,6 @@ export class CoreView {
         this.host.pop('THICK SKIN', e.x, e.z - 3, VEIN_COLOR.grease);
         this.fx.ring(e.x, FLIGHT_Y, e.z, 3.2, 0.3, true, knackHex('thickskin'));
         audio.play('block', { pan, pitch: 0.8 });
-        this.host.juice({ hitstop: 3 });
         break;
       case 'shaken': {
         const def = e.imprint && IMPRINTS[e.imprint];
@@ -104,13 +103,13 @@ export class CoreView {
       case 'policy':
         this.host.pop("PIP'S POLICY PAYS OUT", e.x, e.z - 4, IMPRINTS.policy.color, true);
         this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.5, true, hexOf(IMPRINTS.policy.color));
-        this.host.juice({ hitstop: 8, flash: 0.35, flashColor: hexOf(IMPRINTS.policy.color) });
+        this.host.juice({ flash: 0.35, flashColor: hexOf(IMPRINTS.policy.color) });
         audio.play('loot_legendary', { pan, pitch: 1.1 });
         break;
       case 'minute':
         this.host.pop('THE LAST MINUTE', e.x, e.z - 4, IMPRINTS.minute.color, true);
         this.fx.ring(e.x, FLIGHT_Y, e.z, 7, 0.4, true, hexOf(IMPRINTS.minute.color));
-        this.host.juice({ hitstop: 5, flash: 0.25, flashColor: hexOf(IMPRINTS.minute.color) });
+        this.host.juice({ flash: 0.25, flashColor: hexOf(IMPRINTS.minute.color) });
         audio.play('load_class', { pan, pitch: 0.8 });
         break;
       case 'follow':
@@ -120,12 +119,12 @@ export class CoreView {
       case 'execution':
         this.name('execution', e.x, e.z, 3);
         this.fx.sparks(e.x, y, e.z, 14, knackHex('execution'), 24, 0.35, 0.25);
-        this.host.juice({ hitstop: 3, trauma: 0.12 });
+        this.host.juice({ trauma: 0.12 });
         break;
       case 'chain':
         this.host.pop(`CHAIN ×${e.n}`, e.x, e.z - 3, VEIN_COLOR.steel, e.n >= 3);
         this.fx.ring(e.x, FLIGHT_Y, e.z, 11, 0.35, true, knackHex('chain'));
-        this.host.juice({ trauma: 0.1 + 0.04 * e.n, hitstop: 2 });
+        this.host.juice({ trauma: 0.1 + 0.04 * e.n });
         audio.play('detonate', { pan, pitch: 1.2, vol: 0.7 });
         break;
       case 'splinter':
@@ -167,7 +166,7 @@ export class CoreView {
         this.host.pop(`${w?.name ?? 'IT'} REFUSES`, e.x, e.z - 4, col, true);
         this.fx.ring(e.x, FLIGHT_Y, e.z, 10, 0.5, true, hexOf(col));
         this.fx.sparks(e.x, y, e.z, 24, hexOf(col), 30, 0.5, 0.25);
-        this.host.juice({ flash: 0.45, flashColor: hexOf(col), hitstop: 6, trauma: 0.3 });
+        this.host.juice({ flash: 0.45, flashColor: hexOf(col), trauma: 0.3 });
         break;
       }
       case 'bark': {

@@ -3,7 +3,7 @@ import { audio, type Loop, type Sfx, type Track } from './audio';
 
 const SFX: Sfx[] = [
   'shot_rivet', 'shot_scatter', 'shot_rail', 'shot_arc', 'shot_missile', 'shot_flak', 'shot_mine', 'flak_burst',
-  'hit', 'hit_armor', 'enemy_shot', 'explode_small', 'explode_big', 'explode_boss',
+  'hit', 'hit_armor', 'shot_land', 'reflect', 'skid', 'truck_rev', 'enemy_shot', 'explode_small', 'explode_big', 'explode_boss',
   'player_hit', 'player_down', 'shield_break', 'shield_up', 'dash', 'graze', 'overheat',
   'pickup_scrap', 'pickup_part', 'heal',
   'special_bomb', 'special_phase', 'special_emp', 'special_overdrive', 'special_ready',
@@ -19,7 +19,7 @@ const SFX: Sfx[] = [
   'istra_call', 'crew_ho', 'cannon', 'whale_dive', 'whale_breach', 'tide_turn', 'whale_breath',
 ];
 const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
-const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind'];
+const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind', 'truck'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const num = (id: string) => Number($<HTMLInputElement>(id).value);

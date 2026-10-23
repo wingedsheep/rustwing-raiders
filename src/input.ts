@@ -6,13 +6,14 @@
  *   keyboard (solo)   move WASD / arrows   fire J Z Space   heavy O N    dash K X        boost L C (held)   special I V        aux U B        focus Shift
  *   keyboard left     move WASD            fire Space        heavy G      dash LShift     boost F            special E          aux R          focus Q
  *   keyboard right    move arrows          fire / Num0       heavy ; Num5 dash RShift Num.  boost . Num3     special Enter      aux ' Num2     focus RCtrl Num1
- *   pad               move stick / d-pad   fire RT (R2)      heavy X RB (□ R1)  dash A (✕)      boost LT analog (L2)   special Y (△)   aux LB (L1)   focus B (○) or L3
+ *   pad               move stick / d-pad   fire RT (R2)      heavy X RB (□ R1)  dash A (✕)      boost LT analog (L2)   special Y (△)   aux B (○)   focus LB (L1) or L3
  *
  * On a pad, fire is held on the right trigger, so the thumb is free: dash on A, the heavies on X
  * next to it (dash, then the heavy, is the dash-strike, one roll of the thumb). With fire on a
  * face button, every dash let go of the guns. RB fires the heavies too, for a finger.
  *
- * Aux is on a shoulder so it can be pressed (a parry is all timing) with fire held.
+ * Aux is on B beside dash: the thumb chooses a timed parry or an evade while fire stays held.
+ * Focus is held on LB, leaving the thumb free for all four combat actions (L3 also works).
  *
  * Boost is analog on the left trigger (how far it's pulled), all or nothing on a key.
  *
@@ -143,8 +144,8 @@ const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c))
  * Presses are caught every frame and held for a moment, so one made a touch early (in the dash's
  * recovery, a frame before the special fills) still goes off on the first step it can. The moment
  * is counted in the sim's steps as they read it, not on the clock: on a fast screen most frames
- * run no step at all, and hitstop and slow motion hold the game still, and a press made in one of
- * those must not be lost before the game moves again. The parry is kept strict: a long buffer
+ * run no step at all, and a press made in one of those must not be lost before the next step.
+ * The parry is kept strict: a long buffer
  * would catch bullets you didn't time.
  *
  * The dash is handed over once, on the first step after the press (the sim queues it through the
@@ -154,7 +155,7 @@ const BUFFER = { dash: 0, heavy: 0.1, special: 0.1, aux: 0.05 };
 type Buffered = keyof typeof BUFFER;
 const ACTIONS = Object.keys(BUFFER) as Buffered[];
 /** Pad buttons per action (standard mapping). */
-const PAD_BUTTONS: Record<Buffered, number[]> = { dash: [0], heavy: [2, 5], special: [3], aux: [4] };
+const PAD_BUTTONS: Record<Buffered, number[]> = { dash: [0], heavy: [2, 5], special: [3], aux: [1] };
 /** A press no step has read after this long (seconds, on the clock) was made in a menu: dropped. */
 const STALE = 0.4;
 const buffered = new Map<string, { left: number; age: number }>();
@@ -306,7 +307,7 @@ class Input {
     if (dev === 'keys') return 'U';
     if (dev === 'keys-left') return 'R';
     if (dev === 'keys-right') return "'";
-    return this.padName(dev) === 'PS PAD' ? 'L1' : 'LB';
+    return this.padName(dev) === 'PS PAD' ? 'CIRCLE' : 'B';
   }
 
   /** What a player's device asks of their ship. */
@@ -325,7 +326,7 @@ class Input {
         dash: buffer(dev, 'dash'),
         special: buffer(dev, 'special'),
         aux: buffer(dev, 'aux'),
-        focus: btn(g, 1) || btn(g, 10),
+        focus: btn(g, 4) || btn(g, 10),
       };
     }
     const k = SCHEMES[dev as keyof typeof SCHEMES];

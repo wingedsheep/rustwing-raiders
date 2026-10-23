@@ -18,35 +18,35 @@ export const LOADOUTS: Record<string, (frame: string) => Build> = {
     ship('mule', [
       ['plate', 0, 0], ['seeker', 1, 0], ['rivet', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
       ['shield', 0, 1], ['plate', 1, 1], ['parry', 2, 1], ['sink', 3, 1], ['mirror', 4, 1],
-      ['thruster', 2, 3],
+      ['thruster', 1, 3], ['thruster', 2, 3],
     ]),
   // (the lance lies across the middle; a rivet in the nose holds the trigger between rounds)
   speed: () =>
     ship('kestrel', [
-      ['rivet', 2, 0], ['flare', 1, 1], ['phasedrive', 3, 1], ['lance', 1, 2, 1],
+      ['rivet', 2, 0], ['flare', 1, 1], ['phasedrive', 3, 1], ['lance', 1, 2, 1], ['thruster', 1, 4], ['thruster', 3, 4],
     ]),
   assassin: () =>
     ship('wasp', [
       ['scatter', 1, 0], ['scatter', 3, 0], ['hone', 3, 1], ['ram', 0, 2], ['mine', 1, 2], ['bombbay', 2, 2], ['lunge', 3, 2],
-      ['wake', 0, 3], ['thruster', 2, 4],
+      ['wake', 0, 3], ['thruster', 1, 3], ['thruster', 2, 4],
     ]),
   turret: () =>
     ship('lattice', [
       ['plate', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['shield', 0, 1], ['sentry', 2, 1], ['mirror', 4, 1],
-      ['autoloader', 0, 2], ['flare', 1, 2], ['amp', 2, 2], ['overdrive', 3, 2],
+      ['autoloader', 0, 2], ['flare', 1, 2], ['amp', 2, 2], ['overdrive', 3, 2], ['thruster', 1, 4], ['thruster', 3, 4],
     ]),
   // marks and reactions: a torch that burns and a seeker that cracks off a Breacher Rack, a Catalyst to set them off
   alchemist: () =>
     ship('lattice', [
       ['flaw', 0, 0], ['seeker', 2, 0], ['plate', 4, 0], ['incend', 0, 1], ['torch', 2, 1], ['shield', 4, 1],
-      ['catalyst', 0, 2], ['breach', 2, 2], ['emp', 3, 2], ['siphon', 4, 2],
+      ['catalyst', 0, 2], ['breach', 2, 2], ['emp', 3, 2], ['siphon', 4, 2], ['thruster', 1, 4], ['thruster', 3, 4],
     ]),
   // a sensible mid-run ship: a tool on every hardpoint, boosters on them, armour, an engine at the back
   strong: () =>
     ship('mule', [
       ['plate', 0, 0], ['seeker', 1, 0], ['scatter', 2, 0], ['mine', 3, 0], ['plate', 4, 0],
       ['shield', 0, 1], ['amp', 1, 1], ['flare', 2, 1], ['sink', 3, 1], ['vector', 4, 1],
-      ['thruster', 2, 3],
+      ['thruster', 1, 3], ['thruster', 2, 3],
     ]),
 };
 

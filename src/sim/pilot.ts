@@ -13,11 +13,13 @@
  * Used by tools/autopilot.ts (headless, many seeds) and in the browser with ?autopilot.
  */
 
+import { kitPilot } from './kit';
 import type { Bullet, Level, Player } from './level';
 import type { Gun } from './build';
 import { DT, HALF_H, HALF_W, type Intent } from './types';
 import { clamp, rng, type Rng } from '../util';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
+import { canParryProjectile } from './parry';
 
 /** How fast a bullet comes down the flight plane (a seeker keeps up with the screen: it's flown, not thrown). */
 const fall = (lv: Level, b: Bullet) => (b.kind === 'seeker' ? b.vz - lv.speedNow : b.vz);
@@ -493,6 +495,9 @@ const PARRY_HUMAN = {
  */
 function useAux(lv: Level, p: Player, best: number, st: PilotState): boolean {
   const s = p.stats;
+  // the new kit's aux (held, or pressed twice) has its own say
+  const kit = kitPilot(lv, p);
+  if (kit !== undefined) return kit;
   if (!s.aux || p.auxCd > 0 || p.auxT > 0) {
     st.parryAt = -1;
     return false;
@@ -512,7 +517,7 @@ function useAux(lv: Level, p: Player, best: number, st: PilotState): boolean {
       const t = k * DT;
       const z = p.z - lv.speedNow * t;
       for (const b of lv.bullets)
-        if ((b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < 1.8 * 1.8) {
+        if (canParryProjectile(b) && (b.x + b.vx * t - p.x) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < 1.8 * 1.8) {
           contact = k;
           break;
         }

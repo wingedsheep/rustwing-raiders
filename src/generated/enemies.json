@@ -15,6 +15,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_beam_pylon": {
+  "colliders": [],
+  "kind": "enemy_beam_pylon",
+  "max": [
+   0.926,
+   0.618,
+   1.87
+  ],
+  "min": [
+   -0.917,
+   -0.338,
+   -1.636
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_blimp_mech": {
   "colliders": [],
   "kind": "enemy_blimp_mech",
@@ -164,14 +180,14 @@
   "colliders": [],
   "kind": "enemy_burrower",
   "max": [
-   1.339,
-   1.612,
-   1.675
+   1.347,
+   5.347,
+   5.767
   ],
   "min": [
-   -1.206,
-   -0.736,
-   -2.145
+   -1.347,
+   -0.148,
+   -2.632
   ],
   "mounts": [],
   "variant": 0
@@ -1121,22 +1137,6 @@
    -0.719,
    -0.39,
    -0.749
-  ],
-  "mounts": [],
-  "variant": 0
- },
- "enemy_pylon_warden": {
-  "colliders": [],
-  "kind": "enemy_pylon_warden",
-  "max": [
-   0.926,
-   0.618,
-   1.87
-  ],
-  "min": [
-   -0.917,
-   -0.338,
-   -1.636
   ],
   "mounts": [],
   "variant": 0

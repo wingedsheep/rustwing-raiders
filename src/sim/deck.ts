@@ -51,7 +51,7 @@ export interface Door {
 /** What stands in a room: the game places a model for each, and some of them block. */
 export type PropKind =
   | 'crate' | 'strongbox' | 'core' | 'console' | 'alarm' | 'locker' | 'bunk' | 'table' | 'canister' | 'barrel'
-  | 'cargo' | 'engine' | 'pipes' | 'medkit' | 'turret' | 'sconce';
+  | 'cargo' | 'engine' | 'pipes' | 'medkit' | 'turret' | 'sconce' | 'cage' | 'rupture' | 'spore';
 
 export interface Prop {
   id: number;
@@ -70,9 +70,38 @@ export interface Prop {
   cover: boolean;
 }
 
+/**
+ * Whose ship it is decides who crews her, in the family's own attack language (the same tells as
+ * in the air): scrap flares and commits, lattice draws the whole blow out in light first, bloom
+ * swells before it bursts. Every crew has the same three jobs: one who closes in, one who shoots,
+ * one who holds the line.
+ */
+export type Family = 'scrap' | 'lattice' | 'bloom';
+export type CrewKind = 'deckhand' | 'gunner' | 'bruiser' | 'torcher' | 'clerk' | 'auditor' | 'warden' | 'notary' | 'thrall' | 'puffer' | 'nurse' | 'rooter' | 'skulk';
+/** Each crew's hands: who rushes you, who shoots, who holds the line, and the odd one with its own trick. */
+export const CREW: Record<Family, { melee: CrewKind; gun: CrewKind; heavy: CrewKind; odd: CrewKind }> = {
+  scrap: { melee: 'deckhand', gun: 'gunner', heavy: 'bruiser', odd: 'torcher' },
+  lattice: { melee: 'clerk', gun: 'auditor', heavy: 'warden', odd: 'notary' },
+  bloom: { melee: 'thrall', gun: 'puffer', heavy: 'nurse', odd: 'rooter' },
+};
+
+/** How big she is: a skiff, a freighter, a hauler, now and then a bulker (from the site's danger, and luck). */
+export type ShipSize = 0 | 1 | 2 | 3;
+export const SIZE_NAME = ['SKIFF', 'FREIGHTER', 'HAULER', 'BULKER'] as const;
+/** Crates aboard, by size (three are the cards at the results; past that they pay scrap). */
+export const CRATES = [2, 3, 4, 5];
+
+/**
+ * Now and then she's in a state: DARK (her power's out: no alarms, no gates, half her crew asleep,
+ * the rest by torchlight), CAGES (a poacher's hold: beasts in cages that'll go for whoever's
+ * nearest once they're loose), BREACH (her hull's torn: the hole breathes out, and anything
+ * loose near it goes with the air).
+ */
+export type Condition = 'none' | 'dark' | 'cages' | 'breach';
+
 /** Who's aboard at the start, and where. */
 export interface Post {
-  kind: 'deckhand' | 'gunner' | 'bruiser';
+  kind: CrewKind;
   x: number;
   z: number;
   rot: number;
@@ -81,6 +110,15 @@ export interface Post {
   asleep: boolean;
   /** Runs for the alarm when it sees you. */
   runner: boolean;
+  /** A beast in a cage (the cage's prop). */
+  cage?: Prop;
+}
+
+/** A laser gate across a doorway (lattice ships): the door it fills. */
+export interface Gate {
+  door: Door;
+  /** Where in its cycle it starts (s). */
+  phase: number;
 }
 
 /** How big a freighter, and how many aboard, from the site's danger. */
@@ -88,6 +126,11 @@ export interface DeckSpec {
   seed: number;
   /** 0..2-ish: how hard (the run's difficulty plus the site's danger). */
   hard: number;
+  family?: Family;
+  size?: ShipSize;
+  condition?: Condition;
+  /** How many go aboard: more crew for more of you. */
+  heroes?: number;
 }
 
 const HALF_CORRIDOR = 1;
@@ -109,6 +152,12 @@ export class Deck {
   readonly breach: { x: number; z: number };
   /** The corridor's middle row. */
   readonly mid: number;
+  readonly family: Family;
+  readonly size: ShipSize;
+  readonly condition: Condition;
+  readonly gates: Gate[] = [];
+  /** The tear in her hull (a BREACH), against an outer wall. */
+  rupture: Prop | null = null;
   /** Door cells: which door is in each (-1 none). */
   private doorAt: Int16Array;
   private r: Rng;
@@ -116,9 +165,12 @@ export class Deck {
   constructor(readonly spec: DeckSpec) {
     const r = (this.r = rng(spec.seed));
     const hard = spec.hard;
-    // longer ships the harder it is: more rooms, deeper holds
-    this.w = 50 + Math.round(Math.min(2, hard) * 6) + irange(r, 0, 4);
-    this.h = 25;
+    this.family = spec.family ?? 'scrap';
+    this.size = spec.size ?? 1;
+    this.condition = spec.condition ?? 'none';
+    // the bigger she is the longer, and the harder the longer still: more rooms, deeper holds
+    this.w = [36, 48, 64, 82][this.size] + Math.round(Math.min(2, hard) * 3) + irange(r, 0, 4);
+    this.h = [21, 25, 25, 29][this.size];
     const W = this.w;
     const H = this.h;
     this.cells = new Uint8Array(W * H);
@@ -130,7 +182,7 @@ export class Deck {
     this.layout();
     this.breach = { x: 3, z: this.mid + 0.5 };
     this.furnish();
-    this.crew(hard);
+    this.crew(hard, Math.max(1, spec.heroes ?? 1));
     this.refresh();
   }
 
@@ -353,10 +405,30 @@ export class Deck {
   private furnish() {
     const r = this.r;
     const rooms = this.rooms;
-    // three crates of cargo worth taking: one per card at the results, in the holds first
+    // the crates of cargo worth taking: one per card at the results, in the holds first
     const holds = shuffle(r, rooms.filter((q) => q.kind === 'hold'));
     const others = shuffle(r, rooms.filter((q) => q.kind === 'engine' || q.kind === 'mess' || q.kind === 'bunks'));
-    const crateRooms = [...holds, ...holds, ...others].slice(0, 3);
+    const crateRooms = [...holds, ...others, ...holds, ...others].slice(0, CRATES[this.size]);
+    // a poacher's hold: beasts in cages, in the holds amidships and forward (not the crates' rooms if it can help it)
+    if (this.condition === 'cages') {
+      const pens = [...rooms.filter((q) => q.kind === 'hold' && q.depth > 0.2 && !crateRooms.includes(q)), ...holds].slice(0, this.size === 0 ? 1 : 2);
+      for (const room of pens) {
+        for (let i = 0; i < (this.size >= 2 ? 2 : 1); i++) this.againstWall('cage', room, 1, 1, { cover: true });
+      }
+    }
+    // a tear in her hull: in a room amidships, on the outer wall
+    if (this.condition === 'breach') {
+      const mids = shuffle(r, rooms.filter((q) => q.side !== 0 && q.depth > 0.3 && q.depth < 0.8 && q.kind !== 'vault'));
+      for (const room of mids) {
+        const z = room.side < 0 ? room.z0 + 0.5 : room.z1 + 0.5;
+        const x = Math.round((room.x0 + room.x1 + 1) / 2);
+        const p = this.place('rupture', room, x, z, room.side < 0 ? 0 : Math.PI, 1, 0.5, { cover: true, force: true });
+        if (p) {
+          this.rupture = p;
+          break;
+        }
+      }
+    }
     for (const room of rooms) {
       const cx = (room.x0 + room.x1 + 1) / 2;
       const cz = (room.z0 + room.z1 + 1) / 2;
@@ -395,7 +467,7 @@ export class Deck {
           const fx = room.x1 + 1;
           for (let k = -1; k <= 1; k++) this.place('console', room, fx - 1.5, cz + k * 3, -Math.PI / 2, 0.75, 0.5, { cover: true, variant: k & 1 });
           this.place('strongbox', room, fx - 3.5, Math.round(cz), -Math.PI / 2, 0.5, 0.5, { cover: true, force: true });
-          this.againstWall('alarm', room, 0.5, 0.5, { solid: false });
+          if (this.condition !== 'dark') this.againstWall('alarm', room, 0.5, 0.5, { solid: false });
           for (let i = 0; i < 2; i++) this.scatter('cargo', room, 1, 1, 30, { cover: true, variant: i % 2 });
           break;
         }
@@ -406,7 +478,7 @@ export class Deck {
     for (const room of crateRooms) this.scatter('crate', room, 1, 0.5, 60, { cover: true, variant: irange(r, 0, 1) }) ?? this.scatter('crate', rooms.find((q) => q.kind === 'hold') ?? room, 1, 0.5, 60, { cover: true });
     // alarm panels along the corridor, one each side
     const corr = rooms.find((q) => q.kind === 'corridor')!;
-    for (const side of [-1, 1]) {
+    for (const side of this.condition === 'dark' ? [] : [-1, 1]) {
       for (let i = 0; i < 20; i++) {
         const x = irange(r, corr.x0 + 4, corr.x1 - 3);
         const z = side < 0 ? corr.z0 : corr.z1;
@@ -416,6 +488,18 @@ export class Deck {
         this.place('alarm', corr, x + 0.5, side < 0 ? corr.z0 + 0.5 : corr.z1 + 0.5, side < 0 ? 0 : Math.PI, 0.5, 0.5, { solid: false, force: true });
         break;
       }
+    }
+    // the Hive's ships grow: rot in the corners
+    if (this.family === 'bloom') {
+      for (const room of rooms) {
+        if (room.kind === 'lock') continue;
+        for (let i = 0; i < (room.kind === 'corridor' ? 4 : irange(r, 1, 2)); i++) this.scatter('spore', room, 0.5, 0.5, 20, { solid: false, variant: irange(r, 0, 1) });
+      }
+    }
+    // a lattice ship's doorways are gated in light (unless her power's out)
+    if (this.family === 'lattice' && this.condition !== 'dark') {
+      const doors = shuffle(r, this.doors.filter((d) => d.id !== 0));
+      for (const door of doors.slice(0, [2, 4, 6, 8][this.size])) this.gates.push({ door, phase: r() * 4 });
     }
     // lights on the walls, so every room has its own pool of light
     for (const room of rooms) {
@@ -428,9 +512,11 @@ export class Deck {
     }
   }
 
-  private crew(hard: number) {
+  private crew(hard: number, heroes: number) {
     const r = this.r;
-    const take = (room: Room, kind: Post['kind'], asleep = false) => {
+    const { melee, gun, heavy, odd } = CREW[this.family];
+    const dark = this.condition === 'dark';
+    const take = (room: Room, kind: CrewKind, asleep = false) => {
       for (let i = 0; i < 40; i++) {
         const x = room.x0 + 0.5 + r() * (room.x1 - room.x0);
         const z = room.z0 + 0.5 + r() * (room.z1 - room.z0);
@@ -438,7 +524,8 @@ export class Deck {
         const cz = Math.floor(z);
         if (this.occupied.has(this.idx(cx, cz)) || this.cell(cx, cz) !== Cell.Floor) continue;
         if (this.posts.some((p) => Math.hypot(p.x - x, p.z - z) < 1.5)) continue;
-        this.posts.push({ kind, x, z, rot: r() * Math.PI * 2, room: room.id, asleep, runner: false });
+        // her power's out: half of them have turned in where they stood
+        this.posts.push({ kind, x, z, rot: r() * Math.PI * 2, room: room.id, asleep: asleep || (dark && room.kind !== 'bridge' && r() < 0.5), runner: false });
         return;
       }
     };
@@ -449,40 +536,50 @@ export class Deck {
       // the deeper the room, the more it's guarded
       const deep = room.depth;
       if (rk === 'corridor') {
-        take(room, 'deckhand');
-        if (k > 0.5) take(room, 'gunner');
-        continue;
-      }
-      if (rk === 'bunks') {
-        take(room, 'deckhand', true);
-        take(room, 'deckhand', r() < 0.5);
-        if (k > 0.8) take(room, 'deckhand');
+        take(room, melee);
+        if (k > 0.5 || this.family === 'lattice') take(room, gun);
+        if (this.size >= 2) take(room, melee);
+      } else if (rk === 'bunks') {
+        take(room, melee, true);
+        take(room, melee, r() < 0.5);
+        if (k > 0.8) take(room, melee);
       } else if (rk === 'mess') {
-        take(room, 'deckhand');
-        take(room, 'deckhand');
-        take(room, r() < 0.4 + k * 0.2 ? 'gunner' : 'deckhand');
+        take(room, melee);
+        take(room, melee);
+        take(room, r() < 0.4 + k * 0.2 ? gun : melee);
       } else if (rk === 'engine') {
-        take(room, 'deckhand');
-        take(room, 'gunner');
+        take(room, melee);
+        take(room, this.size > 0 && r() < 0.5 + k * 0.2 ? odd : gun);
       } else if (rk === 'hold') {
-        take(room, deep > 0.5 ? 'gunner' : 'deckhand');
-        if (r() < 0.5 + k * 0.25) take(room, 'deckhand');
-        if (k > 0.35 && r() < 0.35 + k * 0.2) take(room, 'bruiser');
+        take(room, deep > 0.5 ? gun : melee);
+        if (r() < 0.5 + k * 0.25) take(room, melee);
+        if (k > 0.35 && r() < 0.35 + k * 0.2) take(room, heavy);
+        else if (r() < 0.2 + k * 0.15 + this.size * 0.08) take(room, odd);
       } else if (rk === 'vault') {
-        take(room, 'gunner');
-        if (k > 0.3) take(room, 'gunner');
-        if (k > 1) take(room, 'bruiser');
+        take(room, gun);
+        if (k > 0.3) take(room, gun);
+        if (k > 1 || this.size >= 2) take(room, heavy);
       } else if (rk === 'bridge') {
-        take(room, 'gunner');
-        take(room, 'gunner');
-        take(room, 'deckhand');
-        if (k > 0.6) take(room, 'bruiser');
-        if (k > 1.4) take(room, 'gunner');
+        take(room, gun);
+        take(room, this.size === 0 ? melee : gun);
+        take(room, melee);
+        if (k > 0.6) take(room, heavy);
+        if (k > 1.4) take(room, gun);
+        if (this.size >= 2) take(room, odd);
       }
+      // more of you, more of them: a hand more in most rooms for each partner
+      for (let n = 1; n < heroes; n++) if (r() < 0.85) take(room, deep > 0.55 && r() < 0.6 ? gun : r() < 0.15 + k * 0.1 ? heavy : melee);
     }
-    // a few of the deckhands run for the alarm when they see you
-    const hands = shuffle(r, this.posts.filter((p) => p.kind === 'deckhand' && !p.asleep));
-    hands.slice(0, 2 + Math.round(k)).forEach((p) => (p.runner = true));
+    // the beasts, one to a cage
+    for (const p of this.props) {
+      if (p.kind !== 'cage') continue;
+      this.posts.push({ kind: 'skulk', x: p.x, z: p.z, rot: p.rot, room: p.room, asleep: false, runner: false, cage: p });
+    }
+    // a few of the hands run for the alarm when they see you (nobody does with the power out)
+    if (!dark) {
+      const hands = shuffle(r, this.posts.filter((p) => p.kind === melee && !p.asleep));
+      hands.slice(0, 2 + Math.round(k)).forEach((p) => (p.runner = true));
+    }
   }
 
   /** Works out what blocks what, from the walls, the props and how open the doors are. */

@@ -113,6 +113,7 @@ export class PixelRenderer {
         uOutlineStrength: { value: 0.55 },
         uFoeEdge: { value: new THREE.Color(0x0c0812) },
         uFoeEdgeStrength: { value: 0.85 },
+        uFoeRim: { value: new THREE.Color(1.0, 0.92, 0.8) }, // the light a foe's edge catches
         uGrade: { value: new THREE.Vector3(1.1, 1.05, 1.0) }, // saturation, contrast, brightness
         uShade: { value: new THREE.Color(0.55, 0.6, 0.85) },
         uLight: { value: new THREE.Color(1.0, 0.95, 0.85) },
@@ -132,7 +133,6 @@ export class PixelRenderer {
         uImpact: { value: 0 }, // an impact frame: the picture flipped to two tones, paper and ink
         uImpactColor: { value: new THREE.Color(1, 1, 1) }, // the paper's colour
         uAberr: { value: 0 }, // the colours split apart at the edges (a blow to the ship)
-        uDrain: { value: 0 }, // the colour drains out of all but the brightest (time slowed)
       },
       vertexShader,
       fragmentShader: /* glsl */ `
@@ -147,6 +147,7 @@ export class PixelRenderer {
         uniform float uOutlineStrength;
         uniform vec3 uFoeEdge;
         uniform float uFoeEdgeStrength;
+        uniform vec3 uFoeRim;
         uniform vec3 uGrade;
         uniform vec3 uShade;
         uniform vec3 uLight;
@@ -166,7 +167,6 @@ export class PixelRenderer {
         uniform float uImpact;
         uniform vec3 uImpactColor;
         uniform float uAberr;
-        uniform float uDrain;
         varying vec2 vUv;
 
         ivec2 size;
@@ -193,6 +193,18 @@ export class PixelRenderer {
             if (fz <= viewZ(q) + 0.3 && z - fz > 0.6) ring = 1.0;
           }
           return ring;
+        }
+        // the foe's own outermost texels, where a neighbour shows something well behind it: the
+        // way out of the foe (xy), and 1 in z when p is one
+        vec3 foeRim(ivec2 p, float z) {
+          float m = foeZ(p);
+          if (m >= 1.0 || linear(m) > z + 0.3) return vec3(0.0);
+          vec2 n = vec2(0.0);
+          for (int k = 0; k < 4; k++) {
+            ivec2 o = ivec2(k == 0 ? 1 : k == 1 ? -1 : 0, k == 2 ? 1 : k == 3 ? -1 : 0);
+            if (viewZ(p + o) - z > 0.6) n += vec2(o);
+          }
+          return vec3(n, dot(n, n) > 0.0 ? 1.0 : 0.0);
         }
         vec3 at(ivec2 p) { return texelFetch(tColor, clamp(p, ivec2(0), size - 1), 0).rgb; }
 
@@ -255,10 +267,18 @@ export class PixelRenderer {
           float edge = (uPersp > 0.5 ? smoothstep(0.9, 2.2, dz / max(1.0, z * 0.06)) : smoothstep(0.9, 2.2, dz)) * (sky ? 0.0 : 1.0);
           col = mix(col, col * uOutline * 2.4, edge * uOutlineStrength);
           if (uFoeEdgeStrength > 0.0) {
-            // dark against light ground; on dark ground a lit rim instead, which is what reads there
-            float gl = dot(col, vec3(0.299, 0.587, 0.114));
-            vec3 rim = mix(uFoeEdge, col * 1.6 + vec3(0.2, 0.19, 0.24), smoothstep(0.16, 0.08, gl));
-            col = mix(col, rim, foeEdge(p, z) * uFoeEdgeStrength);
+            // ink round the outside; and inside, the foe's own edge catches the light in its own
+            // colour, most on the side the sun comes from and most against dark ground, where the
+            // ink alone wouldn't read (a lit edge, never a halo round it)
+            col = mix(col, uFoeEdge, foeEdge(p, z) * uFoeEdgeStrength);
+            vec3 r = foeRim(p, z);
+            if (r.z > 0.0) {
+              vec2 out2 = normalize(r.xy);
+              float lit = 0.5 + 0.5 * dot(out2, vec2(-0.96, 0.27));
+              float gl = dot(at(p + ivec2(round(out2))), vec3(0.299, 0.587, 0.114));
+              float k = mix(0.35, 1.0, smoothstep(0.2, 0.05, gl)) * mix(0.4, 1.0, lit);
+              col = mix(col, col * 2.2 + uFoeRim * 0.24, k * uFoeEdgeStrength);
+            }
           }
 
           // bloom: what glows lights the air around it
@@ -274,12 +294,6 @@ export class PixelRenderer {
           // split tone, as a painter would: shadows go cool, light goes warm
           float lt = dot(col, vec3(0.299, 0.587, 0.114));
           col = mix(col, col * mix(uShade, uLight, smoothstep(0.1, 0.75, lt)), uTone);
-          if (uDrain > 0.0) {
-            // the world goes grey and cool; what burns bright keeps its colour
-            float hot = smoothstep(0.55, 0.9, max(col.r, max(col.g, col.b)));
-            vec3 grey = vec3(dot(col, vec3(0.299, 0.587, 0.114))) * mix(vec3(1.0), uShade * 1.25, 0.5);
-            col = mix(col, grey * 0.85, uDrain * (1.0 - hot));
-          }
 
           float v = smoothstep(0.5, 1.15, length(q)) * uVignette;
           col = mix(col, col * uShade * 0.5, v * 0.6);

@@ -50,7 +50,7 @@ The other peoples' languages (Kehx, Chikta, Eefee, Vaelo) are not related to Ton
 | \*ūm | deep | *umora* |
 | \*sēpʰa | one who reads (a lane) | *Sefa* |
 | \*ōm | wind, breath | *Omtal*, *Omter* (Act II) |
-| \*rāk | tear, rend | *Rakven* (Act II) |
+| \*rāk | tear, rend | *Rakven*, *Rakter* (Act II) |
 
 ## Hoowae: a thousand years of wear
 
@@ -171,6 +171,11 @@ The natives of Halcyon's twilight band speak in buzzing, rising phrases (`z b w`
 Two words for thinking machines, from two different kinds of borrowing ([minds](minds.md)):
 
 - **nemva**, a woken core: Tonkvan \*nēm-wa, "one who listens" (\*nēm "listen", \*-wa "one who"). Cores were dug up after 180 L, so it's a **late** loan: Vhossk *Nemmva* (the long *ē* doubles the *m*), then the cant simplifies the double before a consonant. In Hoowae, the same word is *naemwae*.
+- **Selmer**, the Throne's lane-breaker: Court Qaushen *sel-meir*, "without balance", with the cant's *ei → e* ([the end game](../endgame.md#the-selmer)).
+- **Rakter**, the machine sent to Rakven: Tonkvan \*Rāk-tōr, "tear-keeper", worn down the same way as *Omter* ([the end game](../endgame.md#rakter-the-tear-keeper-rakven)).
+- **Kesset**, the free minds' world: Kehx *kess-et*, "paid in full" ([the end game](../endgame.md#kesset)).
+- **Tekkesh**, the Kehx closing-house on the Rim: Kehx *tekk-esh*, "where the count is closed". Written Kehx barely wears, so the cant says it as spelt ([the end game](../endgame.md#tekkesh)).
+- **Ume'lua**, the Mo'ala's first world: *ume'lua*, "where the great slow ones came down". Never said to outsiders, so never worn; pilots call it the Haze ([the end game](../endgame.md#umelua)).
 - **Talang**, the free nemva's meeting-place: Tonkvan \*tāl-āŋ, "house of holding", revived like *Talkwa* below, in its old shape ([the end game](../endgame.md#talang)).
 - **Talkwa**, the free nemva: Tonkvan \*tāl-kʷa, "those who hold". Not borrowed at all: **revived**. The nemva read it off beacon tones and took it in its old shape, the way a people reviving a dead language picks its words from old books. It's the only Tonkvan word in use that no mouth has worn down. Pilots, hearing *talk* in it, made it **talkies**: folk etymology, as with *umora*.
 

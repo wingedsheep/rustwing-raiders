@@ -20,11 +20,14 @@ import type { AuxKind, Edge, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
 import { Convoy } from './convoy';
 import { Heist } from './heist';
-import { rollItem, rollTier, type AffixId, type Item } from '../game/loot';
+import { rollItem, rollTier, tierOf as itemTier, type AffixId, type Item, type Tier } from '../game/loot';
 import { Grafting, newGraftState, type GraftState } from './grafting';
 import { bondsOf, type GraftId, type Grafts, type Wreck } from '../game/grafts';
 import { LONG_SLOW, Mind, newMindState, type MindState, type MindWhat } from './mind';
 import { UNBENDING_HULL, waysOf, type CoreKit, type ImprintId } from '../game/core';
+import { canParryProjectile } from './parry';
+import { kitAux, kitGraze, kitShip, kitSoak, kitSpecial, kitTakedown, kitWalls, kitWorld, type KitWhat } from './kit';
+import { armShot, axEdge, cashIn, preMove, ripeness, shotLanded, tickAx, type Ax, type CashKind, type ShotAx } from './arsenal';
 
 export type Mode = 'raid' | 'hunt' | 'escort' | 'heist' | 'boss';
 /** The two ways to a perfect: dash out of fire in the slip, or parry it in the guard's first instant. */
@@ -193,9 +196,10 @@ export interface Player {
   wind: boolean;
   /** Takedowns landed (for the autopilot's report). */
   takedowns: number;
-  /** A hot crate carried (see HOT): what's in it, and its fuse (0 it blows, 1 it's open). */
+  /** A volatile crate carried (see HOT): what's in it, how far its lock has cracked (1: open), and whether a hit has set it off. */
   crate?: Item;
-  fuse: number;
+  crack: number;
+  blow: boolean;
   /**
    * The Weld (see WELD): 0..1, charged by hitting things. Full, let go of the trigger and hold
    * focus: `weldT` counts up, and past WELD.hold the weld is under way (committed, slow, the guns
@@ -296,10 +300,13 @@ export interface Shot {
   halt?: number;
   nvx?: number;
   nvz?: number;
+  /** The arsenal's dials it carries (see arsenal.ts), and the part that fired it (for the tally). */
+  ax?: ShotAx;
+  src?: string;
   dead: boolean;
 }
 
-/** torpedo: a homing round that can be shot down (see TORPEDO); seeker: the lattice's, that only turns square (see SEEKER). */
+/** torpedo: a homing round that can be shot down (see TORPEDO); seeker: the lattice's, that only turns square and can't be shot (see SEEKER). */
 export type BulletKind = 'orb' | 'needle' | 'big' | 'mine' | 'spore' | 'torpedo' | 'seeker';
 
 export interface Bullet {
@@ -344,9 +351,10 @@ export const TORPEDO = { launch: 0.45, fuel: 2.8, turn: 2.1, speed: 19, accel: 2
  * Seekers (the Rook's): they fly with the screen, dead straight, and only ever turn square. Once its
  * prey is level with it (or it meets the edge), one stops, points down its next leg for `halt`
  * seconds while that lane is drawn, then snaps off down it, kicking up to `speed`. `turns` turns
- * and it flies its last leg out. The first leg runs `out` seconds before it starts hunting.
+ * and it flies its last leg out. The first leg runs `out` seconds before it starts hunting. Guns
+ * and fire pass through it: a seeker is dodged, never shot down.
  */
-export const SEEKER = { out: 0.45, leg: 0.18, halt: 0.5, turns: 3, kick: 5, speed: 21, accel: 80, hp: 6, life: 10 };
+export const SEEKER = { out: 0.45, leg: 0.18, halt: 0.5, turns: 3, kick: 5, speed: 21, accel: 80, life: 10 };
 
 export interface Enemy extends FoeFields {
   id: number;
@@ -391,6 +399,8 @@ export interface Enemy extends FoeFields {
   /** Thrown (a THUNDEROUS clap): a push that dies away. */
   kx?: number;
   kz?: number;
+  /** Chilled, frozen, pinned, flung (see arsenal.ts). */
+  ax?: Ax;
   /** An elite a takedown's landed on: who by (its wreck is theirs when it goes down). */
   downBy?: number;
 }
@@ -447,14 +457,14 @@ export interface Hazard {
 
 export type LevelEvent =
   /** `turret`: fired by a SENTINEL left behind, not the ship. */
-  | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number; turret?: boolean; heavy?: boolean }
+  | { type: 'shot'; owner: number; kind: Gun['spec']['shot']; x: number; z: number; dir: number; turret?: boolean; heavy?: boolean; src?: string; ripe?: number }
   /** HEAVY guns: the button pressed (`fired` rounds went, 0: all dry), a round back (`perfect`: a perfect gave it). */
   | { type: 'heavy'; id: number; x: number; z: number; fired: number }
   | { type: 'reload'; id: number; gun: number; perfect: boolean; rounds: number }
   /** `dot`: a burn's tick, not a blow. */
   /** `edge`: the crit was the gun's edge; `strike`: a dash-strike's. */
   /** `armour`: it landed on plating; `blow`: a hit that breaks plating at full strength (see isBlow). */
-  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean; armour?: boolean; blow?: boolean }
+  | { type: 'hit'; x: number; z: number; enemy: number; dmg: number; kill: boolean; crit: boolean; dot?: boolean; edge?: Edge; strike?: boolean; armour?: boolean; blow?: boolean; src?: string }
   | { type: 'explode'; x: number; z: number; y: number; size: number; color: number; enemy?: number }
   | { type: 'enemyShot'; x: number; z: number; color: number; look?: Faction }
   /** A bullet cancelled (by a bomb, a perfect, a hit): it pops instead of vanishing. */
@@ -466,9 +476,13 @@ export type LevelEvent =
   /** `shield`: the shield took all of it; `dmg` and `tier`: what got through to the hull; `soak`: what the shield took. */
   | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier; soak?: number }
   | { type: 'crash'; id: number; x: number; z: number }
+  /** A player's shot meeting the land: stopped there, or (`bounce`) glancing off it. */
+  | { type: 'shotLand'; x: number; z: number; bounce: boolean; heavy: boolean; src?: string }
   | { type: 'down'; id: number; x: number; z: number }
   | { type: 'revive'; id: number }
   | { type: 'graze'; id: number; x: number; z: number }
+  /** The new kit (see kit.ts): the Bulwark, the Swap Beacon, the skins and the bombs. */
+  | { type: 'kit'; id: number; what: KitWhat; x: number; z: number; n?: number; x2?: number; z2?: number }
   | { type: 'dash'; id: number; x: number; z: number; dx: number; dz: number }
   /** Dash pressed with none left (and none back in time). */
   | { type: 'dashDry'; id: number }
@@ -535,6 +549,10 @@ export type LevelEvent =
   | { type: 'mark'; enemy: number; kind: MarkKind; x: number; z: number }
   /** Two marks met on an enemy (see marks.ts). */
   | { type: 'reaction'; kind: ReactionKind; enemy: number; x: number; z: number; owner: number }
+  /** The arsenal (see arsenal.ts): frozen, thawed, a burn doused, pinned, a flung body landing, a setup cashed in. */
+  | { type: 'freeze' | 'thaw' | 'douse' | 'pin'; enemy: number; x: number; z: number }
+  | { type: 'thud'; x: number; z: number }
+  | { type: 'cash'; kind: CashKind; enemy: number; x: number; z: number; to: { x: number; z: number }[] }
   /** The Catalyst set off what an enemy carried (`bits`). */
   | { type: 'detonate'; enemy: number; x: number; z: number; owner: number; bits: number }
   /** A SPLITTING shot split at (x, z). */
@@ -559,8 +577,8 @@ export type LevelEvent =
   | { type: 'takedown'; id: number; enemy: number; x: number; z: number; kill: boolean; big: boolean; boss: boolean }
   /** The Weld: `ready` (just full), `start` (committed), `done` (a hull point back), `lost` (hit in it). */
   | { type: 'weld'; id: number; state: 'ready' | 'start' | 'done' | 'lost'; x: number; z: number }
-  /** A hot crate: there to take (`id` -1), taken, cracked open (the part's yours), blown (a hull and the part gone), or let go at the level's end. */
-  | { type: 'hot'; id: number; state: 'appear' | 'on' | 'open' | 'blown' | 'lost'; x: number; z: number; part?: Item }
+  /** A volatile crate: there to take (`id` -1), taken, a bolt given (`n` of HOT_BOLTS), cracked open (the part's yours), blown (a hull and the part gone), or let go at the level's end. */
+  | { type: 'hot'; id: number; state: 'appear' | 'on' | 'bolt' | 'open' | 'blown' | 'lost'; x: number; z: number; part?: Item; n?: number }
   /** A graft went off (`what` it did: see grafting.ts), at (x, z), with a line to (x2, z2) or a count where it has one. */
   | { type: 'graft'; id: number; graft: GraftId; what: string; x: number; z: number; x2?: number; z2?: number; n?: number }
   /** The ship's core did something (see mind.ts): `n` a count where it has one; `say`: what a woken core barks about. */
@@ -666,6 +684,13 @@ export class Level {
   private readonly tookPhase = new Set<number>();
   /** Inside a blast: its hits are blows (see isBlow). */
   private blowing = 0;
+  /** Blows cash in setups (see arsenal.ts): on in the lab's forge, for now. */
+  combos = false;
+  /** Damage dealt, by what dealt it (a part's id, a reaction, a cash-in), and the cash-ins, by kind. */
+  dealtBy: Record<string, number> = {};
+  cashed: Record<string, number> = {};
+  /** Who the damage being dealt now is put down to, when it isn't a shot's. */
+  credit: string | null = null;
   private nextId = 1;
   private biomeShown = -1;
 
@@ -772,7 +797,8 @@ export class Level {
         primeT: 0,
         wind: false,
         takedowns: 0,
-        fuse: 0,
+        crack: 0,
+        blow: false,
         weld: 0,
         weldT: 0,
         welds: 0,
@@ -870,6 +896,7 @@ export class Level {
       e.t += DT;
       e.flash = Math.max(0, e.flash - DT);
       e.stun = Math.max(0, e.stun - DT);
+      preMove(e, dz);
       updateEnemy(this, e);
       if (e.kx || e.kz) {
         e.x += e.kx! * DT;
@@ -878,6 +905,7 @@ export class Level {
         e.kz! *= 0.86;
         if (Math.abs(e.kx!) + Math.abs(e.kz!) < 0.5) e.kx = e.kz = 0;
       }
+      tickAx(this, e);
       if (!e.dead) tickMarks(this, e);
       if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3) && e.d.qp === undefined) this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
@@ -895,6 +923,7 @@ export class Level {
     this.updateDecoys(dz);
     this.updateSentinels(dz);
     this.updateHazards(dz);
+    kitWorld(this, dz);
     this.collide();
 
     if (this.comboT > 0) {
@@ -955,15 +984,14 @@ export class Level {
       const i = intents[p.id] ?? NEUTRAL;
       // (no Burn, no boost)
       const press = clamp(i.boost ?? 0, 0, 1);
-      // (a hot crate takes the Burn: no boost while it's carried, see tickCrate)
       this.tickCrate(p);
-      const want = p.down || over || p.burn <= 0 || p.crate ? 0 : press;
+      const want = p.down || over || p.burn <= 0 ? 0 : press;
       const was = p.boosting > 0.05;
       p.boosting = want;
       p.burn = Math.max(0, p.burn - BURN_DRAIN * p.boosting * DT);
       // let go, and after a moment it comes back on its own (a racer's quickly, a hauler's slowly)
       if (p.boosting > 0.05) p.burnWait = BURN_WAIT;
-      else if ((p.burnWait = Math.max(0, p.burnWait - DT)) <= 0 && !p.down && !p.crate) p.burn = Math.min(1, p.burn + p.stats.burnBack * DT);
+      else if ((p.burnWait = Math.max(0, p.burnWait - DT)) <= 0 && !p.down) p.burn = Math.min(1, p.burn + p.stats.burnBack * DT);
       p.boostTime += p.boosting * DT;
       if (was !== p.boosting > 0.05) this.emit({ type: 'boost', id: p.id, on: !was });
     }
@@ -1209,7 +1237,7 @@ export class Level {
       p.heat.fill(0);
       p.jam.fill(0);
       p.stats.guns.forEach((g, n) => (p.rounds[n] = Math.max(p.rounds[n], g.heavy)));
-    }
+    } else kitSpecial(this, p, kind, k);
   }
 
   /** A bullet turned into a bit of scrap (bombs, phase changes, perfect dashes). */
@@ -1272,6 +1300,7 @@ export class Level {
       if (p.cooldown[k] <= 0) {
         p.cooldown[k] = 1 / (sp.rate * rate);
         const hit = this.gunDamage(p, g);
+        this.credit = g.part.id;
         for (const e of reach.hit) {
           const flaw = g.flaw && marksOn(e) > 0;
           const edge = !flaw && this.edged(sp.edge, e, p, gx, gz, e.id === p.lockOn[k] ? p.lockT[k] : 0);
@@ -1279,6 +1308,7 @@ export class Level {
           this.damage(e, hit.dmg * (edge ? g.edgeMul : flaw ? 2 : 1) * (p.strike > 0 ? this.strikeMul(p) : 1), p.id, hit.crit || flaw || edge, undefined, undefined, false, edge ? sp.edge : undefined, g.affix);
           mark(this, e, g.marks, g.markStr, p.id);
         }
+        this.credit = null;
       }
     } else {
       p.lockOn[k] = 0;
@@ -1361,13 +1391,15 @@ export class Level {
   /** `extra`: shots (or arc jumps) more than usual; `mul`: harder than usual; `turret`: a SENTINEL fires it. */
   private fire(p: Player, g: Gun, x: number, z: number, dir: number, extra: number, mul = 1, turret = false) {
     const sp = g.spec;
-    this.emit({ type: 'shot', owner: p.id, kind: sp.shot, x, z, dir, turret, heavy: !!g.heavy && !turret });
+    // a ripening round: harder for the time it sat in the chamber
+    const ripe = g.heavy && !turret ? ripeness(this, g, sp) : 1;
+    this.emit({ type: 'shot', owner: p.id, kind: sp.shot, x, z, dir, turret, heavy: !!g.heavy && !turret, src: g.part.id, ripe });
     const hit = this.gunDamage(p, g);
     // out of a dash, the guns strike harder (not a turret's: it didn't dash)
     const strike = p.strike > 0 && !turret;
-    hit.dmg *= mul * (strike ? this.strikeMul(p) : 1);
+    hit.dmg *= mul * ripe * (strike ? this.strikeMul(p) : 1);
     if (sp.shot === 'arc') {
-      this.arc(p.id, x, z, hit.dmg, 3 + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw, edge: sp.edge, edgeMul: g.edgeMul, affix: g.affix });
+      this.credited(g.part.id, () => this.arc(p.id, x, z, hit.dmg, 3 + extra, { bits: g.marks, pow: g.markStr, flaw: g.flaw, edge: sp.edge, edgeMul: g.edgeMul, affix: g.affix }));
       return;
     }
     // and pulls spreads in: a focused stream instead of a fan
@@ -1388,6 +1420,8 @@ export class Level {
       if (g.affix) s.affix = g.affix;
       s.edge = sp.edge;
       s.edgeMul = g.edgeMul;
+      s.src = g.part.id;
+      armShot(s, sp, ripe);
       if (strike) s.strike = true;
       if (g.heavy) s.heavy = true;
       if (g.heavy && !turret) this.grafting.heavyShot(p, s);
@@ -1507,6 +1541,8 @@ export class Level {
    */
   hurt(p: Player, x: number, z: number, cause = 'bullet', tier: HitTier = tierOf(cause)) {
     if (p.down || p.inv > 0 || p.phase > 0 || this.state === 'clear') return false;
+    // an Ablative layer takes it instead (and a Static Skin lets go at whatever hit it)
+    if (kitSoak(this, p, x, z)) return true;
     p.shieldWait = 0;
     p.hits++;
     tier = this.mind.tier(p, tier);
@@ -1520,8 +1556,8 @@ export class Level {
     p.weldT = 0;
     p.causes[cause] = (p.causes[cause] ?? 0) + 1;
     p.spiteT = SPITE_TIME;
-    // a hit jolts a hot crate's fuse; when it blows, it's the hull it takes (shields or not)
-    if (p.crate) p.fuse -= HOT_JOLT;
+    // a hit sets a volatile crate off (see tickCrate); what it takes is the hull, shields or not
+    if (p.crate && cause !== 'crate') p.blow = true;
     const worth = this.hitDamage(p, tier);
     const soak = cause === 'crate' ? 0 : Math.min(p.shield, worth);
     if (soak > 0) {
@@ -1645,10 +1681,13 @@ export class Level {
     if (af === 'giantslayer' && (e.elite || e.boss || e.r >= GIANT_R)) dmg *= GIANT_DMG;
     if (af === 'executioner' && e.boss && e.hp < e.max * 0.25) dmg *= 1.5;
     // a BLASTING crit bursts (not its own burst's hits: those come in with no shot and no affix)
-    if (af === 'blasting' && crit) this.blast(e.x, e.z, BLAST_R, dmg * 0.45, owner, { quiet: false });
+    if (af === 'blasting' && crit) this.credited(s?.src ?? this.credit ?? 'other', () => this.blast(e.x, e.z, BLAST_R, dmg * 0.45, owner, { quiet: false }));
     const blow = !dot && this.isBlow(p, dmg, crit, s);
+    // a phasing shot goes through shields and plating to the hull
+    const phase = !!s?.ax?.phase;
     // armour, shields, exposed after an attack (see combat.ts)
-    const k = foeTaken(this, e, from === undefined ? (p ? { x: p.x, z: p.z } : null) : from, crit);
+    const taken = foeTaken(this, e, from === undefined ? (p ? { x: p.x, z: p.z } : null) : from, crit);
+    const k = phase ? Math.max(taken, 1) : taken;
     if (k <= 0) {
       this.emit({ type: 'guard', enemy: e.id, x: e.x, z: e.z });
       if (e.guard > 0) wearGuard(this, e, dmg);
@@ -1656,22 +1695,27 @@ export class Level {
     }
     // cracked open: it takes more
     dmg *= k * markTaken(e);
+    // a blow on something set up cashes it in (see arsenal.ts)
+    if (blow) dmg *= cashIn(this, e, owner, s?.src ?? this.credit);
+    if (e.dead) return;
     // a boss shrugs off the stream unless it's open
     if (e.boss && !blow && !dot && e.state !== 'recover' && e.state !== 'stagger') dmg *= BOSS_GLANCE;
     if (!dot) e.flash = 0.08;
     if (p) p.charge = Math.min(1, p.charge + dmg * 0.0018 * p.stats.specialRate);
     // plating first (what's left over from the blow that breaks it is lost); the stream only chips
     // it; broken, it reels
-    if (e.armour > 0) {
+    if (e.armour > 0 && !phase) {
       const bite = dot ? 0.5 : blow ? 1 : PLATE_GLANCE;
+      this.tally(Math.min(e.armour, dmg * bite), s, dot);
       e.armour -= dmg * bite;
       this.grafting.share(e, dmg, dot);
       if (p && !dot) this.feedWeld(p, Math.min(dmg * bite, WELD.cap) * (blow ? WELD.blow : WELD.stream));
       foeHurt(this, e, 0);
-      this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg: dmg * bite, kill: false, crit, dot, edge, strike: s?.strike, armour: true, blow });
+      this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg: dmg * bite, kill: false, crit, dot, edge, strike: s?.strike, armour: true, blow, src: s?.src ?? this.credit ?? undefined });
       if (e.armour <= 0) this.breakPlating(e, owner);
       return;
     }
+    this.tally(Math.min(Math.max(0, e.hp), dmg), s, dot);
     e.hp -= dmg;
     this.grafting.share(e, dmg, dot);
     // EXECUTIONER: what's left that low is finished off
@@ -1684,7 +1728,7 @@ export class Level {
     foeHurt(this, e, dmg, dmg * (blow ? POISE_BLOW : 1));
     if (p && !dot) this.feedWeld(p, Math.min(dmg, WELD.cap) * (blow ? WELD.blow : WELD.stream));
     const kill = e.hp <= 0;
-    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike, blow });
+    this.emit({ type: 'hit', x: e.x, z: e.z, enemy: e.id, dmg, kill, crit, dot, edge, strike: s?.strike, blow, src: s?.src ?? this.credit ?? undefined });
     if (!kill) return;
     // a VOLATILE gun's kill: its marks jump to the nearest
     if (s?.volatile) spread(this, e, owner);
@@ -1703,6 +1747,24 @@ export class Level {
     }
   }
 
+  /** Damage dealt, put down to what dealt it (see dealtBy). */
+  private tally(dmg: number, s: Shot | undefined, dot: boolean) {
+    if (dmg <= 0) return;
+    const by = s?.src ?? (dot ? 'BURN' : (this.credit ?? 'other'));
+    this.dealtBy[by] = (this.dealtBy[by] ?? 0) + dmg;
+  }
+
+  /** What `fn` deals is put down to `by` (a part, a reaction, a cash-in). */
+  credited(by: string, fn: () => void) {
+    const was = this.credit;
+    this.credit = by;
+    try {
+      fn();
+    } finally {
+      this.credit = was;
+    }
+  }
+
   /** Plating broken (by a blow, or the core's doing): it reels, open to a takedown. */
   breakPlating(e: Enemy, owner: number) {
     const p = this.players[owner];
@@ -1715,7 +1777,7 @@ export class Level {
     this.mind.broke(p, e);
   }
 
-  /** A hot crate: a faction strongbox, a part rolled well above the level's luck. It drifts down the screen: take it or let it go. */
+  /** A volatile crate: a faction strongbox, a part rolled well above the level's luck. It drifts down the screen: take it or let it go. */
   hotCrate() {
     const r = this.rand;
     const x = (r() - 0.5) * HALF_W * 1.1;
@@ -1726,30 +1788,32 @@ export class Level {
     this.emit({ type: 'hot', id: -1, state: 'appear', x, z, part });
   }
 
-  /**
-   * A hot crate's fuse: it burns down, and the Burn you earn (grazes, skims, perfects, point-blank
-   * kills, takedowns) winds it back instead of filling the meter. Full, it cracks open; out, it blows.
-   */
+  /** A volatile crate: its lock cracks open on its own while it's carried. Hit before it does, it blows on you. */
   private tickCrate(p: Player) {
     if (!p.crate || p.down) return;
-    p.fuse += p.burn * HOT_FEED - HOT_BURN * DT;
-    p.burn = 0;
-    if (p.fuse >= 1) {
-      this.loot[p.id].push(p.crate);
-      this.emit({ type: 'hot', id: p.id, state: 'open', x: p.x, z: p.z, part: p.crate });
-      p.crate = undefined;
-      p.burn = HOT_OPEN_BURN;
-    } else if (p.fuse <= 0) {
+    const was = p.crack;
+    p.crack += DT / HOT_CRACK[itemTier(p.crate)];
+    // its three bolts give, one by one, before the lid does
+    for (let k = 1; k <= HOT_BOLTS; k++) {
+      const at = k / (HOT_BOLTS + 1);
+      if (was < at && p.crack >= at) this.emit({ type: 'hot', id: p.id, state: 'bolt', x: p.x, z: p.z, n: k });
+    }
+    if (p.blow) {
       const part = p.crate;
       p.crate = undefined;
       this.emit({ type: 'hot', id: p.id, state: 'blown', x: p.x, z: p.z, part });
       this.blast(p.x, p.z, 5, 30, p.id, { quiet: true });
       p.inv = 0;
       this.hurt(p, p.x, p.z, 'crate');
+    } else if (p.crack >= 1) {
+      this.loot[p.id].push(p.crate);
+      this.emit({ type: 'hot', id: p.id, state: 'open', x: p.x, z: p.z, part: p.crate });
+      p.crate = undefined;
     }
   }
 
-  /** Downed, or the level over, with a crate still hot: it's gone. */
+
+  /** Downed, or the level over, with a crate still shut: it's gone. */
   private dropCrate(p: Player) {
     if (!p.crate) return;
     this.emit({ type: 'hot', id: p.id, state: 'lost', x: p.x, z: p.z, part: p.crate });
@@ -1787,6 +1851,7 @@ export class Level {
   private takedown(p: Player, e: Enemy) {
     e.d.td = 1;
     p.takedowns++;
+    kitTakedown(this, p);
     // its wreck is yours, once it's finished
     if (e.elite && !e.boss) e.downBy ??= p.id;
     let big = false;
@@ -1925,7 +1990,6 @@ export class Level {
     if (b.split) b.splitA = this.rand() * Math.PI;
     if (b.kind === 'torpedo') b.hp = TORPEDO.hp;
     if (b.kind === 'seeker') {
-      b.hp = SEEKER.hp;
       const sp = Math.hypot(b.vx, b.vz) || 1;
       // (square to the screen from the start: it only ever flies along x or z)
       const across = Math.abs(b.vx) > Math.abs(b.vz);
@@ -1980,10 +2044,10 @@ export class Level {
         s.dead = true;
         if (s.kind === 'flak') {
           this.emit({ type: 'flak', x: s.x, z: s.z });
-          this.blast(s.x, s.z, 3, s.dmg * 0.6, s.owner, { bits: s.marks, pow: s.markStr });
-          for (let a = 0; a < 8; a++) this.addShot(s.owner, 'pellet', s.x, s.z, (a / 8) * Math.PI * 2, 30, s.dmg * 0.25, 0.25, 0, 0);
+          this.credited(s.src ?? 'other', () => this.blast(s.x, s.z, 3, s.dmg * 0.6, s.owner, { bits: s.marks, pow: s.markStr }));
+          for (let a = 0; a < 8; a++) this.addShot(s.owner, 'pellet', s.x, s.z, (a / 8) * Math.PI * 2, 30, s.dmg * 0.25, 0.25, 0, 0).src = s.src;
         } else if (s.kind === 'mine') {
-          this.blast(s.x, s.z, 3.5, s.dmg, s.owner, { bits: s.marks, pow: s.markStr });
+          this.credited(s.src ?? 'other', () => this.blast(s.x, s.z, 3.5, s.dmg, s.owner, { bits: s.marks, pow: s.markStr }));
           if (s.graft) this.grafting.burst(s);
         }
         continue;
@@ -2024,13 +2088,24 @@ export class Level {
       }
       s.x += s.vx * DT;
       s.z += s.vz * DT;
+      // a bouncing shot comes back off the screen's sides and top
+      if (s.ax && s.ax.walls > 0 && (Math.abs(s.x) > HALF_W || s.z < this.top)) {
+        s.ax.walls--;
+        if (Math.abs(s.x) > HALF_W) s.vx = -Math.sign(s.x) * Math.abs(s.vx);
+        if (s.z < this.top) s.vz = Math.abs(s.vz);
+        s.hit = [];
+        s.life = Math.max(s.life, s.t + 0.6);
+        this.emit({ type: 'shotLand', x: s.x, z: s.z, bounce: true, heavy: false, src: s.src });
+      }
       if (!this.onScreen(s.x, s.z, s.back ? 12 : 4)) s.dead = true;
       else if (s.kind !== 'rail' && this.terrain.solid(s.x, s.z, 0)) {
         // the land stops shots
-        if (s.bounce > 0) {
+        const bounce = s.bounce > 0;
+        if (bounce) {
           s.bounce--;
           s.vz = -s.vz;
         } else s.dead = true;
+        if (s.kind !== 'flame') this.emit({ type: 'shotLand', x: s.x, z: s.z, bounce, heavy: !!s.heavy || s.dmg >= 10 });
       }
     }
   }
@@ -2172,9 +2247,8 @@ export class Level {
       };
       for (const p of this.players) {
         if (p.slip > 0 && !p.down && inBeam(p.slipX, this.scroll + p.slipZ, p.stats.core)) this.perfectDash(p);
-        if (inBeam(p.x, p.z, p.stats.core)) {
-          if (p.parryT > 0) this.parryLaser(p, l, owner);
-          else this.hurt(p, p.x, p.z, 'laser');
+        if (inBeam(p.x, p.z, p.stats.core) && !kitWalls(p, l.z)) {
+          this.hurt(p, p.x, p.z, 'laser');
         }
       }
       this.convoy?.laser(inBeam);
@@ -2194,7 +2268,8 @@ export class Level {
       // pulled in by the nearest magnet in reach (everything, once the level's done)
       let pulled = false;
       for (const p of this.players) {
-        if (p.down) continue;
+        // (one volatile crate at a time: a ship with one doesn't pull in another)
+        if (p.down || (k.kind === 'hot' && p.crate)) continue;
         const dx = p.x - k.x;
         const dz2 = p.z - k.z;
         const d = Math.hypot(dx, dz2);
@@ -2263,6 +2338,7 @@ export class Level {
           this.score += 5 * (1 + this.combo);
           this.emit({ type: 'graze', id: p.id, x: (b.x + p.x) / 2, z: (b.z + p.z) / 2 });
           this.mind.graze(p);
+          kitGraze(this, p);
         }
       }
       // ramming
@@ -2271,7 +2347,7 @@ export class Level {
         // a dash through anything staggered is a takedown (once a stagger)
         if (p.dashT > 0 && e.state === 'stagger' && !e.d.td && e.t >= 0) {
           const tr = e.r + core + TAKEDOWN_REACH;
-          if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < tr * tr) this.takedown(p, e);
+          if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < tr * tr) this.credited('TAKEDOWN', () => this.takedown(p, e));
           continue;
         }
         // (anything left reeling after its attack is there to be punished, not to punish)
@@ -2319,13 +2395,13 @@ export class Level {
           continue;
         }
         if ((k.x - p.x) ** 2 + (k.z - p.z) ** 2 < 1.6 * 1.6) {
-          // one hot crate at a time: it takes the Burn you have, and all you earn after
+          // one volatile crate at a time
           if (k.kind === 'hot') {
             if (p.crate) continue;
             k.dead = true;
             p.crate = k.part;
-            p.fuse = HOT_START;
-            p.burn = 0;
+            p.crack = 0;
+            p.blow = false;
             this.emit({ type: 'hot', id: p.id, state: 'on', x: k.x, z: k.z, part: k.part });
             continue;
           }
@@ -2342,7 +2418,7 @@ export class Level {
     }
     // what's left of the enemy fire against the haulers' hulls
     this.convoy?.collide();
-    // player shots against enemies (and the torpedoes and seekers coming for them)
+    // player shots against enemies (and the torpedoes coming for them)
     const torps = this.bullets.some((b) => b.hp > 0 && !b.dead);
     for (const s of this.shots) {
       if (s.dead) continue;
@@ -2364,7 +2440,7 @@ export class Level {
       if (this.heist?.stops(s)) continue;
       if (s.kind === 'flame') {
         // plasma burns away enemy bullets it touches
-        for (const b of this.bullets) if (!b.dead && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1) this.cancel(b);
+        for (const b of this.bullets) if (!b.dead && b.kind !== 'seeker' && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1) this.cancel(b);
       }
       for (const e of this.enemies) {
         // (not yet on the screen, or gone off it: shots fly on by)
@@ -2389,8 +2465,8 @@ export class Level {
           s.t = s.life + 1; // goes off next update
           continue;
         }
-        // shields and reflectors first: a stopped shot stops here
-        const m = foeShot(this, e, s);
+        // shields and reflectors first: a stopped shot stops here (one that phases goes through)
+        const m = s.ax?.phase ? 1 : foeShot(this, e, s);
         if (m <= 0) {
           s.dead = true;
           break;
@@ -2416,13 +2492,18 @@ export class Level {
               crit = true;
             }
         }
+        // (what it leaves is put down to its gun: a gun's blow never cashes in its own setup)
+        const was = this.credit;
+        this.credit = s.src ?? was;
         this.damage(e, dmg, s.owner, crit, null, s, false, edge);
         if (!e.dead) mark(this, e, s.marks, s.markStr, s.owner);
+        if (s.ax) shotLanded(this, s, e);
+        this.credit = was;
         if (s.affix === 'ricochet' && !s.rico) this.ricochet(s, e);
         if (s.graft) this.grafting.hit(s, e);
         if (s.split && !s.hit.length) this.split(s, e);
         s.hit.push(e.id);
-        if (s.kind === 'missile') this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner, { bits: s.marks, pow: s.markStr });
+        if (s.kind === 'missile') this.credited(s.src ?? 'other', () => this.blast(s.x, s.z, 1.8, s.dmg * 0.4, s.owner, { bits: s.marks, pow: s.markStr }));
         if (s.pierce > 0) s.pierce--;
         else {
           s.dead = true;
@@ -2475,6 +2556,7 @@ export class Level {
         this.auxEnd(p, hooked.dead);
       }
     }
+    kitShip(this, p, i, this.speedNow * DT);
     this.updateAux(p, i);
   }
 
@@ -2488,12 +2570,12 @@ export class Level {
     p.auxUses++;
     this.emit({ type: 'aux', id: p.id, kind: s.aux, x: p.x, z: p.z });
     this.grafting.aux(p);
+    if (kitAux(this, p, i)) return;
     if (s.aux === 'parry') {
       p.auxT = PARRY_BURST;
       p.parryT = PARRY_WINDOW;
       p.parried = 0;
       p.blocked = 0;
-      p.inv = Math.max(p.inv, PARRY_WINDOW);
     } else if (s.aux === 'siphon') {
       p.auxT = SIPHON_TIME;
     } else if (s.aux === 'flare') {
@@ -2553,7 +2635,8 @@ export class Level {
       let parried = 0;
       let blocked = 0;
       for (const b of this.bullets) {
-        if (b.dead) continue;
+        // The late block obeys the same rule; it must not become a universal shield.
+        if (!canParryProjectile(b)) continue;
         const d2 = (b.x - p.x) ** 2 + (b.z - p.z) ** 2;
         if (p.parryT > 0 && d2 < PARRY_R * PARRY_R) {
           // thrown straight back where it came from, as yours
@@ -2611,21 +2694,10 @@ export class Level {
     }
   }
 
-  /** A laser met in the parry window: cut off, and its owner hurt. */
-  private parryLaser(p: Player, l: Level['lasers'][number], owner: Enemy) {
-    l.on = 0;
-    this.damage(owner, PARRY_LASER * p.stats.auxStr, p.id, true);
-    const first = !p.parried;
-    p.parried++;
-    p.parries++;
-    this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: 1, first });
-    if (first) this.perfectParry(p, 1);
-  }
-
   /** The first parry of a burst: the reward for the timing. A perfect, and the riposte. */
   private perfectParry(p: Player, count: number) {
     p.charge = Math.min(1, p.charge + PARRY_CHARGE);
-    p.inv = Math.max(p.inv, 0.35);
+    // Rewards apply to the pilot; no blanket invulnerability against overlapping hazards.
     p.riposte = RIPOSTE_TIME;
     this.perfect(p, 'parry', count);
   }
@@ -2828,6 +2900,10 @@ export class Level {
         return e.hp < e.max * 0.5;
       case 'skim':
         return p.skim > 0;
+      case 'frozen':
+      case 'pinned':
+      case 'airborne':
+        return axEdge(edge, e);
     }
   }
 
@@ -3182,7 +3258,6 @@ export class Level {
       this.emit({ type: 'crash', id: p.id, x: p.x, z: p.z });
       // a crash costs momentum: some Burn
       p.burn = Math.max(0, p.burn - BURN_CRASH);
-      if (p.crate) p.fuse -= HOT_JOLT;
     }
     this.hurt(p, p.x, p.z, 'land');
     return true;
@@ -3214,9 +3289,8 @@ const PARRY_WINDOW = 0.1;
 const PARRY_R = 2.4;
 const BLOCK_R = 1.9;
 const BLOCK_MAX = 3;
-/** A parried bullet's damage (more with Burn), a parried laser's, the Burn a parry earns. */
+/** A parried small projectile's damage (more with Burn). */
 const PARRY_DMG = 14;
-const PARRY_LASER = 25;
 /** RIPOSTE: how long after a perfect parry the guns crit, and how much harder they hit in it. */
 export const RIPOSTE_TIME = 1.2;
 const RIPOSTE_DMG = 1.3;
@@ -3296,15 +3370,9 @@ const NOVA_SHOTS = 18;
 const NOVA_DMG = 9;
 /** RAVENOUS: special charge per kill. */
 const RAVENOUS_FEED = 0.1;
-/**
- * Hot crates: the fuse it starts at, how fast it burns down (a second's worth), how much of the Burn
- * you earn winds it, what a hit knocks off it, and the Burn you get back when it cracks open.
- */
-const HOT_START = 0.5;
-const HOT_BURN = 0.02;
-const HOT_FEED = 1;
-const HOT_JOLT = 0.12;
-const HOT_OPEN_BURN = 1;
+/** Volatile crates: seconds carried till the lock cracks, by what's inside; its bolts give at even steps on the way. */
+export const HOT_CRACK: Record<Tier, number> = { common: 20, rare: 25, epic: 30, legendary: 45 };
+export const HOT_BOLTS = 3;
 /**
  * The hull is a number (a frame's 60 to 100), and a hit takes what it's worth. A GRAZE of light
  * stuff (spores, acid, a jet's wash), a HIT (shots, shells, rams, the land), or a HEAVY blow (big

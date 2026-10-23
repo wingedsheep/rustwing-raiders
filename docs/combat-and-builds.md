@@ -27,17 +27,35 @@ The plan for making combat more than dodge-and-shoot, and every run its own. Agr
 
 On top of these, in every fight: **Plating → Open → Takedown**, and healing with the **Weld**.
 
-Every run starts the same: one frame on an open deck with only its guns (a GUARD frame also has its Parry Emitter), a sleeping core with room for three, no grafts. What you end up with depends on the sector.
+Every run starts the same: one frame on an open deck with its guns and its engines (a GUARD frame also has its Parry Emitter), a sleeping core with room for three, no grafts. What you end up with depends on the sector.
 
 ---
 
 ## 1. In the fight
 
+### Controller placement
+
+The current layout keeps dash, heavy, parry, and special on face buttons, with held fire, boost, and focus on triggers and a shoulder. See [Controller layout: combat, bombs, and deployables](controller-layout.md) for the full reasoning, game references, and the proposed separate utility slot on R1/RB, which will replace its duplicate heavy binding.
+
+| Action | PlayStation | Xbox |
+|---|---|---|
+| Dash / takedown | Cross | A |
+| Aux / parry | Circle | B |
+| Heavy / dash-strike | Square (also R1) | X (also RB) |
+| Special | Triangle | Y |
+| Fire (hold) | R2 | RT |
+| Boost (analog) | L2 | LT |
+| Focus / weld (hold) | L1 (also L3) | LB (also L3) |
+
+Parry moves from L1 to Circle because the face buttons are easier for this player to reach. Dash and parry are adjacent choices under the thumb, and either can be pressed while holding fire. Focus moves to L1 so holding it still allows every face action. Aux keeps the same button for every fitted tool; switching equipment never changes the controls. Menu confirm/back stay Cross/Circle.
+
+The reference is the simplicity of [Furi's combat inputs](https://www.thegamebakers.com/blog/page/14/), with depth coming from timing rather than extra button combinations. This is an ergonomic choice for this game: [Ghost of Tsushima uses L1 for parry](https://www.playstation.com/en-us/editorial/ghost-of-tsushima-beginners-guide/), showing that a successful layout still needs adapting to the player and combat loop.
+
 ### Plating → Open → Takedown
 
 - **Fodder** (darts, swarms, puffballs, the small fry) has no plating. It melts under the stream; fights stay fast.
 - **Everything bigger wears plating**: a band over its hull, gold on an elite. The stream mostly glances off it (35%).
-- **Blows** break plating at full strength: heavy rounds, the dash-strike, crits (edge crits, reactions, a parry's laser, a perfect ram), parried and reflected bullets, blasts.
+- **Blows** break plating at full strength: heavy rounds, the dash-strike, crits (edge crits, reactions, a perfect ram), parried and reflected bullets, blasts.
 - **Broken, it's OPEN**: staggered and taking extra. **Dash through it for a takedown**: the big hit, hitstop, a camera punch, scrap, and a big chunk of the Weld.
 - **Plating grows back** if you leave it alone for a few seconds: keep the pressure on.
 - **Bosses** take the stream at 60% unless they're open (after a move, or staggered). Blows wear their poise half again as hard as stream fire.
@@ -48,7 +66,7 @@ Every run starts the same: one frame on an open deck with only its guns (a GUARD
 Two ways to a perfect, one for each way of flying. Both pay the same: Burn, a chunk of the Weld, a round in every heavy, nerve for the core, a read on a boss mid-attack, and every "on a perfect" knack and affix. Then each pays its own.
 
 - **Slip it (dash ships).** Dash out of fire just before it lands, and the fire that would have hit where you were is soaked up. You get the dash back, and the guns strike harder out of the dash. Kestrel, Wasp, Hammerhead.
-- **Parry it (guard ships).** The aux's guard burst: its first instant parries, throwing the bullets back, and the guns **riposte** for a second (every shot crits, so it breaks plating). After that instant it only blocks a few shots. It comes back slowly, so it can't be held up against everything: 1.5 s after a parry, 2.5 s after a block, 3 s put up on nothing. The Lattice starts with one. Anyone can find one.
+- **Parry it (guard ships).** The aux's guard burst: its first instant parries small, discrete shots, throwing them back, and the guns **riposte** for a second (every shot crits, so it breaks plating). After that instant it only blocks a few eligible small shots. Beams, heavy projectiles, blasts, hazards, and bodies bypass both parry and block. Raising guard and landing a parry grant no blanket invulnerability. It comes back slowly, so it can't be held up against everything: 1.5 s after a parry, 2.5 s after a block, 3 s put up on nothing. The Lattice starts with one. Anyone can find one. See [Parry rules and feedback](parry-rules.md) for the exact categories, Dead Cells inspiration, and co-op feedback rules.
 - **Chains.** Perfects close together run on as a chain: the bell climbs a step each time.
 - The ship card says which a frame is: **GUARD** or **DASH**.
 
@@ -65,7 +83,7 @@ Two ways to a perfect, one for each way of flying. Both pay the same: Burn, a ch
 
 ## 2. The ship
 
-- **An open deck.** A ship starts as a blank slate: a frame of 14–18 sockets with only its own guns on it. Its engines are built into the frame, so nothing else is spoken for.
+- **An open deck.** A ship starts as a blank slate: a frame of 14–18 sockets with its own guns on it and Ion Thrusters on the back row (two on the Kestrel, Hammerhead and Lattice, one on the Mule and Wasp). The thrusters are real parts: move them, swap them for other engines, or pull them for room and fly slower.
 - **Hardpoints are counts, not places.** Each frame has a few hardpoints per button: TRIGGER, HEAVY, AUX, SPECIAL. A tool takes one of its button's hardpoints and goes on any socket. The frame says how many tools each button can have; where they go is up to you.
 - **Fittings fill the rest**: passives and boosters that work on what they touch. Where everything sits is the puzzle (guns fire the way they sit, boosters help what they touch, links want a side), and load says how much of it you can carry.
 - **Frames differ by deck and hardpoints**: Kestrel 14 sockets (2 trigger, 1 of each else), Wasp 15 (2 trigger, no aux), Hammerhead 16 (2 trigger, 1 of each else), Lattice 16 (1 of each), Mule 18 (2 heavies, no special). Perks and weaknesses stay.

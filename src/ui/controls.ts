@@ -6,8 +6,8 @@ import { drawText, textWidth } from './font';
 import { DARK, DIM, EDGE, INK, frame } from './hud';
 import { flightButton, type FlightAction } from './widgets';
 
-const SPECIAL_NAME = { bomb: 'BOMB', phase: 'PHASE', emp: 'EMP', overdrive: 'OVERDRIVE' } as const;
-const AUX_NAME = { parry: 'PARRY', tether: 'TETHER', flare: 'FLARE', siphon: 'SIPHON' } as const;
+const SPECIAL_NAME = { bomb: 'BOMB', phase: 'PHASE', emp: 'EMP', overdrive: 'OVERDRIVE', carpet: 'CARPET BOMB', cryo: 'CRYO BOMB', gravity: 'GRAVITY WELL', drones: 'DRONE WING' } as const;
+const AUX_NAME = { parry: 'PARRY', tether: 'TETHER', flare: 'FLARE', siphon: 'SIPHON', bulwark: 'BULWARK (HOLD)', beacon: 'BEACON (TWICE: SWAP)' } as const;
 
 /** The card's size, for laying two side by side. */
 export const CONTROLS_W = 250;

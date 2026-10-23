@@ -82,12 +82,14 @@ export interface DashMod {
 }
 
 /** The AUX verb: a defensive action on its own button. */
-export type AuxKind = 'parry' | 'tether' | 'flare' | 'siphon';
+export type AuxKind = 'parry' | 'tether' | 'flare' | 'siphon' | 'bulwark' | 'beacon';
 
 /** Background effects: they trigger on their own. Numbers are at 100% strength. */
 export interface Passive {
   /** Bullets the shield stops are thrown back as this many shots. */
   mirror?: number;
+  /** A skin over the hull (see sim/kit.ts): ABLATIVE layers that break into shrapnel, or STATIC that grazes charge. */
+  skin?: 'ablative' | 'static';
 }
 
 /** How a gun fires. */
@@ -117,6 +119,24 @@ export interface GunSpec {
    * heat up; `rate` is how fast a round comes back instead (rounds a second).
    */
   heavy?: number;
+  // The arsenal's dials (see sim/arsenal.ts): what a shot does to what it hits, and how it flies.
+  /** Chill stacks a hit leaves: four and it's FROZEN. */
+  chill?: number;
+  /** Knocks what it hits flying, this hard; a flung body that hits something is a blow. */
+  shove?: number;
+  /** Nails what it hits in place for this many seconds. */
+  pin?: number;
+  /** Times a shot bounces off the screen's edge (and the land). */
+  bounce?: number;
+  /** Curves towards enemies, this hard. */
+  homing?: number;
+  /** Through shields and plating: it hits the hull underneath. */
+  phase?: boolean;
+  /** A heavy round left in the chamber grows: up to this much harder (×1 + ripen) after 3 s. */
+  ripen?: number;
+  /** How big its shots are drawn and hit (×), and their colour. */
+  size?: number;
+  tint?: number;
 }
 
 /**
@@ -124,7 +144,7 @@ export interface GunSpec {
  * a Scattergun in their face, Seekers on the enemy's tell, Mines on what chases you. What you mount
  * says how you should fly, and two guns whose edges pull apart are a choice to make.
  */
-export type Edge = 'reeling' | 'close' | 'locked' | 'far' | 'shocked' | 'tell' | 'crowd' | 'burning' | 'behind' | 'hurt' | 'skim';
+export type Edge = 'reeling' | 'close' | 'locked' | 'far' | 'shocked' | 'tell' | 'crowd' | 'burning' | 'behind' | 'hurt' | 'skim' | 'frozen' | 'pinned' | 'airborne';
 
 export const EDGES: Record<Edge, { name: string; text: string; pop: string }> = {
   reeling: { name: 'PUNISHER', text: 'CRITS THE REELING: STUNNED, OR OPEN AFTER ITS ATTACK', pop: 'PUNISHED' },
@@ -138,6 +158,9 @@ export const EDGES: Record<Edge, { name: string; text: string; pop: string }> = 
   behind: { name: 'TAILGATE', text: 'CRITS WHAT’S BEHIND YOU', pop: 'TAILGATER' },
   hurt: { name: 'FINISHER', text: 'CRITS ANYTHING BELOW HALF HULL', pop: 'FINISHER' },
   skim: { name: 'SKIMMER', text: 'CRITS WHILE YOU SKIM THE LAND', pop: 'SKIMMING' },
+  frozen: { name: 'ICEBREAKER', text: 'CRITS THE CHILLED AND THE FROZEN', pop: 'ICEBREAKER' },
+  pinned: { name: 'NAILER', text: 'CRITS THE PINNED', pop: 'NAILED DOWN' },
+  airborne: { name: 'AIRBORNE', text: 'CRITS WHAT’S BEEN KNOCKED FLYING', pop: 'AIRBORNE' },
 };
 
 export interface PartDef {
@@ -161,9 +184,9 @@ export interface PartDef {
   dash?: number;
   gun?: GunSpec;
   /** For the special ability parts. */
-  special?: 'bomb' | 'phase' | 'emp' | 'overdrive';
+  special?: 'bomb' | 'phase' | 'emp' | 'overdrive' | 'carpet' | 'cryo' | 'gravity' | 'drones';
   /** Booster effects on touching guns: `mark` gives their hits a mark, `flaw` makes them crit marked enemies. */
-  boost?: { damage?: number; rate?: number; cool?: number; mark?: MarkKind; flaw?: boolean; hone?: boolean; rounds?: number };
+  boost?: { damage?: number; rate?: number; cool?: number; mark?: MarkKind; flaw?: boolean; hone?: boolean; rounds?: number; chill?: number };
   /** Load it lets the ship carry, besides its own mass (Grav Keel). */
   carry?: number;
   mod?: DashMod;
@@ -324,7 +347,7 @@ export const PARTS: PartDef[] = [
   {
     id: 'parry', name: 'Parry Emitter', cls: 'defense', tags: ['energy', 'tech'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.4, shield: 1,
     aux: 'parry', link: { want: { gun: true }, side: 'n', cell: 0, text: 'A GUN IN FRONT' },
-    text: 'AUX: a guard burst. Its first instant parries: a PERFECT, bullets thrown back, and your guns crit for a second (RIPOSTE). Late, it only blocks. Up on nothing, a long wait.',
+    text: 'AUX: parry small shots for a PERFECT and RIPOSTE. Late, block small shots only. Beams, heavy rounds, blasts and bodies bypass it. Up on nothing, a long wait.',
   },
   {
     id: 'tether', name: 'Grapple Tether', cls: 'defense', tags: ['kinetic', 'drive'], rarity: 'rare', shape: [[0, 0], [0, 1], [1, 1]], mass: 1.8,
@@ -417,8 +440,8 @@ export const FRAMES: FrameDef[] = [
     weak: '60 HULL. LITTLE LOAD.',
     grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
     mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 60, mass: 5.6, thrust: 45, grip: 1.25, dash: 1, dashCd: 1.6, load: 9.4, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
-    start: [['rivet', 1, 1], ['rivet', 3, 1]],
+    hp: 60, mass: 4, thrust: 15, grip: 1.25, dash: 1, dashCd: 1.6, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
+    start: [['rivet', 1, 1], ['rivet', 3, 1], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
   {
     id: 'mule',
@@ -428,8 +451,8 @@ export const FRAMES: FrameDef[] = [
     weak: 'MOVES LIKE A FRIDGE. NO SPECIAL.',
     grid: ['#####', '#####', '#####', '.###.'],
     mounts: { T: 1, H: 2, A: 1 },
-    hp: 100, mass: 7.8, thrust: 28, grip: 0.75, dash: 1, dashCd: 3, load: 12.7, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
-    start: [['seeker', 1, 0], ['rivet', 2, 0]],
+    hp: 100, mass: 7, thrust: 13, grip: 0.75, dash: 1, dashCd: 3, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
+    start: [['seeker', 1, 0], ['rivet', 2, 0], ['thruster', 2, 3]],
   },
   {
     id: 'wasp',
@@ -439,8 +462,8 @@ export const FRAMES: FrameDef[] = [
     weak: 'NO AUX. THIN PRONGS: LITTLE TOUCHES THE NOSE GUNS.',
     grid: ['.#.#.', '.#.#.', '#####', '#####', '..#..'],
     mounts: { T: 2, H: 1, S: 1 },
-    hp: 80, mass: 5.3, thrust: 31, grip: 1.05, dash: 2, dashCd: 1.8, load: 9.2, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
-    start: [['rivet', 1, 0], ['rivet', 3, 0]],
+    hp: 80, mass: 4.5, thrust: 16, grip: 1.05, dash: 2, dashCd: 1.8, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
+    start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 4]],
   },
   {
     id: 'hammer',
@@ -450,8 +473,8 @@ export const FRAMES: FrameDef[] = [
     weak: 'STIFF IN A TURN. SLOW TO BURN.',
     grid: ['######', '######', '..##..', '..##..'],
     mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 7.6, thrust: 44, grip: 0.8, dash: 1, dashCd: 2.5, load: 11.9, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
-    start: [['scatter', 2, 0], ['scatter', 3, 0]],
+    hp: 80, mass: 6, thrust: 14, grip: 0.8, dash: 1, dashCd: 2.5, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
+    start: [['scatter', 2, 0], ['scatter', 3, 0], ['thruster', 2, 3], ['thruster', 3, 3]],
   },
   {
     id: 'lattice',
@@ -461,8 +484,8 @@ export const FRAMES: FrameDef[] = [
     weak: 'FEW SOCKETS TOUCH.',
     grid: ['#.#.#', '#.#.#', '#####', '#.#.#', '.#.#.'],
     mounts: { T: 1, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 6.1, thrust: 45, grip: 1, dash: 1, dashCd: 2.1, load: 11.4, speed: 1, burn: 0.12, core: 0.38, linked: 2,
-    start: [['rivet', 2, 1], ['parry', 2, 2]],
+    hp: 80, mass: 4.5, thrust: 15, grip: 1, dash: 1, dashCd: 2.1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
+    start: [['rivet', 2, 1], ['parry', 2, 2], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
 ];
 

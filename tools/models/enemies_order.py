@@ -461,78 +461,69 @@ def sower():
 
 
 def burrower():
-    """Erupting from below: a broad armoured head reared up, its round maw open to the sky (rings of
-    teeth round a glowing throat), and a coil of plated body arching behind it, as if breaking out of
-    the ground, chunks of rock flung off round it. ~3.2 long."""
+    """A plated soil-worm, rigged by the runtime (src/view/worm-rig.ts), not by clips: a heavy head
+    whose round maw sits between three hooked mandibles (`_jaw_<n>`, hinged at the rim so they swing
+    out), and a body of tapering ring segments (`_seg_<n>`, each built round its own middle, head end
+    toward +y) that the rig strings along an arch out of its hole. Posed here as it breaches, for the
+    previews. ~1.6 across the head."""
     kind, clip, root = named("burrower", "serpent", "beast", "erupt", preview=WILD)
     T = 2.0
-    body = Model(f"{kind}_core", seed=10110).build(root)
-    # the coil, from the neck back: segments that each writhe a little after the one before
-    path = [(0.0, 0.55, 0.15), (-0.35, 0.05, -0.05), (-0.65, -0.5, 0.15), (-0.45, -1.05, 0.35),
-            (0.05, -1.3, 0.3), (0.5, -1.05, 0.1), (0.7, -0.55, -0.15)]
-    radii = [0.5, 0.5, 0.48, 0.45, 0.42, 0.37, 0.3]
-    dense, dr = [], []
-    for i in range(len(path) - 1):  # a segment at every point and half way between: a continuous coil
-        for t in (0.0, 0.5):
-            dense.append(tuple(path[i][j] + (path[i + 1][j] - path[i][j]) * t for j in range(3)))
-            dr.append(radii[i] + (radii[i + 1] - radii[i]) * t)
-    dense.append(path[-1])
-    dr.append(radii[-1])
-    path, radii = dense, dr
-    for k, ((x, y, z), r) in enumerate(zip(path, radii)):
+    N = 12
+    # (the preview's arch: from its hole, up and over, to the head)
+    def arch(u):
+        x = 0.6 * math.sin(u * math.pi * 1.4)
+        y = -0.9 - 4.5 * math.sin(u * math.pi * 0.6)
+        z = 4.0 - 4.4 * u * u
+        return (x, y, z)
+    for k in range(N):
+        r = 0.82 + (0.42 - 0.82) * k / (N - 1)
         sg = Model(f"{kind}_seg_{k}", seed=10140 + k)
-        nx, ny, nz = path[min(k + 1, len(path) - 1)]
-        px, py, pz = path[max(k - 1, 0)]
-        dx, dy = nx - px, ny - py
-        a = math.atan2(dy, dx)
-        sg.ball(r, (0, 0, 0), B.shade(0.85), subdiv=1, scale=(1.05, 1.05, 0.85))           # belly
-        sg.ball(r * 0.98, (0, 0, r * 0.18), A, subdiv=1, scale=(1.0, 1.0, 0.8))             # armour
-        # a dark-rimmed plate over the back, across the body
-        sg.box((r * 0.55, r * 1.75, 0.16), (0, 0, r * 0.88), A.shade(0.55), rot=(0, 0, a))
-        sg.box((r * 0.35, r * 1.45, 0.12), (0, 0, r * 0.96), A.shade(1.15), rot=(0, 0, a))
-        if k % 3 == 1:
-            for s in (1, -1):  # pink pores on the flanks
-                sg.ball(0.1, (math.cos(a + s * math.pi / 2) * r * 0.85, math.sin(a + s * math.pi / 2) * r * 0.85, r * 0.3),
-                        C, subdiv=0, glow=True)
-        obj = sg.build(body, loc=(x, y, z))
-        osc(obj, clip, "location", T, (0, 0.06, 1, -k * 0.06), (2, 0.07, 1, -k * 0.06 + 0.25))
-    tp = Model(f"{kind}_tailtip", seed=10120)
-    limb(tp, (0, 0, 0), (0.25, 0.35, -0.45), 0.24, 0.05, A.shade(0.55), segs=6)
-    tail = tp.build(body, loc=(0.75, -0.4, -0.2))
-    osc(tail, clip, "rotation_euler", T, (0, 0.2, 1, 0.1), (1, 0.15, 1, 0.3))
+        L = r * 0.8
+        sg.ball(r, (0, 0, -r * 0.1), B.shade(0.8), subdiv=1, scale=(1.0, 0.9, 0.85))            # pale belly
+        sg.ball(r, (0, 0, r * 0.12), A, subdiv=1, scale=(1.06, 0.92, 0.82))                     # the shell
+        # the plate over its back, its rear lip lapping over the next one like a woodlouse's
+        sg.ball(r, (0, -L * 0.35, r * 0.42), A.shade(0.55), subdiv=1, scale=(1.08, 0.62, 0.55))
+        sg.ball(r, (0, -L * 0.2, r * 0.5), A.shade(1.18), subdiv=1, scale=(0.78, 0.42, 0.45))
+        if k % 2 == 0 and k < N - 2:   # a bone thorn down the spine
+            sg.cyl(r * 0.22, r * 0.55, (0, -L * 0.1, r * 0.82), BONE, segs=5, r_top=0.0, rot=(-0.45, 0, 0))
+        if k % 3 == 1:                 # glowing pores on the flanks
+            for s_ in (1, -1):
+                sg.ball(r * 0.16, (s_ * r * 0.92, 0, r * 0.05), C, subdiv=0, glow=True)
+        sg.build(root, loc=arch((k + 1) / (N + 1)))
 
-    # the head: reared up and tipped forward, the maw open upwards and ahead
     hd = Model(f"{kind}_head", seed=10121)
-    hd.cyl(0.62, 0.5, (0, 0, -0.35), B.shade(0.85), segs=8, r_top=0.7)                    # throat collar
-    hd.cyl(0.72, 0.22, (0, 0, 0.12), A, segs=8, r_top=0.66)                                # the lip ring
-    for k in range(8):  # armour plates round the rim, alternating dark
-        a = TAU * (k + 0.5) / 8
-        hd.box((0.4, 0.26, 0.32), (math.cos(a) * 0.72, math.sin(a) * 0.72, 0.1), A.shade(0.55) if k % 2 else A,
-               rot=(0, 0, a + math.pi / 2))
-    hd.cyl(0.5, 0.08, (0, 0, 0.3), DARK, segs=8)                                           # the throat
-    hd.cyl(0.3, 0.06, (0, 0, 0.32), C, segs=8, glow=True)                                 # glowing deep down
-    for ring, (rr, n, h) in enumerate(((0.55, 10, 0.3), (0.34, 7, 0.22))):  # rings of teeth leaning in
+    hd.ball(0.78, (0, -0.1, 0.0), A, subdiv=2, scale=(1.0, 1.05, 0.72), jitter=0.02)          # the skull
+    hd.ball(0.7, (0, -0.15, -0.12), B.shade(0.8), subdiv=1, scale=(0.95, 1.0, 0.6))            # pale under it
+    for k, (y, w) in enumerate(((0.25, 1.0), (-0.2, 0.92), (-0.62, 0.78))):                   # three brow plates
+        hd.ball(0.62, (0, y, 0.42 - k * 0.04), A.shade(0.5), subdiv=1, scale=(w * 1.12, 0.42, 0.42))
+        hd.ball(0.62, (0, y + 0.06, 0.5 - k * 0.04), A.shade(1.15), subdiv=1, scale=(w * 0.9, 0.3, 0.34))
+    for s_ in (1, -1):  # four small eyes, two by two, high on the brow
+        hd.ball(0.1, (s_ * 0.3, 0.5, 0.36), C, subdiv=1, glow=True)
+        hd.ball(0.075, (s_ * 0.52, 0.32, 0.34), C, subdiv=1, glow=True)
+        hd.cyl(0.13, 0.45, (s_ * 0.55, -0.55, 0.45), BONE, segs=5, r_top=0.0, rot=(-0.9, s_ * 0.5, 0))  # swept horns
+    tube(hd, 0.56, 0.5, 0.82, 0, -0.02, A.shade(0.7), segs=9, r_end=0.6)                       # the maw's rim
+    tube(hd, 0.42, 0.55, 0.84, 0, -0.02, DARK, segs=9)                                         # dark inside
+    for ring_, (rr, n, yy) in enumerate(((0.4, 9, 0.8), (0.26, 6, 0.7))):                      # teeth, leaning in
         for k in range(n):
-            a = TAU * (k + 0.5 * ring) / n
-            c, s = math.cos(a), math.sin(a)
-            limb(hd, (c * rr, s * rr, 0.3), (c * (rr - 0.18), s * (rr - 0.18), 0.3 + h), 0.07, 0.0, BONE, segs=4)
-    for s in (1, -1):  # eyes on the outside of the rim, facing ahead
-        hd.ball(0.11, (s * 0.42, 0.58, 0.05), C, subdiv=1, glow=True)
-    head = hd.build(body, loc=(0, 1.15, 0.65))
-    head.rotation_euler[0] = 0.55                                                           # tipped forward
-    osc(head, clip, "rotation_euler", T, (0, 0.12, 1, 0.0), (2, 0.1, 1, 0.3))
-    pulse(head, clip, T, 0.06, harm=2, axes=(0, 1))
-    # rock chunks breaking off round it
-    for k, (x, y, z, r) in enumerate(((1.0, 0.7, 0.3, 0.22), (-0.95, 0.95, 0.1, 0.18), (1.15, -1.25, 0.0, 0.2),
-                                      (-1.1, -1.25, -0.1, 0.16))):
-        rk = Model(f"{kind}_rock_{k}", seed=10125 + k)
-        rk.ball(r, (0, 0, 0), "#6a5a48", subdiv=0, jitter=r * 0.25)
-        rk.ball(r * 0.9, (0, 0, r * 0.25), "#9a8a70", subdiv=0, jitter=r * 0.2)
-        obj = rk.build(body, loc=(x, y, z))
-        osc(obj, clip, "location", T, (2, 0.18, 1, k * 0.25), (0, 0.05 * (1 if x > 0 else -1), 1, k * 0.25))
-        spin(obj, clip, T, 1 if k % 2 else -1, axis=k % 3)
-    marker(body, kind, "muzzle", (0, 1.4, 1.0))
-    osc(body, clip, "location", T, (2, 0.06, 1, 0))
+            a = TAU * (k + 0.5 * ring_) / n
+            c, s_ = math.cos(a), math.sin(a)
+            limb(hd, (c * rr, yy, -0.02 + s_ * rr), (c * (rr - 0.17), yy - 0.05, -0.02 + s_ * (rr - 0.17)), 0.06, 0.0, BONE, segs=4)
+    head = hd.build(root, loc=(0, 0, 4.0))
+    head.scale = (1.35, 1.35, 1.35)   # (the rig keeps it)
+    th = Model(f"{kind}_throat", seed=10122)
+    th.ball(0.24, (0, 0, 0), C, subdiv=1, glow=True, scale=(1, 0.5, 1))                       # glowing deep down
+    throat = th.build(head, loc=(0, 0.58, -0.02))
+    pulse(throat, clip, T, 0.25, harm=2)
+    for k in range(3):  # the mandibles: one over the maw, two under it, splayed a little at rest
+        phi = TAU * k / 3
+        jw = Model(f"{kind}_jaw_{k}", seed=10126 + k)
+        jw.ball(0.2, (0, 0.05, 0), A.shade(0.55), subdiv=1, scale=(1.3, 1.2, 0.8))               # its socket
+        chain(jw, [(0, 0.05, 0.0), (0, 0.5, 0.14), (0, 0.95, 0.06), (0, 1.2, -0.2)], [0.18, 0.14, 0.09, 0.02], BONE, segs=5)
+        jw.box((0.24, 0.3, 0.1), (0, 0.32, 0.17), A.shade(0.55), rot=(0.25, 0, 0))               # a plate on its back
+        j = jw.build(head, loc=(math.sin(phi) * 0.5, 0.72, -0.02 + math.cos(phi) * 0.5))
+        j.rotation_euler = (0.2, phi, 0)
+    marker(root, kind, "muzzle", (0, 1.0, 4.0))
+    osc(head, clip, "location", T, (2, 0.04, 1, 0))
 
 
 def spitter():

@@ -6,6 +6,7 @@
 
 Oko is Hull Ansmor, a midshipman under the last admiral, and for thirty years the man who kept the Compact's navy alive after the Throne forbade it: repainted as a port authority, its admirals called harbourmasters, its warships built in the ark wrecks of the Quiet Yard round cores stolen from Engine City. He isn't a customs man and doesn't care what you carry. He's the admiral of a navy that isn't allowed, keeping it ready for whatever comes through the Throat or up out of the ice, and he has spent his life looking like a loyal clerk with the Throne's Census Office a mile from his desk.
 
+- **Caught between:** the Throne that exiled the Compact, and the navy he hides from it.
 - **Owes:** the dead of Hull Ansmor, who did the dying in the Toll War; thirty years of a navy that isn't allowed.
 - **Wants from you:** gone. Every crossing of Halcyon's gate goes into the Syndicate's relay log, and the Census Office at Fersdeck reads it; an unpaid one at his gate brings inspectors, and inspectors find the Quiet Yard. So he stops you, properly. It's not personal, and he tells you so.
 - **Sad truth:** he's played the loyal harbourmaster so long that only his ship knows which of him is real. ***Patience*** woke twenty years ago and he never reported her ([minds](../lore/minds.md)). They run the fleet together; nobody else knows who's on the bridge.

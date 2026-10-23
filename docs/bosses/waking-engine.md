@@ -12,6 +12,7 @@ Not a mind and not a monster: the account-keeping machine the Tonkva grew under 
 
 - **Vibe:** vast, patient, clerical, cold; clockwork under ice. Clean struck tones, a click before a beam, a groan of machinery as it comes awake. Under its bar it doesn't say it *sees* you, it **logs** you (`LOGS: HANGING BACK`, `LOGS: EXCESS VELOCITY`, `LOGS: UNWITNESSED CROSSINGS` for your dashes).
 - **Arc:** dozing (I) → stirring, the ice breaking (II) → awake (III).
+- **Caught between:** nothing. It is the dead's answer, and doesn't negotiate.
 - **Owes:** the ledger itself. **Wants from you:** your crossed metal back. It doesn't read anyone's books; it follows mass, and you carry more than anyone.
 - **Sad truth:** it keeps the accounts of a people who are gone. The Hoowae who are left can feel it lean, and can't speak to it.
 - **The call:** it *is* the call. Its tolls are heard again in the Mother-of-Spores's second phase and in ARU-0's last.
@@ -37,6 +38,8 @@ Its theme's beat is 120 bpm (a beat is half a second): the count's beams land on
 **Phase III: IT IS AWAKE** (33–0%). The last ice goes; the crown spins, the iris is wide, the arms are free. No calving (no ice left): it grasps instead. The count ends on you, the cross turns back. Fast (0.92×), strings of two or three, filler spiral and walls. **Closed, it throws your shots back** (as a prism does): fire into it only while it's open after a move, or fire true (focus).
 
 **Last stand** (8%): the cross with six beams, then everything once more, faster (0.85×), the count with two beams on you and the grasp twice.
+
+**How it ends:** the count stops, the iris shuts, the crown slows to a stop, and the ice creaks back over it. It goes back to sleep. Nobody believes it will stay asleep.
 
 ## Model and animation
 

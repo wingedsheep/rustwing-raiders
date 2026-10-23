@@ -6,6 +6,7 @@
 
 In the Level Age the Engine sent recovery units down every lane that leaned, to carry ballast back. In 380 L Vantorr's Glacis Concession dug one out of the ice intact, built a ship round it, painted it orange and white, and taught it repossession: ships, cargo, and people who owe Vantorr. Its biggest job is runaway tenants, born on the terraces, paid in scrip that's worthless off Cinder, who buy passage out from rustwings. Its second biggest is runaway nemva.
 
+- **Caught between:** the company that paints it, and the machine that made it.
 - **Owes:** Vantorr, on paper.
 - **Wants from you:** what's in your hold: the tenants and the woken cores you're carrying out. On Vantorr's books they're absconded assets, and so is your ship.
 - **Sad truth:** there's nobody in it. It's a sleeping core that never woke, and it obeys whoever calls loudest. In 409 L it stopped for nineteen seconds mid-chase, facing Glacis. Recovery's engineers have started to suspect it was never Vantorr's.

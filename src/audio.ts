@@ -21,7 +21,7 @@
 
 export type Sfx =
   | 'shot_rivet' | 'shot_scatter' | 'shot_rail' | 'shot_arc' | 'shot_missile' | 'shot_flak' | 'shot_mine' | 'flak_burst'
-  | 'hit' | 'hit_armor' | 'enemy_shot' | 'lock_on' | 'torpedo_launch' | 'torpedo_down' | 'seeker_halt' | 'seeker_go' | 'seeker_down' | 'explode_small' | 'explode_big' | 'explode_boss'
+  | 'hit' | 'hit_armor' | 'shot_land' | 'reflect' | 'enemy_shot' | 'lock_on' | 'torpedo_launch' | 'torpedo_down' | 'seeker_halt' | 'seeker_go' | 'seeker_down' | 'explode_small' | 'explode_big' | 'explode_boss'
   | 'player_hit' | 'player_down' | 'shield_break' | 'shield_up' | 'dash' | 'graze' | 'overheat'
   | 'pickup_scrap' | 'pickup_part' | 'heal'
   | 'special_bomb' | 'special_phase' | 'special_emp' | 'special_overdrive' | 'special_ready'
@@ -30,6 +30,7 @@ export type Sfx =
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
   | 'core_hum' | 'core_feed' | 'core_grow' | 'core_wake' | 'imprint' | 'shaken' | 'engine_call' | 'core_refuse' | 'core_bark'
+  | 'skid' | 'truck_rev'
   | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
   | 'parry' | 'block' | 'aux_ready' | 'guard_up' | 'guard_whiff' | 'dash_dry' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
@@ -43,8 +44,19 @@ export type Sfx =
   | 'foot_shot' | 'foot_blast' | 'foot_shell' | 'foot_dry' | 'step' | 'slide' | 'takedown' | 'punch' | 'body_fall' | 'swing'
   | 'foot_hurt' | 'crew_hit' | 'plate_hit' | 'plate_break' | 'aim_tell' | 'crew_shot' | 'ricochet' | 'door' | 'alarm' | 'lockdown'
   | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
-  | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive';
-export type Loop = 'beam' | 'flame' | 'engine' | 'wind';
+  | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive'
+  // the forge's guns, each its own voice (see view/gun-looks.ts), and the combos' cash-ins
+  | 'shot_saw' | 'saw_ting' | 'saw_grind' | 'shot_needle' | 'needle_hit' | 'shot_hive' | 'hive_hit' | 'shot_wave' | 'wave_hit'
+  | 'shot_charge' | 'charge_ready' | 'charge_hit' | 'shot_anchor' | 'anchor_pin' | 'chain_snap' | 'shot_bumper' | 'bonk' | 'frost_hit'
+  | 'cash_smash' | 'cash_nailed' | 'cash_flare' | 'cash_ground' | 'cash_breach'
+  // the new kit (see view/kit-view.ts): the Bulwark, the Swap Beacon, the skins, the bombs
+  | 'wall_up' | 'wall_block' | 'wall_throw' | 'beacon_throw' | 'beacon_swap' | 'beacon_burst' | 'beacon_fizzle'
+  | 'layer_break' | 'layer_grow' | 'static_charge' | 'static_zap'
+  | 'special_carpet' | 'bomblet' | 'special_cryo' | 'snow' | 'special_gravity' | 'well_burst' | 'special_drones' | 'drones_gone';
+/** A sound a minigame defines for itself, in its own file (see `defineSfx`). */
+export type MiniSfx = `mini_${string}`;
+export type AnySfx = Sfx | MiniSfx;
+export type Loop = 'beam' | 'flame' | 'frost' | 'charge' | 'engine' | 'wind' | 'truck';
 export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
 
 // ================================================================================================
@@ -256,7 +268,7 @@ function applyVolumes(instant = false) {
 // Synthesis helpers
 // ================================================================================================
 
-type Wave = OscillatorType | PeriodicWave;
+export type Wave = OscillatorType | PeriodicWave;
 const setWave = (o: OscillatorNode, w: Wave) => {
   if (w instanceof PeriodicWave) o.setPeriodicWave(w);
   else o.type = w;
@@ -350,8 +362,8 @@ function boom(out: AudioNode, t: number, p: number, size: number, peak: number) 
 // Sound effects
 // ================================================================================================
 
-type SfxFn = (t: number, p: number, o: AudioNode) => number;
-interface SfxDef {
+export type SfxFn = (t: number, p: number, o: AudioNode) => number;
+export interface SfxDef {
   fn: SfxFn;
   /** Minimum seconds between two plays. */
   gap: number;
@@ -455,6 +467,61 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t, 0.02, 'highpass', 5000, 5000, 0.7, 0.12);
     return 0.15;
   }, 0.04, 4, { low: true }),
+
+  /** A shot into the land: a dull knock and a spit of grit. */
+  shot_land: S((t, p, o) => {
+    noise(o, t, 0.07, 'lowpass', 1400 * p, 300 * p, 0.8, 0.2, 0.001);
+    tone(o, t, 'sine', 160 * p, 60 * p, 0.07, 0.16, 0.001);
+    crackle(o, t + 0.01, 0.05, 3, 0.05);
+    return 0.09;
+  }, 0.05, 3, { low: true }),
+
+  /** A truck sliding to a stop on dirt: a gravel scrape that slows, a short tyre squeal, the springs bottoming out. */
+  skid: S((t, p, o) => {
+    noise(o, t, 0.55, 'bandpass', 1100 * p, 380 * p, 0.9, 0.3, 0.02);
+    noise(o, t, 0.5, 'lowpass', 700 * p, 200 * p, 0.7, 0.22, 0.01);
+    const sq = filt(o, 'bandpass', 1500 * p, 9);
+    noise(sq, t + 0.02, 0.32, 'bandpass', 1500 * p, 1150 * p, 6, 0.5, 0.03);
+    noise(sq, t + 0.04, 0.26, 'bandpass', 2250 * p, 1800 * p, 6, 0.3, 0.03);
+    crackle(o, t, 0.45, 14, 0.07);
+    tone(o, t + 0.08, 'sine', 120 * p, 45 * p, 0.18, 0.22, 0.004);
+    return 0.6;
+  }, 0.15, 3, { rev: 0.08 }),
+
+  /** A truck tearing away: the engine roaring up through its gears, the wheels spitting grit. */
+  truck_rev: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 500, 2);
+    lp.frequency.setValueAtTime(300, t);
+    lp.frequency.exponentialRampToValueAtTime(1600, t + 0.3);
+    lp.frequency.exponentialRampToValueAtTime(600, t + 0.6);
+    const chop = ctx.createGain();
+    chop.gain.value = 0.6;
+    chop.connect(lp);
+    const lfo = ctx.createOscillator();
+    lfo.type = 'square';
+    lfo.frequency.setValueAtTime(14, t);
+    lfo.frequency.exponentialRampToValueAtTime(45, t + 0.32);
+    const depth = ctx.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth).connect(chop.gain);
+    lfo.start(t);
+    lfo.stop(t + 0.7);
+    tone(chop, t, 'sawtooth', 48 * p, 150 * p, 0.62, 0.32, 0.02, 0.32);
+    tone(chop, t, 'square', 24 * p, 75 * p, 0.62, 0.18, 0.02, 0.32);
+    noise(o, t, 0.45, 'bandpass', 600 * p, 1400 * p, 0.8, 0.14, 0.03);
+    crackle(o, t + 0.02, 0.4, 12, 0.06);
+    return 0.7;
+  }, 0.15, 3),
+
+  /** Your shot thrown back: a hard metal ting that bends up and away. */
+  reflect: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 3000 * p, 4);
+    tone(bp, t, 'square', 1900 * p, 2600 * p, 0.12, 0.12, 0.001);
+    tone(o, t, 'sine', 2600 * p, 4200 * p, 0.18, 0.06, 0.001);
+    noise(o, t, 0.02, 'highpass', 5000, 5000, 0.7, 0.14);
+    tone(o, t, 'sine', 220 * p, 90 * p, 0.08, 0.14, 0.001);
+    return 0.2;
+  }, 0.06, 3, { low: true }),
 
   enemy_shot: S((t, p, o) => {
     tone(o, t, 'triangle', 620 * p, 300 * p, 0.09, 0.08, 0.002);
@@ -1934,6 +2001,405 @@ const SFX: Record<Sfx, SfxDef> = {
   }, 0.12, 2),
 
   // a partner hauled back up: a hopeful run upward
+  // ── the forge's guns ──────────────────────────────────────────────────────────────────────
+
+  // a saw blade leaving the rack: a bright steel shing over the whir of it spinning up
+  shot_saw: S((t, p, o) => {
+    noise(o, t, 0.12, 'bandpass', 2200 * p, 7000 * p, 4, 0.16, 0.004);
+    tone(o, t, 'sine', 2350 * p, 2420 * p, 0.22, 0.05, 0.002);
+    tone(o, t, 'sine', 3530 * p, 3560 * p, 0.16, 0.035, 0.002);
+    const lp = filt(o, 'lowpass', 1800);
+    tone(lp, t, 'sawtooth', 90 * p, 240 * p, 0.14, 0.07, 0.004);
+    return 0.24;
+  }, 0.08, 3, { low: true }),
+
+  // off the edge of the screen: a ricochet's ting
+  saw_ting: S((t, p, o) => {
+    noise(o, t, 0.015, 'highpass', 5000, 5000, 0.7, 0.2);
+    tone(o, t, 'sine', 3100 * p, 2900 * p, 0.35, 0.07, 0.001);
+    tone(o, t, 'sine', 4650 * p, 4600 * p, 0.2, 0.04, 0.001);
+    tone(o, t, 'triangle', 1550 * p, 1500 * p, 0.12, 0.05, 0.001);
+    return 0.36;
+  }, 0.05, 3, { rev: 0.25 }),
+
+  // teeth in a hull: a chattering grind
+  saw_grind: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 3200 * p, 2.5);
+    const s = ctx.createBufferSource();
+    s.buffer = noiseBuf;
+    s.loop = true;
+    const chop = ctx.createGain();
+    const lfo = ctx.createOscillator();
+    lfo.type = 'square';
+    lfo.frequency.value = 70 * p;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.5;
+    lfo.connect(depth).connect(chop.gain);
+    chop.gain.value = 0.5;
+    const g = ctx.createGain();
+    env(g.gain, t, 0.003, 0.26, 0.16);
+    s.connect(chop).connect(g).connect(bp);
+    s.start(t, Math.random() * 1.9);
+    s.stop(t + 0.2);
+    lfo.start(t);
+    lfo.stop(t + 0.2);
+    tone(o, t, 'square', 640 * p, 560 * p, 0.1, 0.03, 0.002);
+    return 0.2;
+  }, 0.07, 3, { low: true }),
+
+  // a phase needle: a glassy, thin note with a sweep through it, and nothing of a bang
+  shot_needle: S((t, p, o) => {
+    tone(o, t, 'sine', 3400 * p, 5600 * p, 0.09, 0.07, 0.001, 0.05);
+    tone(o, t, 'sine', 2600 * p, 2600 * p, 0.18, 0.035, 0.002);
+    tone(o, t, 'sine', 2637 * p, 2637 * p, 0.18, 0.035, 0.002);
+    noise(o, t, 0.012, 'highpass', 7000, 7000, 0.7, 0.08);
+    return 0.2;
+  }, 0.05, 3, { low: true, rev: 0.2 }),
+
+  // and through a hull: a crystal tick, a breath of air out the far side
+  needle_hit: S((t, p, o) => {
+    tone(o, t, 'sine', 4100 * p, 4000 * p, 0.12, 0.06, 0.001);
+    tone(o, t, 'sine', 6150 * p, 6100 * p, 0.07, 0.03, 0.001);
+    noise(o, t + 0.01, 0.08, 'bandpass', 6000 * p, 2500 * p, 1.5, 0.08, 0.004);
+    return 0.13;
+  }, 0.04, 3, { low: true }),
+
+  // hive darts: a buzz, like something let out of a box
+  shot_hive: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 1300 * p, 2);
+    const s = ctx.createOscillator();
+    s.type = 'sawtooth';
+    s.frequency.setValueAtTime(170 * p, t);
+    s.frequency.linearRampToValueAtTime(230 * p, t + 0.08);
+    const fm = ctx.createOscillator();
+    fm.frequency.value = 37;
+    const fmg = ctx.createGain();
+    fmg.gain.value = 40;
+    fm.connect(fmg).connect(s.frequency);
+    const g = ctx.createGain();
+    env(g.gain, t, 0.006, 0.14, 0.09);
+    s.connect(g).connect(bp);
+    s.start(t);
+    s.stop(t + 0.12);
+    fm.start(t);
+    fm.stop(t + 0.12);
+    return 0.12;
+  }, 0.06, 3, { low: true }),
+
+  hive_hit: S((t, p, o) => {
+    tone(o, t, 'triangle', 1900 * p, 900 * p, 0.035, 0.08, 0.001);
+    noise(o, t, 0.02, 'highpass', 4000, 4000, 0.7, 0.05);
+    return 0.05;
+  }, 0.03, 3, { low: true }),
+
+  // a wave: a deep push of air you feel more than hear, wobbling as it goes
+  shot_wave: S((t, p, o) => {
+    tone(o, t, 'sine', 95 * p, 42 * p, 0.55, 0.36, 0.01, 0.4);
+    const lp = filt(o, 'lowpass', 500, 4);
+    lp.frequency.setValueAtTime(260 * p, t);
+    lp.frequency.exponentialRampToValueAtTime(1300 * p, t + 0.12);
+    lp.frequency.exponentialRampToValueAtTime(200 * p, t + 0.5);
+    tone(lp, t, 'sawtooth', 62 * p, 58 * p, 0.5, 0.12, 0.02);
+    noise(o, t, 0.45, 'bandpass', 380 * p, 900 * p, 1.4, 0.08, 0.05);
+    tone(o, t, 'sine', 740 * p, 520 * p, 0.25, 0.02, 0.03);
+    return 0.6;
+  }, 0.12, 2, { rev: 0.3 }),
+
+  wave_hit: S((t, p, o) => {
+    tone(o, t, 'sine', 160 * p, 70 * p, 0.14, 0.18, 0.003);
+    noise(o, t, 0.1, 'lowpass', 900 * p, 300 * p, 0.8, 0.08, 0.004);
+    return 0.16;
+  }, 0.05, 3, { low: true }),
+
+  // the charge cannon: the pitch says how ripe it was (p < 1: fuller, deeper); a crack, a boom and a long fall of energy
+  shot_charge: S((t, p, o) => {
+    noise(o, t, 0.03, 'highpass', 3000, 3000, 0.7, 0.3);
+    tone(o, t, 'sine', 140 * p, 30 * p, 0.7, 0.5, 0.002, 0.4);
+    const lp = filt(o, 'lowpass', 2400);
+    tone(lp, t, 'sawtooth', 300 * p, 50 * p, 0.6, 0.16, 0.002, 0.45);
+    tone(o, t, 'square', 3000 * p, 160 * p, 0.35, 0.05, 0.001, 0.3);
+    crackle(o, t + 0.02, 0.4, 14, 0.12);
+    noise(o, t, 0.8, 'lowpass', 2600 * p, 120 * p, 0.8, 0.22, 0.003);
+    return 0.9;
+  }, 0.1, 2, { rev: 0.35, duck: [0.25, 0.7] }),
+
+  // full: two rising notes, and it hums ready
+  charge_ready: S((t, p, o) => {
+    const f = mtof(81) * p;
+    tone(o, t, 'triangle', f, f, 0.1, 0.07, 0.002);
+    tone(o, t + 0.07, 'triangle', f * 1.5, f * 1.5, 0.3, 0.07, 0.002);
+    tone(o, t + 0.07, 'sine', f * 3, f * 3, 0.35, 0.025, 0.002);
+    return 0.4;
+  }, 0.2, 2, { tuned: true }),
+
+  // the round going in: the air sucked into it, and then it lets go
+  charge_hit: S((t, p, o) => {
+    noise(o, t, 0.09, 'highpass', 300 * p, 4500 * p, 0.9, 0.16, 0.08);
+    boom(o, t + 0.08, p, 0.9, 0.45);
+    tone(o, t + 0.08, 'sawtooth', 1400 * p, 120 * p, 0.3, 0.04, 0.002);
+    return 0.8;
+  }, 0.08, 2, { rev: 0.3 }),
+
+  // an anchor spike: a heavy chunk off the rack, and the chain paying out after it
+  shot_anchor: S((t, p, o) => {
+    tone(o, t, 'sine', 120 * p, 50 * p, 0.2, 0.4, 0.002);
+    noise(o, t, 0.08, 'bandpass', 900 * p, 500 * p, 1.2, 0.3, 0.002);
+    for (let k = 0; k < 9; k++) {
+      const at = t + 0.03 + k * 0.025 + Math.random() * 0.01;
+      tone(o, at, 'sine', (2200 + Math.random() * 1600) * p, 2000 * p, 0.03, 0.035 * (1 - k / 11), 0.001);
+    }
+    return 0.32;
+  }, 0.1, 2),
+
+  // it bites: a ringing clank, iron on iron, and the chain snapping taut
+  anchor_pin: S((t, p, o) => {
+    tone(o, t, 'sine', 523 * p, 520 * p, 0.7, 0.12, 0.002);
+    tone(o, t, 'sine', 1290 * p, 1285 * p, 0.45, 0.06, 0.002);
+    tone(o, t, 'sine', 2170 * p, 2160 * p, 0.25, 0.04, 0.002);
+    tone(o, t, 'sine', 90 * p, 45 * p, 0.25, 0.3, 0.003);
+    noise(o, t, 0.04, 'highpass', 2500, 2500, 0.7, 0.2);
+    noise(o, t + 0.06, 0.14, 'bandpass', 5000 * p, 2500 * p, 3, 0.1, 0.004);
+    return 0.75;
+  }, 0.08, 2, { rev: 0.35 }),
+
+  // the chain goes: a crack, and links scattering
+  chain_snap: S((t, p, o) => {
+    noise(o, t, 0.03, 'highpass', 3500, 3500, 0.7, 0.22);
+    for (let k = 0; k < 7; k++) {
+      const at = t + 0.02 + Math.random() * 0.3;
+      tone(o, at, 'sine', (1800 + Math.random() * 2400) * p, 1700 * p, 0.04, 0.03, 0.001);
+    }
+    return 0.4;
+  }, 0.08, 2),
+
+  // a bumper charge: a fat thoomp, with a rubbery give in it
+  shot_bumper: S((t, p, o) => {
+    tone(o, t, 'sine', 190 * p, 70 * p, 0.2, 0.42, 0.002, 0.12);
+    tone(o, t, 'triangle', 300 * p, 520 * p, 0.12, 0.08, 0.004, 0.08);
+    noise(o, t, 0.06, 'lowpass', 1200 * p, 300 * p, 0.7, 0.2, 0.002);
+    return 0.22;
+  }, 0.1, 2),
+
+  // and what it hits goes: a bonk, a spring, a whoosh off
+  bonk: S((t, p, o) => {
+    tone(o, t, 'sine', 560 * p, 240 * p, 0.14, 0.2, 0.001, 0.1);
+    tone(o, t, 'square', 140 * p, 70 * p, 0.08, 0.08, 0.001);
+    noise(o, t, 0.02, 'highpass', 3000, 3000, 0.7, 0.15);
+    noise(o, t + 0.04, 0.3, 'bandpass', 600 * p, 2600 * p, 1.4, 0.08, 0.05);
+    return 0.35;
+  }, 0.06, 3),
+
+  // the spray soaking in: a soft crunch of frost
+  frost_hit: S((t, p, o) => {
+    noise(o, t, 0.05, 'highpass', 5500 * p, 7500 * p, 1, 0.07, 0.002);
+    tone(o, t, 'sine', 3300 * p, 3500 * p, 0.05, 0.015, 0.002);
+    return 0.06;
+  }, 0.09, 2, { low: true }),
+
+  // ── the new kit ───────────────────────────────────────────────────────────────────────────
+
+  // the Bulwark going up: a heavy shutter of light slamming into place, humming
+  wall_up: S((t, p, o) => {
+    tone(o, t, 'sine', 70 * p, 55 * p, 0.35, 0.35, 0.004);
+    const lp = filt(o, 'lowpass', 1400, 3);
+    tone(lp, t, 'sawtooth', 110 * p, 220 * p, 0.25, 0.1, 0.01, 0.08);
+    noise(o, t, 0.08, 'bandpass', 900 * p, 2400 * p, 1.5, 0.15, 0.003);
+    tone(o, t + 0.05, 'sine', 880 * p, 880 * p, 0.3, 0.03, 0.01);
+    return 0.4;
+  }, 0.15, 1, { rev: 0.25 }),
+
+  // a bullet into it: a dull thock, higher the fuller it is
+  wall_block: S((t, p, o) => {
+    tone(o, t, 'sine', 300 * p, 180 * p, 0.06, 0.12, 0.001);
+    noise(o, t, 0.03, 'bandpass', 2200 * p, 1400 * p, 2, 0.08, 0.001);
+    return 0.07;
+  }, 0.035, 3, { low: true }),
+
+  // let go: everything it took, thrown at once
+  wall_throw: S((t, p, o) => {
+    boom(o, t, p, 1.1, 0.5);
+    noise(o, t, 0.5, 'bandpass', 600 * p, 3000 * p, 1.2, 0.2, 0.02);
+    tone(o, t, 'sawtooth', 220 * p, 55 * p, 0.4, 0.08, 0.002);
+    return 0.9;
+  }, 0.2, 1, { rev: 0.35, duck: [0.3, 0.6] }),
+
+  // a beacon thrown: a chirp going away
+  beacon_throw: S((t, p, o) => {
+    tone(o, t, 'triangle', 900 * p, 1800 * p, 0.12, 0.08, 0.002);
+    tone(o, t + 0.1, 'sine', 2400 * p, 2400 * p, 0.2, 0.04, 0.002);
+    return 0.3;
+  }, 0.1, 2, { tuned: true }),
+
+  // the swap: space folding, a reversed whoosh and a snap
+  beacon_swap: S((t, p, o) => {
+    noise(o, t, 0.14, 'bandpass', 5000 * p, 600 * p, 2, 0.2, 0.12);
+    tone(o, t, 'sine', 1600 * p, 200 * p, 0.15, 0.08, 0.1, 0.14);
+    noise(o, t + 0.14, 0.03, 'highpass', 3000, 3000, 0.7, 0.25);
+    tone(o, t + 0.14, 'square', 1200 * p, 600 * p, 0.06, 0.05, 0.001);
+    return 0.25;
+  }, 0.1, 2, { rev: 0.3 }),
+
+  beacon_burst: S((t, p, o) => {
+    boom(o, t, p * 1.2, 0.6, 0.4);
+    tone(o, t, 'triangle', 1800 * p, 600 * p, 0.2, 0.06, 0.002);
+    return 0.6;
+  }, 0.1, 2, { rev: 0.3 }),
+
+  beacon_fizzle: S((t, p, o) => {
+    tone(o, t, 'triangle', 1200 * p, 300 * p, 0.25, 0.05, 0.002);
+    noise(o, t, 0.2, 'highpass', 4000, 1500, 0.7, 0.04, 0.01);
+    return 0.3;
+  }, 0.1, 2),
+
+  // an ablative layer going: a plate cracking off, shrapnel ringing out
+  layer_break: S((t, p, o) => {
+    noise(o, t, 0.04, 'highpass', 2500, 2500, 0.7, 0.3);
+    tone(o, t, 'sine', 180 * p, 70 * p, 0.2, 0.3, 0.002);
+    crackle(o, t + 0.01, 0.25, 16, 0.2);
+    for (const f of [1900, 2700, 3400]) tone(o, t + Math.random() * 0.05, 'sine', f * p, f * 0.96 * p, 0.25, 0.04, 0.001);
+    return 0.4;
+  }, 0.1, 2, { rev: 0.25 }),
+
+  // and one growing back: plates sliding into place, a rising lock
+  layer_grow: S((t, p, o) => {
+    const f = mtof(74) * p;
+    tone(o, t, 'triangle', f, f, 0.1, 0.06, 0.002);
+    tone(o, t + 0.06, 'triangle', f * 1.25, f * 1.25, 0.1, 0.06, 0.002);
+    tone(o, t + 0.12, 'triangle', f * 1.5, f * 1.5, 0.25, 0.07, 0.002);
+    noise(o, t, 0.12, 'bandpass', 3000 * p, 3000 * p, 3, 0.05, 0.004);
+    return 0.4;
+  }, 0.15, 1, { tuned: true }),
+
+  // a graze into the static skin: a tick of electricity, higher each charge
+  static_charge: S((t, p, o) => {
+    crackle(o, t, 0.05, 4, 0.12);
+    tone(o, t, 'square', 1400 * p, 1500 * p, 0.04, 0.03, 0.001);
+    return 0.07;
+  }, 0.04, 3, { low: true }),
+
+  // and let go: a snap of lightning
+  static_zap: S((t, p, o) => {
+    noise(o, t, 0.03, 'highpass', 3000, 3000, 0.7, 0.35);
+    crackle(o, t, 0.3, 22, 0.25);
+    const bp = filt(o, 'bandpass', 1800 * p, 0.9);
+    const sq = ctx.createOscillator();
+    sq.type = 'square';
+    for (let k = 0; k < 14; k++) sq.frequency.setValueAtTime((200 + Math.random() * 1800) * p, t + k * 0.015);
+    const g = ctx.createGain();
+    env(g.gain, t, 0.002, 0.16, 0.22);
+    sq.connect(g).connect(bp);
+    sq.start(t);
+    sq.stop(t + 0.25);
+    tone(o, t, 'sine', 90 * p, 40 * p, 0.3, 0.25, 0.002);
+    return 0.35;
+  }, 0.08, 2, { rev: 0.3 }),
+
+  // a carpet: the bay doors and a long whistle of things falling
+  special_carpet: S((t, p, o) => {
+    noise(o, t, 0.1, 'lowpass', 900, 300, 0.7, 0.3);
+    tone(o, t, 'square', 140 * p, 120 * p, 0.12, 0.08, 0.002);
+    tone(o, t + 0.1, 'sine', 2200 * p, 900 * p, 1.4, 0.04, 0.05, 1.4);
+    return 1.5;
+  }, 0.3, 1, { duck: [1.5, 0.5] }),
+
+  bomblet: S((t, p, o) => {
+    boom(o, t, p * (0.9 + Math.random() * 0.3), 0.35, 0.3);
+    return 0.4;
+  }, 0.045, 5, { low: true }),
+
+  // cryo: the world stopping: a crack of ice all round, then a held, ringing cold
+  special_cryo: S((t, p, o) => {
+    crackle(o, t, 0.4, 50, 0.3);
+    noise(o, t, 0.6, 'highpass', 6000, 2500, 0.7, 0.2, 0.004);
+    tone(o, t, 'sine', 60 * p, 40 * p, 0.9, 0.4, 0.005);
+    for (const [f, d] of [[2093, 2], [3136, 1.8], [4186, 1.4]] as const) tone(o, t + 0.05, 'sine', f * p, f * p, d, 0.035, 0.05);
+    return 2.1;
+  }, 0.5, 1, { rev: 0.6, duck: [2, 0.4], shock: 0.3 }),
+
+  // and letting go: a soft hush of snow
+  snow: S((t, p, o) => {
+    noise(o, t, 0.6, 'bandpass', 5000 * p, 3000 * p, 0.8, 0.05, 0.1);
+    return 0.65;
+  }, 0.3, 1, { low: true }),
+
+  // the gravity well: a deep suck, rising, the air pulled in
+  special_gravity: S((t, p, o) => {
+    tone(o, t, 'sine', 40 * p, 90 * p, 1.2, 0.45, 0.3, 1.1);
+    const lp = filt(o, 'lowpass', 600, 6);
+    lp.frequency.setValueAtTime(200, t);
+    lp.frequency.exponentialRampToValueAtTime(2400, t + 1.1);
+    tone(lp, t, 'sawtooth', 55 * p, 110 * p, 1.2, 0.14, 0.3, 1.1);
+    noise(o, t, 1.2, 'bandpass', 200 * p, 2400 * p, 1.5, 0.16, 0.6);
+    return 1.3;
+  }, 0.5, 1, { rev: 0.4, duck: [1.4, 0.5] }),
+
+  // it lets go
+  well_burst: S((t, p, o) => {
+    boom(o, t, p * 0.8, 1.6, 0.6);
+    noise(o, t, 0.05, 'highpass', 2000, 2000, 0.7, 0.3);
+    return 1.4;
+  }, 0.3, 1, { rev: 0.45, shock: 0.25 }),
+
+  // the drone wing: four little engines spooling up and peeling off the rack
+  special_drones: S((t, p, o) => {
+    for (let k = 0; k < 4; k++) {
+      const at = t + k * 0.09;
+      tone(o, at, 'sawtooth', (300 + k * 60) * p, (900 + k * 120) * p, 0.25, 0.04, 0.01, 0.2);
+      noise(o, at, 0.12, 'bandpass', 2000 * p, 5000 * p, 2, 0.05, 0.01);
+    }
+    const f = mtof(79) * p;
+    tone(o, t + 0.4, 'triangle', f, f, 0.12, 0.06, 0.002);
+    tone(o, t + 0.48, 'triangle', f * 1.5, f * 1.5, 0.3, 0.06, 0.002);
+    return 0.8;
+  }, 0.3, 1, { duck: [0.8, 0.6] }),
+
+  drones_gone: S((t, p, o) => {
+    for (let k = 0; k < 4; k++) tone(o, t + k * 0.06, 'sawtooth', (900 - k * 80) * p, 200 * p, 0.2, 0.03, 0.01);
+    return 0.5;
+  }, 0.3, 1),
+
+  // ── cash-ins: each its own bang ───────────────────────────────────────────────────────────
+
+  // SMASH: the ice goes like a window, over a deep hit
+  cash_smash: S((t, p, o) => {
+    boom(o, t, p * 0.8, 0.8, 0.5);
+    crackle(o, t, 0.35, 40, 0.35);
+    for (const [at, f] of [[0, 5200], [0.03, 3900], [0.07, 6100], [0.12, 4600]] as const) tone(o, t + at, 'sine', f * p, f * 0.97 * p, 0.3, 0.05, 0.001);
+    noise(o, t, 0.6, 'highpass', 6000 * p, 3000 * p, 0.7, 0.18, 0.002);
+    return 0.9;
+  }, 0.1, 2, { rev: 0.45, duck: [0.35, 0.6] }),
+
+  // NAILED: an iron bell struck hard
+  cash_nailed: S((t, p, o) => {
+    boom(o, t, p, 0.6, 0.4);
+    for (const [f, v, d] of [[311, 0.14, 1.2], [747, 0.08, 0.8], [1180, 0.05, 0.5], [1890, 0.03, 0.35]] as const) tone(o, t, 'sine', f * p, f * p, d, v, 0.002);
+    return 1.25;
+  }, 0.1, 2, { rev: 0.5, tuned: true, duck: [0.35, 0.6] }),
+
+  // FLARE-UP: a roar going up
+  cash_flare: S((t, p, o) => {
+    boom(o, t, p, 1.1, 0.55);
+    noise(o, t, 0.7, 'bandpass', 250 * p, 2400 * p, 1.1, 0.3, 0.05);
+    return 0.9;
+  }, 0.1, 2, { rev: 0.35, duck: [0.35, 0.6] }),
+
+  // GROUND-OUT: a thunderclap down the line
+  cash_ground: S((t, p, o) => {
+    noise(o, t, 0.05, 'highpass', 2500, 2500, 0.7, 0.4);
+    crackle(o, t, 0.5, 30, 0.3);
+    tone(o, t, 'sine', 70 * p, 35 * p, 0.9, 0.5, 0.003, 0.6);
+    noise(o, t + 0.04, 1.0, 'lowpass', 1600 * p, 100 * p, 0.7, 0.3, 0.01);
+    return 1.1;
+  }, 0.1, 2, { rev: 0.5, duck: [0.35, 0.6] }),
+
+  // BREACH: a hull cracked like a nut
+  cash_breach: S((t, p, o) => {
+    boom(o, t, p * 1.1, 0.7, 0.45);
+    for (let k = 0; k < 5; k++) noise(o, t + k * 0.03 + Math.random() * 0.02, 0.03, 'bandpass', (1500 + Math.random() * 2500) * p, 1500 * p, 2, 0.2, 0.001);
+    tone(o, t, 'square', 220 * p, 110 * p, 0.25, 0.06, 0.002);
+    return 0.7;
+  }, 0.1, 2, { rev: 0.35, duck: [0.35, 0.6] }),
+
   revive: S((t, p, o) => {
     const notes = [72, 76, 79, 84];
     notes.forEach((n, i) => {
@@ -1985,16 +2451,55 @@ function drive(out: AudioNode, gain: number): AudioNode {
 }
 
 const VOICE_CAP = 28;
-const voices: { name: Sfx; end: number }[] = [];
-const lastPlay = new Map<Sfx, number>();
+const voices: { name: AnySfx; end: number }[] = [];
+const lastPlay = new Map<AnySfx, number>();
+
+/** Sounds the minigames define in their own files, played like any other. */
+const EXTRA = new Map<MiniSfx, SfxDef>();
+
+/**
+ * A minigame's own sound: `fn` builds it at time `t`, pitch `p`, into `o` (with the `synth`
+ * helpers) and returns how long it lasts. `gap`: least seconds between plays; `max`: voices.
+ */
+export function defineSfx(name: MiniSfx, fn: SfxFn, gap: number, max: number, extra: Partial<SfxDef> = {}) {
+  EXTRA.set(name, S(fn, gap, max, extra));
+}
+
+/** The building blocks the sounds here are made of, for `defineSfx` sounds. */
+export const synth = {
+  get ctx() {
+    return ctx;
+  },
+  get noiseBuf() {
+    return noiseBuf;
+  },
+  get pulse12() {
+    return pulse12;
+  },
+  get pulse25() {
+    return pulse25;
+  },
+  env,
+  adsr,
+  tone,
+  noise,
+  filt,
+  crackle,
+  boom,
+  held,
+  metal,
+  drive,
+  mtof,
+};
 /** Nodes to disconnect once their sound is over. */
 const trash: { at: number; nodes: AudioNode[] }[] = [];
 
 /** Sounds of the interface: on their own bus, never muffled or ducked. */
-const isUi = (name: Sfx) => name.startsWith('ui_') || name === 'card_flip';
+const isUi = (name: AnySfx) => name.startsWith('ui_') || name === 'card_flip';
 
-function playSfx(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }) {
-  const def = SFX[name];
+function playSfx(name: AnySfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }) {
+  const def = name.startsWith('mini_') ? EXTRA.get(name as MiniSfx) : SFX[name as Sfx];
+  if (!def) return;
   const now = ctx.currentTime;
   if (now - (lastPlay.get(name) ?? -9) < def.gap) return;
   let n = 0;
@@ -2132,6 +2637,37 @@ function makeLoop(name: Loop): LoopVoice {
       bp.frequency.setTargetAtTime(700 + 900 * i, ctx.currentTime, 0.05);
       lvl.gain.setTargetAtTime(0.16 * (0.5 + 0.5 * i), ctx.currentTime, 0.03);
     };
+  } else if (name === 'frost') {
+    // a frost sprayer: a cold hiss, glittering on top, with no roar in it at all
+    const hp = bq('bandpass', 5200, 0.8, lvl);
+    nz(hp, 0.7);
+    const mid = bq('bandpass', 1800, 1.2, lvl);
+    nz(mid, 0.25);
+    const shimmer = ctx.createGain();
+    shimmer.gain.value = 0.5;
+    shimmer.connect(lvl);
+    nodes.push(shimmer);
+    osc('sine', 3136, shimmer, 0.03);
+    osc('sine', 3322, shimmer, 0.025);
+    osc('sine', 7, shimmer.gain, 0.4);
+    set = (i) => {
+      hp.frequency.setTargetAtTime(4200 + 1800 * i, ctx.currentTime, 0.05);
+      lvl.gain.setTargetAtTime(0.13 * (0.5 + 0.5 * i), ctx.currentTime, 0.03);
+    };
+  } else if (name === 'charge') {
+    // a charge cannon ripening: a hum climbing to a whine, with a tremble that quickens
+    const lp = bq('lowpass', 300, 5, lvl);
+    const o1 = osc('sawtooth', 55, lp, 0.4);
+    const o2 = osc('sine', 110, lvl, 0.15);
+    const trem = osc('sine', 4, o2.frequency, 6);
+    set = (i) => {
+      const n = ctx.currentTime;
+      o1.frequency.setTargetAtTime(55 + 85 * i, n, 0.1);
+      o2.frequency.setTargetAtTime(110 + 330 * i * i, n, 0.1);
+      trem.frequency.setTargetAtTime(4 + 18 * i, n, 0.1);
+      lp.frequency.setTargetAtTime(250 + 1600 * i, n, 0.1);
+      lvl.gain.setTargetAtTime(0.02 + 0.07 * i, n, 0.08);
+    };
   } else if (name === 'wind') {
     // boosting: air tearing past, a band of noise that opens up the harder you push
     const bp = bq('bandpass', 500, 0.8, lvl);
@@ -2143,6 +2679,28 @@ function makeLoop(name: Loop): LoopVoice {
       const n = ctx.currentTime;
       bp.frequency.setTargetAtTime(400 + 1600 * i, n, 0.08);
       lvl.gain.setTargetAtTime(0.18 * i, n, 0.06);
+    };
+  } else if (name === 'truck') {
+    // a gun truck's motor: a lumpy chug at idle (the cylinders' beat chopping a growl), climbing
+    // to a rasping roar flat out, the exhaust's rattle under it
+    const lp = bq('lowpass', 300, 1.5, lvl);
+    const chop = ctx.createGain();
+    chop.gain.value = 0.6;
+    chop.connect(lp);
+    nodes.push(chop);
+    const beat = osc('square', 11, chop.gain, 0.4);
+    const o1 = osc('sawtooth', 40, chop, 0.5);
+    const o2 = osc('square', 20, chop, 0.3, 8);
+    const bp = bq('bandpass', 200, 1.2, chop);
+    nz(bp, 0.5);
+    set = (i) => {
+      const n = ctx.currentTime;
+      o1.frequency.setTargetAtTime(40 + 85 * i, n, 0.1);
+      o2.frequency.setTargetAtTime(20 + 42 * i, n, 0.1);
+      beat.frequency.setTargetAtTime(11 + 30 * i, n, 0.1);
+      lp.frequency.setTargetAtTime(280 + 1100 * i, n, 0.1);
+      bp.frequency.setTargetAtTime(200 + 600 * i, n, 0.1);
+      lvl.gain.setTargetAtTime(0.022 + 0.036 * i, n, 0.08);
     };
   } else {
     // engine: soft low hum that rises with thrust
@@ -3920,7 +4478,7 @@ export const audio = {
   },
 
   /** `dist` 0 (right here) .. 1 (far off): duller, quieter, more of the room. */
-  play(name: Sfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }): void {
+  play(name: AnySfx, opts?: { pan?: number; pitch?: number; vol?: number; dist?: number }): void {
     if (!ready || ctx.state !== 'running') return;
     playSfx(name, opts);
   },

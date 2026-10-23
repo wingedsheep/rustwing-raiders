@@ -136,6 +136,9 @@ export function targetWorth(lv: Level, e: Enemy) {
   if (e.arch === 'prism' && (e.state === 'idle' || e.state === 'attack')) return 0.2;
   if (e.guard > 0) return 0.4;
   if (e.arch === 'heartpod') return 3;
+  // a hauled strongbox is iron: its tugs first
+  if (e.arch === 'vault' && e.d.fall === undefined) return 0.05;
+  if (e.arch === 'tug') return 2;
   if (e.boss && e.taken < 0.5) return 0.1;
   return Math.max(0.5, e.taken);
 }

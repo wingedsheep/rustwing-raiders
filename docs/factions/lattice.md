@@ -8,9 +8,9 @@
 - **Colours:** white ceramic `e8ecf0`, navy `2a3448`, cyan `4ae8ff`. Leans 12% towards the planet.
 - **Look:** white ceramic, glass, hard-light; symmetrical, hexagonal, rings and gates. Nothing in the frontier is new except lattice tech, and that's why it looks threatening. **Sound:** clean sine tones, a click before each beam.
 - **Bullets:** diamond shards that leave afterimages, long lances, turning hexagons; a cancelled one pops in a ring of light.
-- **Roster:** [Warden](../enemies/warden.md) (0), [Prism](../enemies/prism.md) (10%), [Gatekeeper](../enemies/gatekeeper.md) (15%), [Halo](../enemies/halo.md) (5%), [Spindle](../enemies/spindle.md) (10%), [Rook](../enemies/rook.md) (15%).
+- **Roster:** [Bulwark](../enemies/bulwark.md) (0), [Prism](../enemies/prism.md) (10%), [Gatekeeper](../enemies/gatekeeper.md) (15%), [Halo](../enemies/halo.md) (5%), [Spindle](../enemies/spindle.md) (10%), [Rook](../enemies/rook.md) (15%).
 - **Bounties:** [Strongbox](../enemies/strongbox.md), [Loot Runner](../enemies/loot-runner.md).
-- **Elite names:** ARBITER, THE CENSOR, WARDEN PRIME, UNIT NINE, THE AUDITOR, SEVENFOLD. To change: the cores' first and only lesson was a ledger, so their names should be ledger words, not police ones: **SEVENFOLD, UNIT NINE, CARRY-ONE, NET ZERO, THE LONG SUM, FAIR WEIGHT** (`ELITE_NAMES`, `src/sim/factions.ts`).
+- **Elite names:** ARBITER, THE CENSOR, BULWARK PRIME, UNIT NINE, THE AUDITOR, SEVENFOLD. To change: the cores' first and only lesson was a ledger, so their names should be ledger words, not police ones: **SEVENFOLD, UNIT NINE, CARRY-ONE, NET ZERO, THE LONG SUM, FAIR WEIGHT** (`ELITE_NAMES`, `src/sim/factions.ts`).
 
 ## Listening (designed, not built)
 

@@ -25,6 +25,7 @@
 import { hullGrowth, type Enemy, type Level } from './level';
 import type { MarkKind, Tag } from '../game/parts';
 import { DT } from './types';
+import { noteSetup } from './arsenal';
 import { go } from './combat';
 import { isFoe } from './factions';
 
@@ -81,7 +82,7 @@ const BURN_TIME = 3;
 const SHOCK_TIME = 2.5;
 const CRACK_TIME = 4;
 /** Burn: damage a second per stack, the most stacks, how often a hit can add one. */
-const BURN_DPS = 5;
+export const BURN_DPS = 5;
 const BURN_STACKS = 3;
 const BURN_STACK_GAP = 0.3;
 /** Shock: everything it does runs at this speed; a jolt (a short stun) this often, this long. */
@@ -166,6 +167,7 @@ export function mark(lv: Level, e: Enemy, bits: number, pow: number, owner: numb
     m.crackP = Math.max(pow, m.crack > 0 ? m.crackP * 0.9 : 0);
     m.crack = CRACK_TIME;
   }
+  for (const k of MARK_KINDS) if (bits & MARK_BIT[k]) noteSetup(e, k, lv.credit);
   const now = marksOn(e);
   for (const k of MARK_KINDS) if (now & MARK_BIT[k] && !(had & MARK_BIT[k])) lv.emit({ type: 'mark', enemy: e.id, kind: k, x: e.x, z: e.z });
   // two different marks: the pair goes off
@@ -193,6 +195,10 @@ export function react(lv: Level, e: Enemy, kind: ReactionKind, owner: number) {
   clear(e);
   lv.reactions++;
   lv.emit({ type: 'reaction', kind, enemy: e.id, x, z, owner });
+  lv.credited(kind.toUpperCase(), () => reactHits(lv, e, kind, owner, dmg, pow, x, z));
+}
+
+function reactHits(lv: Level, e: Enemy, kind: ReactionKind, owner: number, dmg: number, pow: number, x: number, z: number) {
   if (kind === 'overload') {
     // the lightning runs out from it to its neighbours, and leaves them shocked
     lv.damage(e, dmg, owner, false, null);

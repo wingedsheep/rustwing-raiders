@@ -3,7 +3,7 @@ furnace light, an ancient precision under the ice) and the tundra's tusked bull.
 
     frost_wisp    dart     an ice-shard arrowhead round a furnace core, shard streamers trailing
     engine_eye    turret   a great furnace eye on a hex plinth in the ice; underslung twin guns
-    pylon_warden  lancer   a flying pylon: a tuning fork of two prongs, the beam forms between them
+    beam_pylon    lancer   a flying pylon: a tuning fork of two prongs, the beam forms between them
     tusked_bull   brute    a shaggy mammoth bull, huge sweeping tusks, ears that flap it along
     hail_layer    bomber   a broad white flying wing, dark lattice spars, a hopper drum of cyan hail
     engine_hive   carrier  a long hex hive with a honeycomb deck: the open cells glow and launch
@@ -142,10 +142,10 @@ def engine_eye():
         marker(head, kind, "muzzle", (s * 0.55, 1.4, 0.22), k)
 
 
-# --- Pylon Warden: lancer, ~3 ----------------------------------------------------------------------
+# --- Beam Pylon: lancer, ~3 ------------------------------------------------------------------------
 
-def pylon_warden():
-    kind, clip, root = named("pylon_warden", "lancer", "mech", "charge", preview=("#8a9aaa", "#2a3040", "#ff6a1a"))
+def beam_pylon():
+    kind, clip, root = named("beam_pylon", "lancer", "mech", "charge", preview=("#8a9aaa", "#2a3040", "#ff6a1a"))
     T = 1.0
     b = Model(f"{kind}_body", seed=5020)
     # the stock: a machined hex block, dark under, light slate on top, a furnace grill set in it
@@ -386,7 +386,7 @@ def engine_hive():
 def build():
     frost_wisp()
     engine_eye()
-    pylon_warden()
+    beam_pylon()
     tusked_bull()
     hail_layer()
     engine_hive()

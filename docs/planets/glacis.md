@@ -17,7 +17,7 @@
 
 ## Who you fight
 
-Frost Wisp (dart), Engine Eye (turret), Pylon Warden (lancer), Tusked Bull (brute, beast), Hail Layer (bomber), Engine Hive (carrier); the lattice roster on top. The faction and the boss are the same thing: the planet's machine.
+Frost Wisp (dart), Engine Eye (turret), Beam Pylon (lancer), Tusked Bull (brute, beast), Hail Layer (bomber), Engine Hive (carrier); the lattice roster on top. The faction and the boss are the same thing: the planet's machine.
 
 ## Ideas
 

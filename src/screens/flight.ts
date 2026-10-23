@@ -39,7 +39,7 @@ export interface FlightResult {
 }
 
 /**
- * Flying a level: the sim at a steady 60 Hz (held still for hitstop, slowed for the big moments),
+ * Flying a level: the sim at a steady 60 Hz, with combat feedback never changing its clock,
  * the view drawn every frame, the HUD over it. ?autopilot (and ?tour) hands the stick to the pilot.
  */
 export class Flight implements Screen {
@@ -49,6 +49,8 @@ export class Flight implements Screen {
   private hud = new Hud();
   private acc = 0;
   private paused = false;
+  /** The forge's: the special kept full. */
+  private charged = false;
   private pilots: PilotState[] | null;
   /** Only this player is the pilot's (the rest are flown by hand), or -1: all of them. */
   private only = -1;
@@ -88,6 +90,9 @@ export class Flight implements Screen {
     this.lv = new Level(spec, builds, hull, grafts, kits, call);
     // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
     this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
+    // &combos: blows cash in setups (see sim/arsenal.ts)
+    if (game.params.has('combos')) this.lv.combos = true;
+    this.charged = game.params.has('charged');
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
     const rk = Number(game.params.get('runner'));
     if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
@@ -96,7 +101,7 @@ export class Flight implements Screen {
       this.lv.hotCrate();
       const c = this.lv.pickups[this.lv.pickups.length - 1];
       c.x = this.lv.players[0].x;
-      c.z = this.lv.players[0].z - 10;
+      c.z = this.lv.players[0].z - 24;
     }
     // &crates: a part crate of each tier ahead of you (to see their beacons and catch them)
     if (game.params.has('crates'))
@@ -137,21 +142,19 @@ export class Flight implements Screen {
       return;
     }
     const v = this.view;
-    this.acc += dt * v.slowmo * this.rate;
+    this.acc += dt * this.rate;
     let steps = 0;
     while (this.acc >= DT && steps < 4 * Math.max(1, Math.ceil(this.rate))) {
       this.acc -= DT;
       steps++;
-      if (v.hitstop > 0) {
-        v.hitstop--;
-        continue;
-      }
       const intents: Intent[] = this.lv.players.map((p, i) => (this.pilots && (this.only < 0 || this.only === i) ? pilot(this.lv, p, this.pilots[i]) : input.intent(this.game.devices[i] ?? 'keys')));
+      // &charged (the forge): the special fills back up in 3 s, to try a bomb again and again
+      if (this.charged) for (const p of this.lv.players) p.charge = Math.min(1, p.charge + 1 / 180);
       this.lv.step(intents);
       v.handle(this.lv.events);
       this.lv.events.length = 0;
     }
-    v.update(dt * v.slowmo * Math.min(this.rate, 1));
+    v.update(dt * Math.min(this.rate, 1));
     const lv = this.lv;
     if (!this.done && ((lv.state === 'clear' && lv.ending > 4) || (lv.state === 'failed' && lv.ending > 3.5))) this.finish(lv.state === 'clear');
   }

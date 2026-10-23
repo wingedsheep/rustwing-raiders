@@ -43,7 +43,9 @@ export type Foe =
   // bounties: worth chasing down before they get away
   | 'runner'
   | 'vault'
-  | 'cache';
+  | 'cache'
+  // a strongbox's pair of haulers: never sent on their own
+  | 'tug';
 
 export interface FoeDef {
   name: string;
@@ -72,9 +74,9 @@ export const FOES: Record<Foe, FoeDef> = {
   ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4, tip: 'A RIVAL: ROLLS AWAY FROM YOUR FIRE. BOOST PAST IT TO BEAT IT' },
   flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true , tip: 'SHELLS LAND WHERE YOU WILL BE: CHANGE YOUR PACE' },
   swooper: { name: 'Sower', faction: 'wild', hp: 30, r: 1.6, score: 250, scrap: 2, model: 'swarm', beast: true, scale: 2.2, tip: 'ITS SHADOW MARKS YOU, THEN IT FOLDS AND DIVES THROUGH THE MARK' },
-  burrower: { name: 'Burrower', faction: 'wild', hp: 90, r: 2.2, score: 700, scrap: 5, model: 'serpent', beast: true, scale: 1.4, tip: 'A RIPPLE COMES FOR YOU, THEN IT ERUPTS: GET OFF THE MARK' },
+  burrower: { name: 'Burrower', faction: 'wild', hp: 90, r: 2.2, score: 700, scrap: 5, model: 'serpent', beast: true, scale: 1.7, tip: 'A RIPPLE COMES FOR YOU, THEN IT ERUPTS: GET OFF THE MARK' },
   spitter: { name: 'Spitter', faction: 'wild', hp: 40, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: true, scale: 1.1, ground: true , tip: 'LOBS ACID AHEAD OF YOU: KEEP OUT OF THE PUDDLE' },
-  warden: { name: 'Warden', faction: 'lattice', hp: 110, r: 2, score: 700, scrap: 5, model: 'gunship', beast: false, scale: 1, tip: 'SHIELDED IN FRONT: GET ROUND IT, HIT IT AS IT FIRES, OR POUND THE SHIELD TILL IT CRACKS' },
+  warden: { name: 'Bulwark', faction: 'lattice', hp: 110, r: 2, score: 700, scrap: 5, model: 'gunship', beast: false, scale: 1, tip: 'SHIELDED IN FRONT: GET ROUND IT, HIT IT AS IT FIRES, OR POUND THE SHIELD TILL IT CRACKS' },
   prism: { name: 'Prism', faction: 'lattice', hp: 70, r: 1.6, score: 600, scrap: 4, model: 'lancer', beast: false, scale: 1.2, tip: 'CLOSED, IT THROWS SHOTS BACK: HIT IT WHEN IT OPENS TO SWEEP, OR FIRE IN FOCUS' },
   gatekeeper: { name: 'Gatekeeper', faction: 'lattice', hp: 60, r: 1.5, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.2, ground: true , tip: 'TWO PYLONS, A CLOSING GATE: FLY THE GAP, OR DROP A PYLON' },
   heartpod: { name: 'Heartpod', faction: 'bloom', hp: 50, r: 1.8, score: 600, scrap: 4, model: 'heartpod', beast: true, scale: 1.1, tip: 'BINDS ITS FRIENDS AND HEALS THEM: KILL THE POD FIRST' },
@@ -87,8 +89,9 @@ export const FOES: Record<Foe, FoeDef> = {
   manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
   runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 2, model: 'bomber', beast: false, scale: 0.8 },
-  vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55 },
+  vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55, tip: 'TWO TUGS HAUL IT AWAY: SHOOT THEM DOWN AND IT DROPS AND BURSTS OPEN' },
   cache: { name: 'Iron Crate', faction: 'scrap', hp: 80, r: 1.9, score: 700, scrap: 2, model: 'bomber', beast: false, scale: 0.7 },
+  tug: { name: 'Tug', faction: 'lattice', hp: 16, r: 1.1, score: 150, scrap: 1, model: 'swarm', beast: false, scale: 0.9, tip: 'HAULING A STRONGBOX: SHOOT DOWN BOTH TUGS AND THE BOX DROPS AND BURSTS OPEN' },
 };
 
 export const isFoe = (a: string): a is Foe => a in FOES;
@@ -166,7 +169,7 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
 /** Elites have names (on their plate): a few for each faction. */
 export const ELITE_NAMES: Record<Faction, string[]> = {
   scrap: ['GRISTLE', 'OLD RUST', 'BLACK MOLLY', 'HACKSAW', 'THE BARON', 'RIVET-JAW', 'MAD DOSSA', 'CINDERBACK'],
-  lattice: ['ARBITER', 'THE CENSOR', 'WARDEN PRIME', 'UNIT NINE', 'THE AUDITOR', 'SEVENFOLD'],
+  lattice: ['ARBITER', 'THE CENSOR', 'BULWARK PRIME', 'UNIT NINE', 'THE AUDITOR', 'SEVENFOLD'],
   wild: ['SCARBACK', 'GREYMAW', 'OLD MOTHER', 'THE WIDOW', 'SPLITHORN', 'HOLLOWEYE'],
   bloom: ['ROTHEART', 'THE SWELLING', 'GRAVEBLOOM', 'MOTHERSPAWN'],
 };

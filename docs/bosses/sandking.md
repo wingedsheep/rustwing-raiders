@@ -6,6 +6,7 @@
 
 The Sandking is where the Table sits: twelve houses of Kessra, seven Vhossk and five human, in a court on a deck raised so high on six legs that it walks through the sky you fly in. Its feet are on the salt far below; its deck, its guns and its Table are up here with you. It walks a slow circuit of Kessra's markets so the Table never sits in one house's city again. It was built in 288 L from the hull of a war barge and the legs of three titans that fell in the Toll War. Its Chair is **Ghorrum-Vesst** of House Grovvakh: Ghorrum, the left head, patient, Old Contract; Vesst, the right, furious, New Table. They have never voted the same way, and a tie goes to whoever spoke last.
 
+- **Caught between:** the living's contracts, and the dead's ledger.
 - **Owes:** the dead its legs were cut from, and (says the Old Contract) the Tonkva ledger, which the Vhossk witnessed.
 - **Wants from you:** your crossed metal. You carry more of it than anyone, and the Table is a market: Ghorrum would buy it to settle Kessra's ledger before the Engine asks, and Vesst would sell you and it to the Throne. Either way it's a deal, done with guns, and it's a courtesy to refuse the first price.
 - **Sad truth:** the titan legs have cores, and the cores are listening to Glacis. For seven years the Sandking has drifted north a step a day off its circuit. The Table has voted not to notice.

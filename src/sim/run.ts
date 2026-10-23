@@ -58,7 +58,11 @@ export const SHOP_PARTS = 3;
 export const SECTORS = 3;
 
 // a level pays about 180 scrap with the starter ship: about one part, not the whole stall
-export const PRICE: Record<Rarity, number> = { common: 75, rare: 150, epic: 270 };
+export const PRICE: Record<Rarity, number> = { common: 75, rare: 170, epic: 320 };
+/** What a dealer asks on top for a finer roll (steeper than what it fetches: TIER_VALUE): a tuned part is a few levels' saving. */
+export const BUY_TIER: Record<Tier, number> = { common: 1, rare: 1.6, epic: 2.6, legendary: 4 };
+/** A dealer's list price for a part, before the haggling and the market. */
+export const listPrice = (it: Item) => Math.round(PRICE[partById(it.id).rarity] * BUY_TIER[tierOf(it)]);
 export const SELL: Record<Rarity, number> = { common: 10, rare: 20, epic: 40 };
 export const REPAIR = 12;
 export const FUEL_PRICE = 12;
@@ -320,7 +324,7 @@ export class Run {
       const cheap = def.cls === m.sells ? 0.7 : 1;
       const tier = weighted(r, [['common', 58], ['rare', 32], ['epic', 9 + this.sector * 4], ['legendary', this.sector * 1.5]] as [Tier, number][]);
       const part = rollItem(r, id, tier);
-      return { part, price: Math.round(PRICE[def.rarity] * TIER_VALUE[tierOf(part)] * (0.85 + r() * 0.3) * cheap * m.mark), sold: false };
+      return { part, price: Math.round(listPrice(part) * (0.85 + r() * 0.3) * cheap * m.mark), sold: false };
     });
   }
 

@@ -13,7 +13,7 @@ export interface LabWave extends ScriptWave {
   id: number;
 }
 
-export type Tab = 'range' | 'bench' | 'bestiary';
+export type Tab = 'range' | 'bench' | 'bestiary' | 'forge';
 export type PilotMode = 'bot' | 'you' | 'partner';
 
 export interface State {
@@ -102,6 +102,9 @@ function load(): State {
     if (hash.get('st')) [s.sector, s.stop] = hash.get('st')!.split('.').map(Number);
     history.replaceState(null, '', location.pathname + location.search);
   }
+  // ?tab=forge: open on that tab
+  const tab = new URLSearchParams(location.search).get('tab') as Tab | null;
+  if (tab && ['range', 'bench', 'bestiary', 'forge'].includes(tab)) s.tab = tab;
   for (const w of s.waves) w.id = waveId();
   if (!PLANETS.some((p) => p.id === s.planet)) s.planet = DEFAULT.planet;
   if (s.waves.length === 0 && !raw()) s.waves = starter();

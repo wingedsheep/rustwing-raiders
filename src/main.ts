@@ -12,6 +12,7 @@ import { W, H, INK, DIM } from './ui/hud';
 import type { PodFate } from './sim/heist';
 import type { ImprintId } from './game/core';
 import { input } from './input';
+import { registerLabParts } from './game/lab-parts';
 
 const game = new Game();
 Object.assign(window, { game });
@@ -30,6 +31,8 @@ async function boot() {
   loading(0);
   await library.load(loading);
   const q = game.params;
+  // &forge=<JSON PartDef[]>: the forge's bench parts, and the ones made there (see game/lab-parts.ts)
+  if (q.has('forge')) registerLabParts(JSON.parse(q.get('forge') || '[]'));
   if (q.has('planet') || q.has('mode') || q.has('tour')) {
     // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule&biomes=prism,jade
     // ?tour: the autopilot flies level after level, every planet × mode and then the next seed (narrowed by &planet= and &mode=)

@@ -31,7 +31,7 @@ Humans, aliens, woken machines and creatures, all from `events.ts`; who they are
 | [Old Mother Seffa](old-mother-seffa.md), lane-reader | Hoowae | SEFFA'S TEA HOUSE | easy jumps, the warden | no | `teahouse` |
 | [The Vhossk Twins](vhossk-twins.md) | Vhossk | THE VHOSSK TWINS | two prices | no | `twins` |
 | [Tobbo Grisk](tobbo-grisk.md), junk dealer | Bahwoh | TOBBO GRISK'S YARD | haggling (the haggle game) | no | `tobbo` |
-| [The Skree](skree-salvagers.md), salvagers | Chikta | THE CHIKTA CRAWLER | blind crates | no | `skree` |
+| [The Skree](skree-salvagers.md), salvagers | Chikta | THE CHIKTA SAIL-BARGE | blind crates | no | `skree` |
 | [Squit](squit.md), informant | Eefee | SQUIT | a tip, or a grudge | no | `squit` |
 | [The Ledger Clan](ledger-clan.md) | Kehx | THE COUNT, THE COUNT'S COLLECTORS | cheaper debt | no | `ledger` |
 | [Lady Vaelmira](lady-vaelmira.md), collector | Vaelo | A CHROME YACHT | five times the price | no | `vaelmira` |

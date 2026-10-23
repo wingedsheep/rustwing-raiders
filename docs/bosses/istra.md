@@ -11,6 +11,7 @@
 Istra won the Tidecall nineteen years ago by bringing in a bull umora so big the Court hollowed it out for her, and she has ruled from inside it ever since ([the Lowtide Court](../factions/reef-pirates.md)). The whale is dead, and it sails. Umora hide cures as hard as hull plate as it dries, so the carcass hasn't rotted in nineteen years: the Court floods and blows its belly for ballast, so it sounds and breaches as it did alive; its flippers are worked on cables from the deck; and a reactor sits where its heart was, burning the whale's own oil (the pink glow), drawing air in through its maw. She's a whaler before she's a pirate: she doesn't fight you, she **hunts** you, the way she'd hunt a whale. Flamboyant, democratic, merciless. She plays to her captains, who are watching, and she keeps her word. Her crew sing on the hunt (the Eefee taught them the umora go quiet when you're quiet), so her fight is a shanty: she calls, the crew answers, and the irons and the guns go on the answer.
 
 - **Vibe:** swagger and salt. A call and a crowd's HO, the boom of a wooden gun deck, a dead whale's groan as it sounds and breaches, surf drawn back off a beach. Under her bar she doesn't *see* you, she **talks to you**, for the Court's benefit: `CALLS YOU IN, LITTLE FISH` (hanging back), `SAYS: A SITTING WHALE` (sitting still), `SAYS: HUGGING THE REEF LEFT`, `THERE SHE BLOWS!` (boosting: you're spouting), `SAYS: BOLD. SHE LIKES BOLD` (up close), `SAYS: SHOW-OFF` (dashing).
+- **Caught between:** the Court's hunt, and the Long Herd's sacred whales, whose people she doesn't know exist.
 - **Owes:** the Court that crowned her, and its articles. **Wants from you:** to bring you in as this season's whale, in front of her captains.
 - **Sad truth:** the pods are leaving Vesh early, and when they're gone the Court is just pirates. She hunts harder, which leans the lanes, which drives them off faster.
 - **The call:** the umora hear the Engine first and go. That's why she's hunting you.
@@ -36,6 +37,8 @@ Her theme's beat is 126 bpm (a beat is 0.48 s): the irons and the broadside's ro
 **Phase III: THE TIDE COMES BACK** (33–0%). The mast goes over the side and the crew with it (`THE CREW ABANDONS HER`); Istra stays at the helm, the whale lists and swims lower. One rule changes everything: **what she throws comes back to her.** Each iron is reeled home down its own line (it no longer catches, it only cuts: don't step back onto a line until it's home); the bubble wall stalls and drifts back to her maw, far rows first; the broadside sails back the other way; she breaches twice, the second where you went. Her only filler is the sea itself: a ring of bubbles breathed out that stalls and comes back. You weave everything twice, out and back. Each turn of the tide has its own sound (surf drawn up a beach, a hush, the swell).
 
 **Last stand** (8%): her breath, then everything once more with four irons and three breaches, then her breath again.
+
+**How it ends:** the Throne-Whale sinks, stern last, with Istra saluting from it. The Court will tell it as a good death; the pods are already gone.
 
 ## Model and animation
 

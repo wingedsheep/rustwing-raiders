@@ -25,7 +25,7 @@ It is not a god or a sleeping people. It's an account-keeping machine the size o
 ## Waking
 
 - **~395 L.** Lights in Engine City, by themselves. Shafts that were dark are lit.
-- **~400 L.** The Engine's maintenance machines walk out of the ice and start mending: **Frost Wisps**, **Engine Eyes**, **Pylon Wardens**, **Hail Layers**, **Engine Hives**. They clear the shafts of miners, without malice, the way you clear a drain.
+- **~400 L.** The Engine's maintenance machines walk out of the ice and start mending: **Frost Wisps**, **Engine Eyes**, **Beam Pylons**, **Hail Layers**, **Engine Hives**. They clear the shafts of miners, without malice, the way you clear a drain.
 - **~405 L.** It begins asking its beacons for their counts. Every beacon in the Reach that still works answers.
 - **Now.** Its guardian body is half out of the ice, at the gate. (Boss: [The Waking Engine](../bosses/waking-engine.md).)
 
@@ -39,7 +39,7 @@ Every power in the Spur. The [Throne](qaushen-throne.md) has been trying to grow
 
 ## Forces (lattice)
 
-**Frost Wisp** (dart), **Engine Eye** (turret), **Pylon Warden** (lancer), **Hail Layer** (bomber), **Engine Hive** (carrier), and the tundra's **Tusked Bulls**, stampeding from the noise.
+**Frost Wisp** (dart), **Engine Eye** (turret), **Beam Pylon** (lancer), **Hail Layer** (bomber), **Engine Hive** (carrier), and the tundra's **Tusked Bulls**, stampeding from the noise.
 
 ## In the game
 

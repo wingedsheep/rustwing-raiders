@@ -25,12 +25,13 @@ Rule from the style guide: humanoid enough to do business, plus **one unforgetta
 
 ## The Bahwoh (Grisk)
 
-*Natives of Halcyon.* Feature: **buzzing wings** too small for the body, and a pot belly.
+*Natives of Halcyon.* Feature: **buzzing wings**, glassy and veined like a cicada's, folded down the back like a cloak.
 
-- They live in Halcyon's twilight band, where the sun sits forever on the horizon. Short flights, long talks. Their voices buzz with their wings.
+- Long, stooped, with a hard hide the colour of dusk. They live in Halcyon's twilight band, where the sun sits forever on the horizon. They can glide a little, downhill; mostly the wings are for talking. Their voices buzz with them, and a Bahwoh's wings say what its face won't.
+- They moult once a year and keep the husks. An old Bahwoh's house is full of its younger selves.
 - The first people humans met: they watched the arks come down for days. Settlers learnt their name, **Bahwoh**, then, a century later, picked up the Vhossk traders' word for them, *ghrissk*, "buzzers". Pilots say **Grisk**; Bahwoh say it back to pilots, politely.
 - Market people from long before the Landing. Stiltport Nhal is half Bahwoh.
-- **Tobbo Grisk**, the junk dealer, took the pilots' word for his people as his trade name, because pilots remember it.
+- **Tobbo Grisk**, the junk dealer, took the pilots' word for his people as his trade name, because pilots remember it. His old husks sit along the counter, and he calls them his partners.
 
 ## The Kehx (the Ledger Clan)
 
@@ -42,18 +43,19 @@ Rule from the style guide: humanoid enough to do business, plus **one unforgetta
 
 ## The Chikta (Skree)
 
-*Salvagers.* Feature: **glowing goggle-eyes** under deep hoods.
+*Salvagers.* Feature: **a shell of war armour**, cut from a wreck and worn on the back.
 
-- Small, quick, nocturnal natives of Sankven. The Toll War glassed their plains and the treaty gave their world to a graveyard. They took to rolling crawler-barges and live off wrecks.
+- Small, quick, nocturnal natives of Sankven, grey-green as glass dust, with big dark night-eyes and long fingers. The Toll War glassed their plains and the treaty gave their world to a graveyard. Now they skate the glass at night in sail-barges and live off wrecks.
+- A Chikta carries its house on its back: a Compact shoulder-plate, a gunship's nose cone, a titan's knuckle. It moves into a bigger one as it grows, and the shell says who it is: whose wreck it came from, and how big a wreck it could reach. Old Chikta wear titan.
 - *Skree* is the pilots' imitation of their chatter. They call themselves **Chikta**.
 - They know more about the titans than anyone, because they've been taking them apart for 166 years.
 
 ## The Eefee
 
-*Reef-listeners of Vesh.* Feature: **enormous ears**.
+*Reef-listeners of Vesh.* Feature: **enormous ears**: webbed fans on fine spines, which open wide to listen and fold flat when they're scared.
 
-- Green-scaled, snouted, amphibious. They can hear an umora's call through a hundred miles of sea and through a lane's mouth, and they can hear a whisper through a bulkhead.
-- The Reef Pirates arrived on Vesh to hunt the umora the Eefee had listened to forever. Some Eefee guide the whalers for pay, and the rest don't forgive them.
+- Wet, blue-green skin, a long soft snout, gill-frills at the throat; amphibious. They can hear an umora's call through a hundred miles of sea and through a lane's mouth, and they can hear a whisper through a bulkhead.
+- The Lowtide Court arrived on Vesh to hunt the umora the Eefee had listened to forever. Some Eefee guide the whalers for pay, and the rest don't forgive them.
 - **Squit** is the pilots' name for one Eefee informant. He picked it because humans couldn't say the real one.
 
 ## The Vaelo
@@ -62,7 +64,7 @@ Rule from the style guide: humanoid enough to do business, plus **one unforgetta
 
 - Tall, elegant, slow-spoken. They came to Cinder in the Level Age to tend the machine-trees for the Tonkva, and kept tending them through the Quiet, lords of fruit nobody could ship.
 - After the war Vantorr bought the orchards on Syndicate credit, and the Vaelo became very rich and very homeless. They live on yachts now, collecting.
-- **Lady Vaelmira** (proposed: the style guide's "Lady Vey", renamed so she doesn't clash with Lana Vey).
+- **Lady Vaelmira** collects rarities from her chrome yacht, and pays far too much for them ([NPC](../npcs/lady-vaelmira.md)).
 
 ## Humans
 
@@ -91,7 +93,7 @@ Minds that grew in Engine cores from the crews they lived with. A few hundred in
 ## Creatures
 
 - **Umora** (lane-whales). Vast, slow, gentle. They swim the lanes without gates, both ways, every season, and so keep the lanes they use level. They calve in the plankton haze over Vesh's lagoon (the sky-whales there are calves) and come back to Vesh to die: the Bone Archipelago.
-- **Hull leeches.** Leathery lane-parasites. They used to feed on the umora, and were rare. Forced gates run hot, and so do the ships that use them: since the Kindling there are a great many more leeches.
+- **Hull leeches.** The pilots' name for lane-lice: flat, armoured, many-legged things, from hand-sized to dog-sized, that cling on with every leg and drink warmth. They used to live on the umora, and were rare. Forced gates run hot, and so do the ships that use them: since the Kindling there are a great many more leeches.
 - **The giants of Oru-Tal.** Sauropods, plesiosaurs, pterosaurs, thunderhides: seeded by the Tonkva from a dozen worlds into a preserve, wild for a thousand years. Great Mother Vask is the queen of the pterosaurs.
 - **Sowers.** Seeds the Tonkva grew to plant their worlds: a husk with a planting-spike and a crown of four vanes it spins on. A sower laid its shadow on the plot the ledger named and drove the seed in. With no ledger they bud more of themselves and sow whatever their shadow falls on, on Oru-Tal, Mirefall and wherever else the Tonkva planted.
 - **The bloom.** Not a people, not quite. The Tonkva's growing-mould, a thousand years without instructions, on Mirefall. It learns. The Choir of Mirefall is what it learnt from a crashed freighter.

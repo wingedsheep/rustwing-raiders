@@ -12,6 +12,7 @@ The Hesk poachers caught the queen of Oru-Tal's pterosaur flocks, bolted a brass
 
 - **Vibe:** regal, wild, grieving-angry. Leathery wing beats, a shriek, Hesk machinery clanking on her back.
 - **Arc:** caged (I) → the cage cracks (II) → free (III).
+- **Caught between:** the Tonkva's preserve, and the Hesk's market.
 - **Owes:** her flocks, and the sky of the kept seed. **Wants from you:** out of her sky. The Hesk point her at whatever crosses their gate, and she's past caring who.
 - **Sad truth:** the core in her harness has woken ([minds](../lore/minds.md)), and it learnt from nobody but her: there are two of her in there now, and both hate the cage.
 - **The call:** the core refuses the Engine, and breaks her cage from inside. That's her last stand.
@@ -36,6 +37,8 @@ Her moves keep to her theme's beat (140 bpm, a beat is 0.43 s): screech rings an
 **Phase III: FREE** (33–0%). The rest of the cage and the reactor's armour fly off. No guns: no filler at all, just her, move after move with a short breath between, strings of two or three. Screech goes to three rings. This is the dance at full speed.
 
 **Last stand** (8%). The core in her harness turns on the cage and overloads it: three sky dives back to back, then everything once more, faster.
+
+**How it ends:** the harness blows, the last of the cage falls away, and she flies free, up and out of the screen. She doesn't look back.
 
 ## Model and animation
 

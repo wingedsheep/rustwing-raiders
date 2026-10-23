@@ -1,4 +1,116 @@
 {
+ "arm_hook": {
+  "colliders": [],
+  "kind": "arm_hook",
+  "max": [
+   0.153,
+   0.1,
+   0.055
+  ],
+  "min": [
+   -0.105,
+   -0.9,
+   -0.195
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "arm_lance": {
+  "colliders": [],
+  "kind": "arm_lance",
+  "max": [
+   0.077,
+   0.14,
+   0.055
+  ],
+  "min": [
+   -0.077,
+   -0.865,
+   -0.177
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "arm_nailer": {
+  "colliders": [],
+  "kind": "arm_nailer",
+  "max": [
+   0.1,
+   0.14,
+   0.055
+  ],
+  "min": [
+   -0.1,
+   -0.562,
+   -0.265
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "arm_scatter": {
+  "colliders": [],
+  "kind": "arm_scatter",
+  "max": [
+   0.102,
+   0.2,
+   0.055
+  ],
+  "min": [
+   -0.102,
+   -0.702,
+   -0.175
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "arm_spore": {
+  "colliders": [],
+  "kind": "arm_spore",
+  "max": [
+   0.087,
+   0.154,
+   0.087
+  ],
+  "min": [
+   -0.12,
+   -0.66,
+   -0.206
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "arm_stamp": {
+  "colliders": [],
+  "kind": "arm_stamp",
+  "max": [
+   0.107,
+   0.1,
+   0.055
+  ],
+  "min": [
+   -0.107,
+   -0.52,
+   -0.202
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "auditor": {
+  "colliders": [],
+  "kind": "auditor",
+  "max": [
+   0.375,
+   2.234,
+   0.19
+  ],
+  "min": [
+   -0.375,
+   -0.0,
+   -0.269
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "bruiser": {
   "colliders": [],
   "kind": "bruiser",
@@ -11,6 +123,22 @@
    -0.735,
    0.0,
    -0.535
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "clerk": {
+  "colliders": [],
+  "kind": "clerk",
+  "max": [
+   0.375,
+   1.975,
+   0.21
+  ],
+  "min": [
+   -0.375,
+   0.0,
+   -0.24
   ],
   "mounts": [],
   "variant": 0
@@ -91,6 +219,22 @@
    -1.0,
    -0.005,
    -0.49
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "deck_cage": {
+  "colliders": [],
+  "kind": "deck_cage",
+  "max": [
+   1.04,
+   2.02,
+   0.84
+  ],
+  "min": [
+   -1.04,
+   0.0,
+   -0.88
   ],
   "mounts": [],
   "variant": 0
@@ -255,6 +399,38 @@
   "mounts": [],
   "variant": 0
  },
+ "deck_gate": {
+  "colliders": [],
+  "kind": "deck_gate",
+  "max": [
+   0.242,
+   2.19,
+   0.28
+  ],
+  "min": [
+   -0.242,
+   0.0,
+   -0.28
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "deck_heart": {
+  "colliders": [],
+  "kind": "deck_heart",
+  "max": [
+   0.539,
+   0.73,
+   0.353
+  ],
+  "min": [
+   -0.539,
+   0.0,
+   -0.353
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "deck_hookpod": {
   "colliders": [],
   "kind": "deck_hookpod",
@@ -335,6 +511,22 @@
   "mounts": [],
   "variant": 1
  },
+ "deck_rupture": {
+  "colliders": [],
+  "kind": "deck_rupture",
+  "max": [
+   1.13,
+   1.953,
+   0.043
+  ],
+  "min": [
+   -1.1,
+   -0.038,
+   -1.212
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "deck_sconce": {
   "colliders": [],
   "kind": "deck_sconce",
@@ -350,6 +542,38 @@
   ],
   "mounts": [],
   "variant": 0
+ },
+ "deck_spore#0": {
+  "colliders": [],
+  "kind": "deck_spore",
+  "max": [
+   0.573,
+   0.813,
+   0.554
+  ],
+  "min": [
+   -0.477,
+   0.0,
+   -0.574
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "deck_spore#1": {
+  "colliders": [],
+  "kind": "deck_spore",
+  "max": [
+   0.625,
+   0.523,
+   0.611
+  ],
+  "min": [
+   -0.564,
+   -0.072,
+   -0.601
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "deck_strongbox": {
   "colliders": [],
@@ -463,6 +687,38 @@
   "mounts": [],
   "variant": 0
  },
+ "notary": {
+  "colliders": [],
+  "kind": "notary",
+  "max": [
+   0.464,
+   2.663,
+   0.22
+  ],
+  "min": [
+   -0.369,
+   0.091,
+   -0.509
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "nurse": {
+  "colliders": [],
+  "kind": "nurse",
+  "max": [
+   0.619,
+   2.513,
+   0.58
+  ],
+  "min": [
+   -0.619,
+   0.0,
+   -0.578
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "pilot": {
   "colliders": [],
   "kind": "pilot",
@@ -475,6 +731,102 @@
    -0.39,
    0.0,
    -0.24
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "puffer": {
+  "colliders": [],
+  "kind": "puffer",
+  "max": [
+   0.409,
+   1.935,
+   0.655
+  ],
+  "min": [
+   -0.388,
+   0.0,
+   -0.373
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "rooter": {
+  "colliders": [],
+  "kind": "rooter",
+  "max": [
+   0.75,
+   0.823,
+   0.51
+  ],
+  "min": [
+   -0.75,
+   -0.023,
+   -0.72
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "skulk": {
+  "colliders": [],
+  "kind": "skulk",
+  "max": [
+   0.331,
+   1.659,
+   1.206
+  ],
+  "min": [
+   -0.328,
+   -0.009,
+   -1.14
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "thrall": {
+  "colliders": [],
+  "kind": "thrall",
+  "max": [
+   0.451,
+   1.839,
+   0.376
+  ],
+  "min": [
+   -0.413,
+   -0.0,
+   -0.248
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "torcher": {
+  "colliders": [],
+  "kind": "torcher",
+  "max": [
+   0.446,
+   2.03,
+   0.62
+  ],
+  "min": [
+   -0.446,
+   -0.0,
+   -0.252
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "warden": {
+  "colliders": [],
+  "kind": "warden",
+  "max": [
+   0.785,
+   2.398,
+   0.32
+  ],
+  "min": [
+   -0.785,
+   0.0,
+   -0.48
   ],
   "mounts": [],
   "variant": 0

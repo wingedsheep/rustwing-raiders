@@ -227,6 +227,8 @@ export function takenNow(lv: Level, e: Enemy) {
   let k = e.state === 'stagger' ? t[2] : e.state === 'recover' ? t[1] : t[0];
   if (e.arch === 'prism' && e.state === 'windup') k = 1.5;
   if (e.arch === 'cache' && e.d.cracked) k = Math.max(k, 1.3);
+  // a strongbox is iron while its tugs hold it
+  if (e.arch === 'vault' && e.d.fall === undefined) k = 0;
   // linked by a heartpod: tough
   if (lv.enemies.some((o) => !o.dead && o.links.includes(e.id))) k *= 0.35;
   return k;
@@ -381,39 +383,6 @@ export function tickCombat(lv: Level) {
 /** A spore puff where a puffball burst: slows and jams whoever's in it. */
 export function puff(lv: Level, x: number, z: number, color: number) {
   strike(lv, 'spore', x, z, { r: 3.2, warn: 0, active: 1.2, color, effect: 'jam', air: true });
-}
-
-/** Lunging or ramming right now (what a parry knocks over). */
-const lunging = (e: Enemy) => e.state === 'attack' && ['ramjack', 'rattler', 'swooper', 'brute', 'dart', 'ace'].includes(e.arch);
-
-/**
- * A parry (the aux shield) at the player: anything lunging into it within `r` is knocked reeling,
- * harpoons snap, a hook lets go. Returns how many things it caught.
- */
-export function parry(lv: Level, p: Player, r: number) {
-  let n = 0;
-  for (const e of lv.enemies) {
-    if (e.dead || e.t < 0) continue;
-    const near = (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < (r + e.r) ** 2;
-    if (e.grab === p.id) {
-      release(lv, e, true);
-      n++;
-    } else if (near && lunging(e) && !e.boss) {
-      go(lv, e, 'stagger', 1.8);
-      lv.emit({ type: 'parried', id: p.id, enemy: e.id, x: e.x, z: e.z });
-      n++;
-    } else if (near && e.boss && e.boss.move === 'charge' && e.state === 'attack') {
-      e.boss.parried = true;
-      lv.emit({ type: 'parried', id: p.id, enemy: e.id, x: e.x, z: e.z });
-      n++;
-    }
-  }
-  for (const s of lv.strikes)
-    if (s.kind === 'harpoon' && !s.dead && (s.x - p.x) ** 2 + (s.z - p.z) ** 2 < (r + 1) ** 2) {
-      s.dead = true;
-      n++;
-    }
-  return n;
 }
 
 /** Reeling after its attack (or staggered): its body does no harm, so you can get in close and punish it. A brake-checking rattler still blocks. */

@@ -68,7 +68,8 @@ export function kindsFor(planet: Planet): Kind[] {
     water: false,
     ground: s.archetype === 'turret',
   }));
-  for (const id of Object.keys(FOES) as Foe[]) {
+  // (a tug only ever comes hauling a strongbox)
+  for (const id of (Object.keys(FOES) as Foe[]).filter((f) => f !== 'tug')) {
     const d = FOES[id];
     out.push({
       id,

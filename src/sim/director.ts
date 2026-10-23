@@ -350,9 +350,13 @@ export class Director {
       case 'runner':
         lv.spawn(foe, skin, rx(10), top, { x0: rx(10) }, opts);
         break;
-      case 'vault':
-        lv.spawn(foe, skin, 0, top, { hx: rx(16) }, opts);
+      case 'vault': {
+        // hauled in by its two tugs
+        const hx = rx(16);
+        const box = lv.spawn(foe, skin, hx, top, { hx }, opts);
+        for (const side of [-1, 1]) lv.spawn('tug', foeSkin(lv.spec.planet, 'tug'), hx + side * 3.4, top - 2.6, { host: box.id, side }, {});
         break;
+      }
       case 'cache':
         lv.spawn(foe, skin, rx(10), top, {}, opts);
         break;

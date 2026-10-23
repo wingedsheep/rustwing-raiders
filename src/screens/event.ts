@@ -19,7 +19,7 @@ import { drawArt } from './art';
 import { status, surround } from './stops';
 import { minigame, type Minigame, type Pad } from './minigames';
 import { glow, levelInfo } from './minigames/common';
-import { hashStr, pick, rng, smooth } from '../util';
+import { hashStr, rng, smooth } from '../util';
 
 type Phase = 'talk' | 'choose' | 'brief' | 'roll' | 'ready' | 'play' | 'scored' | 'outcome';
 
@@ -37,14 +37,8 @@ const COUNT_TIME = COUNT_BEAT * 3;
 /** The results card: the score counts up, then the grade stamps down, then what made it. */
 const COUNT_UP = 0.7;
 const STAMP_AT = 0.85;
-
-/** What you say for yourself when you back out of a game. */
-const RUN_LINES = [
-  'You think better of it, and go while the going is good.',
-  'Not today. You throttle up and leave them to it.',
-  'Some odds are worth turning down. You turn these down.',
-  'You make your excuses and are gone before anyone can argue.',
-];
+/** Seconds a game's finish plays before the results card. */
+const FINISH_HOLD = 0.9;
 
 /** A score as a grade, in the same steps the events pay out in. */
 function grade(s: number) {
@@ -63,7 +57,7 @@ function grade(s: number) {
  * words arriving at their own pace. Then the choices come in, each with what it costs and pays as
  * chips, a part shown as a card where one's on offer. A gamble is rolled in front of you, the
  * needle sweeping over the odds. A little game comes at a level the event rolls (harder further
- * in), shown up front: take it on, or run. Then what came of it:
+ * in), shown up front, with how to play it, before you take it on. Then what came of it:
  * their answer, and every change to your affairs, tallied in a line at a time. Some answers lead
  * to a second beat, and you choose again.
  */
@@ -71,8 +65,8 @@ export class EventScreen implements Screen {
   private at = 0;
   /** The level each game choice was rolled at. */
   private levels = new Map<Choice, number>();
-  /** On the briefing: 0 take it on, 1 run. */
-  private pick = 0;
+  /** Time since the game's result came in. */
+  private overT = 0;
   private phase: Phase = 'talk';
   private choices: Choice[] = [];
   private result: Result | null = null;
@@ -210,7 +204,6 @@ export class EventScreen implements Screen {
       const setup = c.setup?.(this.run, this.bold, this.scene);
       this.mini = minigame(c.game, this.level, this.node.seed ^ (this.level * 0x51) ^ (this.beats * 0x101), setup);
       this.phase = 'brief';
-      this.pick = 0;
       this.pt = 0;
       audio.play(this.level >= 4 ? 'risk_up' : 'ui_select');
       return;
@@ -240,18 +233,6 @@ export class EventScreen implements Screen {
     this.phase = 'ready';
     this.pt = 0;
     audio.play('ui_select');
-  }
-
-  /** Back out of the game, and the event with it. */
-  private flee() {
-    this.mini = null;
-    this.result = { text: pick(rng(this.node.seed ^ 0x7e7e), RUN_LINES), mood: 'annoyed' };
-    this.changes = this.run.changes(this.before);
-    this.shown = 0;
-    this.phase = 'outcome';
-    this.say(this.result.text);
-    if (this.who) this.speak('annoyed');
-    audio.play('dash', { vol: 0.6 });
   }
 
   private finish(score: number, won: boolean) {
@@ -305,8 +286,10 @@ export class EventScreen implements Screen {
     }
     if (this.phase === 'play') {
       const m = this.mini!;
-      m.update(dt, this.pad());
-      if (m.result !== null) {
+      // once it's over, the game's own finish plays out a moment before the card comes down
+      if (m.result === null) this.overT = 0;
+      m.update(dt, m.result === null ? this.pad() : { x: 0, y: 0, hold: false, press: false });
+      if (m.result !== null && (this.overT += dt) > FINISH_HOLD) {
         this.phase = 'scored';
         this.pt = 0;
       }
@@ -328,18 +311,13 @@ export class EventScreen implements Screen {
       return;
     }
     if (this.phase === 'brief') {
-      if (m.left || m.right || m.up || m.down || m.prev || m.next) {
-        this.pick = 1 - this.pick;
-        audio.play('ui_move');
-      }
+      // back to the event's other choices, or into the game
       if (m.back) {
-        this.pick = 1;
-        audio.play('ui_move');
-      }
-      if (m.confirm && this.pt > 0.25) {
-        if (this.pick === 0) this.accept();
-        else this.flee();
-      }
+        this.mini = null;
+        this.phase = 'choose';
+        this.pt = 1;
+        audio.play('ui_back');
+      } else if (m.confirm && this.pt > 0.25) this.accept();
       return;
     }
     if (this.phase === 'roll') {
@@ -717,7 +695,7 @@ export class EventScreen implements Screen {
 
   /**
    * Sizing up a game before you take it on: what it is, how to play, how hard it's come, what's at
-   * stake; and two ways out of it, take it on or run.
+   * stake. Take it on, or go back to the event's other choices.
    */
   private drawBrief(ctx: CanvasRenderingContext2D) {
     const m = this.mini!;
@@ -766,30 +744,21 @@ export class EventScreen implements Screen {
       drawText(ctx, l, px + 20, y, '#a898b8');
       y += 9;
     }
-    // take it on, or run
+    // the one way in
+    const bw = 170;
+    const bx = Math.round(W / 2 - bw / 2);
     const by = py + ph - 24;
-    const bw = 150;
-    const opts = [
-      { label: 'TAKE IT ON', col: GREEN },
-      { label: 'RUN', col: RED },
-    ];
-    opts.forEach((o, k) => {
-      const on = this.pick === k;
-      const bx = Math.round(W / 2 + (k === 0 ? -bw - 6 : 6));
-      ctx.fillStyle = DARK;
-      ctx.fillRect(bx - 1, by - 1, bw + 2, 17);
-      ctx.fillStyle = on ? o.col : 'rgba(255,255,255,0.06)';
-      ctx.fillRect(bx, by, bw, 15);
-      if (on) {
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.fillRect(bx, by, bw, 1);
-        glow(ctx, bx + bw / 2, by + 7, 50, o.col, 0.2 + 0.08 * Math.sin(this.t * 7));
-      }
-      drawText(ctx, (on ? '▶ ' : '') + o.label, bx + bw / 2, by + 4, on ? DARK : DIM, { align: 'center', shadow: false });
-    });
+    ctx.fillStyle = DARK;
+    ctx.fillRect(bx - 1, by - 1, bw + 2, 17);
+    ctx.fillStyle = GREEN;
+    ctx.fillRect(bx, by, bw, 15);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(bx, by, bw, 1);
+    glow(ctx, bx + bw / 2, by + 7, 50, GREEN, 0.2 + 0.08 * Math.sin(this.t * 7));
+    drawText(ctx, '→ TAKE IT ON', bx + bw / 2, by + 4, DARK, { align: 'center', shadow: false });
     ctx.globalAlpha = 1;
     const dev = this.game.devices[0] ?? 'keys';
-    hints(ctx, dev, [['move', 'TAKE IT OR RUN'], ['confirm', 'DECIDE']], W / 2, H - 12, 'center');
+    hints(ctx, dev, [['confirm', 'TAKE IT ON'], ['back', 'BACK TO THE CHOICES']], W / 2, H - 12, 'center');
   }
 
   private drawGame(ctx: CanvasRenderingContext2D) {

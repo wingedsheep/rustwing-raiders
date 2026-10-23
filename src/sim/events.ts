@@ -20,7 +20,7 @@
  */
 
 import type { Run } from './run';
-import { PRICE, SELL } from './run';
+import { listPrice, SELL } from './run';
 import type { ChartNode } from './chart';
 import { HULL_STEP, type Mode } from './level';
 import type { Planet } from '../world/planets';
@@ -161,14 +161,18 @@ export const isBold = (level: number) => level >= 3;
 const tier = (score: number) => (score >= 0.85 ? 3 : score >= 0.55 ? 2 : score >= 0.25 ? 1 : 0);
 const pct = (f: number) => `${Math.round(f * 100)}%`;
 
+/** The least Tobbo will take for a part he's asking `ask` for, at this site. */
+function tobboFloor(s: Scene, ask: number) {
+  const r = rng(s.node.seed ^ 0xf100);
+  return Math.round(ask * (0.42 + r() * 0.16));
+}
+
 /** A part someone has for sale, the same every time you look (rolled off the site's seed). */
 function offer(s: Scene, salt: number, rarities: Rarity[], at: Tier): Item {
   const r = rng(s.node.seed ^ salt);
   const rarity = pick(r, rarities);
   return rollItem(r, pick(r, LOOT[rarity]).id, at);
 }
-/** What a dealer would ask for a part. */
-const listPrice = (it: Item) => Math.round(PRICE[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]);
 /** What a dealer would pay for one. */
 const worth = (it: Item) => Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]);
 
@@ -1244,17 +1248,18 @@ export const EVENTS: RunEvent[] = [
         setup: (run, bold, s) => {
           const it = offer(s, bold ? 0x70c : 0x70b, ['common', 'rare'], bold ? 'epic' : 'rare');
           const ask = Math.round(listPrice(it) * (everDid('tobbo', 'shut') ? 1.35 : 1.15));
-          const r = rng(s.node.seed ^ 0xf100);
-          return { item: it, ask, floor: Math.round(ask * (0.42 + r() * 0.16)), purse: run.scrap };
+          // never a deal you can't pay for: short of his floor, he'll come down to what you've got
+          return { item: it, ask, floor: Math.min(tobboFloor(s, ask), Math.round(run.scrap * 0.97)), purse: run.scrap };
         },
         chips: (_, bold, s) => {
           const it = offer(s, bold ? 0x70c : 0x70b, ['common', 'rare'], bold ? 'epic' : 'rare');
           return [c.part(`${name(it)} (${bold ? 'EPIC' : 'RARE'})`), c.scrap(-Math.round(listPrice(it) * 1.15)), c.risk('PUSH TOO HARD: HE SHUTS THE GATE')];
         },
         note: (_, bold) => (bold ? 'HIS GOOD STOCK. HE IS TOUCHIER ABOUT IT' : 'HE WILL COME DOWN. HOW FAR, HIS WINGS WILL TELL YOU'),
-        locked: (run, s) => (run.scrap < Math.round(listPrice(offer(s, 0x70b, ['common', 'rare'], 'rare')) * 0.4) ? 'YOU CAN\'T AFFORD TO START' : null),
+        locked: (run, s) => (run.scrap < tobboFloor(s, Math.round(listPrice(offer(s, 0x70b, ['common', 'rare'], 'rare')) * 1.15)) * 0.85 ? 'YOU CAN\'T AFFORD TO START' : null),
         outcome: (run, p) => {
           const it = offer(p, p.bold ? 0x70c : 0x70b, ['common', 'rare'], p.bold ? 'epic' : 'rare');
+          if (p.value === 0) return { text: 'The one with the hat walks off with it under one arm. Tobbo counts the scrap twice and does not look at you. "You dawdle, you lose. Boh."', mood: 'annoyed' };
           if (!p.value) {
             run.did('tobbo', 'shut');
             return { text: '"OUT!" Tobbo slams the gate so hard a wing-mirror falls off a pile of wings. You can hear him buzzing from orbit.', mood: 'annoyed' };
@@ -1287,15 +1292,15 @@ export const EVENTS: RunEvent[] = [
   },
   {
     id: 'skree',
-    title: 'THE CHIKTA CRAWLER',
+    title: 'THE CHIKTA SAIL-BARGE',
     art: 'skree',
     who: 'skree',
     danger: 0,
     weight: 6,
     where: 'planet',
     open: false,
-    rumour: 'A Skree crawler, selling blind crates. Some hold treasure. Some hold crates.',
-    text: () => '"Ti-kee! Pilot-pilot! Good metal, sits-right metal, cheap-cheap!" Three pairs of goggles glow at you. "Pick a crate, pay, then open. No peeking. Peeking is extra. Or sell us a bit of your hull! Good hull. We like your hull."',
+    rumour: 'A Skree sail-barge, selling blind crates. Some hold treasure. Some hold crates.',
+    text: () => '"Ti-kee! Pilot-pilot! Good metal, sits-right metal, cheap-cheap!" Three Chikta scuttle up the deck, each under a slab of somebody\'s war: a shoulder-plate, a nose cone, a titan\'s knuckle. "Pick a crate, pay, then open. No peeking. Peeking is extra. Or sell us a bit of your hull! Good hull. We like your hull."',
     choices: [
       {
         label: 'THE SMALL CRATE',
@@ -1304,7 +1309,7 @@ export const EVENTS: RunEvent[] = [
         locked: lacks(25),
         outcome: (run, p) => {
           run.scrap -= 25;
-          if (!p.won) return { text: 'It is a bolt. It is a very nice bolt, they tell you, from a titan. The goggles watch you hopefully for a sign of joy.', mood: 'pleased' };
+          if (!p.won) return { text: 'It is a bolt. It is a very nice bolt, they tell you, from a titan. Three faces peer out from under their shells, hoping for a sign of joy.', mood: 'pleased' };
           const it = rollItem(p.r, pick(p.r, LOOT.common).id, p.r() < 0.3 ? 'rare' : 'common');
           run.stow(0, it);
           return { text: `A ${name(it)}, wrapped in a Sankvi flag. "Ti-kee!" says the smallest one. It sounds like congratulations.`, mood: 'pleased' };
@@ -1335,7 +1340,7 @@ export const EVENTS: RunEvent[] = [
           return { text: 'Eleven seconds. You time it. Your ship whistles a little now, through the gap, and the Chikta wave you off with your own plating.', mood: 'pleased' };
         },
       },
-      { label: 'LEAVE', outcome: () => ({ text: '"Chik-ta! Next time, next time!" They are already rolling towards the next wreck.' }) },
+      { label: 'LEAVE', outcome: () => ({ text: '"Chik-ta! Next time, next time!" The sail is already filling for the next wreck.' }) },
     ],
   },
   {
@@ -2063,7 +2068,7 @@ export const EVENTS: RunEvent[] = [
     where: 'never',
     open: false,
     rumour: '',
-    text: () => 'Thump. Thump-thump. Leathery wings on the canopy, and then a sound like teeth on cable. Hull leeches: they followed the heat of the last lantern in, and they are very hungry, and your fuel lines are right there.',
+    text: () => 'Thump. Thump-thump. Then legs, a great many legs, skittering over the canopy, and a sound like teeth on cable. Hull leeches: they followed the heat of the last lantern in, and they are very hungry, and your fuel lines are right there.',
     choices: [
       {
         label: 'SHAKE THEM OFF',

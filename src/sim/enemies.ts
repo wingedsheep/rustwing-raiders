@@ -68,12 +68,16 @@ export interface EnemyData {
   /** A part of a heist's runner (heist.ts): which kind, and which of them. */
   qp?: PartKind;
   qk?: number;
-  /** Heartpods: the enemy it's bound to (the hive boss). */
+  /** Heartpods: the enemy it's bound to (the hive boss). Tugs: the strongbox they haul. */
   host?: number;
   prey?: number;
   drop?: number;
   mine?: number;
   cracked?: number;
+  /** A strongbox cut loose: how long it's been falling, from where (ground z), and its drift. */
+  fall?: number;
+  gz?: number;
+  fvx?: number;
   away?: number;
   /** Prisms: seconds until it can throw another shot back. */
   refl?: number;

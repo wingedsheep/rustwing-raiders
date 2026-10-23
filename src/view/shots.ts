@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Shot } from '../sim/level';
 import { graftShotColor } from './grafts-view';
-import { FLIGHT_Y, TILT } from '../sim/types';
+import { GunLooks } from './gun-looks';
+import { FLIGHT_Y, TILT, fromFlight } from '../sim/types';
 import { FINS, FLAME, FLAME_CORE, HULL, NOZZLE, OCTA, SOFT, SPHERE, STREAK, instanced, lathe, material, place, type Stuff } from './bullets';
 
 /**
@@ -205,7 +206,7 @@ export class ShotArt {
     const x = this.x;
     x.time = time;
     for (const s of shots) {
-      if (s.dead || !ShotArt.draws(s.kind)) continue;
+      if (s.dead || !ShotArt.draws(s.kind) || GunLooks.owns(s)) continue;
       const sh = SHAPES[s.kind];
       const meshes = this.meshes.get(s.kind)!;
       if (meshes[0].count >= MAX) continue;
@@ -217,6 +218,8 @@ export class ShotArt {
       else if (s.tag === 'nova') x.col.setHex(0xff8a4a);
       // a graft's shots burn in its faction's light
       else if (s.graft) x.col.setHex(graftShotColor(s.graft)!).lerp(WHITE, 0.2);
+      // a forge gun's own colour
+      if (s.ax?.tint !== undefined && !s.tag && !s.graft) x.col.setHex(s.ax.tint);
       if (s.strike) x.col.lerp(WHITE, 0.5).multiplyScalar(1.3);
       x.age = s.t;
       x.life = Math.min(1, s.t / Math.max(s.life, 0.01));
@@ -234,8 +237,8 @@ export class ShotArt {
         const axis = how === 'roll' ? Z : how === 'yaw' ? Y : this.axis.set(1, Math.sin(seed * 40) * 0.3, 0).normalize();
         this.q.multiply(this.q2.setFromAxisAngle(axis, a));
       }
-      const swell = 1 + 0.6 * punch;
-      this.base.compose(this.v.set(s.x, FLIGHT_Y + 0.6, s.z), this.q, this.s.set(swell, swell, swell));
+      const swell = (1 + 0.6 * punch) * (s.ax?.size ?? 1);
+      this.base.compose(this.v.set(s.x, SHOT_Y, fromFlight(s.z, SHOT_Y)), this.q, this.s.set(swell, swell, swell));
       sh.parts.forEach((def, j) => {
         const sz = def.size ? def.size(x) : 1;
         if (sz <= 0) return;
@@ -296,7 +299,7 @@ export class ShotArt {
     const n = into.count;
     if (n >= MAX_GLOW) return;
     this.q2.copy(cam).multiply(this.q.setFromAxisAngle(Z, Math.atan2(-Math.sin(heading), -Math.cos(heading) * COS_TILT)));
-    this.m.compose(this.v.set(x, FLIGHT_Y + 0.6, z), this.q2, this.s.set(wid, len, 1));
+    this.m.compose(this.v.set(x, SHOT_Y, fromFlight(z, SHOT_Y)), this.q2, this.s.set(wid, len, 1));
     into.setMatrixAt(n, this.m);
     into.setColorAt(n, color);
     into.count++;
@@ -306,3 +309,5 @@ export class ShotArt {
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);
 const COS_TILT = Math.cos(TILT);
+/** Shots ride a little over the ships, pushed back so they show where they are on the flight plane. */
+const SHOT_Y = FLIGHT_Y + 0.6;

@@ -29,6 +29,10 @@ preview module kind="":
     blender -b --factory-startup -P tools/models/build.py -- --only {{module}} --preview "${TMPDIR:-/tmp}/{{module}}-preview.png" {{ if kind == "" { "" } else { "--kind " + kind } }} > /dev/null
     open "${TMPDIR:-/tmp}/{{module}}-preview.png"
 
+# render the minigames' sprite sheets from Blender (headless), or one: just sprites demo (see tools/sprites/README.md)
+sprites sheet="":
+    blender -b --factory-startup -P tools/sprites/render.py -- {{ if sheet == "" { "" } else { "--only " + sheet + " --preview ${TMPDIR:-/tmp}/sprites-" + sheet + ".png" } }} 2>&1 | grep -E "^sprites|Error|Traceback" || true
+
 # fly levels headless with the autopilot (e.g. just autopilot --planet orutal --mode hunt --seeds 20)
 autopilot *args:
     @npx esbuild tools/autopilot.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-autopilot.mjs"
@@ -54,3 +58,8 @@ check:
 shot query="" *args:
     @npx esbuild tools/shot.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-shot.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-shot.mjs" "{{query}}" {{args}}
+
+# the forge, headless: builds side by side against a target (e.g. just forge --a rivet,flak --b frost,anchor --target plated --combos=both)
+forge *args:
+    @npx esbuild tools/forge.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-forge.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-forge.mjs" {{args}}

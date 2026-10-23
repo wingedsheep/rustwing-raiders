@@ -81,6 +81,10 @@ export class Rig {
   private t = 0;
   /** The blob of shadow under it. */
   private shadow: THREE.Mesh;
+  /** Something picked up, in the gun hand in place of its own (and its muzzle). */
+  private held: THREE.Object3D | null = null;
+  private heldKind: string | null = null;
+  private heldMuzzle: THREE.Object3D | undefined;
 
   constructor(
     readonly kind: string,
@@ -108,6 +112,35 @@ export class Rig {
     this.shadow.scale.setScalar(scale * 1.1);
     this.shadow.renderOrder = 1;
     this.root.add(this.shadow);
+  }
+
+  /**
+   * Puts a model (an `arm_*` prop, built in the gun part's frame: grip at the origin, barrel down
+   * -z) in the gun hand in place of its own gun; null gives it its own back.
+   */
+  hold(kind: string | null) {
+    if (kind === this.heldKind) return;
+    this.heldKind = kind;
+    const gun = this.p.gun;
+    if (!gun) return;
+    if (this.held) {
+      this.held.removeFromParent();
+      this.held = null;
+      this.heldMuzzle = undefined;
+    }
+    gun.scale.setScalar(1);
+    if (!kind) return;
+    const inst = library.clone(kind, 0);
+    if (!inst) return;
+    this.held = inst.obj;
+    this.held.traverse((o) => {
+      if (/__muzzle$/.test(o.name)) this.heldMuzzle = o;
+      o.castShadow = true;
+    });
+    outlined(this.held);
+    gun.parent?.add(this.held);
+    // its own gun shrinks away (it's still there, posed, for the new one to follow)
+    gun.scale.setScalar(0.001);
   }
 
   /** The gun just went off (`k` 1 for the pistol, ~2.5 for the breacher). */
@@ -263,7 +296,13 @@ export class Rig {
       this.model.position.y = 0.25;
     }
     this.root.updateMatrixWorld(true);
-    if (this.muzzleObj) this.muzzleObj.getWorldPosition(this.muzzle);
+    const gun = this.p.gun;
+    if (this.held && gun) {
+      this.held.position.copy(gun.position);
+      this.held.quaternion.copy(gun.quaternion);
+    }
+    if (this.heldMuzzle) this.heldMuzzle.getWorldPosition(this.muzzle);
+    else if (this.muzzleObj) this.muzzleObj.getWorldPosition(this.muzzle);
     else this.muzzle.set(s.x + Math.cos(s.face) * 0.6, 1.2, s.z + Math.sin(s.face) * 0.6);
   }
 

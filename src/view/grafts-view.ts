@@ -136,7 +136,7 @@ export class GraftsView {
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, col, 22, 0.3, 0.24);
           this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.18, true, 0xffffff);
           this.debris(e.x, e.z, 6, col);
-          this.host.juice({ trauma: 0.14, hitstop: 2, dx: p?.dashX, dz: p?.dashZ, shove: 0.3 });
+          this.host.juice({ trauma: 0.14, dx: p?.dashX, dz: p?.dashZ, shove: 0.3 });
           audio.play('ram', { pan, pitch: 0.85 });
         }
         return true;
@@ -151,7 +151,7 @@ export class GraftsView {
           for (let k = 0; k < 5; k++)
             this.fx.add({ x: mx, y: FLIGHT_Y + 0.5, z: mz, vx: Math.sin(at) * (8 + k * 3), vz: -Math.cos(at) * (8 + k * 3), vy: 1, size: 0.8, grow: 2.6, life: 0.5, drag: 5, color: this.c.setHex(0x8a8290), glow: false, carried: true });
         }
-        this.host.juice({ trauma: e.what === 'perfect' ? 0.25 : 0.14, hitstop: e.what === 'perfect' ? 3 : 1 });
+        this.host.juice({ trauma: e.what === 'perfect' ? 0.25 : 0.14 });
         audio.play('shot_flak', { pan, pitch: 0.75 });
         audio.play('shot_scatter', { pan, pitch: 0.7 });
         this.name('broadside', e.x, e.z, e.what === 'perfect');
@@ -161,7 +161,7 @@ export class GraftsView {
         if (e.what === 'hit') {
           this.fx.explode(e.x, FLIGHT_Y, e.z, 1.6, col);
           this.fx.ring(e.x, FLIGHT_Y, e.z, 7, 0.25, true, col);
-          this.host.juice({ trauma: 0.12, hitstop: 2 });
+          this.host.juice({ trauma: 0.12 });
           audio.play('explode_small', { pan, pitch: 0.8 });
         } else {
           this.fx.add({ x: e.x, y: FLIGHT_Y + 0.4, z: e.z, vy: 1, size: 1.2, grow: 2.4, life: 0.5, color: this.c.setHex(0x9a9098), glow: false, carried: true });
@@ -211,7 +211,7 @@ export class GraftsView {
         } else if (e.what === 'hit') {
           this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.2, true, 0xffe08a);
           this.debris(e.x, e.z, 8, 0xffd04a);
-          this.host.juice({ trauma: 0.2, hitstop: 3 });
+          this.host.juice({ trauma: 0.2 });
           audio.play('ram', { pan, pitch: 0.6 });
         }
         return true;
@@ -236,7 +236,7 @@ export class GraftsView {
             const v = 6 + Math.random() * 10;
             this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2, size: 0.35, grow: 0.6, life: 0.6, drag: 3, gravity: 3, color: this.c.setHex(k % 2 ? col : 0xf0e8e0), carried: true });
           }
-          this.host.juice({ trauma: 0.28, hitstop: 3, flash: 0.1, flashColor: col });
+          this.host.juice({ trauma: 0.28, flash: 0.1, flashColor: col });
           audio.play('shriek', { pan, pitch: 1.6, vol: 0.4 });
           audio.play('explode_small', { pan, pitch: 0.7 });
         }
@@ -263,7 +263,6 @@ export class GraftsView {
           audio.play('boost', { pan, pitch: 1.3 });
         } else if (e.what === 'ram') {
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 10, col, 18, 0.25, 0.2);
-          this.host.juice({ hitstop: 2 });
         } else if (e.what === 'burst') {
           this.fx.explode(e.x, FLIGHT_Y, e.z, 1.1, col);
           audio.play('explode_small', { pan, pitch: 1.2, vol: 0.5 });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, sigName } from '../sim/boss';
 import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
@@ -7,13 +7,14 @@ import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
 import { coreBadge } from './core-icon';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
+import { tierOf } from '../game/loot';
 import { frameById, LOAD_CLASS, partById, type Hardpoint, type PartClass } from '../game/parts';
 import { cellsOf, socket } from '../sim/build';
 import type { LevelView } from '../view/level-view';
 import { LIVERY } from '../view/ship-model';
 import { clamp } from '../util';
 import { markIcon } from './mark-icons';
-import { haulerIcon, strongboxIcon } from './widgets';
+import { TIER_COLOR, haulerIcon, strongboxIcon } from './widgets';
 import { RUNNER } from '../sim/heist';
 import { ROLES } from '../sim/convoy';
 import type { MarkKind } from '../game/parts';
@@ -35,7 +36,7 @@ export const DARK = '#120c18';
 export const PANEL = '#1c1526';
 export const EDGE = '#3a2e48';
 export const GOLD = '#ffd04a';
-/** Hot crates: the fuse, the crate. */
+/** Volatile crates: the hazard paint, the rattle. */
 export const HOT = '#ff6a2a';
 export const RED = '#ff5a4a';
 /** The Weld: mending green. */
@@ -185,8 +186,6 @@ export class Hud {
   /** Where the tin is, and how hard the count last jumped (1, falling away). */
   private tin = { x: 0, y: 0 };
   private bump = 0;
-  /** The fuse last frame (to flash its gains). */
-  private fuseWas = 0;
   /** Each player's hull as the bar last showed it: it drains down after a hit, so you see the bite. */
   private hullShown: number[] = [];
 
@@ -366,7 +365,7 @@ export class Hud {
       }
     }
     if (p.stats.aux === 'parry' && p.parries === 0 && lv.spec.difficulty < 0.35 && lv.time > 5 && lv.time < 40 && this.time % 6 < 2.4) {
-      drawText(ctx, `${this.auxKeys[p.id] ?? 'AUX'} AS FIRE LANDS: PARRY`, x, y + 38, '#ffffff', { align: 'center' });
+      drawText(ctx, `${this.auxKeys[p.id] ?? 'AUX'} AS SMALL SHOTS LAND: PARRY`, x, y + 38, '#ffffff', { align: 'center' });
       drawText(ctx, 'A PERFECT, AND THE GUNS RIPOSTE', x, y + 47, RIPOSTE, { align: 'center' });
     }
   }
@@ -446,16 +445,12 @@ export class Hud {
       const whiffed = !ready && s.aux === 'parry' && (this.view?.whiffT[p.id] ?? 9) < p.auxMax + 0.1;
       ctx.fillStyle = ready ? (p.auxT > 0 || p.riposte > 0 ? '#ffffff' : '#ffc860') : whiffed ? '#a04a3a' : '#806838';
       ctx.fillRect(cx, 7 + Math.round(8 * (1 - k)), 9, Math.round(8 * k));
-      drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S' }[s.aux], cx + 2, 7, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
+      drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S', bulwark: 'W', beacon: 'B' }[s.aux], cx + 2, 7, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
       cx += 11;
     }
     // the Burn: what boosting spends, earned back by flying close; brighter while it's being spent
-    // (a hot crate's fuse takes its place while one's carried)
-    if (p.crate) bar(ctx, x0 + 4, 16, pw - 8, 2, p.fuse, p.fuse < 0.25 && Math.floor(this.time * 8) % 2 ? '#ffffff' : HOT, 'rgba(60,48,80,0.6)');
-    else {
     const burnCol = p.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : p.burn < 0.15 ? '#a04a3a' : '#ff8a3a';
     bar(ctx, x0 + 4, 16, pw - 8, 2, p.burn, burnCol, 'rgba(60,48,80,0.6)');
-    }
     if (s.special) {
       const ready = p.charge >= 1;
       bar(ctx, x0 + 4, 19, pw - 8, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', 'rgba(60,48,80,0.6)');
@@ -490,34 +485,38 @@ export class Hud {
   }
 
   /**
-   * A hot crate's fuse, over the ship: a lit cord burning down towards the crate, a spark at its
-   * end. Low, it flickers and the crate blinks; the gain from each graze or perfect flashes white.
+   * A volatile crate, over the ship: the crate, a bar of its lock cracking with a notch for each
+   * bolt (gold till it gives), and the seconds till it's open.
    */
-  private fuse(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
+  private volatile(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
     const w = 40;
-    const x0 = Math.round(x - w / 2);
-    const f = clamp(p.fuse, 0, 1);
-    const low = f < 0.25;
-    const gain = f > this.fuseWas + 0.004;
-    this.fuseWas = f;
+    const x0 = Math.round(x - w / 2 + 6);
+    const c = clamp(p.crack, 0, 1);
     ctx.fillStyle = 'rgba(14,10,22,0.7)';
-    ctx.fillRect(x0 - 10, y - 2, w + 13, 8);
-    // the crate
-    ctx.fillStyle = low && Math.floor(this.time * 8) % 2 ? '#ffffff' : HOT;
-    ctx.fillRect(x0 - 8, y - 1, 6, 6);
+    ctx.fillRect(x0 - 12, y - 3, w + 15, 18);
+    // the crate, hazard-striped, its warning light blinking
+    ctx.fillStyle = HOT;
+    ctx.fillRect(x0 - 10, y - 1, 8, 8);
     ctx.fillStyle = '#1a1020';
-    ctx.fillRect(x0 - 6, y + 1, 2, 2);
-    // the cord, and how much is left of it
+    for (let s = 0; s < 3; s++) ctx.fillRect(x0 - 10 + s * 3, y + s * 2, 2, 2);
+    if (Math.floor(this.time * 5) % 2) {
+      ctx.fillStyle = RED;
+      ctx.fillRect(x0 - 7, y - 3, 2, 2);
+    }
+    // the lock: it only fills
     ctx.fillStyle = '#3a2e48';
-    ctx.fillRect(x0, y + 2, w, 2);
-    ctx.fillStyle = gain ? '#ffffff' : low ? RED : '#ffb04a';
-    ctx.fillRect(x0, y + 2, Math.round(w * f), 2);
-    // the spark at the burning end
-    const sx = x0 + Math.round(w * f);
-    ctx.fillStyle = Math.floor(this.time * 20) % 2 ? '#ffffff' : GOLD;
-    ctx.fillRect(sx - 1, y + 1 - (Math.floor(this.time * 15) % 2), 2, 3);
-    // nearly burned through: a glint at the end of the cord, it's about to crack open
-    if (f > 0.85) glint(ctx, x0 + w + 7, y + 2, 4, this.time, GOLD);
+    ctx.fillRect(x0, y + 1, w, 3);
+    ctx.fillStyle = TIER_COLOR[tierOf(p.crate!)];
+    ctx.fillRect(x0, y + 1, Math.round(w * c), 3);
+    // a bolt at each step: gold while it holds, dark once it's given
+    for (let k = 1; k <= HOT_BOLTS; k++) {
+      const bx = x0 + Math.round((w * k) / (HOT_BOLTS + 1));
+      ctx.fillStyle = c >= k / (HOT_BOLTS + 1) ? '#3a2e48' : GOLD;
+      ctx.fillRect(bx - 1, y, 3, 5);
+    }
+    const left = Math.ceil((1 - c) * HOT_CRACK[tierOf(p.crate!)]);
+    drawText(ctx, `${left}S`, x0 + w / 2, y + 6, '#ffd0a0', { align: 'center', shadow: false });
+    if (c > 0.85) glint(ctx, x0 + w + 2, y + 2, 4, this.time, GOLD);
   }
 
   /**
@@ -695,6 +694,15 @@ export class Hud {
     this.marks(ctx, lv, view);
     if (lv.convoy) this.convoy(ctx, lv, view);
     if (lv.heist) this.heist(ctx, lv, view);
+    // a volatile crate up for grabs: what it is, and what's in it, for as long as it's there
+    for (const k of lv.pickups) {
+      if (k.kind !== 'hot' || k.dead || !k.part) continue;
+      const s = this.toScreen(view, k.x, FLIGHT_Y, k.z);
+      const tier = tierOf(k.part);
+      drawText(ctx, 'VOLATILE', s.x, s.y - 34, Math.floor(this.time * 5) % 2 ? HOT : '#ffffff', { align: 'center' });
+      drawText(ctx, `${tier.toUpperCase()} PART`, s.x, s.y - 25, TIER_COLOR[tier], { align: 'center' });
+      drawText(ctx, `HOLD ${HOT_CRACK[tier]}S UNHIT`, s.x, s.y + 16, '#ffd0a0', { align: 'center' });
+    }
     // pops
     // the pops: big ones (a reaction's name) first, then the rest nudged down off them (numbers
     // may pile on numbers), and never up under the top bar
@@ -743,7 +751,7 @@ export class Hud {
       this.rounds(ctx, lv, p, s.x, s.y + 22);
       this.welding(ctx, p, s.x, s.y);
       this.counters(ctx, lv, p, s.x, s.y);
-      if (p.crate) this.fuse(ctx, p, s.x, s.y - 26);
+      if (p.crate) this.volatile(ctx, p, s.x, s.y - 26);
       // how it's loaded, said once as the level starts (steady goes without saying)
       if (lv.time > 1.2 && lv.time < 4.5 && p.stats.loadClass !== 'steady' && (lv.time < 3.6 || Math.floor(this.time * 8) % 2)) {
         const lc = LOAD_CLASS[p.stats.loadClass];

@@ -70,7 +70,7 @@
     "kind": "voice",
     "fx": "none",
     "seed": 7110,
-    "description": "A pot-bellied alien junk dealer. Raspy, nasal, mid-high voice, fast-talking, wheedling, easily insulted, sing-song rise at the end. Unplaceable, non-human accent.",
+    "description": "A stooped, winged alien junk dealer. Raspy, nasal, mid-high voice, fast-talking, wheedling, easily insulted, sing-song rise at the end. Unplaceable, non-human accent.",
     "voice_id": "8moSZEly8a6960rcLami",
     "stability": 0.3,
     "barks": {
@@ -92,7 +92,7 @@
     "kind": "voice",
     "fx": "none",
     "seed": 7104,
-    "description": "A small hooded scavenger. High, quick, clicky, chattering voice, excited and shifty, breathy laughs. Unplaceable, non-human accent. Studio quality.",
+    "description": "A small shelled scavenger. High, quick, clicky, chattering voice, excited and shifty, breathy laughs. Unplaceable, non-human accent. Studio quality.",
     "voice_id": "lKWcqzN5YJg5aKiwXtip",
     "stability": 0.3,
     "barks": {
@@ -534,11 +534,11 @@
     "seconds": 2.5,
     "barks": {
       "hello": [
-        "leathery bat wings flapping and slapping against a metal hull, wet chittering, small teeth gnawing on a cable",
-        "swarm of small leathery winged parasites landing on a metal spaceship hull, wet clicking chitter, teeth scraping cable, a spark"
+        "many small hard legs skittering across a metal hull, dry clicking, small teeth gnawing on a cable",
+        "swarm of armoured many-legged parasites thumping onto a metal spaceship hull, scuttling, clicking, teeth scraping cable, a spark"
       ],
       "annoyed": [
-        "angry wet hissing screech of a small leathery winged parasite, wings slapping metal, teeth snapping"
+        "angry hissing click of an armoured many-legged parasite, legs scrabbling on metal, teeth snapping"
       ]
     }
   },

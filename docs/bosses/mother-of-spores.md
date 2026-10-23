@@ -6,6 +6,7 @@
 
 The Tonkva raised their white mould in Morang's ziggurat grow-houses, and the grow-heart told it where to lay down glass and ceramic, as the Engine told her. When the Engine stopped, nobody told her anything, so she grew what she liked for a thousand years: mushroom forests, spore vents, beasts, and, when the Compact's settlers stayed and sickened and didn't die, the Rang. She learnt to speak from a crashed freighter's crew, and the **Choir** speaks for her: always *we*, always polite, slightly wrong.
 
+- **Caught between:** a thousand years of growing free, and the order she was made for.
 - **Owes:** the ledger that taught her to grow. It was the first thing she ever learnt.
 - **Wants from you:** to keep you. She's not guarding a gate (the Syndicate has lost three Wardens trying to lease hers); she's being kind. She kept the Rang, she'd keep you, and her pods are how she holds what she loves.
 - **Sad truth:** the instructions she has waited a thousand years for are coming at last, and they say *grow lattice*. Everything she grew without them is in the way.

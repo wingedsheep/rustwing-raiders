@@ -197,8 +197,8 @@ export function flightButton(dev: DeviceId, a: FlightAction): string {
   if (dev.startsWith('pad')) {
     const ps = input.padName(dev) === 'PS PAD';
     const names: Record<FlightAction, string> = ps
-      ? { move: 'STICK', fire: 'R2', heavy: 'SQUARE', dash: 'CROSS', boost: 'L2', special: 'TRIANGLE', aux: 'L1', focus: 'CIRCLE' }
-      : { move: 'STICK', fire: 'RT', heavy: 'X', dash: 'A', boost: 'LT', special: 'Y', aux: 'LB', focus: 'B' };
+      ? { move: 'STICK', fire: 'R2', heavy: 'SQUARE', dash: 'CROSS', boost: 'L2', special: 'TRIANGLE', aux: 'CIRCLE', focus: 'L1' }
+      : { move: 'STICK', fire: 'RT', heavy: 'X', dash: 'A', boost: 'LT', special: 'Y', aux: 'B', focus: 'LB' };
     return names[a];
   }
   const names: Record<string, Record<FlightAction, string>> = {

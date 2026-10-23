@@ -1,10 +1,9 @@
 import type { Game, Screen } from '../game/game';
 import type { Run } from '../sim/run';
 import { Boarding, type BoardSpec } from '../sim/boarding';
-import { Cell } from '../sim/deck';
-import type { Chip } from '../sim/events';
-import { chipRows } from '../ui/chips';
-import { drawText, wrap } from '../ui/font';
+import { Cell, SIZE_NAME } from '../sim/deck';
+import { drawText, textWidth } from '../ui/font';
+import { icon, iconSize, type Icon } from '../ui/board-icons';
 import { CYAN, DARK, DIM, EDGE, GOLD, HEIST, INK, PANEL, RED, W, H, frame } from '../ui/hud';
 import { hints } from '../ui/widgets';
 import { audio } from '../audio';
@@ -67,48 +66,92 @@ export class BoardChoice implements Screen {
       ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
     }
     drawText(ctx, 'HEIST', W / 2, 14, HEIST, { scale: 2, align: 'center' });
-    drawText(ctx, `THE ${this.name} IS RUNNING FOR THE JUMP POINT, HOLD FULL.`, W / 2, 34, DIM, { align: 'center' });
-    const bounty = this.run.bounty;
-    const cards: { title: string; text: string; chips: Chip[] }[] = [
-      {
-        title: 'RUN HER DOWN',
-        text: 'Fly her down in the open. Shoot her strongboxes loose and catch them as they fall. Kill her engines and her hold is yours.',
-        chips: [
-          { icon: 'fight', text: 'HER ESCORT, IN THE AIR', tone: 'info' },
-          { icon: 'part', text: '3 STRONGBOXES TO CATCH', tone: 'good' },
-        ],
-      },
-      {
-        title: 'BOARD HER',
-        text: 'Clamp on and cut in. On foot through her crew, crack her crates and get back to your ship before the kelters come to collect.',
-        chips: [
-          { icon: 'bounty', text: `PRICE ON YOU +1${bounty ? ` (NOW ${bounty})` : ''}`, tone: 'bad' },
-          { icon: 'fight', text: 'ON FOOT, IN HER CORRIDORS', tone: 'risk' },
-          { icon: 'risk', text: `KELTERS IN ${mmss(this.clock)}`, tone: 'risk' },
-          { icon: 'part', text: '3 CRATES, A STRONGBOX', tone: 'good' },
-          { icon: 'core', text: 'HER CORE: THE BEST PICKS', tone: 'info' },
-        ],
-      },
-    ];
+    drawText(ctx, this.name, W / 2, 34, DIM, { align: 'center' });
     const cw = 290;
     const ch = 282;
     const gap = 16;
     const x0 = Math.round(W / 2 - cw - gap / 2);
     const y0 = 52;
-    cards.forEach((c, i) => {
+    const titles = ['RUN HER DOWN', 'BOARD HER'];
+    titles.forEach((title, i) => {
       const on = this.at === i;
       const picked = this.chosen === i;
       const x = x0 + i * (cw + gap);
       const y = y0 - (on ? 2 : 0);
       const flash = picked && Math.floor(this.chosenT * 16) % 2 === 0;
       frame(ctx, x, y, cw, ch, flash ? '#3a3048' : on ? '#241a32' : PANEL, on ? (i ? RED : HEIST) : EDGE);
-      drawText(ctx, c.title, x + cw / 2, y + 10, on ? INK : DIM, { scale: 2, align: 'center' });
-      wrap(c.text, cw - 24).forEach((l, k) => drawText(ctx, l, x + 12, y + 32 + k * 10, on ? INK : DIM));
-      chipRows(ctx, c.chips, x + 12, y + 72, cw - 24, !on);
-      if (i === 1) this.plan(ctx, x + 12, y + 150, cw - 24, on);
-      else this.chase(ctx, x + 12, y + 150, cw - 24, on);
+      drawText(ctx, title, x + cw / 2, y + 10, on ? INK : DIM, { scale: 2, align: 'center' });
+      if (i === 1) this.board(ctx, x + 12, y + 34, cw - 24, on);
+      else this.air(ctx, x + 12, y + 34, cw - 24, on);
     });
     hints(ctx, this.game.devices[0] ?? 'keys', [['move', 'CHOOSE'], ['confirm', 'GO']], W / 2, H - 16, 'center');
+  }
+
+  /** A row of pictures with a number or a word beside each, centred in `w`. */
+  private row(ctx: CanvasRenderingContext2D, items: [Icon | null, string, string][], x: number, y: number, w: number, on: boolean) {
+    const gap = 14;
+    const widths = items.map(([ic, t]) => (ic ? iconSize(ic, 2).w + (t ? 4 : 0) : 0) + (t ? textWidth(t) : 0));
+    let cx = Math.round(x + (w - widths.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2);
+    items.forEach(([ic, t, color]) => {
+      if (ic) {
+        const sz = iconSize(ic, 2);
+        icon(ctx, ic, cx, y + 8 - sz.h / 2, 2, !on);
+        cx += sz.w + 4;
+      }
+      if (t) drawText(ctx, t, cx, y + 4, on ? color : DIM);
+      cx += (t ? textWidth(t) : 0) + gap + (ic && !t ? -4 : 0);
+    });
+  }
+
+  /** In the air: her escort, her strongboxes to catch. */
+  private air(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, on: boolean) {
+    this.row(ctx, [['strongbox', '\u00d73', GOLD]], x, y + 4, w, on);
+    this.chase(ctx, x, y + 60, w, on);
+  }
+
+  /** Aboard: how big she is and whose, her state, the haul, the clock, the price, the scan. */
+  private board(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, on: boolean) {
+    const d = this.deck;
+    // size: pips and the word, with whose crew she carries
+    const pips = d.size + 1;
+    const fam = d.family as Icon;
+    const famSz = iconSize(fam, 2);
+    const label = SIZE_NAME[d.size];
+    const total = SIZE_NAME.length * 6 + 6 + textWidth(label) + 12 + famSz.w + (d.condition !== 'none' ? 8 + iconSize(d.condition as Icon, 2).w : 0);
+    let cx = Math.round(x + (w - total) / 2);
+    for (let k = 0; k < SIZE_NAME.length; k++) {
+      ctx.fillStyle = k < pips ? (on ? RED : DIM) : '#3a3048';
+      ctx.fillRect(cx + k * 6, y + 6, 4, 6);
+    }
+    cx += SIZE_NAME.length * 6 + 6;
+    drawText(ctx, label, cx, y + 5, on ? INK : DIM);
+    cx += textWidth(label) + 12;
+    icon(ctx, fam, cx, y + 9 - famSz.h / 2, 2, !on);
+    cx += famSz.w + 8;
+    if (d.condition !== 'none') {
+      const c = d.condition as Icon;
+      icon(ctx, c, cx, y + 9 - iconSize(c, 2).h / 2, 2, !on);
+    }
+    // the haul
+    const crates = d.props.filter((p) => p.kind === 'crate').length;
+    const items: [Icon | null, string, string][] = [['crate', `\u00d7${crates}`, HEIST]];
+    if (d.props.some((p) => p.kind === 'strongbox')) items.push(['strongbox', '', GOLD]);
+    if (d.props.some((p) => p.kind === 'core')) items.push(['core', '', CYAN]);
+    this.row(ctx, items, x, y + 26, w, on);
+    // the clock and the price
+    const bounty = this.run.bounty;
+    this.row(
+      ctx,
+      [
+        ['hook', mmss(this.clock), RED],
+        ['skull', `+1${bounty ? ` \u2192 ${bounty + 1}` : ''}`, RED],
+      ],
+      x,
+      y + 48,
+      w,
+      on,
+    );
+    this.plan(ctx, x, y + 82, w, on);
   }
 
   /** The freighter's deck, as the clamp's scan reads it: rooms, the loot's glow, the lock. */
@@ -117,7 +160,6 @@ export class BoardChoice implements Screen {
     const s = Math.max(1, Math.floor(Math.min(w / d.w, 100 / d.h)));
     const ox = Math.round(x + (w - d.w * s) / 2);
     const oy = y + 4;
-    drawText(ctx, 'HULL SCAN', x, y - 8, DIM);
     // the scan line sweeps across
     const sweep = ((this.t * 0.6) % 1.4) * d.w;
     for (let z = 0; z < d.h; z++)
@@ -136,20 +178,31 @@ export class BoardChoice implements Screen {
       ctx.fillRect(Math.round(ox + px * s - 1), Math.round(oy + pz * s - 1), Math.max(2, s), Math.max(2, s));
     };
     const blink = Math.floor(this.t * 3) % 2 === 0;
+    for (const g of d.gates) dot(g.door.x, g.door.z, '#4ae8ff');
     for (const p of d.props) {
-      if (p.kind === 'crate') dot(p.x, p.z, HEIST);
+      if (p.kind === 'cage') dot(p.x, p.z, '#ff8a3a');
+      else if (p.kind === 'rupture') dot(p.x, p.z, blink ? '#ffffff' : '#ff7a3a');
+      else if (p.kind === 'crate') dot(p.x, p.z, HEIST);
       else if (p.kind === 'strongbox') dot(p.x, p.z, GOLD);
       else if (p.kind === 'core' && blink) dot(p.x, p.z, CYAN);
     }
     const crew = d.posts.length;
     dot(d.breach.x, d.breach.z, '#8affb0');
-    drawText(ctx, `CREW ABOARD ${crew}`, x, oy + d.h * s + 6, on ? '#ff8a6a' : DIM);
-    drawText(ctx, 'YOU CUT IN HERE', x + w, oy + d.h * s + 6, on ? '#8affb0' : DIM, { align: 'right' });
+    // the crew, a figure each
+    const fy = oy + d.h * s + 6;
+    for (let k = 0; k < crew; k++) {
+      const fx = x + k * 5;
+      if (fx > x + w - 20) break;
+      ctx.fillStyle = on ? '#ff8a6a' : DIM;
+      ctx.fillRect(fx + 1, fy, 2, 2);
+      ctx.fillRect(fx, fy + 3, 4, 4);
+      ctx.fillRect(fx + 1, fy + 7, 2, 2);
+    }
+    icon(ctx, 'lock', x + w - 8, fy, 1, !on);
   }
 
   /** The chase: her and her strongboxes, small, sliding along. */
   private chase(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, on: boolean) {
-    drawText(ctx, 'IN THE OPEN', x, y - 8, DIM);
     const cy = y + 50;
     const fx = x + w * 0.62 + Math.sin(this.t * 0.8) * 8;
     ctx.fillStyle = on ? '#8a6a4a' : '#4a3a30';

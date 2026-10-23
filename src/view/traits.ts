@@ -28,7 +28,7 @@ export interface TraitHost {
   /** Takes back the pops that start with this (a count that's gone up says so in one place). */
   unpop(prefix: string): void;
   bolt(points: number[], color: number): void;
-  juice(o: { trauma?: number; hitstop?: number; flash?: number; flashColor?: number; dx?: number; dz?: number; shove?: number }): void;
+  juice(o: { trauma?: number; flash?: number; flashColor?: number; dx?: number; dz?: number; shove?: number }): void;
 }
 
 interface TurretView {
@@ -143,7 +143,7 @@ export class TraitsView {
           this.fx.add({ x: e.x, y: FLIGHT_Y, z: e.z, vx: Math.cos(a) * 22, vz: Math.sin(a) * 22, size: 0.8, grow: 2.6, life: 0.32, drag: 6, color: this.c.setHex(0xe8eef8), glow: false, carried: true });
         }
         if (e.perfect) this.host.pop('THUNDERCLAP!', e.x, e.z - 4, '#c8b0ff', true);
-        this.host.juice({ trauma: e.perfect ? 0.35 : 0.18, hitstop: e.hit ? (e.perfect ? 4 : 2) : 0, flash: e.perfect ? 0.3 : 0.12, flashColor: MARK_HEX.shock });
+        this.host.juice({ trauma: e.perfect ? 0.35 : 0.18, flash: e.perfect ? 0.3 : 0.12, flashColor: MARK_HEX.shock });
         audio.play('thunder', { pan: e.x / HALF_W, pitch: e.perfect ? 0.85 : 1, vol: e.perfect ? 1 : 0.75 });
         return true;
       }
@@ -158,7 +158,7 @@ export class TraitsView {
           this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z, vx: Math.cos(a) * 26, vz: Math.sin(a) * 26, size: 0.9, grow: 1.6, life: 0.3, drag: 4, color: EMBER_HOT, to: NOVA_END, carried: true });
         }
         this.host.pop(e.power >= 2 ? 'VENGEANCE!' : 'NOVA', e.x, e.z - 4, e.power >= 2 ? '#ff7a4a' : '#ffc070', e.power >= 2);
-        this.host.juice({ trauma: 0.3 + 0.1 * e.power, hitstop: 3, flash: 0.35, flashColor: 0xffb060 });
+        this.host.juice({ trauma: 0.3 + 0.1 * e.power, flash: 0.35, flashColor: 0xffb060 });
         audio.play('nova', { pan: e.x / HALF_W, pitch: 1.15 - e.power * 0.1 });
         return true;
       }

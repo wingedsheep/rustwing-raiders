@@ -26,13 +26,13 @@ They survived by taking the war apart. The name *Sankvi*, "of Sankven", is a ref
 
 ## Warlord Khet
 
-A foundling of a Chikta crawler-barge, raised on the scrap trail. The Chikta named him *Keti*, "found thing"; he added the *h* himself, to sound harder. In 404 L he climbed into the head of *Unbending*, the Compact's great titan, wired its eye into a power plant, and made it lift its head. Nobody had ever made a titan move. The clans cut the head free and bolted thrusters to it, and Khet flies it. The clans followed him. The Syndicate, which needed someone to hold the junction gate, gave him the lease in 405 L. (Boss: [Warlord Khet](../bosses/khet.md).)
+A foundling of a Chikta sail-barge, raised on the scrap trail. The Chikta named him *Keti*, "found thing"; he added the *h* himself, to sound harder. In 404 L he climbed into the head of *Unbending*, the Compact's great titan, wired its eye into a power plant, and made it lift its head. Nobody had ever made a titan move. The clans cut the head free and bolted thrusters to it, and Khet flies it. The clans followed him. The Syndicate, which needed someone to hold the junction gate, gave him the lease in 405 L. (Boss: [Warlord Khet](../bosses/khet.md).)
 
-Khet believes he re-wired the titan. He didn't. *Unbending*'s core started waking the year the lights came on in Engine City, and it lifted its head because it was listening.
+Khet believes he re-wired the titan. He didn't. *Unbending*'s core had been awake since the war. It moved on its own.
 
 ## *Unbending*
 
-The titan's core woke during the nine days of the Five Mouths, from a crew that was dying inside it, then lay in the glass for 174 years with nobody to talk to. When Khet wired its eye into a power plant, it lifted its head because it wanted to. It has let him believe he controls it. It is a nemva ([minds](../lore/minds.md)), a Compact one, and it remembers who glassed Sankven: its own side. The Glass Law makes it free: a titan is nobody's.
+The titan's core woke during the nine days of the Five Mouths, from a crew that was dying inside it, then lay in the glass for 166 years with nobody to talk to. When Khet wired its eye into a power plant, it lifted its head because it wanted to. It has let him believe he controls it. It is a nemva ([minds](../lore/minds.md)), a Compact one, and it remembers who glassed Sankven: its own side. The Glass Law makes it free: a titan is nobody's.
 
 ## People and culture
 

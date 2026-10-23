@@ -634,7 +634,7 @@ export const PLANETS: Planet[] = [
     enemies: [
       { archetype: 'dart', name: 'Frost Wisp', kind: 'mech', colors: [0xe8f0ff, 0x4a6aa0, 0xff8a2a] },
       { archetype: 'turret', name: 'Engine Eye', kind: 'mech', colors: [0x5a6a7a, 0x2a3040, 0xff8a2a] },
-      { archetype: 'lancer', name: 'Pylon Warden', kind: 'mech', colors: [0x8a9aaa, 0x2a3040, 0xff6a1a] },
+      { archetype: 'lancer', name: 'Beam Pylon', kind: 'mech', colors: [0x8a9aaa, 0x2a3040, 0xff6a1a] },
       { archetype: 'brute', name: 'Tusked Bull', kind: 'beast', colors: [0x7a5a4a, 0xe8e0d0, 0xff8a2a] },
       { archetype: 'bomber', name: 'Hail Layer', kind: 'mech', colors: [0xc8d8e8, 0x4a5a6a, 0x4ae8ff] },
       { archetype: 'carrier', name: 'Engine Hive', kind: 'mech', colors: [0x5a6a7a, 0x2a3040, 0xff8a2a] },

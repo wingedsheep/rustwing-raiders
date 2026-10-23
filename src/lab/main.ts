@@ -21,6 +21,7 @@ const TABS: { id: Tab; name: string; title: string }[] = [
   { id: 'range', name: 'Range', title: 'Fly the waves in the game' },
   { id: 'bench', name: 'Bench', title: 'Fly them headless with every ship, and judge the balance' },
   { id: 'bestiary', name: 'Bestiary', title: 'Every enemy’s model and animation' },
+  { id: 'forge', name: 'Forge', title: 'Design guns, build ships from them, and try them on targets' },
 ];
 
 const MODES: { value: Mode; label: string }[] = [
@@ -67,11 +68,13 @@ async function showTab() {
     view.appendChild(el);
     if (tab === 'range') range = mountRange(el, (id) => composer.light(id));
     else if (tab === 'bench') (await import('./bench')).mountBench(el);
+    else if (tab === 'forge') (await import('./forge')).mountForge(el);
     else (await import('./bestiary')).mountBestiary(el, () => (range ?? mountRangeNow()).launch());
   }
   for (const [t, el] of views) el.hidden = t !== tab;
-  composerEl.hidden = tab === 'bestiary';
-  document.querySelector('.lab')!.setAttribute('style', tab === 'bestiary' ? 'grid-template-columns:1fr' : '');
+  const full = tab === 'bestiary' || tab === 'forge';
+  composerEl.hidden = full;
+  document.querySelector('.lab')!.setAttribute('style', full ? 'grid-template-columns:1fr' : '');
 }
 
 function mountRangeNow() {

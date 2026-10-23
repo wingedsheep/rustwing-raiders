@@ -10,6 +10,8 @@ import type { Build } from '../sim/build';
 import type { ScriptWave } from '../sim/director';
 import { newPilot, pilot } from '../sim/pilot';
 import { PLANETS } from '../world/planets';
+import { registerLabParts } from '../game/lab-parts';
+import type { PartDef } from '../game/parts';
 
 export interface FlyJob {
   /** Where its result goes in the bench (row, column, solo/co-op, seed). */
@@ -25,6 +27,9 @@ export interface FlyJob {
   length: number;
   /** Enemy hull multiplier. */
   tough: number;
+  /** The forge's: parts made there (registered before the fight), and blows cashing in setups. */
+  forge?: PartDef[];
+  combos?: boolean;
 }
 
 export interface WaveTally {
@@ -77,6 +82,10 @@ export interface FlyResult {
   waves: WaveTally[];
   /** Hits that came while no wave was about (the land, hazards). */
   stray: number;
+  /** Damage by what dealt it (a part's id, BURN, a reaction, a cash-in), and the cash-ins by kind. */
+  by: Record<string, number>;
+  cashed: Record<string, number>;
+  reactions: number;
 }
 
 /** About how fast the screen moves (units a second) without boosting. */
@@ -105,8 +114,10 @@ export function fly(job: FlyJob): FlyResult {
   const planet = PLANETS.find((p) => p.id === job.planet) ?? PLANETS[0];
   const spec = levelSpec(planet, job.mode, job.seed, job.difficulty);
   if (job.length) spec.length = job.length;
+  if (job.forge) registerLabParts(job.forge);
   const lv = new Level(spec, job.builds);
   lv.tough = job.tough;
+  lv.combos = !!job.combos;
   if (job.waves) lv.director.script(job.waves);
   const pilots = lv.players.map(() => newPilot());
   const tallies: WaveTally[] = [];
@@ -215,5 +226,8 @@ export function fly(job: FlyJob): FlyResult {
     airMissed,
     waves: tallies,
     stray,
+    by: lv.dealtBy,
+    cashed: lv.cashed,
+    reactions: lv.reactions,
   };
 }

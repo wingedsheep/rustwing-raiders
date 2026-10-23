@@ -139,17 +139,17 @@ Voice descriptions for the first eleven, ready to paste into §4. The bark-speci
 |---|---|---|---|---|
 | **Vhossk Twins, left head** | voice | An old, enormous, barrel-chested alien broker. Very low, gravelly, rolling voice, slow and certain, a wet rumble under every word. Greedy but polite. Close-mic'd, studio quality, unplaceable non-human accent. | 0.35 | — |
 | **Vhossk Twins, right head** | voice | The same huge alien's second head: low but a little higher and hoarse, fast, cutting in, petty and suspicious, always arguing. Close-mic'd, unplaceable non-human accent. | 0.3 | — |
-| **Skree salvager** | voice | A small hooded scavenger. High, quick, clicky, chattering voice, excited and shifty, breathy laughs. Unplaceable non-human accent, studio quality. | 0.3 | pitch +3 |
+| **Skree salvager** | voice | A small shelled scavenger. High, quick, clicky, chattering voice, excited and shifty, breathy laughs. Unplaceable non-human accent, studio quality. | 0.3 | pitch +3 |
 | **Unit 7-Holly** | voice | A tall, thin clerk droid, forty years alone. Precise, fussy, formal, overly polite, desperately glad of company. Mid pitch, crisp consonants. Studio quality. | 0.65 | ring-mod, bandpass |
 | **Choir of Mirefall** | voice | A calm, polite, genderless voice, speaking slowly in a slightly wrong rhythm. Through an old, crackling ship intercom speaker. Eerie and gentle. | 0.5 | 3 detuned layers, static |
 | **Old Mother Seffa** | voice | A tiny, ancient alien woman. Thin, breathy, warm, very slow, pauses to think, a smile in it. Unplaceable non-human accent, studio quality. | 0.4 | — |
 | **Ledger Clan banker** | voice | A tall insectoid banker. Dry, flat, clipped, nasal mid-low voice, cites rules, no warmth at all. Unplaceable non-human accent. | 0.6 | click layer |
 | **Saint Ferrule** | voice | An old maintenance droid turned priest. Slow, solemn, deep and kindly, like a blessing in a big empty hall. Studio quality. | 0.6 | ring-mod, long verb |
-| **Tobbo Grisk** | voice | A pot-bellied alien junk dealer. Raspy, nasal, mid-high voice, fast-talking, wheedling, easily insulted, sing-song rise at the end. Unplaceable non-human accent. | 0.3 | wing-buzz layer |
+| **Tobbo Grisk** | voice | A stooped, winged alien junk dealer. Raspy, nasal, mid-high voice, fast-talking, wheedling, easily insulted, sing-song rise at the end. Unplaceable non-human accent. | 0.3 | wing-buzz layer |
 | **Squit** | voice | A twitchy, small alien informant. Thin, nasal, high voice, whispering fast, nervous, always about to run. Unplaceable non-human accent. | 0.3 | pitch +2 |
 | **Lady Vey** | voice | An aristocratic alien noblewoman. Smooth, low-mid, languid and bored, drawn-out vowels, delighted only by rare things. Rich, close-mic'd. | 0.45 | — |
-| **Hull leeches** | sfx | `leathery bat wings flapping against metal, wet chittering, teeth chewing on cable, sparks` (3 s) | — | — |
-| **Purrgil of Vesh** | sfx | `huge whale song in deep space, slow low moan rising to a warm hum, distant and vast` (6 s) | — | long verb |
+| **Hull leeches** | sfx | `many small hard legs skittering across a metal hull, clicking, teeth chewing on cable, sparks` (3 s) | — | — |
+| **Umora of Vesh** | sfx | `huge whale song in deep space, slow low moan rising to a warm hum, distant and vast` (6 s) | — | long verb |
 
 For the **Choir**, render each bark once and layer three copies in the browser, each pitch-shifted by a few cents. One voice talking as "we" sounds right that way.
 

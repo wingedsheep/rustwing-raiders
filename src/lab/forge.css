@@ -1,0 +1,75 @@
+/* The forge (see forge.ts): the parts, the game flying the build, and the build, dials and results. */
+
+.forge { display: grid; grid-template-columns: 290px minmax(0, 1fr) 380px; flex: 1; min-width: 0; min-height: 0; }
+
+.f-list { border-right: 1px solid var(--edge-soft); overflow: auto; background: var(--panel); padding: 10px 8px 24px; }
+.f-list h4 { margin: 14px 8px 4px; color: var(--dim); font: 600 12px var(--cond); text-transform: uppercase; letter-spacing: 0.04em; }
+.f-list-head { display: flex; gap: 6px; padding: 0 4px; position: sticky; top: -10px; background: var(--panel); padding-top: 4px; padding-bottom: 6px; z-index: 1; }
+.f-list-head input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border-radius: var(--r-s); border: 1px solid var(--edge); background: var(--raised); }
+.f-item { display: grid; grid-template-columns: 1fr auto; align-items: center; border-radius: var(--r-s); }
+.f-item:hover { background: var(--raised); }
+.f-item[aria-current='true'] { background: var(--edge); }
+.f-pick { display: block; width: 100%; padding: 6px 8px; border: 0; background: none; cursor: pointer; text-align: left; }
+.f-pick b { font: 600 13px var(--cond); display: flex; gap: 6px; align-items: center; }
+.f-pick small { display: block; color: var(--mute); font: 500 11px var(--cond); }
+.f-pick small.warn { color: var(--red); }
+
+.tag { font: 700 9px var(--cond); font-style: normal; letter-spacing: 0.06em; padding: 1px 5px; border-radius: 2px; }
+.tag.new { background: var(--teal-lo); color: #e8fffa; }
+.tag.edited { background: #6a4a1a; color: #ffe0a0; }
+.tag.made { background: var(--rust); color: #1b0f08; }
+
+.f-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px; gap: 10px; }
+.f-main .screen { flex: 1; min-height: 260px; }
+.f-main .deck { flex-wrap: wrap; row-gap: 8px; }
+.f-note { color: var(--mute); font: 500 12px var(--cond); min-width: 160px; }
+.f-live { min-height: 52px; }
+.f-live-row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 6px; font: 600 12px var(--cond); color: var(--dim); }
+.f-k { color: var(--cream); }
+
+.f-side { border-left: 1px solid var(--edge-soft); background: var(--panel); overflow: auto; padding: 12px 12px 32px; display: flex; flex-direction: column; gap: 12px; }
+.f-side .card { background: var(--raised); border: 1px solid var(--edge-soft); border-radius: var(--r-m); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.f-side .card h3 { margin: 0; }
+.f-side select, .f-side input[type='text'], .f-side textarea { min-width: 0; height: 28px; padding: 0 6px; border-radius: var(--r-s); border: 1px solid var(--edge); background: var(--panel); font-size: 13px; }
+.f-side textarea { height: auto; padding: 6px; resize: vertical; font: 13px/1.35 var(--ui); }
+.f-side select { max-width: 100%; }
+.f-head { display: flex; align-items: center; gap: 8px; }
+.f-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.f-check { display: inline-flex; gap: 5px; align-items: center; font: 600 12px var(--cond); color: var(--dim); }
+.f-mount { font: 600 12px var(--cond); color: var(--dim); padding: 2px 6px; border: 1px solid var(--edge); border-radius: var(--r-s); }
+.f-kit { border-top: 1px solid var(--edge-soft); padding-top: 6px; }
+.f-kit .f-pick { padding: 2px 0; }
+.f-kit.out b { color: var(--red); }
+.f-kit select { flex: 1; }
+
+.f-dial { display: grid; grid-template-columns: 92px 1fr 44px; gap: 8px; align-items: center; font: 600 12px var(--cond); color: var(--dim); }
+.f-dial input { width: 100%; accent-color: var(--rust-hi); }
+.f-dial b { text-align: right; color: var(--cream); }
+.f-derived { display: flex; gap: 14px; flex-wrap: wrap; font: 500 12px var(--cond); color: var(--dim); padding: 6px 8px; background: var(--panel); border-radius: var(--r-s); }
+.f-derived b { color: var(--gold); font-size: 15px; }
+
+.f-bar { display: flex; height: 14px; border-radius: 2px; overflow: hidden; gap: 1px; background: var(--panel); }
+.f-bar.empty { color: var(--mute); font: 500 12px var(--cond); background: none; height: auto; }
+.f-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font: 500 12px var(--cond); color: var(--dim); }
+.f-key span { display: inline-flex; gap: 5px; align-items: center; }
+.f-key i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.f-key b { color: var(--cream); }
+.f-cash { font: 700 12px var(--cond); letter-spacing: 0.03em; }
+.f-share { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--edge-soft); padding-top: 8px; }
+.f-share small { color: var(--mute); font: 500 12px var(--cond); }
+
+.f-table { width: 100%; border-collapse: collapse; font: 600 12px var(--cond); }
+.f-table th, .f-table td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--edge-soft); }
+.f-table th:first-child { text-align: left; color: var(--dim); }
+.f-table thead th { color: var(--mute); font-weight: 500; }
+.f-table td.up { color: var(--green); }
+.f-table td.down { color: var(--red); }
+
+.f-recipe { text-align: left; padding: 8px 10px; border-radius: var(--r-s); border: 1px solid var(--edge); background: var(--panel); cursor: pointer; }
+.f-recipe:hover { border-color: var(--dim); }
+.f-recipe b { display: block; font: 600 13px var(--cond); }
+.f-recipe small { color: var(--mute); font: 500 12px var(--cond); }
+
+@media (max-width: 1200px) {
+  .forge { grid-template-columns: 240px minmax(0, 1fr) 320px; }
+}

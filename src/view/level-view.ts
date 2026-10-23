@@ -13,15 +13,20 @@ import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Guards, Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { TORPEDO, WELD } from '../sim/level';
+import { HOT_BOLTS, TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
 import { flat, GEO, part, toon } from '../render/toon';
 import { audio, bossTrack } from '../audio';
+import { arsenalEvent, arsenalLook, type ArsenalHooks } from './arsenal-view';
+import { GunLooks } from './gun-looks';
+import { KitArt } from './kit-view';
 import type { Biome } from '../world/planets';
 import type { Read } from '../sim/boss';
 import { BossPose } from './boss-pose';
+import { CarRig } from './car-rig';
+import { WormRig } from './worm-rig';
 import { clamp, damp, lerp } from '../util';
 import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
@@ -40,6 +45,9 @@ import { EDGES, type Edge } from '../game/parts';
 /** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
 const SCRAP_GLOW = new THREE.SpriteMaterial({ map: SOFT, color: 0xffc04a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 });
 const SCRAP_TRAIL = new THREE.Color(0xffd070);
+/** A tug's tow line: a rod of hard light, stretched from the tug to its strongbox. */
+const TOW = new THREE.CylinderGeometry(0.08, 0.08, 1, 5);
+const TOW_D = new THREE.Vector3();
 /** Hot crates (see Level.hotCrate). */
 const HOT_HEX = 0xff6a2a;
 /** The Weld (see hud.ts WELD): mending green. */
@@ -101,21 +109,31 @@ interface EnemyView {
   part?: boolean;
   /** A boss's poses, facing and shedding. */
   pose?: BossPose;
-  /** Shaken in place while a freeze holds it (a blow just landed), decaying. */
+  /** Shaken locally after a blow lands, decaying. */
   shiver?: number;
   /** A model with a `_fold` pose: how far folded it is (0..1), blended over its idle. */
   fold?: { pose: THREE.AnimationAction; idle: THREE.AnimationAction | null; k: number };
+  /** A wheeled foe: driven from how it moves rather than by its clip. */
+  car?: CarRig;
+  worm?: WormRig;
+  /** A tug: the hard-light line it hauls its strongbox on. */
+  tow?: THREE.Mesh;
+  /** A strongbox: how many tugs held it last frame, and whether it's been cut loose. */
+  held?: number;
+  loose?: boolean;
 }
 
 /**
  * Draws a Level and makes a fuss about it: everything the sim says happened (hits, kills, grazes,
- * dashes) becomes sparks, shakes, flashes, freezes and sounds here.
+ * dashes) becomes sparks, shakes, flashes and sounds here.
  */
 export class LevelView {
   readonly scene = new THREE.Scene();
   /** Drawn over the finished picture, past the paint and grade: enemy fire and the hitbox, which must always read. */
   readonly overlay = new THREE.Scene();
   private hitboxes: THREE.Group[] = [];
+  /** A volatile crate in tow, under each ship that has one: its lid, its bolts, the light inside. */
+  private safes: ({ root: THREE.Group; box: THREE.Group; lid: THREE.Group; bolts: THREE.Mesh[]; glow: THREE.Mesh; seam: THREE.Mesh } | undefined)[] = [];
   private threats = new Threats();
   /** Reactions seen this level: the first of each is called out big. */
   private reacted = new Set<string>();
@@ -131,6 +149,7 @@ export class LevelView {
   /** High things drifting past the screen's edges, faster than the land. */
   private near: NearLayer;
   readonly fx = new Fx();
+
   private life: Life;
   private sun = new THREE.DirectionalLight(0xffffff, 2.2);
   private hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
@@ -186,13 +205,46 @@ export class LevelView {
   flash = 0;
   flashColor = new THREE.Color(1, 1, 1);
   hurt = 0;
-  /** Frames the sim should hold still for (a hit landing, a big kill). */
-  hitstop = 0;
-  /** Slow motion: sim speed multiplier (boss kills, perfect dashes). */
-  slowmo = 1;
-  slowmoT = 0;
   /** Strike lines, glints and slashes: the ink of a blow. */
   readonly strokes = new Strokes();
+  private arsenalHooks: ArsenalHooks = {
+    fx: this.fx,
+    strokes: this.strokes,
+    pop: (text, x, z, color, big) => this.pop(text, x, z, color, big),
+    punch: (k) => this.punch(k),
+    shake: (k) => (this.trauma = Math.min(1, this.trauma + k)),
+    impact: (col, t) => this.impact(col, t),
+    shards: (x, z, n, col) => this.shards(x, z, n, col),
+    zap: (x, z, r, col) => this.zap(x, z, r, col),
+    bolt: (pts, col) => this.bolt(pts, col),
+  };
+  /** The new kit: the Bulwark, the Swap Beacon, the skins and the bombs (see kit-view.ts). */
+  private kitArt = new KitArt({
+    fx: this.fx,
+    strokes: this.strokes,
+    zap: (x, z, r, col) => this.zap(x, z, r, col),
+    bolt: (pts, col) => this.bolt(pts, col),
+    punch: (k) => this.punch(k),
+    shake: (k) => (this.trauma = Math.min(1, this.trauma + k)),
+    flash: (k, col) => {
+      this.flash = Math.max(this.flash, k);
+      this.flashColor.set(col);
+    },
+    impact: (col, t) => this.impact(col, t),
+    pop: (text, x, z, color, big) => this.pop(text, x, z, color, big),
+  });
+  /** The forge's guns, each in its own look and sound (see gun-looks.ts). */
+  private looks = new GunLooks({
+    fx: this.fx,
+    strokes: this.strokes,
+    zap: (x, z, r, col) => this.zap(x, z, r, col),
+    bolt: (pts, col) => this.bolt(pts, col),
+    punch: (k) => this.punch(k),
+    shove: (dx, dz, k) => this.shove(dx, dz, k),
+    shake: (k) => (this.trauma = Math.min(1, this.trauma + k)),
+    shiver: (id, k) => this.shiver(id, k),
+    impact: (col, t) => this.impact(col, t),
+  });
   /** An impact frame: seconds left of the picture flipped to paper and ink, and the paper's colour. */
   private impactT = 0;
   private impactColor = new THREE.Color(1, 1, 1);
@@ -297,7 +349,6 @@ export class LevelView {
       bolt: (pts, col) => this.bolt(pts, col),
       juice: (o) => {
         if (o.trauma) this.trauma = Math.min(1, this.trauma + o.trauma);
-        if (o.hitstop) this.hitstop = Math.max(this.hitstop, o.hitstop);
         if (o.flash && o.flash > this.flash) {
           this.flash = o.flash;
           this.flashColor.setHex(o.flashColor ?? 0xffffff);
@@ -311,7 +362,6 @@ export class LevelView {
       bolt: (pts, col) => this.bolt(pts, col),
       juice: (o) => {
         if (o.trauma) this.trauma = Math.min(1, this.trauma + o.trauma);
-        if (o.hitstop) this.hitstop = Math.max(this.hitstop, o.hitstop);
         if (o.flash && o.flash > this.flash) {
           this.flash = o.flash;
           this.flashColor.setHex(o.flashColor ?? 0xffffff);
@@ -337,7 +387,7 @@ export class LevelView {
       this.overlay.add(g);
       this.hitboxes.push(g);
     });
-    this.scene.add(this.bullets.group, this.shotArt.group);
+    this.scene.add(this.bullets.group, this.shotArt.group, this.looks.group, this.kitArt.group);
     this.shots = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), 1500);
     this.shots.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(1500 * 3), 3);
     this.shots.frustumCulled = false;
@@ -373,12 +423,19 @@ export class LevelView {
     const lv = this.lv;
     for (const e of events) {
       this.feel(e);
+      if (this.looks.event(e)) continue;
       if (this.traits.handle(e)) continue;
       if (this.grafts.handle(e)) continue;
       if (this.core.handle(e)) continue;
       switch (e.type) {
         case 'shot': {
           if (e.kind === 'beam') break;
+          // a forge gun: its own muzzle and voice
+          const kick = this.looks.shot(e);
+          if (kick >= 0) {
+            if (!e.turret) this.recoil[e.owner] = Math.min(0.5, (this.recoil[e.owner] ?? 0) + kick);
+            break;
+          }
           const col = SHOT_COLORS[e.kind];
           const heavy = e.heavy || e.kind === 'rail' || e.kind === 'flak' || e.kind === 'pellet';
           // the muzzle: a white-hot blink in a bloom of the gun's colour, a spit of sparks forward,
@@ -429,6 +486,8 @@ export class LevelView {
           const ev = this.enemies.get(e.enemy);
           const y = ev ? ev.obj.position.y : FLIGHT_Y;
           const en = lv.enemies.find((o) => o.id === e.enemy);
+          // a forge gun's hit: drawn and sounded its own way (`own`), or the usual sparks in its voice (`quiet`)
+          const look = this.looks.hit(e, en);
           if (e.edge) this.edgeHit(e.edge, e.x, e.z, y);
           const big = en ? en.r : 1;
           // a heavy hit (a rail, a shell, a crit) lands like one; a stream of rivets patters
@@ -437,7 +496,9 @@ export class LevelView {
             ev.punch = Math.min(1, ev.punch + (heavy ? 0.9 : 0.4) / Math.sqrt(big));
             ev.knock = Math.min(1, ev.knock + (heavy ? 0.7 : 0.3) / big);
           }
-          if (!e.kill) {
+          if (!e.kill && look === 'own') {
+            // (its own look; the hit still shoves it)
+          } else if (!e.kill) {
             const bite = clamp(0.8 + e.dmg * 0.05, 0.8, 2.6) * (e.crit ? 1.4 : 1);
             const hx = e.x + (Math.random() - 0.5) * big * 0.6;
             const hz = e.z + big * 0.35;
@@ -463,10 +524,9 @@ export class LevelView {
             }
             if (heavy) {
               this.fx.ring(hx, y + 0.6, hz, 1.5 + bite, 0.16, true, e.crit ? 0xffffff : 0xffd8a0);
-              this.hitstop = Math.max(this.hitstop, e.crit || e.dmg >= 25 ? 2 : 1);
               this.trauma = Math.min(1, this.trauma + Math.min(0.14, e.dmg * 0.004));
             }
-            audio.play(e.crit ? 'hit_armor' : 'hit', { pan: e.x / HALF_W, vol: heavy ? 0.65 : 0.4, pitch: heavy ? 0.8 : 0.9 + Math.random() * 0.25 });
+            if (!look) audio.play(e.crit ? 'hit_armor' : 'hit', { pan: e.x / HALF_W, vol: heavy ? 0.65 : 0.4, pitch: heavy ? 0.8 : 0.9 + Math.random() * 0.25 });
           } else this.kill(e.x, y, e.z, big);
           break;
         }
@@ -480,7 +540,15 @@ export class LevelView {
           this.fx.add({ x: e.x, y: y + 1.5, z: groundZ, size: 3 + e.size * 2.5, grow: 1.3, life: 0.09, color: HOT, carried: air });
           this.blast(e.x, y, groundZ, e.size);
           if (!air) this.fx.add({ x: e.x, y: y + 0.15, z: groundZ, size: 1.2 + e.size * 0.9, grow: 1.1, life: 4, color: SCORCH, to: SCORCH_END, glow: false });
-          if (ev && e.enemy !== undefined && !ev.boss && !ev.part) {
+          if (ev?.held !== undefined) {
+            // a strongbox hits the ground and bursts: its lid off, and a fountain of what was in it
+            this.fx.ring(e.x, y + 0.3, groundZ, 7, 0.35, !!air, 0xffe08a);
+            for (let k = 0; k < 3; k++) this.fx.sparks(e.x, y + 0.6, groundZ, 14, k ? 0xffd04a : 0xffffff, 12 + k * 6, 0.6, 0.3, !!air);
+            this.strokes.burst(e.x, e.z, 12, 0xffe08a, 8, 0.25, 0.45);
+            this.punch(0.35);
+            this.trauma = Math.min(1, this.trauma + 0.35);
+            audio.play('strongbox_open', { pan: e.x / HALF_W });
+          } else if (ev && e.enemy !== undefined && !ev.boss && !ev.part) {
             // shot down: what's left of it, and more of it going up as it goes
             this.wreck(e.enemy, ev, e.size);
             this.shotDown(e.x, y, groundZ, e.size, ev.skin, air);
@@ -488,7 +556,6 @@ export class LevelView {
           this.trauma = Math.min(1, this.trauma + 0.1 * e.size);
           this.shove(Math.sign(e.x - lv.players[0].x) * 0.3, -1, 0.18 * e.size);
           if (e.size >= 3) {
-            this.hitstop = Math.max(this.hitstop, Math.min(8, Math.round(e.size)));
             this.flash = Math.max(this.flash, 0.25);
             this.flashColor.set(0xfff0d0);
             audio.play('explode_big', { pan: e.x / HALF_W });
@@ -508,7 +575,6 @@ export class LevelView {
           this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.6, 0.22, false, e.shot ? 0xffffff : e.color);
           if (e.shot) {
             this.strokes.burst(e.x, e.z, 8, 0xffe08a, 5, 0.18, 0.35);
-            this.hitstop = Math.max(this.hitstop, 2);
           }
           audio.play('torpedo_down', { pan: e.x / HALF_W, vol: e.shot ? 0.8 : 0.5 });
           break;
@@ -526,7 +592,6 @@ export class LevelView {
             this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.4, 0.2, true, e.how === 'shot' ? 0xffffff : e.color);
             if (e.how === 'shot') {
               this.strokes.burst(e.x, e.z, 6, 0x9af4ff, 4, 0.16, 0.3);
-              this.hitstop = Math.max(this.hitstop, 1);
             }
             audio.play('seeker_down', { pan: e.x / HALF_W, vol: e.how === 'shot' ? 0.7 : 0.45 });
           }
@@ -536,7 +601,6 @@ export class LevelView {
           // the hull's hits by tier: a graze stings, a heavy one rocks the whole screen
           const k = e.shield ? 0.5 : e.tier === 'graze' ? 0.6 : e.tier === 'heavy' ? 1.5 : 1;
           this.trauma = Math.min(1, this.trauma + 0.6 * k);
-          this.hitstop = Math.max(this.hitstop, Math.round(7 * k));
           this.shove(0, 1, 1.2 * k);
           if (!e.shield) this.hurt = Math.min(1, k);
           this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 16, e.shield ? LIVERY[e.id][2] : 0xff5a3a, 18, 0.4, 0.3);
@@ -554,7 +618,6 @@ export class LevelView {
           this.trauma = 1;
           this.flash = 0.6;
           this.flashColor.set(0xff6040);
-          this.hitstop = 14;
           audio.play('player_down');
           break;
         case 'revive':
@@ -586,15 +649,13 @@ export class LevelView {
           }
           break;
         case 'perfect': {
-          // the moment to savour: time slows, the colour drains to the player's, a bell rings
-          // (a parry has already frozen the frame on its ring: a lighter slow after it), pitched
-          // up a step for every perfect run on from the last
+          // A bell and local rings reward the timing without interrupting the shared clock.
           const parry = e.how === 'parry';
           const col = LIVERY[e.id][2];
-          this.slowmo = parry ? 0.3 : 0.2;
-          this.slowmoT = parry ? 0.28 : 0.35;
-          this.flash = Math.max(this.flash, 0.45);
-          this.flashColor.set(parry ? 0xffffff : col);
+          if (!parry) {
+            this.flash = Math.max(this.flash, 0.45);
+            this.flashColor.set(col);
+          }
           this.fx.ring(e.x, FLIGHT_Y, e.z, parry ? 9 : 7, 0.4, true, col);
           this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0xffffff);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 12 + e.absorbed * 3, col, 20, 0.4, 0.25);
@@ -608,7 +669,7 @@ export class LevelView {
           // a chain says itself without words: a gold ring wider for every perfect run on
           if (e.chain > 1) this.fx.ring(e.x, FLIGHT_Y + 0.3, e.z, 6 + Math.min(6, e.chain) * 1.6, 0.45, true, 0xffd04a);
           audio.play('perfect', { pan: e.x / HALF_W, pitch: 2 ** (Math.min(7, e.chain - 1) / 12) });
-          audio.duck(0.4);
+          if (!parry) audio.duck(0.4);
           break;
         }
         case 'skim': {
@@ -623,7 +684,6 @@ export class LevelView {
         case 'pointBlank':
           this.pop('POINT BLANK', e.x, e.z - 2, '#ffd04a');
           this.fx.ring(e.x, FLIGHT_Y, e.z, 3.5, 0.2, true, 0xffd04a);
-          this.hitstop = Math.max(this.hitstop, 3);
           audio.play('point_blank', { pan: e.x / HALF_W });
           break;
         case 'windup': {
@@ -663,7 +723,6 @@ export class LevelView {
           if (e.stagger) {
             // (the first few a level say what to do about it)
             if (!this.shattered.has(e.enemy)) this.pop('STAGGERED · DASH IT!', e.x, e.z - 2, '#ffe08a');
-            this.hitstop = Math.max(this.hitstop, 3);
             audio.play('hit_armor', { pan: e.x / HALF_W, pitch: 0.7 });
           }
           break;
@@ -691,10 +750,47 @@ export class LevelView {
           audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.3, pitch: 1.5 + Math.random() * 0.3 });
           break;
         }
-        case 'reflect':
-          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 4, 0xffffff, 12, 0.15, 0.2);
-          audio.play('graze', { pan: e.x / HALF_W, pitch: 0.7 });
+        case 'reflect': {
+          // your shot turned round: a white snap where it struck, a ring, and sparks flung down
+          // the line it's coming back on
+          const en = lv.enemies.find((o) => o.id === e.enemy);
+          const col = en ? this.c.setHex(en.skin.colors[2]).lerp(GLINT, 0.4) : GLINT;
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.9, z: e.z, size: 1.8, grow: 0.5, life: 0.07, color: HOT, carried: true });
+          this.fx.ring(e.x, FLIGHT_Y + 0.6, e.z, 2.2, 0.16, true, 0xffffff);
+          for (let k = 0; k < 6; k++) {
+            const a = e.a + (Math.random() - 0.5) * 0.7;
+            const v = 18 + Math.random() * 16;
+            this.fx.add({ x: e.x, y: FLIGHT_Y + 0.7, z: e.z, vx: Math.sin(a) * v, vz: Math.cos(a) * v, size: 0.18, grow: 0.3, life: 0.14 + Math.random() * 0.1, drag: 5, color: k < 2 ? HOT : col, carried: true });
+          }
+          audio.play('reflect', { pan: e.x / HALF_W, vol: 0.45 });
           break;
+        }
+        case 'shotLand': {
+          // a shot into the land: a puff of its dust, grit kicked up, a few sparks back off the face
+          const b = lv.terrain.biome(e.z);
+          const y = FLIGHT_Y + 0.3;
+          if (e.bounce) {
+            this.fx.add({ x: e.x, y: y + 0.4, z: e.z, size: 0.9, grow: 0.4, life: 0.05, color: HOT, carried: true });
+            this.fx.sparks(e.x, y, e.z, 3, SKIM, 12, 0.18, 0.16);
+            audio.play('skim', { pan: e.x / HALF_W, vol: 0.35, pitch: 1.3 + Math.random() * 0.2 });
+            break;
+          }
+          const n = e.heavy ? 3 : 1;
+          for (let k = 0; k < n; k++)
+            this.fx.add({ x: e.x + (Math.random() - 0.5) * 0.6, y, z: e.z + 0.3, vx: (Math.random() - 0.5) * 3, vz: 2 + Math.random() * 2, vy: 1.5, size: e.heavy ? 0.9 : 0.6, grow: e.heavy ? 2.4 : 1.6, life: 0.35 + Math.random() * 0.2, drag: 3, color: this.c.setHex(b.cliff), to: SMOKE_END, glow: false, carried: true });
+          for (let k = 0; k < (e.heavy ? 5 : 2); k++) {
+            const a = Math.PI / 2 + (Math.random() - 0.5) * 2;
+            const v = 5 + Math.random() * 7;
+            this.fx.add({ x: e.x, y, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 3 + Math.random() * 4, size: 0.1 + Math.random() * 0.12, life: 0.5 + Math.random() * 0.4, color: this.c.setHex(Math.random() < 0.5 ? b.cliff : b.ground[3]), solid: true, gravity: 24, spin: 10 + Math.random() * 10 });
+          }
+          this.fx.sparks(e.x, y + 0.2, e.z, e.heavy ? 4 : 2, SKIM, 10, 0.15, 0.14);
+          if (e.heavy) {
+            this.fx.ring(e.x, y, e.z, 2, 0.16, true, 0xffe0b0);
+            this.trauma = Math.min(1, this.trauma + 0.04);
+          }
+          audio.play('shot_land', { pan: e.x / HALF_W, vol: e.heavy ? 0.4 : 0.18, pitch: (e.heavy ? 0.8 : 1) + Math.random() * 0.2 });
+          break;
+        }
         case 'weakHit':
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 6, 0xffffff, 18, 0.2, 0.22);
           audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.5, pitch: 1.2 });
@@ -770,7 +866,6 @@ export class LevelView {
             this.fx.ring(e.x, FLIGHT_Y, e.z, 7, 0.4, true, 0xffd04a);
             this.flash = Math.max(this.flash, 0.25);
             this.flashColor.set(0xffe08a);
-            this.hitstop = Math.max(this.hitstop, 4);
             audio.play('pickup_part');
           } else {
             audio.play('risk_lost');
@@ -785,19 +880,14 @@ export class LevelView {
           else if (e.kind === 'siphon') this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.3, true, 0x9a6aff);
           break;
         case 'parry': {
-          // the moment: everything stops, a white ring, sparks of the player's colour, a ringing blade
-          this.hitstop = Math.max(this.hitstop, 5 + Math.min(4, e.count));
-          this.flash = Math.max(this.flash, 0.35);
-          this.flashColor.set(0xffffff);
+          // Local rings, sparks and a ringing blade: a partner's view and movement stay steady.
           this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.25, true, 0xffffff);
           this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.4, true, LIVERY[e.id][2]);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 10 + e.count * 4, 0xffffff, 26, 0.3, 0.22);
-          this.shove(0, -1, 0.5);
           this.guards.hit(e.id, e.x, e.z - 2);
           // (the first is a perfect, and says so; more in the same window count on)
           if (!e.first) this.pop(`PARRY +${e.count}`, e.x + 2, e.z - 1, '#ffffff');
           audio.play('parry', { pan: e.x / HALF_W, pitch: 1 + Math.min(4, e.count - 1) * 0.06 });
-          audio.duck(0.3);
           break;
         }
         case 'block':
@@ -810,7 +900,6 @@ export class LevelView {
           if (e.how === 'broke') {
             this.guards.end(e.id, 'broke');
             this.trauma = Math.min(1, this.trauma + 0.3);
-            this.hitstop = Math.max(this.hitstop, 2);
             this.pop('GUARD BROKEN', e.x, e.z - 3, '#c8c0d8');
             audio.play('shield_break', { pan: e.x / HALF_W, pitch: 1.3, vol: 0.6 });
           } else {
@@ -832,7 +921,6 @@ export class LevelView {
           break;
         case 'reeled':
           this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0xffd890);
-          if (e.kill) this.hitstop = Math.max(this.hitstop, 3);
           audio.play('reel', { pan: e.x / HALF_W });
           break;
         case 'eat':
@@ -853,7 +941,6 @@ export class LevelView {
           audio.play('blink', { pan: e.x2 / HALF_W });
           break;
         case 'ram':
-          this.hitstop = Math.max(this.hitstop, 4);
           this.trauma = Math.min(1, this.trauma + 0.35);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z - 1, 14, 0xffd060, 20, 0.3, 0.25);
           this.shove(0, 1, 0.5);
@@ -862,7 +949,15 @@ export class LevelView {
         case 'decoy':
           if (e.kind === 'flare') audio.play('flare', { pan: e.x / HALF_W });
           break;
+        case 'kit':
+          this.kitArt.event(e, lv);
+          break;
         case 'special': {
+          if (this.kitArt.special(e, lv)) {
+            this.trauma = Math.min(1, this.trauma + 0.4);
+            audio.duck(1);
+            break;
+          }
           this.trauma = Math.min(1, this.trauma + 0.6);
           this.flash = e.kind === 'bomb' ? 0.9 : 0.4;
           this.flashColor.set(e.kind === 'emp' ? 0x9ad8ff : e.kind === 'phase' ? 0xc8a0ff : 0xfff0c0);
@@ -870,7 +965,6 @@ export class LevelView {
           if (e.kind === 'bomb') for (let k = 0; k < 8; k++) this.fx.explode((Math.random() - 0.5) * 30, FLIGHT_Y - 2, lv.scroll + (Math.random() - 0.5) * 40, 1.5, 0xffc060);
           audio.play(`special_${e.kind}`);
           audio.duck(1);
-          this.hitstop = Math.max(this.hitstop, 6);
           break;
         }
         case 'specialReady':
@@ -895,7 +989,6 @@ export class LevelView {
           if (e.fired) {
             audio.play('heavy', { pan: e.x / HALF_W, vol: 0.7 });
             this.shove(0, 1, 0.3);
-            this.hitstop = Math.max(this.hitstop, 1);
           } else {
             audio.play('heavy_dry', { pan: e.x / HALF_W });
             this.pop('DRY', e.x, e.z + 2.5, '#8a8098');
@@ -944,15 +1037,13 @@ export class LevelView {
           this.fx.ring(e.x, FLIGHT_Y, e.z, (en?.r ?? 2) * 2.4, 0.3, true, col);
           this.fx.add({ x: e.x, y: FLIGHT_Y + 1.2, z: e.z, size: 5, grow: 1.4, life: 0.1, color: HOT, carried: true });
           this.pop(elite ? 'ARMOUR BROKEN' : 'OPEN', e.x, e.z - 3, elite ? '#ffd04a' : '#e8eef8', elite);
-          this.hitstop = Math.max(this.hitstop, elite ? 5 : 3);
           this.trauma = Math.min(1, this.trauma + (elite ? 0.35 : 0.2));
           audio.play('shield_break', { pan: e.x / HALF_W, pitch: 0.6 });
           audio.play('explode_small', { pan: e.x / HALF_W, pitch: 0.7, vol: 0.6 });
           break;
         }
         case 'bossStagger':
-          // its poise broken: a freeze, a white ring, and a long moment to hit it
-          this.hitstop = Math.max(this.hitstop, 9);
+          // its poise broken: a white ring and a long moment to hit it
           this.trauma = Math.min(1, this.trauma + 0.5);
           this.flash = 0.35;
           this.flashColor.set(0xffe8a0);
@@ -969,7 +1060,6 @@ export class LevelView {
           this.trauma = 0.8;
           this.flash = 0.5;
           this.flashColor.set(0xffffff);
-          this.hitstop = 10;
           audio.play('explode_big');
           audio.part(e.phase);
           if (lv.spec.planet.id === 'glacis') audio.play('engine_wake', { pitch: e.phase >= 2 ? 1.12 : 1 });
@@ -1032,8 +1122,6 @@ export class LevelView {
         case 'clear':
           audio.play('level_clear');
           if (lv.spec.mode === 'boss') {
-            this.slowmo = 0.25;
-            this.slowmoT = 1.6;
             this.flash = 1;
             this.flashColor.set(0xffffff);
             audio.play('explode_boss');
@@ -1043,10 +1131,7 @@ export class LevelView {
           audio.music(null);
           break;
         case 'takedown': {
-          // the dash through something reeling: a freeze, a slash of light, and it's thrown
-          this.hitstop = Math.max(this.hitstop, e.boss ? 12 : 9);
-          this.slowmo = 0.3;
-          this.slowmoT = e.kill ? 0.4 : 0.25;
+          // the dash through something reeling: a slash of light, and it's thrown
           this.trauma = Math.min(1, this.trauma + (e.boss ? 0.6 : 0.45));
           this.flash = Math.max(this.flash, 0.3);
           this.flashColor.set(0xfff4d0);
@@ -1085,7 +1170,6 @@ export class LevelView {
           const t = this.affixT.get(e.affix) ?? -9;
           this.fx.ring(e.x, FLIGHT_Y, e.z, e.affix === 'secondwind' ? 10 : 4, 0.3, true, 0x5ef0c8);
           if (e.affix === 'secondwind') {
-            this.hitstop = Math.max(this.hitstop, 14);
             this.flash = 0.6;
             this.flashColor.set(0x5ef0c8);
             audio.play('heal', { pitch: 0.7 });
@@ -1100,25 +1184,43 @@ export class LevelView {
         case 'hot': {
           const name = e.part ? itemName(e.part) : 'PART';
           if (e.state === 'appear') {
-            this.pop('HOT CRATE', e.x, e.z + 4, HOT_TEXT, true);
+            // the danger and the prize, both said up front
+            const tier = e.part ? tierOf(e.part) : 'epic';
+            this.pop('! VOLATILE !', e.x, e.z + 4, HOT_TEXT, true);
+            this.pop(`${tier.toUpperCase()} PART INSIDE`, e.x, e.z + 7, TIER_COLOR[tier]);
             audio.play('risk_up', { pan: e.x / HALF_W, pitch: 0.8 });
+            audio.play('alarm', { pan: e.x / HALF_W, vol: 0.4 });
           } else if (e.state === 'on') {
-            // taken: the fuse is lit
-            this.hitstop = Math.max(this.hitstop, 5);
+            // taken: it's armed, and the rules are said once
             this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.35, true, HOT_HEX);
             this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 18, HOT_HEX, 14, 0.4, 0.2);
-            this.pop('FLY CLOSE TO KEEP IT BURNING', e.x, e.z, '#ffd0a0');
+            this.pop('DON\'T GET HIT', e.x, e.z, '#ffd0a0', true);
             audio.play('risk_up', { pitch: 0.6 });
+          } else if (e.state === 'bolt') {
+            // a bolt gives: it shoots off the lid with a clank
+            const z = e.z + 5;
+            this.fx.sparks(e.x, FLIGHT_Y + 0.6, z, 14, 0xffd04a, 16, 0.35, 0.2);
+            this.fx.ring(e.x, FLIGHT_Y, z, 3, 0.25, true, 0xffd04a);
+            this.pop(`BOLT ${e.n}/${HOT_BOLTS}`, e.x, z + 2, '#ffd04a');
+            audio.play('hit_armor', { pan: e.x / HALF_W, pitch: 1.2 + (e.n ?? 1) * 0.15 });
+            if (e.n === HOT_BOLTS) this.pop('PRISING IT OPEN', e.x, e.z - 6, '#ffd04a', true);
           } else if (e.state === 'open') {
-            // cracked open: the part, and the Burn all back at once
+            // cracked open: the part
             this.gotPart(e.part, e.x, e.z);
             this.fx.ring(e.x, FLIGHT_Y, e.z, 10, 0.5, true, 0xffffff);
+            // the lid flies off, and the light of what's inside goes up
+            const lit = e.part ? TIER_HEX[tierOf(e.part)] : 0xffffff;
+            this.fx.ring(e.x, FLIGHT_Y, e.z + 5, 14, 0.7, true, lit);
+            this.fx.sparks(e.x, FLIGHT_Y + 1, e.z + 5, 40, lit, 22, 0.6, 0.3);
+            this.shards(e.x, e.z + 5, 10, 0xd85020);
+            this.flash = 0.35;
+            this.flashColor.set(lit);
+            audio.play('door', { pan: e.x / HALF_W });
             this.shards(e.x, e.z, 18, HOT_HEX);
           } else if (e.state === 'blown') {
             this.trauma = 1;
             this.flash = 0.7;
             this.flashColor.set(HOT_HEX);
-            this.hitstop = Math.max(this.hitstop, 10);
             this.fx.explode(e.x, FLIGHT_Y, e.z, 3, HOT_HEX);
             this.pop(`BLOWN: ${name}`, e.x, e.z - 4, HOT_TEXT, true);
             audio.play('explode_big', { pan: e.x / HALF_W });
@@ -1149,6 +1251,14 @@ export class LevelView {
           if (e.kind === 'shatter') this.shattered.add(e.enemy);
           this.reaction(e.kind, e.x, e.z);
           break;
+        case 'freeze':
+        case 'thaw':
+        case 'douse':
+        case 'pin':
+        case 'thud':
+        case 'cash':
+          arsenalEvent(this.arsenalHooks, e);
+          break;
         case 'detonate': {
           // the Catalyst: the dasher's colour through it, then what it carried goes up
           const col = LIVERY[e.owner]?.[2] ?? 0xffffff;
@@ -1158,7 +1268,6 @@ export class LevelView {
           if (e.bits & CRACK) this.shards(e.x, e.z, 10, 0xffe8a0);
           if (e.bits & SHOCK) this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, MARK_HEX.shock, 20, 0.3, 0.22);
           this.pop('DETONATE', e.x, e.z - 3, '#ffffff');
-          this.hitstop = Math.max(this.hitstop, 3);
           this.trauma = Math.min(1, this.trauma + 0.2);
           audio.play('detonate', { pan: e.x / HALF_W });
           break;
@@ -1184,7 +1293,6 @@ export class LevelView {
           this.convoy?.lose(e.id);
           this.warn(e.left ? 'HAULER LOST' : 'CONVOY LOST', e.x, e.z - 4, '#ff6a4a');
           this.trauma = Math.min(1, this.trauma + 0.7);
-          this.hitstop = Math.max(this.hitstop, 8);
           this.flash = Math.max(this.flash, 0.4);
           this.flashColor.set(0xff8a4a);
           this.blast(e.x, FLIGHT_Y, e.z, 4);
@@ -1212,7 +1320,6 @@ export class LevelView {
           if (e.clinging) {
             this.strokes.burst(e.x, e.z, 8, 0x8ad0ff, 5, 0.18, 0.35);
             this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0x8ad0ff);
-            this.hitstop = Math.max(this.hitstop, 3);
             audio.play('block', { pan: e.x / HALF_W, pitch: 1.3 });
           }
           break;
@@ -1246,7 +1353,6 @@ export class LevelView {
         hv?.engineOut(e.k ?? 0);
         this.pop(e.left ? 'ENGINE OUT! IT SLOWS' : 'BOTH ENGINES OUT!', e.x, e.z - 3, '#ffb04a', true);
         this.trauma = Math.min(1, this.trauma + 0.5);
-        this.hitstop = Math.max(this.hitstop, 6);
         this.flash = Math.max(this.flash, 0.25);
         this.flashColor.set(0xffa040);
         audio.play('engine_out', { pan: e.x / HALF_W });
@@ -1279,11 +1385,8 @@ export class LevelView {
         this.punch(1);
         this.strokes.burst(e.x, e.z, 22, 0xffd060, 16, 0.35, 0.6);
         this.trauma = 1;
-        this.hitstop = Math.max(this.hitstop, 12);
         this.flash = Math.max(this.flash, 0.35);
         this.flashColor.set(0xffc060);
-        this.slowmo = 0.25;
-        this.slowmoT = 0.6;
         this.blast(e.x, FLIGHT_Y, e.z, 8);
         this.spoolWarn = null;
         audio.play('runner_down', { pan: e.x / HALF_W });
@@ -1304,14 +1407,12 @@ export class LevelView {
     switch (e.what) {
       case 'loose':
         this.heist?.loose(e.id);
-        this.hitstop = Math.max(this.hitstop, 3);
         audio.play('pod_loose', { pan: e.x / HALF_W });
         break;
       case 'caught':
         this.heist?.caught(e.id, e.x, e.z);
         this.strokes.burst(e.x, e.z, 10, 0xffd060, 6, 0.22, 0.4);
         this.punch(0.25);
-        this.hitstop = Math.max(this.hitstop, 4);
         this.trauma = Math.min(1, this.trauma + 0.15);
         audio.play('pod_catch', { pan: e.x / HALF_W });
         break;
@@ -1337,8 +1438,6 @@ export class LevelView {
     this.multiT = 0.25;
     // kills piling up: the view leans in a touch more with each
     if (this.multi >= 3) this.punch(Math.min(0.4, 0.08 * this.multi));
-    if (r >= 1.4) this.hitstop = Math.max(this.hitstop, 2 + Math.round(r));
-    else if (this.multi >= 3) this.hitstop = Math.max(this.hitstop, 2);
     // a burst of hot shards that cools to embers
     for (let k = 0; k < 6 + r * 4; k++) {
       const a = Math.random() * Math.PI * 2;
@@ -1536,7 +1635,6 @@ export class LevelView {
       this.fx.sparks(x, FLIGHT_Y + 0.5, z, 10, 0xffc070, 18, 0.3, 0.2);
       this.zap(x, z, 2.2, col);
       this.zap(x, z, 3, MARK_HEX.shock);
-      this.hitstop = Math.max(this.hitstop, 3);
       this.flash = Math.max(this.flash, 0.18);
       this.flashColor.setHex(col);
       audio.play('react_overload', { pan: x / HALF_W });
@@ -1553,7 +1651,6 @@ export class LevelView {
       this.blast(x, FLIGHT_Y, z, 3);
       this.trauma = Math.min(1, this.trauma + 0.35);
       this.shove(0, -1, 0.5);
-      this.hitstop = Math.max(this.hitstop, 4);
       audio.play('react_cookoff', { pan: x / HALF_W });
     } else {
       // a crack of white: everything stops, glass flies, it reels
@@ -1562,7 +1659,6 @@ export class LevelView {
       this.fx.ring(x, FLIGHT_Y, z, 3.5, 0.3, true, col);
       this.shards(x, z, 22, col);
       this.fx.sparks(x, FLIGHT_Y + 0.5, z, 12, 0xffffff, 26, 0.25, 0.2);
-      this.hitstop = Math.max(this.hitstop, 6);
       this.flash = Math.max(this.flash, 0.3);
       this.flashColor.setHex(col);
       this.trauma = Math.min(1, this.trauma + 0.3);
@@ -1617,7 +1713,7 @@ export class LevelView {
 
   /**
    * An impact frame: for a blink the picture flips to paper and ink, the way a blow lands in a
-   * painting. Only for the moments that matter (a parry, a takedown, your hull hit), and never
+   * painting. Only for the moments that matter (a takedown, your hull hit), and never
    * two close together.
    */
   private impact(color: THREE.ColorRepresentation = 0xffffff, time = 0.05) {
@@ -1632,7 +1728,7 @@ export class LevelView {
     this.punchV -= amount * 2.2;
   }
 
-  /** Something struck is shaken in place while the freeze holds it. */
+  /** Something struck is shaken locally while the fight keeps moving. */
   private shiver(id: number, amount: number) {
     const ev = this.enemies.get(id);
     if (ev) ev.shiver = Math.max(ev.shiver ?? 0, amount);
@@ -1640,7 +1736,7 @@ export class LevelView {
 
   /**
    * How a blow feels, on top of what each event already does: strike lines, the struck thing
-   * shuddering in the freeze, the view punching in, an impact frame for the few moments that
+   * shuddering locally, the view punching in, an impact frame for the few moments that
    * should stop your heart. No words: it has to look like what happened.
    */
   private feel(e: LevelEvent) {
@@ -1667,6 +1763,17 @@ export class LevelView {
         }
         break;
       }
+      case 'reflect':
+        // it threw your shot back: it shudders, a star where it turned, the view punches
+        this.shiver(e.enemy, 0.6);
+        this.strokes.star(e.x, e.z, 2.6, 0xffffff, 0.18);
+        this.strokes.burst(e.x, e.z, 4, 0xffffff, 3, 0.12, 0.25, Math.atan2(Math.cos(e.a), Math.sin(e.a)));
+        this.punch(0.1);
+        break;
+      case 'shotLand':
+        // a heavy round into the land throws a little ink
+        if (e.heavy && !e.bounce) this.strokes.burst(e.x, e.z, 3, 0xffe0b0, 2.4, 0.12, 0.25, Math.PI / 2);
+        break;
       case 'guard': {
         // a shot off a shield: two short glints skating off its face
         const en = lv.enemies.find((o) => o.id === e.enemy);
@@ -1676,7 +1783,6 @@ export class LevelView {
       }
       case 'crack':
         // a shield broken: it stops, shudders, and the cells go in a ring of light
-        this.hitstop = Math.max(this.hitstop, 4);
         this.shiver(e.enemy, 1.2);
         this.punch(0.25);
         this.strokes.burst(e.x, e.z, 12, 0xd8f0ff, 7, 0.2, 0.4);
@@ -1760,16 +1866,13 @@ export class LevelView {
         this.punch(1);
         break;
       case 'parry':
-        // the clang: everything stops on a white frame, ink flung out round the ship
-        this.impact(0xffffff, 0.05);
-        this.punch(0.6);
-        this.aberr = Math.max(this.aberr, 0.3);
+        // Keep the clang around this ship, without a full-screen impact or camera punch.
         this.strokes.burst(e.x, e.z, 14 + Math.min(8, e.count * 2), 0xffffff, 9, 0.22, 0.4);
         this.strokes.star(e.x, e.z - 1, 4, 0xffffff, 0.25);
         break;
       case 'perfect':
         // through it by a hair: the view leans in on the ship, lines of its colour streaming off
-        this.punch(0.4);
+        if (e.how !== 'parry') this.punch(0.4);
         this.strokes.burst(e.x, e.z, 10, LIVERY[e.id][2], 7, 0.3, 0.35);
         this.strokes.star(e.x, e.z, 3, 0xffffff, 0.3);
         break;
@@ -1895,19 +1998,17 @@ export class LevelView {
     this.updateClouds(dt);
     this.near.update(dt, this.halfW, lv.top, lv.bottom, lv.players);
     this.life.update(dt, lv, this.halfW);
-    // a freeze holds the light too: sparks, slashes and bolts hang where they were struck
-    const fdt = this.hitstop > 0 ? dt * 0.06 : dt;
     for (let i = this.bolts.length - 1; i >= 0; i--) {
       const b = this.bolts[i];
-      b.t += fdt;
+      b.t += dt;
       b.mesh.position.z += scrollDz;
       if (b.t > 0.09) {
         this.scene.remove(b.mesh);
         this.bolts.splice(i, 1);
       }
     }
-    this.fx.update(fdt, this.eye, scrollDz);
-    this.strokes.update(fdt, scrollDz);
+    this.fx.update(dt, this.eye, scrollDz);
+    this.strokes.update(dt, scrollDz);
     for (const p of this.pops) {
       p.t += dt;
       p.z += scrollDz - dt * 3;
@@ -1934,10 +2035,6 @@ export class LevelView {
     // the punch-in: a stiff spring, so it snaps in and settles back
     this.punchV += (-this.punchZ * 260 - this.punchV * 24) * dt;
     this.punchZ = clamp(this.punchZ + this.punchV * dt, -0.12, 0.05);
-    if (this.slowmoT > 0) {
-      this.slowmoT -= dt / Math.max(this.slowmo, 0.1);
-      if (this.slowmoT <= 0) this.slowmo = 1;
-    }
     this.placeCamera(dt);
     audio.intensity(clamp(0.35 + lv.enemies.length * 0.03 + lv.bullets.length * 0.004 + (lv.state === 'boss' ? 0.4 : 0), 0, 1));
     // the lowest hull still flying, under three tenths of full: the mix closes in
@@ -1994,6 +2091,8 @@ export class LevelView {
     const sx = (Math.sin(t * 61) + Math.sin(t * 37) * 0.5) * shake * 0.9;
     const sz = (Math.cos(t * 53) + Math.sin(t * 29) * 0.5) * shake * 0.9;
     const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT));
+    // (zoomed in to look closely: the view follows the first ship, looking ahead of it)
+    if (DEV_ZOOM < 1 && lv.players[0]) target.set(lv.players[0].x + sx, FLIGHT_Y, lv.players[0].z - 22 * DEV_ZOOM + sz);
     this.camera.position.set(target.x, target.y + Math.cos(TILT) * 120, target.z + Math.sin(TILT) * 120);
     this.camera.lookAt(target);
     this.camera.updateMatrixWorld();
@@ -2049,11 +2148,68 @@ export class LevelView {
     u.uImpact.value = this.impactT > 0 ? 1 : 0;
     u.uImpactColor.value.copy(this.impactColor);
     u.uAberr.value = this.aberr * this.aberr;
-    // time slowed: the world drains to grey round what's bright
-    u.uDrain.value = this.slowmo < 1 ? clamp((1 - this.slowmo) * 0.9, 0, 0.75) : 0;
     u.uTime.value = this.time;
     const hot = (bi: Biome) => (bi.waterGlow && bi.waterGlow >= 1 ? 0.6 : 0);
     u.uHeat.value = lerp(hot(a), hot(b), bl.t);
+  }
+
+  /**
+   * A volatile crate in tow: a hazard-orange safe hanging under the ship on a short cable. Its bolts
+   * pop off one by one, the lid creeps up after the last, and the light of what's inside leaks out
+   * of the seam, brighter as it goes.
+   */
+  private updateSafe(p: Player, i: number) {
+    let sf = this.safes[i];
+    if (!p.crate || p.down) {
+      if (sf) {
+        this.scene.remove(sf.root);
+        this.safes[i] = undefined;
+      }
+      return;
+    }
+    const tier = tierOf(p.crate);
+    if (!sf) {
+      const root = new THREE.Group();
+      const box = new THREE.Group();
+      box.add(part(GEO.box, toon(HOT_HEX, { glow: 0.3 }), [0, 0, 0], [1.4, 0.9, 1.1]));
+      box.add(part(GEO.box, toon(0x1a1014), [-0.45, 0, 0], [0.18, 0.95, 1.15]), part(GEO.box, toon(0x1a1014), [0.45, 0, 0], [0.18, 0.95, 1.15]));
+      // the light inside: a line of it at the seam, the whole of it once the lid lifts
+      const glow = part(GEO.box, flat(new THREE.Color(TIER_HEX[tier]).lerp(new THREE.Color(0xffffff), 0.35)), [0, 0.45, 0], [1.2, 0.04, 0.9]);
+      const seam = part(GEO.box, flat(TIER_HEX[tier]), [0, 0.48, 0.57], [1.3, 0.05, 0.05]);
+      box.add(glow, seam);
+      // the lid, hinged at its far edge so it tips back towards the camera and shows what's
+      // inside, its underside lit by it
+      const lid = new THREE.Group();
+      lid.position.set(0, 0.47, -0.55);
+      lid.add(part(GEO.box, toon(0xd85020), [0, 0.07, 0.55], [1.45, 0.14, 1.15]), part(GEO.box, flat(TIER_HEX[tier]), [0, -0.01, 0.55], [1.2, 0.02, 0.95]));
+      box.add(lid);
+      // the bolts along its near edge
+      const bolts: THREE.Mesh[] = [];
+      for (let k = 0; k < HOT_BOLTS; k++) {
+        const b = part(GEO.box, toon(0xffd04a, { glow: 0.5 }), [(k - (HOT_BOLTS - 1) / 2) * 0.42, 0.18, 0.95], [0.3, 0.2, 0.3]);
+        bolts.push(b);
+        lid.add(b);
+      }
+      // the cable up to the ship
+      root.add(part(GEO.box, toon(0x2a2230), [0, 0.3, -1.3], [0.08, 0.08, 2.4]), box);
+      root.scale.setScalar(1.9);
+      this.scene.add(root);
+      sf = this.safes[i] = { root, box, lid, bolts, glow, seam };
+    }
+    const c = clamp(p.crack, 0, 1);
+    const last = HOT_BOLTS / (HOT_BOLTS + 1);
+    sf.root.position.set(p.x, FLIGHT_Y, p.z + 5);
+    // it swings behind the ship
+    sf.box.position.y = Math.sin(this.time * 2.3 + i) * 0.1;
+    sf.box.rotation.z = clamp(p.vx / 40, -0.4, 0.4);
+    sf.bolts.forEach((b, n) => (b.visible = c < (n + 1) / (HOT_BOLTS + 1)));
+    // the lid: it gives a little with each bolt, then once the last is gone it's prised wide
+    const open = c < last ? 0 : (c - last) / (1 - last);
+    const given = sf.bolts.filter((b) => !b.visible).length;
+    sf.lid.rotation.x = -(given * 0.07 + open * 1.1 + (open > 0 ? Math.sin(this.time * 30) * 0.04 : 0));
+    sf.seam.visible = c > 0.05 && (open > 0 || Math.sin(this.time * (3 + c * 10)) > -0.3);
+    // what's inside spills out of the seam
+    if (Math.random() < 0.05 + c * 0.25 + open * 0.5) this.fx.sparks(p.x + (Math.random() - 0.5) * 2.4, FLIGHT_Y + 0.4, p.z + 4, 1, TIER_HEX[tier], 3 + open * 6, 0.35, 0.2);
   }
 
   private updateShips(dt: number) {
@@ -2091,6 +2247,7 @@ export class LevelView {
         hb.position.set(p.x, FLIGHT_Y + 1.2, fromFlight(p.z, FLIGHT_Y + 1.2));
         hb.quaternion.copy(this.eye.quaternion);
       }
+      this.updateSafe(p, i);
       ship.shield.visible = p.shield > 0 && !p.down;
       ship.flash(p.inv > 1.2 ? 1 : p.phase > 0 ? 0.5 : 0);
       if (p.phase > 0) r.visible = Math.floor(this.time * 20) % 3 !== 0;
@@ -2130,14 +2287,16 @@ export class LevelView {
       // beams and flame sounds
       const beaming = p.beam.some((b) => b > 0);
       audio.loop('beam', `p${i}`, beaming, 0.7);
-      audio.loop('flame', `p${i}`, p.firing && p.stats.guns.some((g) => g.spec.shot === 'flame') && !p.down, 0.6);
-      // a flame gun throws fire
+      audio.loop('flame', `p${i}`, p.firing && p.stats.guns.some((g) => g.spec.shot === 'flame' && g.part.id !== 'frost') && !p.down, 0.6);
+      audio.loop('frost', `p${i}`, p.firing && p.stats.guns.some((g) => g.part.id === 'frost') && !p.down, 0.7);
+      // a flame gun throws fire (a frost sprayer, cold mist)
       if (p.firing && !p.down)
         p.stats.guns.forEach((g, k) => {
           if (g.spec.shot !== 'flame' || p.jam[k] > 0) return;
+          if (g.part.id === 'frost') return this.looks.spray(p, g);
           for (let n = 0; n < 2; n++) {
             const a = g.dir + (Math.random() - 0.5) * 0.4;
-            this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.4, z: p.z + g.z, vx: Math.sin(a) * 30, vz: -Math.cos(a) * 30, size: 0.4, grow: 3, life: 0.26, drag: 3, color: new THREE.Color(0xfff0a0), to: new THREE.Color(0xd0301a), carried: true });
+            this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.4, z: p.z + g.z, vx: Math.sin(a) * 30, vz: -Math.cos(a) * 30, size: 0.4, grow: 3, life: 0.26, drag: 3, color: new THREE.Color(0xfff0a0), to: new THREE.Color(g.spec.tint ?? 0xd0301a), carried: true });
           }
         });
     });
@@ -2146,6 +2305,8 @@ export class LevelView {
   private updateEnemies(dt: number) {
     const lv = this.lv;
     const alive = new Set<number>();
+    // the loudest truck about sets the motor's note
+    let rpm = -1;
     for (const e of lv.enemies) {
       if (e.t < 0) continue;
       alive.add(e.id);
@@ -2155,15 +2316,16 @@ export class LevelView {
         this.enemies.set(e.id, v);
       }
       if (v.fold) this.fold(e, v.fold, dt);
-      v.inst?.update(dt);
+      // frozen solid, it doesn't so much as twitch
+      if (!(e.ax && e.ax.frozen > 0) && !v.car) v.inst?.update(dt);
       const groundZ = e.ground ? fromFlight(e.z, e.y) : e.z;
-      const bob = e.ground ? 0 : Math.sin(this.time * 3 + e.id) * 0.15;
+      const bob = e.ground || (e.ax && e.ax.frozen > 0) ? 0 : Math.sin(this.time * 3 + e.id) * 0.15;
       v.punch = Math.max(0, v.punch - dt * 7);
       v.knock = Math.max(0, v.knock - dt * 6);
       v.obj.position.set(e.x, e.y + bob, groundZ - v.knock * 1.3);
       if (v.shiver) {
-        // held in the freeze, it shudders where it was struck; once time runs again it settles
-        if (this.hitstop > 0) v.obj.position.x += (Math.floor(this.time * 60) % 2 ? 1 : -1) * v.shiver * 0.35;
+        // A local shudder settles while the fight keeps moving.
+        v.obj.position.x += (Math.floor(this.time * 60) % 2 ? 1 : -1) * v.shiver * 0.35;
         v.shiver = Math.max(0, v.shiver - dt * 4);
       }
       // reeling, open to a takedown: a glint keeps catching on it
@@ -2192,17 +2354,26 @@ export class LevelView {
         glow = Math.max(glow, k > 0.8 ? (Math.floor(this.time * 24) % 2 ? 0.9 : 0.3) : k * 0.5);
       } else if (e.taken > 1.05) glow = Math.max(glow, 0.25 + 0.2 * Math.sin(this.time * 14));
       v.inst?.flash(glow);
+      if (e.ax) this.looks.body(v.inst, v.obj, e, dt, glow > 0);
       if (e.state === 'dodge') v.obj.rotation.z = e.stateT * 18;
-      if (e.state === 'windup' && e.stateDur > 0) {
+      if (v.car) {
+        // (it squats on its springs for the windup instead of shrinking)
+        if (!(e.ax && e.ax.frozen > 0)) v.car.update(e, v.obj, groundZ, base, lv.terrain, this.fx, dt);
+        if (Math.abs(e.x) < HALF_W + 4 && Math.abs(e.z - lv.scroll) < HALF_H + 4) rpm = Math.max(rpm, v.car.rpm);
+      } else if (e.state === 'windup' && e.stateDur > 0) {
         // a wind-up crouch: it draws back before it goes
         const k = clamp(e.stateT / e.stateDur, 0, 1);
         v.obj.scale.multiplyScalar(1 - 0.08 * k);
       }
+      // a burrower lays itself out along its arch out of the ground
+      if (v.worm) v.obj.visible = v.worm.update(e, v.obj, base, v.punch, lv.nearest(e.x, e.z), this.fx, this.fx.ground, (k) => (this.trauma = Math.min(1, this.trauma + k)), dt);
       if (e.shielded && e.boss) v.inst?.flash(0.25 + 0.2 * Math.sin(this.time * 20));
       if (v.ring) {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      if (v.held !== undefined) this.strongbox(e, v);
+      if (v.tow) this.towLine(e, v);
       this.trail(e, groundZ);
       // marked: on fire, crawling with lightning, glinting through its cracks
       const mk = e.mk;
@@ -2215,19 +2386,58 @@ export class LevelView {
       if (mk.shock > 0 && Math.random() < 0.12) this.zap(e.x, e.z, e.r * 0.9, MARK_HEX.shock);
       if (mk.crack > 0 && Math.random() < 0.18)
         this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r * 1.4, y: lift + 0.4, z: groundZ + (Math.random() - 0.5) * e.r, size: 0.35, grow: 0.2, life: 0.12, color: CRACK_GLINT, carried: !e.ground });
+      if (e.ax) arsenalLook(this.fx, e, lift, groundZ);
       // the hurt crackle with sparks, and the badly hurt smoke
       if (e.hp < e.max * 0.6 && Math.random() < (e.boss ? 0.3 : 0.06)) this.fx.sparks(e.x + (Math.random() - 0.5) * e.r, e.y + 0.6, groundZ, 2, 0xffd890, 8, 0.2, 0.14, !e.ground);
       // smoke from the badly hurt
       if (e.hp < e.max * 0.35 && Math.random() < (e.boss ? 0.5 : 0.15))
         this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r, y: e.y + 0.5, z: groundZ, vy: 2, vz: 3, size: 0.6, grow: 2, life: 0.8, color: new THREE.Color(0x3a3030), carried: !e.ground });
     }
+    audio.loop('truck', 'foes', rpm >= 0, rpm);
     for (const [id, v] of this.enemies)
       if (!alive.has(id)) {
+        if (v.worm && v.worm.u > 0.2) v.worm.burst(this.fx, v.skin[2]);
         this.scene.remove(v.obj);
         if (v.ring) this.scene.remove(v.ring);
+        if (v.tow) this.scene.remove(v.tow);
         v.inst?.dispose();
         this.enemies.delete(id);
       }
+  }
+
+  /** A strongbox: a line snapping as each of its tugs goes down, and a tumble once it's cut loose. */
+  private strongbox(e: Enemy, v: EnemyView) {
+    const held = this.lv.enemies.filter((o) => o.arch === 'tug' && o.d.host === e.id && !o.dead).length;
+    if (held < v.held!) {
+      // a line snaps: a crack of light where it was hooked on, and the box jolts
+      this.fx.sparks(e.x, e.y + 0.8, e.z, 12, e.skin.colors[2], 16, 0.3, 0.2);
+      this.strokes.burst(e.x, e.z, 7, e.skin.colors[2], 4.5, 0.18, 0.3);
+      v.punch = 1;
+      audio.play('hook_snap', { pan: e.x / HALF_W });
+      if (!held) this.pop('IT DROPS!', e.x, e.z - 3, '#8af0e0');
+    }
+    v.held = held;
+    if (e.d.fall !== undefined) {
+      v.loose = true;
+      v.obj.rotation.z = e.d.fall * 5;
+      v.obj.rotation.x = e.d.fall * 2;
+    }
+  }
+
+  /** A tug's tow line, from it to its strongbox (gone when the box is). */
+  private towLine(e: Enemy, v: EnemyView) {
+    const tow = v.tow!;
+    const bv = e.d.host !== undefined ? this.enemies.get(e.d.host) : undefined;
+    tow.visible = !!bv && !bv.loose && this.lv.enemies.some((o) => o.id === e.d.host && !o.dead);
+    if (!tow.visible || !bv) return;
+    const a = v.obj.position;
+    TOW_D.subVectors(bv.obj.position, a);
+    const len = TOW_D.length();
+    tow.position.copy(a).addScaledVector(TOW_D, 0.5);
+    tow.quaternion.setFromUnitVectors(Y, TOW_D.normalize());
+    // it hums: a flicker down its length
+    const w = 1 + 0.35 * Math.sin(this.time * 31 + e.id);
+    tow.scale.set(w, len, w);
   }
 
   /**
@@ -2235,11 +2445,8 @@ export class LevelView {
    * drawing her breath, the air streaming in to her maw.
    */
   private trail(e: Enemy, groundZ: number) {
-    const sp = Math.abs(e.vx) + Math.abs(e.vz);
-    if (e.arch === 'technical' && sp > 2 && Math.random() < 0.3) {
-      const back = e.heading + Math.PI;
-      this.fx.add({ x: e.x + Math.sin(back) * 1.6 + (Math.random() - 0.5), y: e.y + 0.3, z: groundZ + Math.cos(back) * 1.6, vx: Math.sin(back) * 3 + (Math.random() - 0.5) * 2, vy: 1.2, vz: Math.cos(back) * 3, size: 0.5, grow: 1.8, life: 0.55 + Math.random() * 0.3, color: DUST, to: DUST_END, glow: false });
-    } else if (e.arch === 'gunboat' && Math.random() < 0.5) {
+    // (a truck's dust is its rig's)
+    if (e.arch === 'gunboat' && Math.random() < 0.5) {
       const back = e.heading + Math.PI;
       for (const sd of [-1, 1]) {
         const a = back + sd * 0.5;
@@ -2339,6 +2546,12 @@ export class LevelView {
     outlined(obj);
     xray(obj, new THREE.Color(e.skin.colors[0]).lerp(FOE_XRAY, 0.5).getHex(), 0.55);
     this.scene.add(obj);
+    let tow: THREE.Mesh | undefined;
+    if (e.arch === 'tug') {
+      tow = part(TOW, flat(e.skin.colors[2]), [0, 0, 0], 1);
+      tow.visible = false;
+      this.scene.add(tow);
+    }
     let ring: THREE.Mesh | null = null;
     if (e.elite) {
       ring = part(new THREE.RingGeometry(e.r * 1.4, e.r * 1.6, 6), flat(0xffd04a), [0, 0, 0], 1, [-Math.PI / 2, 0, 0]);
@@ -2355,7 +2568,9 @@ export class LevelView {
       fa.setEffectiveWeight(0);
       fold = { pose: fa, idle: [...inst.actions].find(([n]) => n.endsWith('_idle'))?.[1] ?? null, k: 0 };
     }
-    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold };
+    const car = e.ground && inst ? (CarRig.of(obj, head) ?? undefined) : undefined;
+    const worm = e.arch === 'burrower' && inst ? (WormRig.of(obj) ?? undefined) : undefined;
+    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold, car, worm, tow, held: e.arch === 'vault' ? 2 : undefined };
   }
 
   /** It folds to dive (fast) and opens as it climbs away; its idle spins up through the windup and runs fast out of the dive. */
@@ -2478,8 +2693,11 @@ export class LevelView {
     const ss = this.lv.shots;
     let n = 0;
     this.shotArt.update(this.time, ss, this.eye.quaternion, LIVERY.map((l) => l[2]));
+    this.looks.update(this.time, this.lv, this.eye.quaternion);
+    this.kitArt.update(this.time, this.lv, this.eye.quaternion, LIVERY.map((l) => l[2]));
     for (const s of ss) {
       if (n >= 1500) break;
+      if (GunLooks.owns(s)) continue;
       if (s.kind === 'missile') {
         // a thin wisp of smoke, laid evenly along the way it came
         this.wake(s, s.x, s.z, 0.3, (x, z) =>
@@ -2594,12 +2812,13 @@ export class LevelView {
           inst = library.clone('pickup_part');
           obj = inst?.obj ?? part(GEO.box, toon(0x5a8a6a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]);
         } else if (k.kind === 'hot') {
-          // a faction strongbox: the crate, banded, a warning light on top
+          // a volatile strongbox: hazard orange, black bands, a warning light on top, and a red ring
+          // pulsing round it on the ground
           obj = new THREE.Group();
-          inst = library.clone('pickup_part');
-          obj.add(inst?.obj ?? part(GEO.box, toon(0x6a4a3a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]));
-          obj.add(part(GEO.box, toon(0x2a1e24), [0, 0, 0], [1.25, 0.18, 0.95]));
-          obj.add(part(GEO.oct, flat(HOT_HEX), [0, 0.65, 0], 0.32));
+          obj.add(part(GEO.box, toon(HOT_HEX, { glow: 0.4 }), [0, 0, 0], [1.4, 1, 1]));
+          obj.add(part(GEO.box, toon(0x1a1014), [0, 0, 0], [1.5, 0.2, 1.1]));
+          obj.add(part(GEO.oct, flat(0xff2a2a), [0, 0.8, 0], 0.38));
+          obj.add(part(GEO.box, toon(0x1a1014), [-0.45, 0, 0], [0.18, 1.1, 1.1]), part(GEO.box, toon(0x1a1014), [0.45, 0, 0], [0.18, 1.1, 1.1]));
         } else if (k.kind === 'repair') {
           obj = new THREE.Group();
           obj.add(part(GEO.box, flat(0x8affb0), [0, 0, 0], [1, 0.3, 0.35]), part(GEO.box, flat(0x8affb0), [0, 0, 0], [0.35, 0.3, 1]));
@@ -2623,7 +2842,10 @@ export class LevelView {
       } else {
         v.obj.rotation.y += dt * (k.kind === 'part' || k.kind === 'hot' ? 1.5 : 5);
         // the strongbox's light blinks: it's live
-        if (k.kind === 'hot') v.obj.children[2].visible = Math.floor(this.time * 5) % 2 === 0;
+        if (k.kind === 'hot') {
+          v.obj.children[2].visible = Math.floor(this.time * 5) % 2 === 0;
+          if (k.t % 0.7 < dt) this.fx.ring(k.x, FLIGHT_Y, k.z, 7, 0.5, false, 0xff2a2a);
+        }
         if (k.kind === 'scrap') {
           // it pops out of the wreck, glints as it drifts, and streaks when the magnet has it
           const big = k.value > 1;
@@ -2637,7 +2859,7 @@ export class LevelView {
         if (k.kind === 'part' || k.kind === 'hot') {
           const tier = k.part ? tierOf(k.part) : 'common';
           const col = k.kind === 'hot' && Math.random() < 0.5 ? HOT_HEX : tier === 'common' ? 0x8affe0 : TIER_HEX[tier];
-          v.obj.scale.setScalar(1 + Math.sin(this.time * 6) * 0.08);
+          v.obj.scale.setScalar((k.kind === 'hot' ? 2 : 1) * (1 + Math.sin(this.time * 6) * 0.08));
           if (Math.random() < (tier === 'legendary' ? 0.6 : tier === 'epic' ? 0.35 : 0.15)) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, col, tier === 'legendary' ? 7 : 4, 0.4, 0.2);
           if (v.beacon) {
             // the beacon: a shaft of its tier's light standing on it, a ring turning at its foot
@@ -2687,8 +2909,6 @@ export class LevelView {
       this.fx.ring(x, FLIGHT_Y, z, 9, 0.45, true, 0xffb03a);
       this.fx.sparks(x, FLIGHT_Y + 0.6, z, 30, 0xffd04a, 22, 0.5, 0.25);
       this.flash = 0.6;
-      this.slowmo = 0.3;
-      this.slowmoT = 0.4;
       audio.play('loot_legendary');
     } else {
       this.pop(tier === 'common' ? name : `${tier.toUpperCase()} ${name}`, x, z, tier === 'common' ? '#8affe0' : TIER_COLOR[tier], tier === 'epic');
@@ -2802,6 +3022,7 @@ export class LevelView {
     audio.loop('flame', 'p1', false);
     audio.loop('engine', 'p1', false);
     audio.loop('wind', 'all', false);
+    audio.loop('truck', 'foes', false);
     audio.danger(0);
   }
 }
@@ -2809,8 +3030,6 @@ export class LevelView {
 const Y = new THREE.Vector3(0, 1, 0);
 /** A beam: a flat strip from the gun (z 0.5) up to where it ends (z -0.5), across x. */
 const BEAM_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-const DUST = new THREE.Color(0xc8a878);
-const DUST_END = new THREE.Color(0x8a7a6a);
 const FOAM = new THREE.Color(0xf0f8ff);
 const FOAM_END = new THREE.Color(0x9ac8d8);
 const BREATH = new THREE.Color(0xd8f0ff);

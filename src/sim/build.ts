@@ -89,6 +89,8 @@ export interface Stats {
   mod: Required<DashMod> & { refill: boolean };
   /** Reflector Plates: shots each bullet the shield stops is thrown back as. */
   mirror: number;
+  /** A skin over the hull (Ablative or Static Skin). */
+  skin: 'ablative' | 'static' | null;
   /** Every mark the ship can leave (its guns, and what else it has that marks: bits). */
   marks: number;
   /** Legendary traits off the guns: THUNDEROUS dashes (strength), a VENGEFUL hull, a RAVENOUS special. */
@@ -210,6 +212,7 @@ export function stats(b: Build): Stats {
   // (the frame's own perk counts as a dash mod: the Hammerhead's ram, the Wasp's refill)
   const mod = { ram: f.ram ?? 0, blink: 0, mines: 0, ghost: 0, detonate: 0, strike: 0, refill: !!f.refill };
   let mirror = 0;
+  let skin: Stats['skin'] = null;
   let thunder = 0;
   let vengeful = false;
   let ravenous = false;
@@ -248,6 +251,7 @@ export function stats(b: Build): Stats {
       mod.strike = Math.max(mod.strike, (def.mod.strike ?? 0) * str);
     }
     if (def.passive?.mirror && str > 0) mirror += Math.round(def.passive.mirror * str);
+    if (def.passive?.skin && str > 0 && !skin) skin = def.passive.skin;
   }
   // load: what the parts weigh against what the frame and its engines can carry
   let load = 0;
@@ -288,6 +292,7 @@ export function stats(b: Build): Stats {
         // Autoloader: only heavies have rounds to feed (its rate is their reload)
         if (d.boost.rounds && spec.heavy) spec.heavy += Math.round(d.boost.rounds * Math.max(str, 1));
         else if (d.boost.rounds) spec.rate /= 1 + (d.boost.rate ?? 0) * str;
+        if (d.boost.chill) spec.chill = (spec.chill ?? 0) + d.boost.chill * str;
       }
     }
     const heavy = spec.heavy ?? 0;
@@ -333,6 +338,7 @@ export function stats(b: Build): Stats {
     auxStr,
     mod,
     mirror,
+    skin,
     marks,
     thunder,
     vengeful,

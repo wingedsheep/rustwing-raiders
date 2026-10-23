@@ -5,11 +5,12 @@ import { flat, GEO, part, toon } from '../render/toon';
 import { weather } from '../render/alive';
 import type { PixelRenderer } from '../render/pixel';
 import { Fx } from './fx';
+import { BoardJuice } from './board-juice';
 import { Rig, POSE, type Pose } from './rig';
 import { LIVERY } from './ship-model';
 import { audio, type Sfx } from '../audio';
 import { Cell, type Prop, type RoomKind } from '../sim/deck';
-import { HERO, WORK, type Boarding, type BoardEvent, type Foe, type Hero } from '../sim/boarding';
+import { FOES, GATE, HERO, SIGHT_CONE, VENT, WORK, type Boarding, type BoardEvent, type Foe, type FoeKind, type Hero } from '../sim/boarding';
 import { clamp, damp, lerp } from '../util';
 
 /** The camera leans back this far from straight down (a little more than in flight: walls have faces). */
@@ -94,6 +95,23 @@ interface Casing {
 }
 
 const KELTER_SKIN: Skin = [0x5a5a62, 0x8a2a2a, 0xff4a3a];
+/** The families' own colours (docs/factions): a lattice ship is white ceramic and cyan, a Hive ship violet and acid. */
+const FAMILY_SKIN: Record<'lattice' | 'bloom' | 'wild', Skin> = {
+  lattice: [0xe8ecf0, 0x2a3448, 0x4ae8ff],
+  bloom: [0x6a3a8a, 0xd8c0ff, 0xb0ff4a],
+  wild: [0x5a7a3a, 0xd8ccb0, 0xff6aa8],
+};
+/** A family's floor leans this way. */
+const FAMILY_FLOOR: Record<string, number> = { lattice: 0xb8c8e0, bloom: 0x5a3a70 };
+/** Rays in a crewman's cone of sight. */
+const CONE_RAYS = 22;
+const CONES = 26;
+
+/** Leans skin `a` towards `b` by k. */
+function mixSkin(a: Skin, b: Skin, k: number): Skin {
+  const c = new THREE.Color();
+  return a.map((x, i) => c.setHex(x).lerp(new THREE.Color(b[i]), k).getHex()) as Skin;
+}
 
 export class BoardingView {
   readonly scene = new THREE.Scene();
@@ -130,13 +148,26 @@ export class BoardingView {
   private cables: THREE.Mesh[] = [];
   private rings: THREE.Mesh[] = [];
   readonly pops: Pop[] = [];
-  /** The skin the freighter's crew and fittings wear (its owners' colours). */
+  /** The skin the ship's crew and fittings wear (its owners' colours). */
   readonly skin: Skin;
+  /** The tells drawn on the deck: cones of sight, arcs about to swing, where things will land. */
+  private cones: THREE.Mesh[] = [];
+  private sectors: THREE.Mesh[] = [];
+  private marks: { fill: THREE.Mesh; rim: THREE.Mesh }[] = [];
+  private beams: THREE.Mesh[] = [];
+  private tethers: THREE.Mesh[] = [];
+  private walls = new Map<number, THREE.Mesh>();
+  private sacMeshes: THREE.Mesh[] = [];
+  private puffs: THREE.Mesh[] = [];
+  private gateFields: { field: THREE.Mesh; lines: THREE.Mesh[] }[] = [];
+  private heartObj: THREE.Object3D | null = null;
+  private heartGlow: THREE.Object3D | undefined;
+  private cageDoors: (THREE.Object3D | undefined)[] = [];
+  private torch: THREE.Mesh[] = [];
+  private halos = new Map<number, THREE.Mesh>();
+  private dark: boolean;
   time = 0;
-  /** Frames the sim holds still for (a blow landing), and how slow time runs (a perfect, a takedown). */
-  hitstop = 0;
-  slowmo = 1;
-  private slowmoT = 0;
+  /** Shared camera shake; combat feedback never changes simulation speed. */
   trauma = 0;
   private kick = new THREE.Vector2();
   private flash = 0;
@@ -165,6 +196,8 @@ export class BoardingView {
   private e = new THREE.Euler();
   private savedCloud = 0;
   private wasWork: number[] = [];
+  /** Arms, fire, steam, seals, the rooter, bodies bowling: the kinetic layer (view/board-juice.ts). */
+  private juice: BoardJuice;
 
   constructor(
     readonly b: Boarding,
@@ -173,7 +206,8 @@ export class BoardingView {
     /** Your ship's frame (the one clamped on outside). */
     private frame = 'kestrel',
   ) {
-    this.skin = skin;
+    this.skin = b.family === 'scrap' ? skin : mixSkin(FAMILY_SKIN[b.family], skin, 0.12);
+    this.dark = b.condition === 'dark';
     const scene = this.scene;
     scene.background = new THREE.Color(0x06050b);
     scene.add(this.hemi, this.sun, this.sun.target, this.fx.group);
@@ -277,6 +311,29 @@ export class BoardingView {
       this.rings.push(ring);
       scene.add(ring);
     }
+    this.buildTells();
+    this.juice = new BoardJuice(b, {
+      scene: this.scene,
+      overlay: this.overlay,
+      fx: this.fx,
+      skin: this.skin,
+      play: (name, x, vol, pitch) => this.play(name, x, vol, pitch),
+      shake: (k) => (this.trauma = Math.min(1, this.trauma + k)),
+      kickCam: (a, k) => {
+        this.kick.x -= Math.cos(a) * k;
+        this.kick.y -= Math.sin(a) * k;
+      },
+      screenFlash: (color, k) => {
+        this.flashColor.setHex(color);
+        this.flash = Math.max(this.flash, k);
+      },
+      muzzle: (x, y, z, a, color, k) => this.muzzle(x, y, z, a, color, k),
+      casing: (x, z, a, big) => this.casing(x, z, a, big),
+      decal: (x, z, size) => this.decal(x, 0.03, z, 0, size, true),
+      light: (x, y, z, color, power, life, dist) => this.flashes.push({ x, y, z, color: new THREE.Color(color), power, t: 0, life, dist }),
+      heroRig: (i) => this.heroRigs[i],
+      foeRig: (id) => this.foeRigs.get(id),
+    });
     // the camera starts pulled right out, over the whole ship (the intro swoops in)
     const d = b.deck;
     this.cam.set(d.w / 2, 0, d.h / 2);
@@ -285,9 +342,16 @@ export class BoardingView {
     audio.music('board');
   }
 
+  /** What a kind aboard wears: the planet's colours on a scrap crew, the family's on the rest. */
+  private skinOf(kind: FoeKind): Skin {
+    const fam = FOES[kind].family;
+    if (fam === 'guild') return KELTER_SKIN;
+    if (fam === 'scrap') return this.skin;
+    return mixSkin(FAMILY_SKIN[fam], this.skin, fam === 'wild' ? 0 : 0.12);
+  }
+
   private addFoe(f: Foe) {
-    const scale = f.kind === 'bruiser' ? 1 : 1;
-    const rig = new Rig(f.kind, f.kind === 'kelter' ? KELTER_SKIN : this.skin, scale);
+    const rig = new Rig(f.kind, this.skinOf(f.kind), 1);
     this.foeRigs.set(f.id, rig);
     this.poses.set(rig, POSE());
     this.scene.add(rig.root);
@@ -369,6 +433,8 @@ export class BoardingView {
           const pz = Math.floor(z / 2);
           const k = 0.9 + hash(px, pz) * 0.18;
           col.setHex((px + pz) % 2 ? fl.a : fl.b).multiplyScalar(k);
+          const tint = FAMILY_FLOOR[this.b.family];
+          if (tint !== undefined && kind !== 'lock') col.lerp(this.c.setHex(tint).multiplyScalar(0.42), 0.35);
           const door = d.doorIn(x, z);
           // the doorways: hazard stripes
           if (door) col.setHex((x + z) % 2 ? 0x6a5a22 : 0x2a2420);
@@ -571,7 +637,7 @@ export class BoardingView {
     this.aspect = aspect;
   }
 
-  /** The sim's events this step: sounds, sparks, shakes and hitstop. */
+  /** The sim's events this step: sounds, sparks and shakes, without changing the shared clock. */
   handle(events: BoardEvent[]) {
     const b = this.b;
     for (const e of events) {
@@ -602,7 +668,6 @@ export class BoardingView {
           this.trauma = Math.min(1, this.trauma + 0.32);
           this.kick.x -= Math.cos(e.a) * 0.35;
           this.kick.y -= Math.sin(e.a) * 0.35;
-          this.hitstop = Math.max(this.hitstop, 2);
           this.play('foot_blast', e.x, 0.95);
           break;
         }
@@ -621,7 +686,6 @@ export class BoardingView {
           break;
         }
         case 'hit': {
-          const f = b.foes.find((x) => x.id === e.id);
           const rig = this.foeRigs.get(e.id);
           rig?.hit(e.a, e.heavy ? 1.2 : 0.45);
           if (e.plate) {
@@ -636,7 +700,6 @@ export class BoardingView {
             this.fx.sparks(e.x, 1.1, e.z, 2, 0xffe0a0, 8, 0.12, 0.1, false);
             this.play('crew_hit', e.x, 0.45, 0.9 + Math.random() * 0.25);
           }
-          if (f && e.heavy) this.hitstop = Math.max(this.hitstop, 1);
           break;
         }
         case 'block':
@@ -654,7 +717,6 @@ export class BoardingView {
           this.fx.sparks(e.x, 1.2, e.z, 14, 0xffd04a, 14, 0.3, 0.16, false);
           this.fx.ring(e.x, 0.1, e.z, 2.2, 0.3, false, 0xffd04a);
           this.pop('OPEN!', e.x, 2.4, e.z, '#ffd04a', true);
-          this.hitstop = Math.max(this.hitstop, 3);
           this.trauma = Math.min(1, this.trauma + 0.15);
           this.play('plate_break', e.x, 0.8);
           void f;
@@ -664,8 +726,6 @@ export class BoardingView {
           const f = b.foes.find((x) => x.id === e.id);
           this.fx.sparks(e.x, 1, e.z, 6, 0xffe0a0, 10, 0.25, 0.14, false);
           if (e.takedown) {
-            this.hitstop = Math.max(this.hitstop, 7);
-            this.slow(0.3, 0.38);
             this.trauma = Math.min(1, this.trauma + 0.5);
             this.punch = 1;
             this.flashColor.set(1, 0.95, 0.85);
@@ -689,14 +749,12 @@ export class BoardingView {
           this.foeRigs.get(e.id)?.hit(Math.atan2(e.z - b.heroes[e.hero].z, e.x - b.heroes[e.hero].x), 1.2);
           this.fx.sparks(e.x, 1, e.z, 6, 0xffffff, 8, 0.2, 0.14, false);
           this.trauma = Math.min(1, this.trauma + 0.2);
-          this.hitstop = Math.max(this.hitstop, 2);
           this.play('punch', e.x, 0.7);
           break;
         case 'heroHit': {
           this.heroRigs[e.hero]?.hit(e.a, 1.3);
           this.hurt = 1;
           this.trauma = Math.min(1, this.trauma + 0.45);
-          this.hitstop = Math.max(this.hitstop, 4);
           this.fx.sparks(e.x, 1.1, e.z, 10, 0xff6a4a, 10, 0.25, 0.16, false);
           this.flashColor.set(1, 0.25, 0.2);
           this.flash = 0.18;
@@ -704,7 +762,6 @@ export class BoardingView {
           break;
         }
         case 'heroDown':
-          this.slow(0.25, 0.8);
           this.trauma = 1;
           this.play('player_down', b.heroes[e.hero].x, 1);
           break;
@@ -713,7 +770,6 @@ export class BoardingView {
           this.play('revive', b.heroes[e.hero].x, 0.8);
           break;
         case 'perfect': {
-          this.slow(0.25, 0.5);
           this.flashColor.set(0.55, 1, 0.9);
           this.flash = 0.3;
           this.fx.ring(e.x, 0.2, e.z, 2.6, 0.35, false, 0x8affe0);
@@ -762,7 +818,7 @@ export class BoardingView {
           break;
         case 'alarmBroken':
           this.fx.explode(e.x, 1.2, e.z, 0.5, 0xff4a3a, false);
-          this.pop('ALARM SMASHED', e.x, 2.4, e.z, '#8affb0', false);
+          this.pop('SMASHED', e.x, 2.4, e.z, '#8affb0', false);
           this.play('explode_small', e.x, 0.6);
           break;
         case 'door': {
@@ -792,7 +848,6 @@ export class BoardingView {
         }
         case 'slam':
           this.trauma = Math.min(1, this.trauma + 0.5);
-          this.hitstop = Math.max(this.hitstop, 4);
           this.fx.sparks(e.x, 1.2, e.z, 16, 0xfff0c0, 14, 0.3, 0.16, false);
           for (let i = 0; i < 8; i++) this.fx.add({ x: e.x, y: 1, z: e.z, vx: (Math.random() - 0.5) * 5, vz: (Math.random() - 0.5) * 5, vy: 1 + Math.random() * 2, life: 0.8, size: 0.5, grow: 2, color: new THREE.Color(0x6a6070), to: new THREE.Color(0x2a2430), drag: 3, glow: false });
           this.pop('STUNNED', e.x, 2.8, e.z, '#ffd04a', true);
@@ -805,7 +860,7 @@ export class BoardingView {
           }
           this.fx.ring(e.x, 0.2, e.z, 3, 0.4, false, 0x5ae0c0);
           const n = b.crates.filter((c) => c.open).length;
-          this.pop(`CRATE ${n}/3`, e.x, 2.4, e.z, '#5ae0c0', true);
+          this.pop(`${n}/${b.crates.length}`, e.x, 2.4, e.z, '#5ae0c0', true);
           this.play('crate_open', e.x, 0.9);
           break;
         }
@@ -816,19 +871,18 @@ export class BoardingView {
             this.fx.add({ x: e.x, y: 1, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 4 + Math.random() * 6, life: 1.4, size: 0.14, color: new THREE.Color(0xffd04a), solid: true, gravity: 18, spin: 12 });
           }
           this.fx.ring(e.x, 0.2, e.z, 3.4, 0.45, false, 0xffd04a);
-          this.pop(`STRONGBOX +${e.pay}`, e.x, 2.6, e.z, '#ffd04a', true);
+          this.pop(`+${e.pay}`, e.x, 2.6, e.z, '#ffd04a', true);
           this.flashColor.set(1, 0.85, 0.4);
           this.flash = 0.2;
           this.play('strongbox_open', e.x, 1);
           break;
         case 'core':
-          this.slow(0.2, 0.9);
           this.trauma = 0.8;
           this.flashColor.set(0.6, 1, 0.95);
           this.flash = 0.6;
           this.fx.ring(e.x, 0.3, e.z, 6, 0.6, false, 0x8affe0);
           this.fx.sparks(e.x, 1.4, e.z, 40, 0x8affe0, 16, 0.6, 0.2, false);
-          this.pop('THE CORE', e.x, 3, e.z, '#8affe0', true);
+          this.pop('CORE', e.x, 3, e.z, '#8affe0', true);
           this.play('core_pull', e.x, 1);
           window.setTimeout(() => this.play('lockdown', e.x, 1), 450);
           break;
@@ -856,7 +910,6 @@ export class BoardingView {
           this.decal(e.x, 0.02, e.z, 0, e.r * 0.8, true);
           this.flashes.push({ x: e.x, y: 1.5, z: e.z, color: new THREE.Color(0xffa050), power: 30, t: 0, life: 0.4, dist: e.r * 5 });
           this.trauma = Math.min(1, this.trauma + 0.2 + e.r * 0.15);
-          this.hitstop = Math.max(this.hitstop, 3);
           this.play('explode_big', e.x, Math.min(1, 0.5 + e.r * 0.15));
           break;
         }
@@ -887,7 +940,7 @@ export class BoardingView {
         case 'hooked': {
           const h = b.heroes[e.hero];
           this.trauma = Math.min(1, this.trauma + 0.3);
-          this.pop('HOOKED! SLIDE TO SNAP IT', h.x, 2.6, h.z, '#ff6a5a', true);
+          this.pop('HOOKED', h.x, 2.6, h.z, '#ff6a5a', true);
           this.play('hook', h.x, 0.9);
           break;
         }
@@ -923,15 +976,117 @@ export class BoardingView {
           this.play('airlock', b.deck.breach.x, 1);
           break;
         case 'failed':
-          this.slow(0.3, 1.2);
+          break;
+        case 'thrownOut':
+          this.play('airlock', b.deck.breach.x, 0.7, 0.8);
+          break;
+        case 'suspect': {
+          const f = b.foes.find((x) => x.id === e.id);
+          this.play('blink', f?.x ?? 0, 0.35, 0.7);
+          break;
+        }
+        case 'listen': {
+          const f = b.foes.find((x) => x.id === e.id);
+          if (f) this.fx.ring(f.x, 2.5, f.z, 1.4, 0.6, false, 0x8af4ff);
+          this.play('toll', f?.x ?? 0, 0.55, 1.2);
+          break;
+        }
+        case 'lance': {
+          const end = { x: e.x + Math.cos(e.a) * e.len, z: e.z + Math.sin(e.a) * e.len };
+          this.fx.sparks(end.x, 1.1, end.z, 12, 0x9af4ff, 10, 0.3, 0.14, false);
+          this.fx.ring(e.x + Math.cos(e.a) * 0.7, 1.1, e.z + Math.sin(e.a) * 0.7, 1.2, 0.25, false, 0x9af4ff);
+          this.flashes.push({ x: e.x, y: 1.4, z: e.z, color: new THREE.Color(0x6af0ff), power: 14, t: 0, life: 0.18, dist: 9 });
+          this.decal(end.x, 1.1, end.z, e.a, 0.2);
+          this.trauma = Math.min(1, this.trauma + 0.12);
+          this.play('laser_fire', e.x, 0.55, 1.35);
+          break;
+        }
+        case 'reflect':
+          this.fx.sparks(e.x, 1.1, e.z, 4, 0x9af4ff, 8, 0.15, 0.1, false);
+          this.play('reflect', e.x, 0.3, 1.1 + Math.random() * 0.2);
+          break;
+        case 'wallHit':
+          this.fx.sparks(e.x, 1.1, e.z, 6, 0x9af4ff, 9, 0.2, 0.12, false);
+          this.play('hit_armor', e.x, 0.45, 1.3);
+          break;
+        case 'wallBreak':
+          for (let i = 0; i < 16; i++) {
+            const a = Math.random() * Math.PI * 2;
+            this.fx.add({ x: e.x, y: 1 + Math.random(), z: e.z, vx: Math.cos(a) * 6, vz: Math.sin(a) * 6, vy: 2 + Math.random() * 3, life: 0.7, size: 0.16, color: new THREE.Color(0x9af4ff), gravity: 12, drag: 1 });
+          }
+          this.pop('OPEN!', e.x, 2.6, e.z, '#ffd04a', true);
+          this.trauma = Math.min(1, this.trauma + 0.2);
+          this.play('shield_break', e.x, 0.8);
+          break;
+        case 'wallUp': {
+          const f = b.foes.find((x) => x.id === e.id);
+          this.play('shield_up', f?.x ?? 0, 0.4);
+          break;
+        }
+        case 'shove': {
+          const f = b.foes.find((x) => x.id === e.id);
+          this.play('laser_charge', f?.x ?? 0, 0.35, 1.4);
+          break;
+        }
+        case 'swell': {
+          const f = b.foes.find((x) => x.id === e.id);
+          this.play('feed', f?.x ?? 0, 0.45, 0.7);
+          break;
+        }
+        case 'lob':
+          this.play('shot_mine', e.x, 0.4, 1.3);
+          break;
+        case 'spores':
+          for (let i = 0; i < 16; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const v = 2 + Math.random() * 3;
+            this.fx.add({ x: e.x, y: 0.6, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1 + Math.random() * 2, life: 0.8, size: 0.4, grow: 2.5, color: new THREE.Color(0xb490d8), to: new THREE.Color(0x3a2a48), drag: 3, glow: false });
+          }
+          this.play('flak_burst', e.x, 0.5, 0.6);
+          break;
+        case 'jam':
+          this.pop('JAMMED', b.heroes[e.hero].x, 2.4, b.heroes[e.hero].z, '#b0ff4a', false);
+          this.play('heavy_dry', b.heroes[e.hero].x, 0.5);
+          break;
+        case 'gate':
+          if (e.on) this.play('blink', b.gates[e.i].gate.door.x, 0.3, 1.6);
+          break;
+        case 'gateHit':
+          this.fx.sparks(e.x, 1, e.z, 12, 0x9af4ff, 10, 0.3, 0.14, false);
+          break;
+        case 'cage':
+          this.fx.sparks(e.x, 1.2, e.z, 18, 0xffd070, 12, 0.3, 0.14, false);
+          this.play('block', e.x, 0.8, 0.7);
+          window.setTimeout(() => this.play('shriek', e.x, 0.8), 250);
+          break;
+        case 'rear': {
+          const f = b.foes.find((x) => x.id === e.id);
+          this.play('wingbeat', f?.x ?? 0, 0.5, 1.4);
+          break;
+        }
+        case 'pounce':
+          this.fx.sparks(e.x, 0.4, e.z, 8, 0xd8ccb0, 8, 0.3, 0.14, false);
+          for (let i = 0; i < 6; i++) this.fx.add({ x: e.x, y: 0.15, z: e.z, vx: (Math.random() - 0.5) * 4, vz: (Math.random() - 0.5) * 4, vy: 0.5, life: 0.5, size: 0.4, grow: 2, color: new THREE.Color(0x6a6070), to: new THREE.Color(0x2a2430), drag: 3, glow: false });
+          this.trauma = Math.min(1, this.trauma + 0.15);
+          this.play('eat', e.x, 0.7);
+          break;
+        case 'spaced':
+          this.pop('SPACED', e.x, 2.6, e.z, '#ff9a6a', true);
+          this.play('airlock', e.x, 0.5, 1.4);
+          break;
+        case 'vent':
+          if (e.on) this.play('frost_breath', b.deck.rupture?.x ?? 0, 0.9, 0.6);
+          break;
+        case 'carry':
+          this.play('core_feed', b.heroes[e.hero].x, 0.7);
+          break;
+        case 'drop':
+          this.fx.ring(e.x, 0.2, e.z, 2, 0.3, false, 0x8affe0);
+          this.play('block', e.x, 0.6, 0.6);
           break;
       }
     }
-  }
-
-  private slow(k: number, t: number) {
-    this.slowmo = Math.min(this.slowmo, k);
-    this.slowmoT = Math.max(this.slowmoT, t);
+    this.juice.handle(events);
   }
 
   private play(name: string, x: number, vol = 1, pitch = 1) {
@@ -977,10 +1132,6 @@ export class BoardingView {
     this.ricochetT -= dt;
     this.tickSfx -= dt;
     this.tinT -= dt;
-    if (this.slowmoT > 0) {
-      this.slowmoT -= dt / Math.max(this.slowmo, 0.1);
-      if (this.slowmoT <= 0) this.slowmo = 1;
-    } else this.slowmo = damp(this.slowmo, 1, 8, dt);
     this.flash = Math.max(0, this.flash - dt * 3);
     this.hurt = Math.max(0, this.hurt - dt * 1.6);
     this.trauma = Math.max(0, this.trauma - dt * 1.5);
@@ -1000,13 +1151,13 @@ export class BoardingView {
       s.vx = h.vx;
       s.vz = h.vz;
       s.aim = h.firing || h.sinceShot < 0.6 ? 1 : h.mark >= 0 ? 0.35 : 0;
-      s.work = !!h.work && h.work.kind !== 'leave' && !h.down;
+      s.work = (!!h.work && h.work.kind !== 'leave' && !h.down) || h.carry;
       s.slide = h.dashT > 0;
       s.dead = false;
       s.floored = h.down || h.stun > 0.5;
       rig.update(dt, s);
-      // blink while it can't be touched
-      rig.root.visible = !(h.inv > 0 && !h.down && Math.floor(h.inv * 14) % 2 === 0 && h.dashT <= 0);
+      // blink while it can't be touched; gone once thrown out
+      rig.root.visible = !h.out && !(h.inv > 0 && !h.down && Math.floor(h.inv * 14) % 2 === 0 && h.dashT <= 0);
       rig.flash(h.inv > HERO.inv - 0.1 ? 1 : 0);
       // a ghost left behind every few frames of a slide
       if (h.dashT > 0 && Math.random() < 0.5) {
@@ -1033,19 +1184,23 @@ export class BoardingView {
       s.face = f.state === 'aim' || f.state === 'burst' ? f.aimA : f.face;
       s.vx = f.vx + f.kx;
       s.vz = f.vz + f.kz;
-      s.aim = (f.kind === 'gunner' || f.kind === 'kelter') && f.aware ? (f.state === 'aim' || f.state === 'burst' ? 1 : 0.4) : 0;
+      const gun = f.kind === 'gunner' || f.kind === 'kelter' || f.kind === 'auditor' || f.kind === 'puffer' || f.kind === 'torcher';
+      s.aim = gun && f.aware ? (f.state === 'aim' || f.state === 'burst' || f.state === 'swell' || f.state === 'ignite' || f.state === 'spray' ? 1 : 0.4) : 0;
       s.work = f.state === 'pull';
-      s.kneel = f.state === 'stagger' || f.state === 'stun';
+      s.kneel = f.state === 'stagger' || f.state === 'stun' || (f.kind === 'skulk' && f.state === 'recover');
+      s.slide = f.state === 'lunge' || f.state === 'pounce';
       s.asleep = f.asleep && !f.aware;
       s.dead = f.dead;
       s.deathT = f.deathT;
       s.fallA = f.fallA;
       s.haul = f.state === 'reel';
       // a swing: the wind-up and the blow
-      const wind = f.state === 'windup' ? (f.kind === 'bruiser' ? 0.6 : clamp(1 - f.t / 0.5, 0, 1)) : 0;
-      s.windup = f.kind === 'bruiser' && f.state === 'windup' ? 0 : f.state === 'swing' && f.kind === 'bruiser' ? clamp(1 - f.t / 0.45, 0, 1) : wind;
-      s.strike = f.state === 'swing' && f.kind !== 'bruiser' ? 1 : f.state === 'recover' && f.kind === 'deckhand' ? clamp(f.t / 0.65, 0, 1) * 0.6 : 0;
-      s.brace = f.kind === 'bruiser' && (f.state === 'windup' || f.state === 'charge') ? 1 : 0;
+      const prog = clamp(1 - f.t / Math.max(0.01, f.dur), 0, 1);
+      const melee = f.kind === 'deckhand' || f.kind === 'clerk' || f.kind === 'thrall' || f.kind === 'skulk';
+      const wind = (f.state === 'windup' && melee) || (f.kind === 'thrall' && f.state === 'swell') || f.state === 'rear' ? prog : 0;
+      s.windup = f.kind === 'bruiser' && f.state === 'swing' ? prog : (f.kind === 'nurse' && f.state === 'swell') || (f.kind === 'notary' && f.state === 'stamp') ? prog : wind;
+      s.strike = f.state === 'swing' && f.kind !== 'bruiser' ? 1 : f.state === 'lunge' ? 1 : f.state === 'recover' && melee ? clamp(f.t / Math.max(0.01, f.dur), 0, 1) * 0.6 : 0;
+      s.brace = (f.kind === 'bruiser' && (f.state === 'windup' || f.state === 'charge')) || (f.kind === 'warden' && (f.wall > 0 || f.state === 'shove')) ? 1 : 0;
       rig.update(dt, s);
       // flashes white when hit; a charging bruiser glows red; an open one gold
       rig.flash(f.dead ? Math.max(0, 1 - f.deathT * 8) : f.flash);
@@ -1053,6 +1208,7 @@ export class BoardingView {
       rig.root.visible = !f.dead || f.deathT < 22;
     }
 
+    this.juice.update(dt);
     this.updateDoors(dt);
     this.updateProps(dt);
     this.updateRounds();
@@ -1060,6 +1216,7 @@ export class BoardingView {
     this.updateCasings(dt);
     this.updateLasers();
     this.updateRings();
+    this.updateTells(dt);
     for (const p of this.pops) p.t += dt;
     for (let i = this.pops.length - 1; i >= 0; i--) if (this.pops[i].t > this.pops[i].life) this.pops.splice(i, 1);
     this.fx.update(dt, this.camera, 0);
@@ -1151,13 +1308,17 @@ export class BoardingView {
     let t = 0;
     for (const r of b.rounds) {
       const a = Math.atan2(r.vz, r.vx);
+      // a torcher's fire is drawn as flame (view/board-juice.ts)
+      if (r.kind === 'flame') continue;
       if (r.from === 'hero') {
-        // a tracer: a streak behind the round, hot at the head
-        const len = r.kind === 'pellet' ? 0.6 : 1.3;
+        // a tracer: a streak behind the round, hot at the head (a nail thin, a stamp a fat cyan slug, a harpoon red)
+        const len = r.kind === 'pellet' ? 0.6 : r.kind === 'nail' ? 0.8 : r.kind === 'stamp' ? 0.7 : 1.3;
+        const w = r.kind === 'stamp' ? 0.45 : r.kind === 'harpoon' ? 0.14 : r.kind === 'pellet' ? 0.1 : r.kind === 'nail' ? 0.05 : 0.08;
         this.q.setFromEuler(this.e.set(0, -a, 0));
-        this.m4.compose(this.v.set(r.x - Math.cos(a) * len * 0.5, 1.15, r.z - Math.sin(a) * len * 0.5), this.q, this.s.set(len, 0.07, r.kind === 'pellet' ? 0.1 : 0.08));
+        this.m4.compose(this.v.set(r.x - Math.cos(a) * len * 0.5, 1.15, r.z - Math.sin(a) * len * 0.5), this.q, this.s.set(len, r.kind === 'stamp' ? 0.3 : 0.07, w));
         this.tracerMesh.setMatrixAt(t, this.m4);
-        this.tracerMesh.setColorAt(t, this.c.setHex(r.kind === 'pellet' ? 0xffa050 : 0xffe0a0).multiplyScalar(2));
+        const hue = r.kind === 'pellet' ? 0xffa050 : r.kind === 'stamp' ? 0x4ae8ff : r.kind === 'harpoon' ? 0xff4a3a : r.kind === 'nail' ? 0xffd04a : 0xffe0a0;
+        this.tracerMesh.setColorAt(t, this.c.setHex(hue).multiplyScalar(2));
         t++;
         continue;
       }
@@ -1218,15 +1379,424 @@ export class BoardingView {
     this.casingMesh.instanceMatrix.needsUpdate = true;
   }
 
+  /** The pools the tells are drawn with, and the fittings that come with the ship's state. */
+  private buildTells() {
+    const b = this.b;
+    const add = (color: number, opacity = 0.5) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    // cones of sight: a fan on the deck, rebuilt each frame as far as the walls let it reach
+    for (let i = 0; i < CONES; i++) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array((CONE_RAYS + 2) * 3), 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array((CONE_RAYS + 2) * 3), 3));
+      const idx: number[] = [];
+      for (let k = 0; k < CONE_RAYS; k++) idx.push(0, k + 1, k + 2);
+      g.setIndex(idx);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      m.frustumCulled = false;
+      m.visible = false;
+      m.renderOrder = 2;
+      this.cones.push(m);
+      this.scene.add(m);
+    }
+    // a hero's torch, on a dark ship
+    if (this.dark) {
+      for (let i = 0; i < b.heroes.length; i++) {
+        const g = this.cones[0].geometry.clone();
+        const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        m.frustumCulled = false;
+        m.renderOrder = 2;
+        this.torch.push(m);
+        this.scene.add(m);
+      }
+    }
+    // the arc a blow is about to sweep
+    const sector = new THREE.RingGeometry(0.2, 1, 24, 1, -1.1, 2.2);
+    sector.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(sector, add(0xffffff, 0.3));
+      m.visible = false;
+      m.renderOrder = 2;
+      this.sectors.push(m);
+      this.overlay.add(m);
+    }
+    // marks on the deck: where a sac or a beast will land, the reach of a burst
+    const disc = new THREE.CircleGeometry(1, 28);
+    disc.rotateX(-Math.PI / 2);
+    const rim = new THREE.RingGeometry(0.9, 1, 28);
+    rim.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 20; i++) {
+      const fill = new THREE.Mesh(disc, add(0xffffff, 0.15));
+      const r = new THREE.Mesh(rim, add(0xffffff, 0.8));
+      fill.visible = r.visible = false;
+      fill.renderOrder = r.renderOrder = 2;
+      this.marks.push({ fill, rim: r });
+      this.overlay.add(fill, r);
+    }
+    // lances: the beam, and its afterglow
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(GEO.plane, add(0x9af4ff, 1));
+      m.visible = false;
+      this.beams.push(m);
+      this.overlay.add(m);
+    }
+    // a nurse's lines into its crew
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(GEO.box, add(0xb0ff4a, 0.7));
+      m.visible = false;
+      this.tethers.push(m);
+      this.scene.add(m);
+    }
+    // spore sacs in the air, and the clouds they burst into
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(GEO.sphere, toon(0xd8c0ff, { glow: 0.6 }));
+      m.visible = false;
+      this.sacMeshes.push(m);
+      this.scene.add(m);
+    }
+    for (let i = 0; i < 90; i++) {
+      const m = new THREE.Mesh(GEO.ball, new THREE.MeshBasicMaterial({ color: i % 3 ? 0x8a5aa8 : 0xb0ff4a, transparent: true, opacity: 0.3, depthWrite: false }));
+      m.visible = false;
+      this.puffs.push(m);
+      this.scene.add(m);
+    }
+    // the gates: two posts each side of the doorway, a sheet of light between
+    for (const g of b.gates) {
+      const door = g.gate.door;
+      const along = door.axis === 'x';
+      for (const k of [-1, 1]) {
+        const inst = library.clone('deck_gate', 0, this.skin, true);
+        const obj = inst?.obj ?? part(GEO.box, toon(0xe8ecf0), [0, 1.1, 0], [0.36, 2.2, 0.36]);
+        obj.position.set(door.x + (along ? k * 1.18 : 0), 0, door.z + (along ? 0 : k * 1.18));
+        // their emitters (+x) face each other across the doorway
+        obj.rotation.y = along ? (k < 0 ? 0 : Math.PI) : k < 0 ? -Math.PI / 2 : Math.PI / 2;
+        this.scene.add(obj);
+      }
+      const field = new THREE.Mesh(GEO.plane, add(0x4ae8ff, 0.5));
+      field.position.set(door.x, 1.0, door.z);
+      field.scale.set(2.2, 1.9, 1);
+      field.rotation.y = along ? 0 : Math.PI / 2;
+      field.visible = false;
+      this.overlay.add(field);
+      const lines: THREE.Mesh[] = [];
+      for (let k = 0; k < 4; k++) {
+        const l = new THREE.Mesh(GEO.box, add(0x9af4ff, 0.9));
+        l.position.set(door.x, 0.3 + k * 0.45, door.z);
+        l.scale.set(along ? 2.2 : 0.04, 0.05, along ? 0.04 : 2.2);
+        l.visible = false;
+        lines.push(l);
+        this.overlay.add(l);
+      }
+      this.gateFields.push({ field, lines });
+    }
+    // the cages' doors
+    for (const c of b.cages) this.cageDoors.push(named(this.props.get(c.prop.id)?.obj, 'deck_cage__door'));
+    // with her power out you carry your own light
+    if (this.dark) b.heroes.forEach((_, i) => this.lamps.push({ x: 0, y: 1.6, z: 0, color: new THREE.Color(0xffe0b0), power: 4, room: -10 - i, on: 1, flick: 0, always: true }));
+    // the tear in her hull glows
+    const rp = b.deck.rupture;
+    if (rp) this.lamps.push({ x: rp.x, y: 1.2, z: rp.z + (rp.rot === 0 ? 0.6 : -0.6), color: new THREE.Color(0xff7a3a), power: 4, room: -1, on: 1, flick: 0, always: true });
+  }
+
+  /** A wall of light for each warden, made the first time it's seen. */
+  private wallOf(f: Foe) {
+    let m = this.walls.get(f.id);
+    if (!m) {
+      const g = new THREE.CylinderGeometry(1, 1, 1, 18, 1, true, -1.05, 2.1);
+      m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x4ae8ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      this.walls.set(f.id, m);
+      this.overlay.add(m);
+    }
+    return m;
+  }
+
+  /** The halo over a lattice crewman who's stopped to listen. */
+  private haloOf(f: Foe) {
+    let m = this.halos.get(f.id);
+    if (!m) {
+      m = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 4, 18), new THREE.MeshBasicMaterial({ color: 0x8af4ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      this.halos.set(f.id, m);
+      this.overlay.add(m);
+    }
+    return m;
+  }
+
+  /** A fan on the deck from (x, z) facing `a`, `half` either side, out to `reach` or the first wall; coloured `col` fading out. */
+  private fan(m: THREE.Mesh, x: number, z: number, a: number, half: number, reach: number, col: THREE.Color, k: number) {
+    const d = this.b.deck;
+    const pos = m.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const cl = m.geometry.getAttribute('color') as THREE.BufferAttribute;
+    pos.setXYZ(0, x, 0.05, z);
+    cl.setXYZ(0, col.r * k, col.g * k, col.b * k);
+    for (let i = 0; i <= CONE_RAYS; i++) {
+      const ra = a - half + (i / CONE_RAYS) * half * 2;
+      const ca = Math.cos(ra);
+      const sa = Math.sin(ra);
+      let l = 0.4;
+      while (l < reach && !d.stops(Math.floor(x + ca * l), Math.floor(z + sa * l))) l += 0.35;
+      l = Math.min(l, reach);
+      pos.setXYZ(i + 1, x + ca * l, 0.05, z + sa * l);
+      const fade = k * 0.15 * (1 - l / (reach + 0.01)) + k * 0.05;
+      cl.setXYZ(i + 1, col.r * fade, col.g * fade, col.b * fade);
+    }
+    pos.needsUpdate = true;
+    cl.needsUpdate = true;
+    m.visible = true;
+  }
+
+  /**
+   * The tells: who can see you and how much they've seen; the arc of a blow winding up (drawn in
+   * the family's light); where a sac or a beast will land; a warden's wall, a nurse's lines, a
+   * lance going; the gates' cycle; spores; the core in your arms; the breach breathing.
+   */
+  private updateTells(dt: number) {
+    const b = this.b;
+    const t = this.time;
+    const col = this.c;
+    // cones: crew who haven't seen you, near enough to matter; white, warming as they glimpse you
+    let n = 0;
+    const cx = this.cam.x;
+    const cz = this.cam.z;
+    for (const f of b.foes) {
+      if (n >= CONES) break;
+      if (f.dead || f.aware || f.asleep || f.state === 'caged' || f.kind === 'skulk' || Math.abs(f.x - cx) > 24 || Math.abs(f.z - cz) > 14) continue;
+      const sus = clamp(f.sus, 0, 1);
+      col.setRGB(1, 1 - sus * 0.45, 1 - sus * 0.85);
+      if (this.dark) col.setRGB(1, 0.85 - sus * 0.3, 0.55 - sus * 0.4);
+      this.fan(this.cones[n++], f.x, f.z, f.face, SIGHT_CONE, b.sight(f), col, (this.dark ? 1.6 : 0.85) + sus * 1.2);
+    }
+    for (let i = n; i < CONES; i++) this.cones[i].visible = false;
+    // torches
+    b.heroes.forEach((h, i) => {
+      const lamp = this.lamps.find((l) => l.room === -10 - i);
+      if (lamp) {
+        lamp.x = h.x + Math.cos(h.aim) * 1.2;
+        lamp.z = h.z + Math.sin(h.aim) * 1.2;
+        lamp.power = h.out ? 0 : 4;
+      }
+      const m = this.torch[i];
+      if (!m) return;
+      if (h.down || h.out) {
+        m.visible = false;
+        return;
+      }
+      this.fan(m, h.x, h.z, h.aim, 0.5, 11, col.setRGB(1, 0.92, 0.7), 2.2);
+    });
+    // arcs, landing marks, bursts
+    let sn = 0;
+    let mn = 0;
+    const sector = (x: number, z: number, a: number, reach: number, color: number, k: number) => {
+      if (sn >= this.sectors.length) return;
+      const m = this.sectors[sn++];
+      m.visible = true;
+      m.position.set(x, 0.06, z);
+      m.rotation.y = -a;
+      m.scale.setScalar(reach);
+      const mat = m.material as THREE.MeshBasicMaterial;
+      mat.color.setHex(color);
+      mat.opacity = 0.12 + k * 0.5 + (k > 0.8 ? Math.sin(t * 50) * 0.15 : 0);
+    };
+    const mark = (x: number, z: number, r: number, color: number, k: number) => {
+      if (mn >= this.marks.length) return;
+      const m = this.marks[mn++];
+      m.fill.visible = m.rim.visible = true;
+      m.fill.position.set(x, 0.05, z);
+      m.rim.position.set(x, 0.06, z);
+      m.fill.scale.setScalar(r * k);
+      m.rim.scale.setScalar(r);
+      (m.fill.material as THREE.MeshBasicMaterial).color.setHex(color);
+      (m.fill.material as THREE.MeshBasicMaterial).opacity = 0.22 + k * 0.2;
+      (m.rim.material as THREE.MeshBasicMaterial).color.setHex(color);
+      (m.rim.material as THREE.MeshBasicMaterial).opacity = 0.5 + k * 0.5;
+    };
+    for (const f of b.foes) {
+      if (f.dead) continue;
+      const k = clamp(1 - f.t / Math.max(0.01, f.dur), 0, 1);
+      const fam = FOES[f.kind].family;
+      if (f.state === 'windup' && (f.kind === 'deckhand' || f.kind === 'clerk')) sector(f.x, f.z, f.face, f.kind === 'clerk' ? 2.2 : 1.95, fam === 'lattice' ? 0x4ae8ff : 0xff3a3a, k);
+      else if (f.state === 'swing' && f.kind === 'bruiser' && f.t > 0) sector(f.x, f.z, f.face, 2.1, 0xff3a3a, k);
+      else if (f.state === 'shove') sector(f.x, f.z, f.face, 2.6, 0x4ae8ff, k);
+      else if (f.state === 'swell' && f.kind === 'thrall') sector(f.x, f.z, f.face, 2.6, 0xb0ff4a, k);
+      else if (f.state === 'swell' && f.kind === 'nurse') mark(f.x, f.z, 2.8, 0xb0ff4a, k);
+      else if (f.state === 'rear') mark(f.tx, f.tz, 1.25, 0xff6aa8, k);
+      else if (f.state === 'windup' && f.kind === 'bruiser') sector(f.x, f.z, f.face, 3.2, 0xff3a3a, 0.4 + k * 0.4);
+      // a warden's wall
+      if (f.kind === 'warden') {
+        const w = this.wallOf(f);
+        const up = f.wall > 0 && f.open <= 0;
+        w.visible = up;
+        if (up) {
+          const shove = f.state === 'shove' ? k : 0;
+          const r = f.r + 0.7 + shove * 0.4;
+          w.position.set(f.x, 1.0, f.z);
+          w.scale.set(r, 1.9, r);
+          w.rotation.y = -f.face + Math.PI / 2;
+          const mat = w.material as THREE.MeshBasicMaterial;
+          mat.opacity = (0.22 + (f.wall / f.wallMax) * 0.35 + shove * 0.4) * (0.85 + Math.sin(t * 20 + f.id) * 0.15);
+        }
+      }
+      // listening: a ring of light over its head, and its face to the north
+      if (FOES[f.kind].family === 'lattice') {
+        const listening = f.state === 'listen';
+        const halo = this.halos.get(f.id) ?? (listening ? this.haloOf(f) : null);
+        if (halo) {
+          halo.visible = listening;
+          halo.position.set(f.x, 2.5 + Math.sin(t * 3) * 0.05, f.z);
+          halo.scale.setScalar(1 + Math.sin(t * 6) * 0.08);
+        }
+      }
+      // the Hive swells before it bursts
+      const rig = this.foeRigs.get(f.id);
+      if (rig) rig.root.scale.setScalar(f.state === 'swell' ? 1 + k * 0.18 + Math.sin(t * 30) * 0.03 * k : 1);
+    }
+    for (const s of b.sacs) if (s.ours === undefined) mark(s.x1, s.z1, 1.9, 0xb0ff4a, clamp(s.t / s.dur, 0, 1));
+    // a dropped core: a ring round it, pulsing
+    if (b.heart && b.heart.carrier < 0) mark(b.heart.x, b.heart.z, 1.2 + Math.sin(t * 5) * 0.08, 0x8affe0, 0.6);
+    // a breach about to gust: its reach, warming
+    const rp = b.deck.rupture;
+    if (rp && (b.venting || b.ventT > VENT.calm - VENT.warm)) mark(rp.x, rp.z, VENT.reach * 0.8, 0xff7a3a, b.venting ? 1 : clamp((b.ventT - (VENT.calm - VENT.warm)) / VENT.warm, 0, 1) * 0.6);
+    for (let i = sn; i < this.sectors.length; i++) this.sectors[i].visible = false;
+    for (let i = mn; i < this.marks.length; i++) this.marks[i].fill.visible = this.marks[i].rim.visible = false;
+    for (const [id, w] of this.walls) if (b.foes.find((f) => f.id === id)?.dead) w.visible = false;
+    // lances
+    b.lances.forEach((l, i) => {
+      const m = this.beams[i];
+      if (!m) return;
+      const k = 1 - l.t / 0.5;
+      m.visible = true;
+      m.position.set(l.x + Math.cos(l.a) * l.len * 0.5, 1.15, l.z + Math.sin(l.a) * l.len * 0.5);
+      m.rotation.set(-Math.PI / 2, 0, -l.a);
+      m.scale.set(l.len, (l.hero ? 0.16 + k * 0.9 : 0.08 + k * 0.5), 1);
+      (m.material as THREE.MeshBasicMaterial).opacity = k;
+    });
+    for (let i = b.lances.length; i < this.beams.length; i++) this.beams[i].visible = false;
+    // tethers
+    let tn = 0;
+    for (const f of b.foes) {
+      if (f.dead || f.kind !== 'nurse') continue;
+      for (const id of f.links) {
+        const g = b.foes.find((x) => x.id === id);
+        if (!g || g.dead || tn >= this.tethers.length) continue;
+        const m = this.tethers[tn++];
+        const dx = g.x - f.x;
+        const dz = g.z - f.z;
+        const len = Math.hypot(dx, dz);
+        m.visible = true;
+        m.position.set(f.x + dx / 2, 1.5 + Math.sin(t * 8) * 0.05, f.z + dz / 2);
+        m.rotation.set(0, -Math.atan2(dz, dx), 0);
+        m.scale.set(len, 0.06 + Math.sin(t * 12 + id) * 0.02, 0.06);
+        if (Math.random() < dt * 8) this.fx.add({ x: f.x + dx * Math.random(), y: 1.5, z: f.z + dz * Math.random(), vy: 0.6, life: 0.5, size: 0.14, color: new THREE.Color(0xb0ff4a), drag: 2 });
+      }
+    }
+    for (let i = tn; i < this.tethers.length; i++) this.tethers[i].visible = false;
+    // sacs in flight: an arc
+    b.sacs.forEach((s, i) => {
+      const m = this.sacMeshes[i];
+      if (!m) return;
+      const k = clamp(s.t / s.dur, 0, 1);
+      m.visible = true;
+      m.position.set(lerp(s.x0, s.x1, k), 1.3 + Math.sin(k * Math.PI) * 2.6, lerp(s.z0, s.z1, k));
+      m.scale.setScalar(0.45 + Math.sin(t * 20) * 0.04);
+    });
+    for (let i = b.sacs.length; i < this.sacMeshes.length; i++) this.sacMeshes[i].visible = false;
+    // clouds: slow puffs that thin out at the end
+    let pn = 0;
+    for (const c of b.clouds) {
+      const life = 1 - c.t / c.life;
+      const grow = Math.min(1, c.t / 0.25);
+      for (let k = 0; k < 9 && pn < this.puffs.length; k++) {
+        const m = this.puffs[pn++];
+        const a = k * 2.4 + c.x;
+        const rr = c.r * (k ? 0.62 : 0) * grow;
+        m.visible = true;
+        m.position.set(c.x + Math.cos(a + t * 0.4) * rr, 0.5 + (k % 3) * 0.35 + Math.sin(t * 1.5 + k) * 0.1, c.z + Math.sin(a + t * 0.4) * rr);
+        m.scale.set(c.r * 0.9 * grow, c.r * 0.45 * grow, c.r * 0.9 * grow);
+        const mat = m.material as THREE.MeshBasicMaterial;
+        mat.opacity = 0.32 * Math.min(1, life * 3);
+        // yours (a sporecaster's) in acid and gold, so you know whose it is
+        mat.color.setHex(c.ours !== undefined ? (k % 3 ? 0x9ac83a : 0xffd04a) : k % 3 ? 0x8a5aa8 : 0xb0ff4a);
+      }
+      if (Math.random() < dt * 10) this.fx.add({ x: c.x + (Math.random() - 0.5) * c.r * 1.4, y: 0.4, z: c.z + (Math.random() - 0.5) * c.r * 1.4, vy: 0.5, life: 0.9, size: 0.12, color: new THREE.Color(0xb0ff4a), drag: 1 });
+    }
+    for (let i = pn; i < this.puffs.length; i++) this.puffs[i].visible = false;
+    // gates
+    b.gates.forEach((g, i) => {
+      const gf = this.gateFields[i];
+      if (!gf) return;
+      const p = b.gatePhase(g);
+      gf.field.visible = g.on;
+      const mat = gf.field.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.32 + Math.sin(t * 40) * 0.08;
+      const warm = g.warm ? (p - (GATE.off - GATE.warm)) / GATE.warm : 0;
+      gf.lines.forEach((l, k) => {
+        l.visible = g.on || (g.warm && Math.random() < 0.4 + warm * 0.6);
+        l.position.y = 0.3 + ((k * 0.45 + (g.on ? t * 0.8 : 0)) % 1.8);
+        (l.material as THREE.MeshBasicMaterial).opacity = g.on ? 0.9 : 0.25 + warm * 0.5;
+      });
+    });
+    // cage doors swing open
+    b.cages.forEach((c, i) => {
+      const door = this.cageDoors[i];
+      if (!door) return;
+      door.userData.ry ??= door.rotation.y;
+      door.rotation.y = damp(door.rotation.y, door.userData.ry + (c.open ? -1.9 : 0), 8, dt);
+    });
+    // the core: in someone's arms, or on the deck where it fell
+    if (b.heart) {
+      if (!this.heartObj) {
+        const inst = library.clone('deck_heart', 0, undefined, true);
+        this.heartObj = inst?.obj ?? part(GEO.sphere, toon(0x8affe0, { glow: 1 }), [0, 0.4, 0], [0.6, 0.6, 0.6]);
+        this.heartGlow = named(this.heartObj, 'deck_heart__heart');
+        this.scene.add(this.heartObj);
+        this.lamps.push({ x: 0, y: 1.4, z: 0, color: new THREE.Color(0x6affe0), power: 4.5, room: -2, on: 1, flick: 0, always: true });
+      }
+      const c = b.carrier;
+      const o = this.heartObj;
+      if (c) {
+        const rig = this.heroRigs[c.id];
+        void rig;
+        o.position.set(c.x + Math.cos(c.face) * 0.45, 0.55 + Math.sin(t * 9) * 0.03, c.z + Math.sin(c.face) * 0.45);
+        o.rotation.y = -c.face + Math.PI / 2;
+        if (Math.random() < dt * 14) this.fx.add({ x: o.position.x, y: 1, z: o.position.z, vy: 0.4, life: 0.6, size: 0.15, color: new THREE.Color(0x8affe0), drag: 2 });
+      } else {
+        o.position.set(b.heart.x, 0, b.heart.z);
+      }
+      if (this.heartGlow) this.heartGlow.scale.setScalar(1 + Math.pow(Math.max(0, Math.sin(t * 3.4)), 8) * 0.12);
+      const lamp = this.lamps.find((l) => l.room === -2);
+      if (lamp) {
+        lamp.x = o.position.x;
+        lamp.z = o.position.z;
+      }
+    }
+    // the breach: everything loose streams to it while it gusts; a rattle of grit before
+    if (rp) {
+      const mx = rp.x;
+      const mz = rp.z + (rp.rot === 0 ? 0.3 : -0.3);
+      const warming = !b.venting && b.ventT > VENT.calm - VENT.warm;
+      const n2 = b.venting ? 14 : warming ? 3 : 0;
+      for (let i = 0; i < n2; i++) {
+        if (Math.random() > dt * 30) continue;
+        const a = Math.random() * Math.PI * 2;
+        const r = 2 + Math.random() * (VENT.reach - 2);
+        const x = mx + Math.cos(a) * r;
+        const z = mz + Math.sin(a) * r * 0.7;
+        const v = b.venting ? 9 : 1.5;
+        this.fx.add({ x, y: 0.3 + Math.random() * 1.5, z, vx: ((mx - x) / r) * v, vz: ((mz - z) / r) * v, life: 0.5 + Math.random() * 0.4, size: 0.1 + Math.random() * 0.1, color: new THREE.Color(b.venting ? 0xd8d0e0 : 0x8a8090), drag: 0.2 });
+      }
+      if (b.venting) this.trauma = Math.max(this.trauma, 0.08);
+    }
+  }
+
   /** Aim lines: from every gun about to fire, thickening as it locks; and the kelters' cables. */
   private updateLasers() {
     const b = this.b;
     let n = 0;
-    const line = (x: number, z: number, a: number, k: number, color: number) => {
+    const line = (x: number, z: number, a: number, k: number, color: number, through = false) => {
       if (n >= this.lasers.length) return;
-      // as far as the first wall
+      // as far as the first wall (a lance: through cover, to the first bulkhead)
       let len = 0.5;
-      while (len < 18 && !b.deck.stops(Math.floor(x + Math.cos(a) * len), Math.floor(z + Math.sin(a) * len))) len += 0.25;
+      if (through) len = b.lanceLength(x, z, a);
+      else while (len < 18 && !b.deck.stops(Math.floor(x + Math.cos(a) * len), Math.floor(z + Math.sin(a) * len))) len += 0.25;
       const m = this.lasers[n++];
       m.visible = true;
       m.position.set(x + Math.cos(a) * len * 0.5, 1.15, z + Math.sin(a) * len * 0.5);
@@ -1238,8 +1808,8 @@ export class BoardingView {
     };
     for (const f of b.foes) {
       if (f.dead || f.state !== 'aim') continue;
-      const total = f.kind === 'kelter' ? 0.6 : 0.78;
-      line(f.x, f.z, f.aimA, clamp(1 - f.t / total, 0, 1), f.kind === 'kelter' && f.shots === -1 ? 0xffb04a : 0xff3a4a);
+      const k = clamp(1 - f.t / Math.max(0.01, f.dur), 0, 1);
+      line(f.x, f.z, f.aimA, k, f.kind === 'auditor' ? 0x4ae8ff : f.kind === 'kelter' && f.shots === -1 ? 0xffb04a : 0xff3a4a, f.kind === 'auditor');
     }
     b.turrets.forEach((t) => {
       if (t.state === 'aim') line(t.prop.x, t.prop.z, t.aimA, clamp(1 - t.t / 0.7, 0, 1), 0xff4a8a);
@@ -1347,6 +1917,11 @@ export class BoardingView {
     const b = this.b;
     for (const l of this.lamps) {
       if (l.always) continue;
+      if (this.dark) {
+        // her power's out: the tubes are dead, a red emergency glow where there's any at all
+        l.on = 0.12;
+        continue;
+      }
       if (b.visited.has(l.room)) {
         if (l.flick > 0) {
           l.flick -= dt;
@@ -1388,9 +1963,10 @@ export class BoardingView {
       light.distance = f.dist;
     }
     for (; i < LAMPS; i++) this.lights[i].intensity = 0;
-    // the ambient: cool and dim; redder in an alarm
+    // the ambient: cool and dim; redder in an alarm; nearly black with the power out
     this.hemi.color.setHex(0x7a80b0).lerp(this.c.setHex(0xc04050), alarm * 0.4);
-    this.hemi.intensity = 1.35 + (b.state === 'intro' ? 0.4 : 0);
+    this.hemi.intensity = (this.dark ? 0.42 : 1.35) + (b.state === 'intro' ? 0.4 : 0);
+    this.sun.intensity = this.dark ? 0.12 : 0.55;
   }
 
   grade(pixel: PixelRenderer) {
@@ -1402,7 +1978,6 @@ export class BoardingView {
     u.uSpeed.value = 0;
     u.uImpact.value = 0;
     u.uAberr.value = 0;
-    u.uDrain.value = 0;
     u.uHeat.value = 0;
     u.uFade.value = 0;
     u.uVignette.value = 0.6 + this.kelterK * 0.15;
@@ -1430,6 +2005,7 @@ export class BoardingView {
 
   dispose() {
     weather.uCloudDark.value = this.savedCloud;
+    this.juice.dispose();
     for (const r of this.heroRigs) r.dispose();
     for (const r of this.foeRigs.values()) r.dispose();
     for (const g of this.ghosts) g.rig.dispose();
@@ -1440,9 +2016,9 @@ export class BoardingView {
 }
 
 /** How far each kind on a wall sits back from the middle of its cell (towards the wall). */
-const WALL_MOUNT: Partial<Record<Prop['kind'], number>> = { alarm: 0.38, medkit: 0.4, sconce: 0.42, pipes: 0.15, locker: 0.15, console: 0.1, bunk: 0.05 };
+const WALL_MOUNT: Partial<Record<Prop['kind'], number>> = { alarm: 0.38, medkit: 0.4, sconce: 0.42, pipes: 0.15, locker: 0.15, console: 0.1, bunk: 0.05, rupture: 0.45 };
 /** Kinds that move or change, so stay their own meshes. */
-const ANIMATED = new Set<Prop['kind']>(['crate', 'strongbox', 'core', 'turret', 'canister', 'alarm', 'medkit']);
+const ANIMATED = new Set<Prop['kind']>(['crate', 'strongbox', 'core', 'turret', 'canister', 'alarm', 'medkit', 'cage', 'rupture']);
 
 /** A model's part by name; a second variant's parts carry a number on the end (lid001). */
 function named(obj: THREE.Object3D | undefined, name: string) {

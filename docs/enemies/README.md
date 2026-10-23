@@ -2,6 +2,8 @@
 
 Every regular enemy in the game, how worked-out it is, and what it still needs. This page has the scores and what they share; each enemy has a page of its own (linked from the table and the lists below). Bosses are in [`docs/bosses/`](../bosses/README.md).
 
+Each page opens with **who it is** (who builds or breeds it, and why it fights the way it does, from the [lore](../lore/README.md)) and a **ship's log** line: what your own core would write about it ([tone](../lore/tone.md#how-its-told), rule 7; not built). The old guard's pages also list what each planet's version is (**worn as**).
+
 The aim for each enemy: a clear personality, a pattern you can learn (Hollow Knight and Silksong: a **tell**, a **commit**, then an **open** window you can punish), a good model with animations, and its own sounds.
 
 ## The scale
@@ -55,7 +57,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Burrower](burrower.md) | wild | Ambusher | 2 | 2 | 2 | 1 | 1 | Draw the ripple |
 | [Spitter](spitter.md) | wild, bloom | Ground lobber | 1 | 2 | 2 | 1 | 1 | Something the Flakker doesn't do |
 | [Sky Manta](sky-manta.md) | wild, bloom | Crossing heavy | 2 | 2 | 2 | 1 | 1 | Show which thorns ripen when |
-| [Warden](warden.md) | lattice: Halcyon, Glacis, Cinder | Shield | 2 | 3 | 2 | 1 | 1 | Open its emitter on the windup |
+| [Bulwark](bulwark.md) | lattice: Halcyon, Glacis, Cinder | Shield | 2 | 3 | 2 | 1 | 1 | Open its emitter on the windup |
 | [Prism](prism.md) | lattice | Reflector, sweeper | 2 | 3 | 2 | 1 | 1 | Faces that open and close |
 | [Gatekeeper](gatekeeper.md) | lattice | Gate pylon | 1 | 2 | 2 | 1 | 1 | Give the pylon something to do |
 | [Spindle](spindle.md) | lattice | Spinning pylon | 2 | 3 | 2 | 1 | 1 | A spin-up sound |
@@ -64,7 +66,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Heartpod](heartpod.md) | bloom: Mirefall, spore vents | Healer, linker | 2 | 2 | 2 | 1 | 1 | Tune the heal and toughness |
 | [Puffball](puffball.md) | bloom | Spore mine (fodder) | 2 | 2 | 2 | 1 | 1 | A wet pop and a spore sound |
 | [Loot Runner](loot-runner.md) | bounty | Escaping target | 1 | 1 | 2 | 1 | 1 | A tell on its jink |
-| [Strongbox](strongbox.md) | bounty | Burst check | 1 | 1 | 2 | 1 | 1 | Show the tumblers |
+| [Strongbox](strongbox.md) | bounty | Hauled by two tugs: cut them loose | 2 | 2 | 2 | 1 | 1 | A model for the tug |
 | [Iron Crate](iron-crate.md) | bounty | Dash check | 2 | 1 | 2 | 1 | 1 | A crack sound of its own |
 | [Dart](dart.md) | old guard, every planet | Formation fodder | 1 | 1 | 2 | 1 | 1 | Tells on the non-dive paths |
 | [Swarm](swarm.md) | old guard | Homing fodder | 1 | 0 | 2 | 1 | 1 | A readable approach |
@@ -105,7 +107,7 @@ The native beasts, on any biome with creatures (`factionsIn`, `src/sim/factions.
 
 The old machine and its copies. Tell grammar: **draw** (the whole attack in light first, a full second). Designed, not built: a lattice foe now and then **listens** to the Engine instead of attacking, and a few elites have **woken** cores and can yield ([lattice](../factions/lattice.md#listening-designed-not-built)). Their models are in `tools/models/enemies_order.py`.
 
-- [Warden](warden.md)
+- [Bulwark](bulwark.md)
 - [Prism](prism.md)
 - [Gatekeeper](gatekeeper.md)
 - [Spindle](spindle.md)
@@ -151,5 +153,4 @@ Each planet's own roster (`src/world/planets.ts`), drawn by `spawnArch` (`src/si
 6. **Open windows have no common length.** Recovers run from 0.6 s (Gunship) to 2.5 s (Rattler), and the Ace has none. Settle a band (say 1.0–1.8 s, longer on elites) and tune to it on the autopilot bench (`just autopilot --foes <kind>`).
 7. **The old guard lags the faction foes** on pattern: five of nine have no real tell. Either bring them up to the loop, or keep them as fodder on purpose and say so.
 8. **Deaths are all the same.** A beast and a machine go up in the same fireball. A beast should fall, a machine break up, a bloom burst into spores.
-9. **The old guard has no owner in the lore.** Dart, swarm, gunship and the rest are worn under planet names, but nobody in the lore flies "a gunship". Each planet's version should be a thing its power would build (the Patrol Cutter is the Compact's dart; the Hesk Skiff the Hesk's), named on its own page, or folded into the faction rosters.
-10. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Sower, Spitter, Warden, Prism, and the old guard's Gunship, Brute and Lancer.
+9. **Grafts cover 8 elites** (`docs/combat-and-builds.md` §3). The other elites have none yet: Hookjaw, Flakker, Technical, Dreadnought, Sower, Spitter, Bulwark, Prism, and the old guard's Gunship, Brute and Lancer.
