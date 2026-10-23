@@ -28,7 +28,7 @@ How Rustwing Raiders should look in flight: the image, light, colour, shapes, th
 - **Pickups are chalk-white with a dark outline**, in shapes no bullet has (a bent tin coin, a riveted repair patch). They bob and turn; they never streak.
 - **Colliders have one look**: dark faces, a lit cream lip along the top, a bold dark outline. If it has a lip, you'll hit it. Laser gates are white-hot cores with a dark edge, not scrap red.
 - **The lane sits at mid-value and mid-saturation.** The richest colour is at the screen's edges and on the horizon. The most saturated things on screen are always enemy fire.
-- **Each planet has a palette you could name blind**, and its four biomes vary it without breaking it.
+- **Each planet has a palette you could name blind**, and its four biomes vary it without breaking it. A planet's sides can have styles of their own (a day side and a night side, a coast and an ice cap).
 
 ## The four layers
 
@@ -83,6 +83,14 @@ Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints s
 - **No foliage in the sky.** The high parallax layer is haze, cloud, moons and planets.
 - **Ground cover, mid props, rare heroes**, several species each, so no planet looks copy-pasted. Props fit their planet.
 - **Composed, not scattered**: groups along the canyon edges and the field's sides frame a clear lane. One hero landmark per screen at most, at a chosen beat, under a density budget.
+
+## Levels and placement
+
+The game comes first: a level must show at once what you'll hit and what will hurt you, however beautiful its planet.
+
+- **Designed, not strewn**: a level is laid out from its bones (walls, rivers, roads, ridges, craters, coasts) and everything is placed by them. You should be able to say why each group is where it is. How the layout is built: [laying out a level](readability.md#laying-out-a-level).
+- **Foes fit the ground**: a boat follows the waterways, an armoured car keeps to a road, a turret sits where someone would build one (on a wall, at a choke, guarding a bridge or a depot). A biome without the route doesn't have the foe.
+- **Checked by looking**: every change to a planet is judged on many screenshots (several seeds, calm and mid-fight, the whole strip), not one good frame. The loop is in [readability](readability.md#how-a-biome-is-checked-screenshots-many-of-them).
 - **Hazards fly in, they never pop in.**
 
 ## A living world
@@ -113,7 +121,7 @@ Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints s
 
 ## Target screenshots
 
-What a finished biome should look like, one line each. Use them to judge a pass.
+The paintings in [`art-direction/planets/`](art-direction/planets/) show the style, cleanness, contrast, grouping and sizes we want. They are a reference, not a spec: a biome doesn't have to copy its painting's palette, props or layout, and a generated level never will. It passes when its screenshots read as cleanly as the painting does. One line each:
 
 | Planet | Biome | Light | What the shot shows |
 |---|---|---|---|

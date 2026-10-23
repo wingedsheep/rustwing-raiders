@@ -7,7 +7,7 @@ Done work is deleted from here; git and the design docs keep the record.
 ## Now
 
 ### 1. Readability: what can hurt you, what you can take
-The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix, and the look of the paintings in [`art-direction/planets/`](art-direction/planets/), come in small pushes, each finished and checked on its own before the next: [readability](readability.md).
+The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix comes in small pushes, each finished and checked on its own before the next, and each judged on many screenshots against the principles: [readability](readability.md). The paintings in [`art-direction/planets/`](art-direction/planets/) are the reference for the cleanness and contrast we want, not a look to copy: each planet keeps its own style.
 - **The four layers, game-wide** (3–6): threats above the grade, the colour contract, pickups by shape, nothing ambient like a bullet.
 - **Red Mesa Run, piece by piece** (7–11): the camera, walls, colliders, composed props, then the biome like its painting.
 - **More biomes, the foes, then a planet at a time** (12 on).
@@ -65,7 +65,7 @@ Event outcomes, keywords (INFO button), first-time intros, the core's guide and 
 
 ### 7. Biomes: places worth seeing
 Every biome should feel like discovering somewhere new: its own look, its own life, its own light. Hollow Knight and Silksong are the bar.
-- Every pass follows the readability rules (1): scenery frames the lane, it never fills it.
+- Every pass follows the readability rules (1): scenery frames the lane, it never fills it, and foes fit the ground they're on.
 - The look of each planet comes in the [readability](readability.md) pushes, a planet at a time.
 - **Scripted moments**: one or two rare set pieces per biome that make it memorable. A titan walking past in the Titan Graveyard, drift-calves letting their gas go and climbing out of the Calving Haze, the Stormwall lighting up, Engine City's lamps waking, a temple bell under the Drowned Temple's water.
 - Each planet a theme of its own voice (only Oru-Tal's boss has one).
