@@ -88,9 +88,9 @@ Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints s
 
 The game comes first: a level must show at once what you'll hit and what will hurt you, however beautiful its planet.
 
-- **Designed, not strewn**: a level is laid out from its bones (walls, rivers, roads, ridges, craters, coasts) and everything is placed by them. You should be able to say why each group is where it is. How the layout is built: [laying out a level](readability.md#laying-out-a-level).
+- **Designed, not strewn**: a level is laid out from its bones (walls, rivers, roads, ridges, craters, coasts) and everything is placed by them. You should be able to say why each group is where it is. Each biome has its own layout algorithm, because a canyon, a salt flat and a reef aren't built by the same rules. How the layouts are built: [laying out a level](readability.md#laying-out-a-level).
 - **Foes fit the ground**: a boat follows the waterways, an armoured car keeps to a road, a turret sits where someone would build one (on a wall, at a choke, guarding a bridge or a depot). A biome without the route doesn't have the foe.
-- **Checked by looking**: every change to a planet is judged on many screenshots (several seeds, calm and mid-fight, the whole strip), not one good frame. The loop is in [readability](readability.md#how-a-biome-is-checked-screenshots-many-of-them).
+- **Checked by looking**: every change to a planet is judged on many screenshots (several seeds, calm and mid-fight, the whole strip), not one good frame. Looking good in the screenshots weighs more than any metric or rule in this document. The loop is in [readability](readability.md#how-a-biome-is-checked-screenshots-many-of-them).
 - **Hazards fly in, they never pop in.**
 
 ## A living world

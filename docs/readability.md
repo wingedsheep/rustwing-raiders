@@ -4,6 +4,8 @@ Item 1 of the [backlog](backlog.md), split into pushes. The goal: a screen you c
 
 Each push is small enough to finish and check on its own, and is checked before the next one starts. Each one lists only the checks that fit it, with the line it has to pass. Done pushes are deleted from here.
 
+**How it looks in screenshots outweighs every metric and guideline here.** The numbers, lines and rules help find problems; they don't decide. If the screenshots look good and a number fails, question the number. If every number passes and the screenshots look wrong, the push isn't done.
+
 ## What the paintings are for
 
 The paintings in [`art-direction/planets/`](art-direction/planets/) are a reference, not a target to copy. Take from them:
@@ -33,7 +35,7 @@ Don't copy their palettes, props or layouts one to one. Each planet gets its own
 
 ## How a biome is checked: screenshots, many of them
 
-Looking is the main check. While working on a planet, take many screenshots, look at every one, and fix what fails before going on. The numbers and tools below help find problems; they don't replace looking.
+Looking is the main check, and it wins over every other. While working on a planet, take many screenshots, look at every one, and fix what fails before going on. The numbers and tools below help find problems; they don't replace looking, and passing them doesn't make a biome good.
 
 1. **Take a set** with `just look` (see Tools): several seeds, several moments (calm flight, mid-fight, a landmark, a breather, the boss's approach), and the whole level as a strip. One good frame proves nothing; a dozen bad ones are easy to miss without a set.
 2. **Look at each one against the principles**, and write down what fails:
@@ -50,20 +52,47 @@ A push isn't done until its last set of screenshots has been looked at and passe
 
 ## Laying out a level
 
-Placement comes from algorithms that build the level the way a place is built, not from scattering props at random x. In order:
+**This is one of the most important things to get right.** Good art on a random layout still looks like clutter; a well laid-out level reads even in plain grey. Placement comes from algorithms that build the level the way the place would have formed or been built, never from scattering props at random x.
 
-1. **The bones**: the big features first, chosen per biome. Canyon walls, a river and its banks, a road or a rail line, ridges, craters, a coast, a fault. They run with the scroll and give the level its beats.
+**Each biome has its own layout.** A canyon, a salt flat, a reef and a buried city aren't the same algorithm with different props: they grow different bones, group things by different rules and give foes different routes. Today every biome shares one generator and differs only in its terrain `shape` and prop weights (`src/world/planets.ts`, `src/sim/terrain.ts`). That has to become one layout per biome, built on a shared toolkit.
+
+### The shared toolkit
+
+Every biome's layout runs the same steps, in order, but each step is its own per biome:
+
+1. **The bones**: the big features first. Canyon walls, a river and its banks, a road or a rail line, ridges, craters, a coast, a fault, a street grid. They run with the scroll and give the level its beats.
 2. **The lane**: the open space the ship flies through, kept at least three ship widths wide, opened and narrowed on purpose.
 3. **Groups along the bones**: props cluster where the features say they would (reeds on the banks, rubble under the cliffs, wrecks along the road, caps in the wet hollows), at the sides of the lane, framing it. A density budget per screen.
 4. **Landmarks at chosen beats**: at most one per screen, where the level turns or opens.
 5. **Foes on the features they need**: route-bound foes are only spawned where their route exists, and follow it (boats on the water, vehicles on the road). Turrets are placed at the spots the bones make worth guarding. Free fliers fill the rest.
 6. **Breathers**: stretches with little scenery and no fire, so the busy parts read as busy.
 
-Each biome says which bones it has and which foes ride them. A foe whose route a biome lacks isn't in that biome's roster.
+The toolkit gives the shared parts (a route the sim can follow, a lane carved through the bones, group placement along a curve or round a point, the budget, the beat clock). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
+
+### Each biome's layout
+
+A first idea for each painted biome, to be tried in screenshots and changed. Every other biome writes its row before its push starts.
+
+| Biome | Bones | Groups | Routes and posts | Beats |
+|---|---|---|---|---|
+| Salt Pans | flat salt, crossed by dry cracks and a few old haul tracks | salt pillars in tight clusters on the crack lines, wide bare salt between | skimmers race the tracks; mortars at track crossings | a stranded hauler; long bright breathers |
+| Red Mesa Run | a winding gorge, its walls, a dry wash on the floor | rubble and scrub under the cliffs and along the wash | vehicles in the wash and on ledge tracks; guns dug into the walls at the narrows | the broken arch; the depot in the wall |
+| Glowcap Forest | wet hollows and the dry rises between them | caps in groups in the hollows at the sides | crawlers along the rises; spitter pods in the hollows | a ring of giant caps; a clearing |
+| Spore Vents | a field of vent lines along buried faults | vents in rows on the faults, growth thickest round them | grown things root by the vents; fliers come out of the fog | a vent column; a dead quiet stretch |
+| Aurora Shelf | a shelf edge and its crevasses | ice spires in threes and fives on the ridges | sledges on the shelf road; pylons on the ridges | a calving face; open ice |
+| Engine City | a buried street grid under the ice | districts in blocks along the streets, lit from below | ground units on the streets; guns at junctions and gates | a laser gate across an avenue; a dark district |
+| Titan Graveyard | the titans' fallen bodies | wrecks and scavenger camps round the bodies | crawlers along the spines; guns on the ribs | one titan's hand framing the lane |
+| Glass Craters | crater rims and floors | glass shards on the rims, the floors glowing | rollers round the rims; emplacements on the high rims | a big crater to cross |
+| Calving Haze | no ground, a haze sea in layers | drift-calves in herds below, cloud banks at the sides | skiffs along wind lanes; harpoon posts on the floating rocks | a calf rising past |
+| Tide Caves | close reef walls and channels between them | wet growth on the lips, shell beds in the shallows | boats in the channels; guns in the cave mouths | a flooded hall; a narrows |
+
+### Layout first, art after
+
+Each biome's layout is built and judged before its new art. Its screenshots in today's models (and in the grey frame and the strip) must already read as a designed place: clear bones, grouped props, an open lane, foes on their routes. New models on a bad layout don't fix it.
 
 ## The checks
 
-`just look` builds these (see Tools). Each push names the ones it needs; every push also takes the screenshot set above.
+`just look` builds these (see Tools). Each push names the ones it needs; every push also takes the screenshot set above, and that set has the last word.
 
 **Stills**
 - **Look**: `just look <planet> <biome>` saves a painting and the game side by side, at a fixed seed with the sim paused at a set moment. `--all` makes a contact sheet of every biome.
@@ -94,7 +123,7 @@ Each biome says which bones it has and which foes ride them. A foe whose route a
 
 `--stats` adds the numbers (20 s in, when every biome's foes are firing) and the Value, Squint and Strip sheets, with a `-found.png` showing each bullet and look-alike it measured. `--seeds` makes the Seeds sheet. The measures are in `tools/look-stats.ts`. Bullet contrast is the OKLab distance (lightness and colour), because the Salt Pans painting's orange shots on white salt read by colour. The paintings' numbers come from the bullets the look-alike finder finds in them.
 
-The lines are rough, from one run. They only need to point at what looks chaotic; the screenshots decide:
+The lines are rough, from one run. They only need to point at what looks chaotic. When a line and the screenshots disagree, the screenshots win, and the line gets moved:
 
 | | paintings | today's game | line |
 |---|---|---|---|
@@ -177,10 +206,11 @@ Today a prop is a collider at 11 or taller and scenery reaches 8.5, with nothing
 - **Pass, collider map:** a debug frame with every collider tinted, next to the normal frame. In the five-second test, newcomers pick out the same things as solid.
 - **Pass, look:** fly into a collider. It stays solid all the way.
 
-### Push 10: a level laid out, not scattered
-The layout from [laying out a level](#laying-out-a-level), for the canyon: the walls and the canyon floor's dry wash as the bones, rubble and scrub grouped under the cliffs and along the wash, a broken arch or a depot dug into the wall as the beat's landmark, breathers between. Today each chunk scatters props at random x, landmarks up to 26 wide included.
+### Push 10: the layout toolkit, and Red Mesa's layout
+The [shared toolkit](#the-shared-toolkit) and the first biome layout on it, Red Mesa Run's [row](#each-biomes-layout). Today each chunk scatters props at random x, landmarks up to 26 wide included. Build the toolkit so a second, very different layout (Salt Pans or Tide Caves) fits it without changes: try it as a sketch before the push closes.
 
-- **Pass, screenshots:** a set of twelve seeds, calm and mid-fight. On every screen you can say why each group is where it is.
+- **Pass, screenshots:** a set of twelve seeds, calm and mid-fight, in today's models. On every screen you can say why each group is where it is.
+- **Pass, second layout:** a rough Salt Pans or Tide Caves layout on the same toolkit, in a strip and a few stills. It reads as a different place laid out by different rules.
 - **Pass, clumping:** clearly below 1 (start at ≤ 0.7), against today's score of about 1.
 - **Pass, open lane:** at least three ship widths on every screen.
 - **Pass, budget:** no screen over its budget, and at most one landmark per screen.
@@ -208,7 +238,7 @@ The models and light. Codex paints the biome's pieces on flat grey from the in-f
 
 ## More biomes
 
-Each push reuses pushes 7–11: its own bones, its own groups, its foes on its own routes, its own light and palette. Each one runs push 12's checks, plus its own.
+Each push reuses pushes 7–11 and starts with its own layout: its row in [each biome's layout](#each-biomes-layout), written on the toolkit and judged on screenshots before any new art. Then its foes on its own routes, then its own light and palette. Each one runs pushes 10–12's checks, plus its own.
 
 ### Push 13: Glowcap Forest
 An open field at night under a violet sky. The bones are wet hollows and the dry rises between them; caps grow in groups in the hollows at the sides and frame the lane. They glow down and brighten in a wave as you pass; tall caps carry the collider lip. Brood sacs root in the deepest hollows.
@@ -236,7 +266,7 @@ Codex paints a sheet of the faction's foes from the in-flight angle, kept in [`a
 
 Each planet is a push, all four biomes together, starting with Kessra, Mirefall, Ashgrave, then Glacis and Vesh. Each planet picks its own style and palette, and its sides can differ (a day side and a night side, a sea coast and an ice cap). Oru-Tal, Halcyon and Cinder have no paintings yet, so each starts by painting its four biomes and judging them against the questions in [AGENTS.md](../AGENTS.md).
 
-- **Pass:** push 12's checks, for each biome.
+- **Pass:** each biome's own layout, judged on screenshots first, then pushes 10–12's checks.
 - **Pass, blind test:** thumbnails of the planet's four biomes, shuffled with two other planets' thumbnails. People sort them by planet.
 
 The scripted moments and each planet's music stay with [biomes](backlog.md#7-biomes-places-worth-seeing).
