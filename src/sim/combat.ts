@@ -108,7 +108,7 @@ export type FoeEvent =
   | { type: 'latch'; id: number; enemy: number; x: number; z: number }
   | { type: 'breakFree'; id: number; enemy: number; x: number; z: number }
   /** A strike lands or starts (a shell, a ring, a slam); `gateDown`: a gate dropped. */
-  | { type: 'strike'; kind: string; x: number; z: number; r: number }
+  | { type: 'strike'; kind: string; x: number; z: number; r: number; color?: number }
   | { type: 'outran'; id: number; enemy: number }
   | { type: 'overtake'; enemy: number; by: number }
   | { type: 'link'; enemy: number; to: number; on: boolean }

@@ -814,87 +814,326 @@ def engine_poses(body, eye, core, petals, ring, antennae, arms):
     ] + iris_cycle([1.3, 0.6, 1.2, 0.4]) + ant(lambda s, a: [(a, R, [(-0.1, 0, s * 0.1), (0, 0, 0), (-0.1, 0, -s * 0.1), (0, 0, 0)])]))
 
 
-# --- ASHGRAVE: WARLORD KHET, riding a re-wired titan head -----------------------------------------
+# --- ASHGRAVE: WARLORD KHET, riding the head of the titan Unbending -------------------------------
+#
+# The head of a Compact titan in its old blue, cut off at the neck (torn hoses, the spine's stump),
+# under the Sankvi's scrap: rust plates bolted over its dome, a deck on its brow with Khet on it
+# (red cloak, a wrench he waves), junk guns, banners, two thrusters slung under its cheeks. One
+# great eye in its face (the beam; a weak point), a jaw like a portcullis. Its parts hinge where it
+# moves (the head, the jaw, the eye's iris, each thruster, Khet and his arm, the banners) for its
+# poses (see khet_poses). All of the scrap goes in the third phase (`shed=2`), Khet with it; what
+# comes then (`appear=2`): the Compact's light in lines over the bare head, and Khet in its jaw.
+
+COMPACT_TITAN = ("#3e5a78", "#2c4058", "#8aa6c0")  # old blue, its shadow, its trim
+
 
 def boss_ashgrave():
-    MECH, RUST, GREEN = hexc(0x6a7a6a), hexc(0x9a6a4a), hexc(0x4aff8a)
-    MECH2, CLOTH = "#4a5650", "#c84a2a"
+    BLUE, BLUE2, TRIM = COMPACT_TITAN
+    RUST, RUST2, GREEN, LIGHT = hexc(0x9a6a4a), "#6a4a34", hexc(0x4aff8a), "#4ae8ff"
+    CLOTH, SKIN, BONE = "#c84a2a", "#d0a080", "#d8d0b8"
     root = group("boss_ashgrave", kind="boss_ashgrave")
-    head = group("khet_head", loc=(0, 0, 2.0), parent=root)
+    head = group("khet_head", loc=(0, 0, 2.4), parent=root)
+
+    # the titan's helm: a broad faceted skull, the face towards -y, a crest down the middle
     m = Model("khet_skull")
-    # the titan's helmet: a wide armoured skull, faceplate towards -y
-    skull = [(-5.0, 3.0), (-6.0, 0.0), (-4.6, -3.2), (4.6, -3.2), (6.0, 0.0), (5.0, 3.0)]
-    m.slab(skull, -1.6, 1.6, MECH, top=[(x * 0.8, y * 0.85) for x, y in skull])
-    m.slab([(x * 0.8, y * 0.85) for x, y in skull], 1.6, 2.0, MECH2, top=[(x * 0.62, y * 0.7) for x, y in skull])
-    m.box((1.0, 5.6, 0.4), (0, 0.0, 2.1), MECH)                                   # crest ridge
-    for s in (1, -1):                                                             # ear vents and a broken horn
-        m.box((1.0, 2.0, 2.4), (s * 6.0, 0.3, 0.2), MECH2, taper=0.7)
-        for z in (-0.4, 0.2, 0.8):
-            m.box((1.04, 1.6, 0.16), (s * 6.0, 0.3, z), DARK)
-    limb(m, (5.2, 1.0, 1.4), (7.0, 2.4, 3.6), 0.6, 0.25, MECH2, segs=5)
-    limb(m, (-5.2, 1.0, 1.4), (-6.0, 1.6, 2.4), 0.6, 0.45, MECH2, segs=5)        # snapped off
-    m.cyl(0.46, 0.1, (-6.0, 1.6, 2.4), RUST, segs=5, rot=(0.5, -0.6, 0))
-    # visor: a dark band with two green eyes (weak points)
-    m.box((7.4, 0.6, 1.0), (0, -3.2, 0.6), DARK, rot=(-0.3, 0, 0))
+    skull = ccw([(-6.4, 4.4), (-7.0, 0.2), (-6.2, -3.8), (-3.6, -5.4), (3.6, -5.4), (6.2, -3.8), (7.0, 0.2), (6.4, 4.4)])
+    m.slab(skull, -1.9, 1.6, BLUE, top=[(x * 0.9, y * 0.92) for x, y in skull])
+    m.slab([(x * 0.9, y * 0.92) for x, y in skull], 1.6, 2.9, BLUE, top=[(x * 0.58, y * 0.66) for x, y in skull])
+    m.box((1.0, 7.6, 1.2), (0, 0.6, 3.3), BLUE2, taper=0.45)                       # crest
+    m.box((1.1, 7.0, 0.2), (0, 0.6, 3.05), TRIM)
+    # the brow: a heavy ridge over the eye, trimmed
+    m.box((10.4, 1.7, 1.3), (0, -4.5, 1.7), BLUE2, rot=(0.15, 0, 0), taper=0.9)
+    m.box((10.6, 0.25, 0.25), (0, -5.35, 1.4), TRIM)
+    # the face: a slanted plate, and cheek guards either side of it
+    m.box((9.0, 0.9, 2.8), (0, -5.5, 0.0), BLUE2, rot=(-0.28, 0, 0))
     for s in (1, -1):
-        m.box((1.8, 0.5, 0.7), (s * 2.0, -3.4, 0.6), GREEN, rot=(-0.3, 0, s * 0.12), glow=True)
-    # scrap patches and rust
-    for x, y, w, d in ((-3.0, 1.0, 1.6, 1.2), (3.4, -1.0, 1.2, 1.4), (1.8, 2.2, 1.4, 0.9)):
-        m.box((w, d, 0.2), (x, y, 1.5 if abs(x) < 3 else 1.1), RUST, rot=(0, 0, 0.2))
-    # the scrap platform on its crown: deck, throne, generator (weak), banners, guns
-    m.box((5.0, 3.6, 0.3), (0, 0.8, 2.4), RUST)
-    for x in (-2.2, -1.1, 0, 1.1, 2.2):
-        m.box((0.12, 3.6, 0.32), (x, 0.8, 2.42), "#6a4a34")
-    m.box((1.4, 1.0, 1.6), (0, 1.8, 3.3), "#5a3a2a")                              # throne back
-    m.box((1.4, 1.2, 0.4), (0, 1.3, 2.7), "#5a3a2a")
-    m.cyl(0.32, 0.8, (0, 1.2, 2.9), CLOTH, segs=5)                                 # the warlord
-    m.ball(0.28, (0, 1.15, 3.9), "#d0b090", subdiv=0)
-    m.box((0.9, 0.3, 0.2), (0, 1.15, 4.1), RUST)                                   # war helm crest
-    m.box((1.2, 0.4, 0.6), (0, 1.2, 3.3), CLOTH, taper=0.6)                        # shoulders and cloak
-    m.cyl(0.55, 0.8, (2.0, 2.2, 2.5), STEEL, segs=6)                               # generator
-    m.ball(0.42, (2.0, 2.2, 3.5), GREEN, subdiv=1, glow=True)
-    m.plank_line((2.0, 2.2, 3.0), (0.4, 1.6, 2.7), 0.12, 0.12, "#1a1a1a")          # cables
-    m.plank_line((2.0, 2.0, 2.6), (3.6, -1.8, 1.4), 0.12, 0.12, "#1a1a1a")
-    for s in (1, -1):                                                             # scrap cannons
-        m.box((0.9, 0.9, 0.6), (s * 2.2, -0.6, 2.8), STEEL)
-        m.cyl(0.18, 1.6, (s * 2.2, -0.8, 2.9), DARK, segs=5, rot=FWD)
-    # the jaw-cannon housing
-    m.box((4.6, 1.2, 1.0), (0, -3.4, -1.1), MECH2, taper=0.9)
+        m.box((1.8, 3.4, 3.2), (s * 5.6, -3.8, -0.3), BLUE, rot=(0, 0, s * 0.35), taper=0.75)
+        m.box((0.2, 3.2, 0.25), (s * 6.3, -3.6, 1.2), TRIM, rot=(0, 0, s * 0.35))
+        # Compact panel lines down its temples, and its old number plate
+        for k in range(3):
+            m.box((0.12, 3.4, 0.08), (s * (2.4 + k * 1.2), 0.6, 2.62 - k * 0.42), TRIM)
+    m.box((1.6, 0.9, 0.12), (-3.4, 2.6, 2.4), "#c8d4e0", rot=(0.2, -0.3, 0))
+    # the eye's socket: a dark ring in the face
+    m.cyl(1.7, 0.5, (0, -5.5, 0.3), "#141a22", segs=12, rot=FWD)
+    # the neck cut through: the spine's stump, torn hoses, the cut glowing faintly still
+    m.cyl(3.0, 1.4, (0, 4.2, -0.8), BLUE2, segs=10, rot=UPY)
+    m.cyl(2.6, 0.12, (0, 5.62, -0.8), "#5a2a1a", segs=10, rot=UPY)
+    m.cyl(1.1, 1.6, (0, 5.0, -0.8), "#9aa0a8", segs=8, rot=UPY)
+    for k, (x, z) in enumerate(((-2.0, 0.2), (2.0, 0.2), (-1.4, -1.9), (1.5, -1.8), (0, 1.2))):
+        limb(m, (x, 5.2, z - 0.8), (x * 1.3 + (k % 2 - 0.5) * 0.6, 7.0 + k * 0.2, z - 1.1), 0.32, 0.22, "#1a1a1e", segs=5)
+        m.cyl(0.26, 0.1, (x * 1.3 + (k % 2 - 0.5) * 0.6, 7.0 + k * 0.2, z - 1.1), RUST, segs=5, rot=UPY)
     m.build(head)
-    loop(head, "boss_ashgrave_ride_idle", "location", 2.4, [(0, 0, 0), (0.15, 0, 0.25), (0, 0, 0), (-0.15, 0, 0.25)])
-    loop(head, "boss_ashgrave_ride_idle", "rotation_euler", 2.4, [(0, 0, 0), (0, 0.03, 0), (0, 0, 0), (0, -0.03, 0)])
 
+    # its eye: the beam's lens in its iris (scaled as it opens and narrows)
+    eye = group("khet_eye", loc=(0, -5.8, 0.3), parent=head)
+    e = Model("khet_lens")
+    e.cyl(1.3, 0.3, (0, 0, 0), "#0e1a14", segs=12, rot=FWD)
+    e.cyl(1.0, 0.16, (0, -0.25, 0), GREEN, segs=12, rot=FWD, glow=True)
+    e.cyl(0.4, 0.1, (0, -0.4, 0), "#e8fff0", segs=8, rot=FWD, glow=True)
+    e.build(eye)
+
+    # its jaw: a portcullis of bars, hinged under the face
     j = Model("khet_jaw")
-    j.box((4.0, 1.6, 0.7), (0, -0.8, 0), MECH, taper=0.85)
-    for x in (-1.4, -0.7, 0, 0.7, 1.4):
-        j.box((0.4, 0.3, 0.5), (x, -1.55, 0.4), "#d8d0b8")                           # teeth
-    j.cyl(0.4, 0.8, (0, -1.4, -0.1), DARK, segs=6, rot=FWD)                          # mouth cannon
-    j.cyl(0.26, 0.06, (0, -2.22, -0.1), GREEN, segs=6, rot=FWD, glow=True)
-    jaw = j.build(head, loc=(0, -2.6, -1.4))
-    loop(jaw, "boss_ashgrave_ride_idle", "rotation_euler", 2.4, [(0, 0, 0), (0.25, 0, 0), (0, 0, 0), (0.05, 0, 0)])
+    j.box((8.0, 3.0, 1.1), (0, -1.5, -0.2), BLUE, taper=0.9)
+    j.box((8.2, 0.3, 0.3), (0, -3.0, 0.25), TRIM)
+    for x in (-3.0, -1.8, -0.6, 0.6, 1.8, 3.0):
+        j.box((0.5, 0.5, 1.1), (x, -3.1, 0.6), BONE, taper=0.7)
+    j.cyl(0.9, 0.3, (0, -2.6, 0.45), "#0e1a14", segs=8)                           # its mouth cannon
+    j.cyl(0.6, 0.1, (0, -2.6, 0.72), GREEN, segs=8, glow=True)
+    jaw = j.build(head, loc=(0, -5.0, -1.9))
+    # (in the third phase) Khet, hurt, held in its jaw like a cub
+    hd = Model("khet_held")
+    hd.box((1.6, 0.9, 0.5), (0, -2.0, 0.9), CLOTH, rot=(0, 0, 0.3))
+    hd.ball(0.32, (0.9, -2.3, 1.1), SKIN, subdiv=0)
+    hd.box((0.7, 0.25, 0.2), (0.9, -2.3, 1.4), RUST)
+    hd.build(jaw, appear=2)
 
-    # jury-rigged thrusters slung under the sides
+    # what the Compact's light draws over it once it has decided: its lines, bare
+    lt = Model("khet_lattice")
+    for s in (1, -1):
+        lt.plank_line((s * 1.6, -4.2, 2.45), (s * 3.6, 0.0, 2.9), 0.16, 0.08, LIGHT)
+        lt.plank_line((s * 3.6, 0.0, 2.9), (s * 2.4, 3.2, 2.6), 0.16, 0.08, LIGHT)
+        lt.plank_line((s * 3.6, 0.0, 2.9), (s * 6.0, 0.0, 1.9), 0.16, 0.08, LIGHT)
+    lt.plank_line((0, -3.0, 3.9), (0, 4.0, 3.9), 0.18, 0.08, LIGHT)
+    lt.build(head, appear=2)
+
+    # Khet's scrap: plates bolted over the dome, spikes, junk guns on the brow, his deck
+    sc = Model("khet_scrap")
+    for x, y, w, d, r in ((-3.6, 1.4, 2.0, 1.6, 0.25), (3.8, 0.8, 1.8, 2.0, -0.2), (-1.8, 3.0, 1.6, 1.2, 0.1), (2.6, 3.2, 1.4, 1.0, 0.3)):
+        sc.box((w, d, 0.24), (x, y, 2.55 - abs(x) * 0.12), RUST, rot=(0, -x * 0.05, r))
+        for bx in (-0.4, 0.4):
+            sc.box((0.14, 0.14, 0.12), (x + bx * w * 0.6, y, 2.7 - abs(x) * 0.12), "#2a2420")
+    for s in (1, -1):
+        for k in range(3):
+            limb(sc, (s * (5.6 + k * 0.1), -1.5 + k * 1.6, 0.8), (s * (7.6 + k * 0.2), -1.0 + k * 1.8, 1.4), 0.3, 0.05, RUST2, segs=4)
+        sc.box((1.2, 1.2, 0.8), (s * 3.6, -3.6, 2.9), RUST2)                          # junk guns
+        sc.cyl(0.24, 1.8, (s * 3.6, -4.0, 3.0), "#1a1a1a", segs=6, rot=FWD)
+        sc.cyl(0.32, 0.3, (s * 3.6, -5.7, 3.0), RUST, segs=6, rot=FWD)
+    # the deck on its brow, the throne, the plant he wired its eye into
+    sc.box((4.4, 3.0, 0.3), (0, -2.0, 3.1), RUST)
+    for x in (-1.6, -0.5, 0.6, 1.7):
+        sc.box((0.12, 3.0, 0.34), (x, -2.0, 3.12), RUST2)
+    sc.box((1.4, 0.6, 1.4), (0, -0.6, 3.9), "#5a3a2a")
+    sc.cyl(0.55, 0.9, (-1.9, -0.8, 3.2), "#5c626c", segs=6)
+    sc.ball(0.42, (-1.9, -0.8, 4.3), GREEN, subdiv=1, glow=True)
+    sc.plank_line((-1.9, -0.8, 3.7), (-0.6, -4.6, 2.2), 0.12, 0.12, "#1a1a1a")    # the cable to its eye
+    sc.plank_line((-1.9, -0.6, 3.6), (1.5, -0.5, 3.3), 0.12, 0.12, "#1a1a1a")
+    sc.build(head, shed=2)
+
+    # thrusters slung under its cheeks, nozzles back (they swing down for a leap)
+    thrusters = {}
     for s in (1, -1):
         t = Model(f"khet_thruster_{'r' if s > 0 else 'l'}")
-        t.cyl(0.8, 2.6, (0, 1.2, 0), RUST, segs=7, rot=UPY)
-        t.cyl(0.85, 0.3, (0, 2.0, 0), "#1a1a1a", segs=7, rot=UPY)
-        t.cyl(0.65, 0.1, (0, 3.85, 0), GREEN, segs=7, rot=UPY, glow=True)
-        t.box((0.4, 0.4, 1.4), (-s * 0.6, 1.2, 0.8), STEEL)
-        t.build(head, loc=(s * 4.2, 0.0, -1.0))
-    # banners on poles, flapping
+        t.cyl(0.95, 3.0, (0, -0.6, 0), RUST, segs=8, rot=UPY)
+        t.cyl(1.05, 0.35, (0, 0.4, 0), "#1a1a1a", segs=8, rot=UPY)
+        t.cyl(1.1, 0.6, (0, 2.4, 0), "#3a3430", segs=8, r_top=1.3, rot=UPY)
+        t.cyl(0.85, 0.1, (0, 2.96, 0), "#ff9a3a", segs=8, rot=UPY, glow=True)
+        t.box((1.6, 0.6, 0.5), (-s * 1.3, -0.4, 0.4), "#5c626c")                      # its strut
+        t.box((1.6, 0.6, 0.5), (-s * 1.3, 1.4, 0.4), "#5c626c")
+        thrusters[s] = t.build(head, loc=(s * 8.4, 0.6, 0.2), shed=2)
+
+    # banners on poles at the deck's back corners
+    banners = {}
     for s in (1, -1):
         b = Model(f"khet_banner_{'r' if s > 0 else 'l'}")
-        b.plank_line((0, 0, 0), (0, 0, 3.0), 0.14, 0.14, "#3a2a20")
-        b.box((0.08, 1.4, 1.4), (0, 0.75, 2.2), CLOTH)
-        b.box((0.09, 0.5, 0.5), (0, 0.8, 2.2), "#e8e0c0")
-        o = b.build(head, loc=(s * 2.4, 2.4, 2.5))
-        loop(o, "boss_ashgrave_ride_idle", "rotation_euler", 2.4, [(0, 0, s * 0.3), (0, 0, -s * 0.1)] * 2)
+        b.plank_line((0, 0, 0), (0, 0, 3.2), 0.14, 0.14, "#3a2a20")
+        b.box((0.08, 1.6, 1.5), (0, 0.85, 2.4), CLOTH)
+        b.box((0.09, 0.6, 0.6), (0, 0.9, 2.4), "#e8e0c0")
+        banners[s] = b.build(head, loc=(s * 2.2, -0.6, 3.2), shed=2)
 
-    for x, y, z in ((-2.2, -1.8, 4.9), (2.2, -1.8, 4.9), (0, -5.5, 0.4), (-3.0, -4.4, 2.6), (3.0, -4.4, 2.6), (-6.0, -1.0, 2.2), (6.0, -1.0, 2.2)):
+    # Khet on his deck: small, red, loud; his arm (and his wrench) waves
+    rider = group("khet_rider", loc=(0, -2.4, 3.25), parent=head)
+    rd = Model("khet_body")
+    rd.cyl(0.42, 0.9, (0, 0, 0), CLOTH, segs=6, r_top=0.3)
+    rd.box((1.4, 0.5, 0.5), (0, 0.1, 0.9), CLOTH, taper=0.7)                          # cloak and shoulders
+    rd.box((1.2, 1.4, 0.12), (0, 0.6, 0.4), CLOTH, rot=(0.6, 0, 0))
+    rd.ball(0.34, (0, 0, 1.35), SKIN, subdiv=0)
+    rd.box((1.0, 0.3, 0.24), (0, 0, 1.68), RUST)                                       # his helm's crest
+    rd.box((0.22, 0.22, 0.8), (-0.6, 0, 0.5), CLOTH, rot=(0, 0.3, 0))
+    rd.build(rider, shed=2)
+    a = Model("khet_arm")
+    a.box((0.22, 0.22, 0.9), (0, 0, 0.45), CLOTH)
+    a.box((0.2, 0.2, 0.8), (0, 0, 1.2), "#9aa0a8")                                     # the wrench
+    a.box((0.5, 0.2, 0.2), (0, 0, 1.6), "#9aa0a8")
+    arm = a.build(rider, loc=(0.62, 0, 0.95), shed=2)
+
+    khet_poses(head, jaw, eye, thrusters, rider, arm, banners)
+
+    # guns: the junk guns on its brow, its mouth, its cheeks, the thrusters' mouths
+    for x, y, z in ((-3.6, -6.1, 5.4), (3.6, -6.1, 5.4), (0, -6.8, 1.0), (-5.8, -5.6, 2.4), (5.8, -5.6, 2.4), (-8.4, 3.6, 2.6), (8.4, 3.6, 2.6)):
         mount(root, (x, y, z), "gun")
-    mount(root, (-2.0, -3.6, 2.6), "weak")
-    mount(root, (2.0, -3.6, 2.6), "weak")
-    mount(root, (2.0, 2.2, 5.5), "weak")
+    mount(root, (0, -6.3, 2.7), "weak")
+    mount(root, (-1.9, -0.8, 6.7), "weak")
+
+
+BEAT_ASHGRAVE = 60 / 116  # its theme's beat (boss_ashgrave in src/audio.ts)
+
+
+def khet_poses(head, jaw, eye, thrusters, rider, arm, banners):
+    """Its idles and a pose for each of its moves (boss_ashgrave_<move>_<state>, see
+    src/view/boss-pose.ts). Every part that moves is keyed in every clip. The head's x pitches it
+    (+ nose down), y rolls it, z turns it; the jaw opens on +x; the eye opens in scale; a
+    thruster's x swings its nozzle up (+) or down (-); Khet turns on z, his arm swings on y (+s
+    out); a banner flaps on z."""
+    R, L, S = "rotation_euler", "location", "scale"
+    ZERO, ONE = (0, 0, 0), (1, 1, 1)
+    parts = [(head, R), (head, L), (jaw, R), (eye, S), (rider, R), (rider, L), (arm, R)]
+    parts += [(o, R) for o in thrusters.values()] + [(o, R) for o in banners.values()]
+    rider_at = tuple(rider.location)
+
+    def rest(obj, path):
+        return ONE if path == S else rider_at if (obj, path) == (rider, L) else ZERO
+
+    def clip(name, period, keys, held=False):
+        """keys: {(obj, path): [values evenly over the period]} (a cycle), or one value (held: go
+        there and hold). Parts not given rest."""
+        for obj, path in parts:
+            v = keys.get((obj, path))
+            if held:
+                end = v if v is not None and not isinstance(v, list) else rest(obj, path)
+                animate(obj, name, path, [(0, rest(obj, path)), (period, end)])
+            else:
+                vs = v if isinstance(v, list) else [v if v is not None else rest(obj, path)]
+                if len(vs) == 1:
+                    vs = vs * 2
+                loop(obj, name, path, period, vs)
+
+    def thr(f):
+        return {(o, R): f(s) for s, o in thrusters.items()}
+
+    def flap(k=1.0):
+        return {(o, R): [(0, 0, s * 0.3 * k), (0, 0, -s * 0.1 * k)] * 2 for s, o in banners.items()}
+
+    def up(dz):
+        return (rider_at[0], rider_at[1], rider_at[2] + dz)
+
+    def eye_at(v):
+        return [(x, x, x) for x in v] if isinstance(v, list) else (v, v, v)
+
+    # riding: the head bobbing on its thrusters, the jaw working, Khet waving to his clans
+    clip("boss_ashgrave_ride_idle", 2.4, {
+        (head, L): [(0, 0, 0), (0.15, 0, 0.25), (0, 0, 0), (-0.15, 0, 0.25)],
+        (head, R): [(0, 0, 0), (0, 0.03, 0), (0, 0, 0), (0, -0.03, 0)],
+        (jaw, R): [(0, 0, 0), (0.12, 0, 0), (0, 0, 0), (0.04, 0, 0)],
+        (eye, S): eye_at([1, 1.05, 1, 0.95]),
+        (rider, R): [(0, 0, 0.3), (0, 0, -0.2), (0, 0, 0.3), (0, 0, -0.2)],
+        (arm, R): [(0, 0.3, 0), (0, 1.2, 0), (0, 0.3, 0), (0, 1.0, 0)],
+        **thr(lambda s: [(0.05, 0, 0), (-0.05, 0, 0), (0.05, 0, 0), (-0.05, 0, 0)]),
+        **flap(),
+    })
+    # it isn't listening: the head pulling against its rider, turning its own way, slow and heavy;
+    # Khet stamping and hauling at it
+    clip("boss_ashgrave_p1", 3.2, {
+        (head, L): [(0, 0, 0), (0.3, 0, -0.1), (0, 0, 0.1), (-0.3, 0, -0.1)],
+        (head, R): [(0.04, 0.06, 0.12), (0, 0, 0.18), (-0.02, -0.06, 0.05), (0, 0, -0.05)],
+        (jaw, R): [(0.05, 0, 0), (0.1, 0, 0)],
+        (eye, S): eye_at([1.1, 1, 1.15, 1]),
+        (rider, R): [(0, 0, -0.5), (0, 0, 0.6), (0, 0, -0.5), (0, 0, 0.6)],
+        (rider, L): [up(0), up(0.15), up(0), up(0.15)],
+        (arm, R): [(0, 1.4, 0), (0, 0.2, 0), (0, 1.4, 0), (0, 0.2, 0)],
+        **thr(lambda s: [(0.1, 0, 0), (-0.1, 0, 0)]),
+        **flap(1.3),
+    })
+    # it has decided: upright and still, breathing slowly, its eye steady, Khet in its jaw
+    clip("boss_ashgrave_p2", 4.0, {
+        (head, L): [(0, 0, 0.3), (0, 0, 0.45)],
+        (head, R): [(-0.05, 0, 0), (-0.06, 0, 0)],
+        (jaw, R): (0, 0, 0),
+        (eye, S): eye_at([1.15, 1.2]),
+    })
+
+    # RAM: nose down, jaw clenched, thrusters swung up behind it; then it drives, shaking
+    clip("boss_ashgrave_ram_windup", 0.9, {
+        (head, R): (0.22, 0, 0), (head, L): (0, 0.8, -0.2), (jaw, R): (0, 0, 0),
+        (rider, R): (0, 0, 0), (arm, R): (-1.2, 0, 0), (rider, L): up(-0.15),
+        **thr(lambda s: (0.5, 0, 0)), **flap(1.4),
+    }, held=True)
+    clip("boss_ashgrave_ram_attack", 0.2, {
+        (head, R): [(0.26, 0.04, 0), (0.24, -0.04, 0)],
+        (head, L): [(0, -0.4, -0.2), (0.08, -0.4, -0.1)],
+        (arm, R): (-1.4, 0, 0), (rider, L): up(-0.2),
+        **thr(lambda s: [(0.5, 0, 0), (0.45, 0, 0)]), **flap(2),
+    })
+
+    # TITAN EYE: the head lifts and the iris opens wide; then it holds, the eye blazing, turning
+    clip("boss_ashgrave_eye_windup", 1.0, {
+        (head, R): (-0.12, 0, 0), (head, L): (0, 0.4, 0.5), (jaw, R): (0.2, 0, 0), (eye, S): eye_at(1.45),
+        (arm, R): (0, 1.6, 0), (rider, R): (0, 0, 0),
+        **thr(lambda s: (-0.2, 0, 0)), **flap(),
+    }, held=True)
+    clip("boss_ashgrave_eye_attack", 0.5, {
+        (head, R): [(-0.08, 0, 0), (-0.09, 0, 0)], (head, L): [(0, 0.4, 0.5), (0, 0.45, 0.45)],
+        (jaw, R): [(0.25, 0, 0), (0.2, 0, 0)], (eye, S): eye_at([1.5, 1.4]),
+        (arm, R): (0, 1.6, 0), (rider, R): (0, 0, 0),
+        **thr(lambda s: [(-0.2, 0, 0), (-0.25, 0, 0)]), **flap(),
+    })
+
+    # LEAP: it rears, jaw dropped, thrusters swung under it; then up and over, coming down nose first
+    clip("boss_ashgrave_leap_windup", 1.0, {
+        (head, R): (-0.35, 0, 0), (head, L): (0, 0.6, -0.4), (jaw, R): (0.6, 0, 0), (eye, S): eye_at(1.2),
+        (rider, L): up(-0.2), (arm, R): (0, 2.2, 0),
+        **thr(lambda s: (-1.2, 0, 0)), **flap(1.5),
+    }, held=True)
+    clip("boss_ashgrave_leap_attack", 0.5, {
+        (head, R): [(-0.2, 0, 0), (0.3, 0, 0)], (head, L): [(0, 0, 0.5), (0, -0.5, 0)],
+        (jaw, R): [(0.6, 0, 0), (0.7, 0, 0)], (eye, S): eye_at(1.2),
+        (rider, L): up(0.3), (arm, R): (0, 2.4, 0),
+        **thr(lambda s: [(-1.3, 0, 0), (-0.8, 0, 0)]), **flap(2),
+    })
+
+    # THE CLANS: Khet up on his feet, both banners whipping, the head bobbing to the chant
+    clip("boss_ashgrave_summon", 2 * BEAT_ASHGRAVE, {
+        (head, L): [(0, 0, 0.3), (0, 0, 0)], (head, R): [(0.05, 0, 0), (-0.02, 0, 0)],
+        (rider, L): [up(0.4), up(0.1)], (rider, R): [(0, 0, 0.4), (0, 0, -0.4)],
+        (arm, R): [(0, 2.6, 0), (0, 1.8, 0)], (jaw, R): [(0.1, 0, 0), (0.3, 0, 0)],
+        **flap(2),
+    })
+
+    # THE GLASSING: it lifts its head high and its eye narrows, marking the ground; then a slow
+    # pass along it, side to side
+    clip("boss_ashgrave_glassing_windup", 1.0, {
+        (head, R): (-0.2, 0, 0), (head, L): (0, 0.6, 0.9), (eye, S): eye_at(0.8), (jaw, R): (0, 0, 0),
+    }, held=True)
+    clip("boss_ashgrave_glassing_attack", 1.2, {
+        (head, R): [(-0.15, 0, 0.25), (-0.18, 0, 0), (-0.15, 0, -0.25), (-0.18, 0, 0)],
+        (head, L): [(0, 0.6, 0.9)] * 4, (eye, S): eye_at([0.85, 1.1, 0.85, 1.1]),
+    })
+
+    # THE KNEEL: it bows its head over him, low, the jaw shut tight; held there behind its shield,
+    # its eye turning under the brow
+    clip("boss_ashgrave_kneel_windup", 1.0, {
+        (head, R): (0.32, 0, 0), (head, L): (0, -0.2, -0.9), (jaw, R): (0, 0, 0), (eye, S): eye_at(0.9),
+    }, held=True)
+    clip("boss_ashgrave_kneel_attack", 2 * BEAT_ASHGRAVE, {
+        (head, R): [(0.32, 0, 0), (0.3, 0, 0)], (head, L): [(0, -0.2, -0.9), (0, -0.25, -0.85)],
+        (eye, S): eye_at([0.9, 1.25]),
+    })
+
+    # THE MEASURE: dead level, the iris shut to a point; on each lane a jolt back
+    clip("boss_ashgrave_measure_windup", 0.8, {
+        (head, R): (0, 0, 0), (head, L): (0, 0.3, 0.4), (eye, S): eye_at(0.6),
+    }, held=True)
+    clip("boss_ashgrave_measure_attack", 0.7, {
+        (head, R): [(-0.08, 0, 0), (0, 0, 0)], (head, L): [(0, 0.9, 0.4), (0, 0.3, 0.4)],
+        (eye, S): eye_at([1.4, 0.7]),
+    })
+
+    # open after a move: sagging, nose down, jaw hanging, thrusters guttering, Khet scrambling
+    clip("boss_ashgrave_recover", 1.4, {
+        (head, R): [(0.16, 0.06, 0), (0.2, 0.1, 0)], (head, L): [(0, 0, -0.5), (0, 0, -0.65)],
+        (jaw, R): [(0.35, 0, 0), (0.45, 0, 0)], (eye, S): eye_at([0.7, 0.75]),
+        (rider, R): [(0, 0, 0.8), (0, 0, -0.8)], (arm, R): [(0, -0.4, 0), (0, 0.6, 0)],
+        **thr(lambda s: [(-0.3, 0, s * 0.1), (-0.35, 0, s * 0.15)]), **flap(0.4),
+    })
+    # staggered: rocking hard, jaw slack, the eye guttering, Khet hanging on
+    clip("boss_ashgrave_stagger", 0.9, {
+        (head, R): [(0.2, 0.3, 0), (0.25, 0, 0.12), (0.2, -0.3, 0), (0.25, 0, -0.12)],
+        (head, L): [(0, 0, -0.8)] * 4,
+        (jaw, R): [(0.6, 0, 0), (0.1, 0, 0)] * 2, (eye, S): eye_at([0.5, 0.9, 0.4, 0.8]),
+        (rider, R): [(0, 0, 1.2), (0, 0, -1.2)] * 2, (rider, L): [up(-0.2), up(0.1)] * 2,
+        (arm, R): [(0, 2.6, 0), (0, -0.6, 0)] * 2,
+        **thr(lambda s: [(0.4, 0, s * 0.3), (-0.4, 0, -s * 0.2)] * 2), **flap(2),
+    })
 
 
 # --- VESH: QUEEN ISTRA, a pirate queen in a dead umora's shell -----------------------------------

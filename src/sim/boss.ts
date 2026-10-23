@@ -16,6 +16,10 @@
  * as Touhou calls them): Vask's SKY DIVE, Oko's CRANE SWING, the Sandking's STAMPEDE, the Mother's
  * BLOOM, the Engine's FROST CROSS, Khet's TITAN EYE, Istra's DEEP BREATH, ARU-0's REPOSSESSION.
  *
+ * Khet's has two minds (`TWO_LOOKS`): his own scrap moves, flared, and his titan's, drawn in light.
+ * In its middle phase the light can take a move back from him mid-flare (the false tell); in its
+ * last it has decided, and every move is its own.
+ *
  * Each move has one tell and leaves it open. Hit it hard enough while it's open and it's
  * STAGGERED (its poise, the bar under its hull, broken). A phase taken without a hit pays a CLEAN
  * bonus, and at the end it makes a LAST STAND: everything it has, once more, faster.
@@ -424,8 +428,18 @@ const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85], cinde
 /** How long its filler runs between moves, against the usual (Khet doesn't stand about: he's riding). */
 const FILL: Record<string, number> = { ashgrave: 0.55 };
 
-/** What a hit is worth on it while it's closed (not open after a move), if not its style's: a titan's head is armour. */
-const CLOSED: Record<string, [number, number]> = { ashgrave: [0.55, 0.8] };
+/**
+ * What a hit is worth on it closed and open (after a move), crit or not, by phase, if not its
+ * style's: a titan's head is armour. Khet leaves it open after everything he does; *Unbending*,
+ * fighting the way it was built to, much less.
+ */
+const TAKEN: Record<string, { shut: [number, number]; open: [number, number] }[]> = {
+  ashgrave: [
+    { shut: [0.68, 0.9], open: [1.3, 1.55] },
+    { shut: [0.48, 0.7], open: [1.05, 1.25] },
+    { shut: [0.38, 0.55], open: [0.8, 1] },
+  ],
+};
 
 /** The phase from which a boss has no guns left: no patterns, just its moves (Vask, free). */
 const BARE: Record<string, number> = { orutal: 2 };
@@ -516,7 +530,7 @@ const LAST = 0.08;
  * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
  * teach something, so each needs time: half again as long.
  */
-const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4, cinder: 2.2, ashgrave: 2.6 };
+const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4, cinder: 2.2, ashgrave: 3.3 };
 export const bossHull = (planet: string) => HULL[planet] ?? 1;
 
 /** Who comes when it calls. */
@@ -700,8 +714,8 @@ export function bossTaken(lv: Level, e: Enemy, crit: boolean) {
   if (crit && open) lv.emit({ type: 'weakHit', enemy: e.id, x: e.x, z: e.z, dmg: 0 });
   // poise broken: wide open, whatever it is
   if (e.state === 'stagger' && !(b.style === 'hive' && lv.enemies.some((o) => !o.dead && o.links.includes(e.id)))) return crit ? 2.2 : 1.8;
-  const shut = CLOSED[lv.spec.planet.id];
-  if (shut && !open) return shut[crit ? 1 : 0];
+  const own = TAKEN[lv.spec.planet.id]?.[b.phase];
+  if (own) return (open ? own.open : own.shut)[crit ? 1 : 0];
   switch (b.style) {
     case 'brawler':
       return open ? 1.5 : crit ? 1 : 0.8;
@@ -1172,8 +1186,10 @@ function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
     case 'eye': {
       // the eye opens on you: a thin line that thickens, then the beam, following you
       e.aim = Math.atan2(px - e.x, pz - e.z);
-      lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, warn: 1.1 * fast, on: eyeTime(b), color: col, owner: e.id });
-      go(lv, e, 'windup', 1.1 * fast, 'beam', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, w: 2.2, lock: 0.7 * fast });
+      // the titan's eye is slow to open: longer from the line settling to the beam
+      const open = (b.look ? 1.25 : 1.1) * fast;
+      lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, warn: open, on: eyeTime(b), color: col, owner: e.id });
+      go(lv, e, 'windup', open, 'beam', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 75, z2: e.z + Math.cos(e.aim) * 75, w: 2.2, lock: (b.look ? 0.55 : 0.7) * fast });
       break;
     }
     case 'breath':
@@ -1249,7 +1265,7 @@ const CRANE_P = 1.3;
 /** Half asleep, one bar (two beams); stirring, the cross; in its last stand, six. */
 const crossBeams = (b: BossState) => (b.last ? 6 : b.phase >= 1 ? 4 : 2);
 const crossTime = (b: BossState) => (3.4 + b.phase * 0.4) * slow(b);
-const eyeTime = (b: BossState) => 3 + b.phase * 0.5;
+const eyeTime = (b: BossState) => (b.look ? 2.4 + b.phase * 0.25 : 3 + b.phase * 0.5);
 const BREATH_R = 34;
 /** Its signature, at least every this many moves (after the first phase). */
 const SIG_EVERY = 3;
@@ -1431,10 +1447,11 @@ const LEAP_LOCK = 0.62;
 const LEAP_AIR = 0.5;
 const LEAP_UP = 7;
 const leapJunk = (b: BossState) => 16 + b.phase * 4;
-/** The eye's glass: laid this far apart along where the beam crosses you, this wide, burning this long. */
+/** The eye's glass: laid this far past where the beam crosses you, this far apart, this wide, burning this long. */
+const GLASS_PAST = 7;
 const GLASS_STEP = 2.8;
 const GLASS_R = 1.6;
-const glassBurn = (b: BossState) => 2.2 + b.phase * 0.5;
+const glassBurn = (b: BossState) => 1.2 + b.phase * 0.3;
 const GLASS = 0x4aff8a;
 /** *Unbending*'s light (its tells, its lanes, its plan). */
 const LIGHT = 0x4ae8ff;
@@ -1442,7 +1459,7 @@ const LIGHT = 0x4ae8ff;
 const UNBENDING = new Set<BossMove>(['glassing', 'kneel', 'measure']);
 /** Phase II: how long Khet's flare goes on before the light overrides it, and how often it does when Khet's call isn't reckless. */
 const FLARE = 0.55;
-const DEFY = 0.4;
+const DEFY = 0.5;
 /** THE GLASSING: the grid's columns and rows (screen z), a cloud's size, how long from drawn to burst, how fast the plan is drawn, how long a cloud burns. */
 const GLASS_COLS = [-30, -18, -6, 6, 18, 30];
 const glassRows = (b: BossState) => (b.last ? [-15, -4.5, 6, 16.5] : [-5, 5.5, 16]);
@@ -2216,14 +2233,14 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       break;
     }
     case 'eye': {
-      // it follows you, slower than you can fly: keep moving
-      const rate = 0.42 + b.phase * 0.12 + (b.last ? 0.15 : 0);
+      // it follows you, slower than you can fly: keep moving (Khet's titan is heavier about it)
+      const rate = (b.look ? 0.34 + b.phase * 0.09 : 0.42 + b.phase * 0.12) + (b.last ? 0.15 : 0);
       const want = lv.aim(e.x, e.z);
       const da = Math.atan2(Math.sin(want - e.aim), Math.cos(want - e.aim));
       e.aim += clamp(da, -rate * DT, rate * DT);
       aimBeams(lv, e, e.aim, 1);
-      // Khet's eye glasses the ground where it crosses you: don't turn back through it
-      if (TWO_LOOKS.has(lv.spec.planet.id) && p) layGlass(lv, e, b, Math.hypot(p.x - e.x, p.z - e.z));
+      // Khet's eye glasses the ground at its foot, just past you: keep moving round it, don't back off
+      if (TWO_LOOKS.has(lv.spec.planet.id) && p) layGlass(lv, e, b, Math.hypot(p.x - e.x, p.z - e.z) + GLASS_PAST);
       if (over(e)) {
         for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
         endMove(lv, e, b, 2.1);
@@ -2607,7 +2624,7 @@ function kneelTurn(lv: Level, e: Enemy) {
   e.aim += clamp(da, -KNEEL_TURN * DT, KNEEL_TURN * DT);
 }
 
-/** Glass laid where the eye's beam is `d` out from it (where it crosses you), spaced along the way it's gone. */
+/** Glass laid where the eye's beam is `d` out from it (just past you), spaced along the way it's gone. */
 function layGlass(lv: Level, e: Enemy, b: BossState, d: number) {
   const x = e.x + Math.sin(e.aim) * d;
   const z = e.z + Math.cos(e.aim) * d;

@@ -38,6 +38,8 @@ export interface MenuInput {
   /** Shoulders: cycle tabs, hand parts over. */
   prev: boolean;
   next: boolean;
+  /** Open (or shut) the keywords: what the words on a card mean. */
+  info: boolean;
 }
 
 const held = new Set<string>();
@@ -73,6 +75,7 @@ interface Scheme {
   alt: string[];
   prev: string[];
   next: string[];
+  info: string[];
 }
 
 const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
@@ -94,6 +97,7 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     alt: ['KeyR', 'KeyI', 'KeyV'],
     prev: ['KeyQ'],
     next: ['KeyE', 'Tab'],
+    info: ['KeyF'],
   },
   'keys-left': {
     up: ['KeyW'],
@@ -113,6 +117,7 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     alt: ['KeyE', 'KeyR'],
     prev: ['KeyZ'],
     next: ['KeyX'],
+    info: ['KeyC'],
   },
   'keys-right': {
     up: ['ArrowUp'],
@@ -132,11 +137,12 @@ const SCHEMES: Record<'keys' | 'keys-left' | 'keys-right', Scheme> = {
     alt: ['Period', 'NumpadEnter'],
     prev: ['Comma', 'Numpad4'],
     next: ['Quote', 'Numpad6'],
+    info: ['KeyM', 'Numpad8'],
   },
 };
 
 const NO_INTENT: Intent = { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
-const NO_MENU: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };
+const NO_MENU: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false, info: false };
 
 const any = (codes: string[], set: Set<string>) => codes.some((c) => set.has(c));
 
@@ -366,7 +372,7 @@ class Input {
   /** Menu presses this frame from a device (directions repeat when held). */
   menu(dev: DeviceId): MenuInput {
     if (dev.startsWith('net')) return { ...(this.net?.frame(dev).m ?? NO_MENU) };
-    const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };
+    const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false, info: false };
     let dirs: boolean[];
     if (dev.startsWith('pad')) {
       const g = padNow.get(Number(dev.slice(3)));
@@ -382,6 +388,7 @@ class Input {
       out.alt = edge(3) || edge(2);
       out.prev = edge(4);
       out.next = edge(5);
+      out.info = edge(8);
     } else {
       const k = SCHEMES[dev as keyof typeof SCHEMES];
       // a tap shorter than a frame is still a press
@@ -394,6 +401,7 @@ class Input {
       out.alt = any(k.alt, pressed) && !out.confirm;
       out.prev = any(k.prev, pressed);
       out.next = any(k.next, pressed);
+      out.info = any(k.info, pressed);
     }
     const names = ['up', 'down', 'left', 'right'] as const;
     names.forEach((n, i) => {

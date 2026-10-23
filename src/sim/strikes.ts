@@ -116,7 +116,7 @@ export function updateStrikes(lv: Level, dz: number) {
     s.z += s.vz * DT;
     // landing
     if (was < s.warn && s.t >= s.warn && s.kind !== 'gate' && s.kind !== 'harpoon') {
-      lv.emit({ type: 'strike', kind: s.kind, x: s.x, z: s.z, r: s.kind === 'wave' ? s.rMax : s.r });
+      lv.emit({ type: 'strike', kind: s.kind, x: s.x, z: s.z, r: s.kind === 'wave' ? s.rMax : s.r, color: s.color });
       for (let k = 0; k < s.shards; k++) lv.bullet(s.x, s.z, ((k + 0.5) / s.shards) * Math.PI * 2, 7, { color: s.color, kind: 'needle', r: 0.35 });
       if (s.kind === 'acid') {
         strike(lv, 'puddle', s.x, s.z, { r: s.r * 1.1, warn: 0, active: 2.5, color: s.color, owner: s.owner });

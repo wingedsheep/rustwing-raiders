@@ -3,7 +3,10 @@
  * device, hearts, the hatched backdrop.
  */
 
-import { EDGES, HARDPOINTS, LOAD, LOAD_CLASS, hardpointOf, partById, type PartDef, type Rarity } from '../game/parts';
+import { EDGES, HARDPOINTS, LOAD, LOAD_CLASS, hardpointOf, partById, type AuxKind, type PartDef, type Rarity } from '../game/parts';
+import { BEACON, BULWARK, CARPET, CRYO, DRONES, WELL } from '../sim/kit';
+import { BLOCK_MAX, CD_FLARE, CD_PARRY, CD_SIPHON, CD_TETHER, CD_WHIFF, FLARE_DMG, FLARE_LIFE, PARRY_WINDOW, RIPOSTE_TIME, SIPHON_PER, SIPHON_SLOW, SIPHON_TIME, TETHER_HIT, TETHER_RANGE } from '../sim/level';
+import { HALF_H } from '../sim/types';
 import { SHIELD_CELL, type Stats } from '../sim/build';
 import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
@@ -28,6 +31,37 @@ export function backdrop(ctx: CanvasRenderingContext2D, x = 0, y = 0, w = W, h =
   ctx.fillStyle = '#16101f';
   for (let j = y; j < y + h; j += 2) for (let k = (j % 6) - 6; k < w; k += 6) if (k >= 0) ctx.fillRect(x + k, j, 1, 1);
 }
+
+/** A reach in world units, as part of the screen (its height: EDGE_FAR's 24 is half of it). */
+function reach(u: number) {
+  const k = u / (HALF_H * 2);
+  return k < 0.24 ? 'A FIFTH OF A SCREEN' : k < 0.29 ? 'A QUARTER SCREEN' : k < 0.4 ? 'A THIRD OF A SCREEN' : k < 0.7 ? 'HALF A SCREEN' : 'MOST OF THE SCREEN';
+}
+
+/** How long the special takes to fill on its own (the level's 0.012 a second); hits fill it faster. */
+const CHARGE = `FILLS: ${Math.round(1 / 0.012)} S, FASTER ON HITS`;
+
+/** What each aux does, in numbers (sim/level.ts, sim/kit.ts): short, a card's line is 28 letters. */
+const AUX_LINES: Record<AuxKind, string[]> = {
+  parry: [`PARRY ${num(PARRY_WINDOW)} S: GUNS CRIT ${num(RIPOSTE_TIME)} S`, `WAIT ${num(CD_PARRY)} S, ${num(CD_WHIFF)} S ON A MISS`, `LATE: BLOCKS ${BLOCK_MAX} SMALL SHOTS`],
+  tether: [`HOOK ${reach(TETHER_RANGE)}: ${TETHER_HIT} DMG`, `COOLDOWN ${num(CD_TETHER)} S; KILLS RESET IT`, 'UNTOUCHABLE AS YOU REEL IN'],
+  flare: [`AIMED FIRE CHASES IT ${num(FLARE_LIFE)} S`, `THEN IT BURSTS: ${FLARE_DMG} DMG`, `COOLDOWN ${num(CD_FLARE)} S`],
+  siphon: [`DRINKS BULLETS FOR ${num(SIPHON_TIME)} S`, `EVERY ${SIPHON_PER}: A SHIELD CELL`, `COOLDOWN ${num(CD_SIPHON)} S  ${Math.round(SIPHON_SLOW * 100)}% SLOWER`],
+  bulwark: [`HOLD UP TO ${num(BULWARK.hold)} S: STOPS ALL`, `LET GO: ${BULWARK.dmg} DMG +${num(BULWARK.each)} A BULLET`, `COOLDOWN ${num(BULWARK.cd)} S  ${Math.round(BULWARK.slow * 100)}% SLOWER`],
+  beacon: [`SWAP PLACES WITHIN ${num(BEACON.life)} S`, `BURSTS ${BEACON.dmg} DMG, ${BEACON.each} A SHOT BACK`, `COOLDOWN ${num(BEACON.cd)} S`],
+};
+
+/** What each special does, in numbers (sim/level.ts specialGoes, sim/kit.ts). */
+const SPECIAL_LINES: Record<NonNullable<PartDef['special']>, string[]> = {
+  bomb: ['WIPES ALL BULLETS ON SCREEN', '90 DMG (BOSS 60)  SAFE 1.5 S', CHARGE],
+  phase: ['UNTOUCHABLE 2.2 S', 'BULLETS, BODIES PASS THROUGH', CHARGE],
+  emp: ['ERASES NEAR BULLETS, 15 DMG', 'STUNS MACHINES 3.5 S', CHARGE],
+  overdrive: ['5 S: DOUBLE RATE, NO HEAT', 'RELOADS EVERY HEAVY', CHARGE],
+  carpet: [`BOMBLETS BEHIND YOU ${num(CARPET.time)} S`, `${CARPET.dmg} DMG EACH, EATS BULLETS`, CHARGE],
+  cryo: [`ALL FROZEN ${num(CRYO.time)} S, BULLETS TOO`, CHARGE],
+  gravity: ['DRAGS ALL NEAR INTO A KNOT', `THEN FLINGS THEM: ${WELL.dmg} DMG`, CHARGE],
+  drones: [`${DRONES.at.length} DRONES FOR ${num(DRONES.time)} S`, `COPY YOUR TRIGGER GUN AT ${Math.round(DRONES.dmg * 100)}%`, CHARGE],
+};
 
 /** What a part does, in a few words. */
 export function partStats(def: PartDef): string[] {
@@ -72,12 +106,12 @@ export function partStats(def: PartDef): string[] {
     ].filter(Boolean);
     out.push(`GUNS IT TOUCHES: ${bits.join(', ')}`);
   }
-  if (def.special) out.push(`SPECIAL: ${def.special.toUpperCase()}`);
-  if (def.aux) out.push(`AUX: ${def.aux.toUpperCase()}`);
+  if (def.special) out.push(...SPECIAL_LINES[def.special]);
+  if (def.aux) out.push(...AUX_LINES[def.aux]);
   if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
   const hp = hardpointOf(def);
-  out.push(`LOAD ${num(def.mass)}${hp ? `  TAKES A ${HARDPOINTS[hp].name} HARDPOINT` : ''}`);
+  out.push(`LOAD ${num(def.mass)}${hp ? `  ${HARDPOINTS[hp].name} HARDPOINT` : ''}`);
   return out;
 }
 
@@ -173,7 +207,7 @@ export function partCard(ctx: CanvasRenderingContext2D, id: string, x: number, y
   return h;
 }
 
-export type Action = 'confirm' | 'back' | 'alt' | 'prev' | 'next' | 'start' | 'move';
+export type Action = 'confirm' | 'back' | 'alt' | 'prev' | 'next' | 'start' | 'move' | 'info';
 
 /** The button for an action on a device, as printed on it. */
 export function button(dev: DeviceId, a: Action): string {
@@ -181,14 +215,14 @@ export function button(dev: DeviceId, a: Action): string {
   if (dev.startsWith('pad')) {
     const ps = input.padName(dev) === 'PS PAD';
     const names: Record<Action, string> = ps
-      ? { confirm: 'CROSS', back: 'CIRCLE', alt: 'TRIANGLE', prev: 'L1', next: 'R1', start: 'OPTIONS', move: 'STICK' }
-      : { confirm: 'A', back: 'B', alt: 'Y', prev: 'LB', next: 'RB', start: 'MENU', move: 'STICK' };
+      ? { confirm: 'CROSS', back: 'CIRCLE', alt: 'TRIANGLE', prev: 'L1', next: 'R1', start: 'OPTIONS', move: 'STICK', info: 'SHARE' }
+      : { confirm: 'A', back: 'B', alt: 'Y', prev: 'LB', next: 'RB', start: 'MENU', move: 'STICK', info: 'VIEW' };
     return names[a];
   }
   const names: Record<string, Record<Action, string>> = {
-    keys: { confirm: 'ENTER', back: 'ESC', alt: 'R', prev: 'Q', next: 'E', start: 'P', move: 'ARROWS' },
-    'keys-left': { confirm: 'SPACE', back: 'LSHIFT', alt: 'E', prev: 'Z', next: 'X', start: 'ESC', move: 'WASD' },
-    'keys-right': { confirm: '/', back: 'RSHIFT', alt: '.', prev: ',', next: "'", start: 'P', move: 'ARROWS' },
+    keys: { confirm: 'ENTER', back: 'ESC', alt: 'R', prev: 'Q', next: 'E', start: 'P', move: 'ARROWS', info: 'F' },
+    'keys-left': { confirm: 'SPACE', back: 'LSHIFT', alt: 'E', prev: 'Z', next: 'X', start: 'ESC', move: 'WASD', info: 'C' },
+    'keys-right': { confirm: '/', back: 'RSHIFT', alt: '.', prev: ',', next: "'", start: 'P', move: 'ARROWS', info: 'M' },
   };
   return names[dev][a];
 }
@@ -213,17 +247,37 @@ export function flightButton(dev: DeviceId, a: FlightAction): string {
   return names[dev][a];
 }
 
+/** A hint: the action, what it does, and (to call it out) a colour for the words. */
+export type Hint = [Action, string] | [Action, string, string];
+
+/** How wide a row of hints is. */
+export function hintsWidth(dev: DeviceId | DeviceId[], items: Hint[]) {
+  const devs = Array.isArray(dev) ? dev : [dev];
+  return items.reduce((s, [a, t]) => s + [...new Set(devs.map((d) => button(d, a)))].reduce((q, b) => q + textWidth(b) + 6, 0) + textWidth(t) + 12, -12);
+}
+
+/** Hints, in as few rows as fit `w` (in order: the first ones first). */
+export function hintRows(dev: DeviceId | DeviceId[], items: Hint[], w: number): Hint[][] {
+  const rows: Hint[][] = [];
+  for (const it of items) {
+    const last = rows[rows.length - 1];
+    if (last && hintsWidth(dev, [...last, it]) <= w) last.push(it);
+    else rows.push([it]);
+  }
+  return rows;
+}
+
 /** A row of "[BUTTON] WHAT" hints, centred or from the left. Returns its width. */
-export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId | DeviceId[], items: [Action, string][], x: number, y: number, align: 'left' | 'center' | 'right' = 'left') {
+export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId | DeviceId[], items: Hint[], x: number, y: number, align: 'left' | 'center' | 'right' = 'left') {
   // (several devices: each one's key, side by side, where they differ: co-op on a shared screen)
   const devs = Array.isArray(dev) ? dev : [dev];
-  const parts = items.map(([a, t]) => [[...new Set(devs.map((d) => button(d, a)))], t] as const);
-  const w = parts.reduce((s, [bs, t]) => s + bs.reduce((q, b) => q + textWidth(b) + 6, 0) + textWidth(t) + 12, -12);
+  const parts = items.map(([a, t, col]) => [[...new Set(devs.map((d) => button(d, a)))], t, col ?? DIM] as const);
+  const w = hintsWidth(devs, items);
   let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   cx = Math.round(cx);
-  for (const [bs, t] of parts) {
+  for (const [bs, t, col] of parts) {
     for (const b of bs) cx += keycap(ctx, b, cx, y) + 4;
-    drawText(ctx, t, cx, y, DIM);
+    drawText(ctx, t, cx, y, col);
     cx += textWidth(t) + 12;
   }
   return w;

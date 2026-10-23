@@ -14,13 +14,14 @@ const SFX: Sfx[] = [
   'foot_hurt', 'crew_hit', 'plate_hit', 'plate_break', 'aim_tell', 'crew_shot', 'ricochet', 'door', 'alarm', 'lockdown',
   'foot_mark', 'crew_kill',
   'breach', 'kelter_clamp', 'hook_fire', 'hook_snap', 'crack_tick', 'crate_open', 'strongbox_open', 'core_pull', 'airlock',
-  'clock_tick', 'turret_up', 'charge', 'slam', 'canister', 'pickup_tin', 'heal_foot', 'alert', 'revive',
+  'clock_tick', 'turret_up', 'charge', 'slam', 'canister', 'pickup_tin', 'heal_foot', 'alert', 'revive', 'down_ping', 'jolt',
   // bosses
   'horn', 'shriek', 'wingbeat', 'toll', 'ice_crack', 'frost_breath', 'engine_wake',
   'istra_call', 'crew_ho', 'cannon', 'whale_dive', 'whale_breach', 'tide_turn', 'whale_breath',
   'notice', 'printer', 'claw', 'winch', 'plate_on', 'plate_tear', 'clang',
+  'khet_yell', 'thruster', 'titan_servo', 'titan_land', 'light_tone', 'glass_fall', 'glass_burst',
 ];
-const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'boss_cinder', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
+const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'boss_cinder', 'boss_ashgrave', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
 const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind', 'truck'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

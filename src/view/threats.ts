@@ -428,7 +428,7 @@ export class Threats {
   private blast(s: Strike, col: number) {
     const f = s.active > 0 ? clamp((s.t - s.warn) / s.active, 0, 1) : 1;
     const hot = s.kind === 'puddle' ? 0.5 + 0.15 * Math.sin(this.time * 12 + s.x) : 0.85 * (1 - f);
-    const d = this.discs.take(s.kind === 'puddle' ? 0x9aff4a : s.kind === 'spore' ? 0xc8a0ff : f < 0.3 ? 0xffffff : col, hot);
+    const d = this.discs.take(s.kind === 'puddle' ? (GLASSY.has(s.color) ? s.color : 0x9aff4a) : s.kind === 'spore' ? 0xc8a0ff : f < 0.3 ? 0xffffff : col, hot);
     d.position.set(s.x, Y - 0.02, s.z);
     d.scale.setScalar(s.r * (s.kind === 'puddle' ? 1 : 0.8 + 0.4 * f));
   }
@@ -544,7 +544,11 @@ export class Threats {
   }
 }
 
+/** Puddles that are glass, not acid, and keep their own colour: Khet's eye's and the Compact light's. */
+export const GLASSY = new Set([0x4aff8a, 0x4ae8ff]);
+
 function colorOf(e: Enemy) {
   const def = (FOES as Record<string, { faction: Faction } | undefined>)[e.arch];
+  if (e.boss?.look) return TELL_COLOR[e.boss.look];
   return def ? TELL_COLOR[def.faction] : DANGER;
 }

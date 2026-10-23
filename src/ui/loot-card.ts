@@ -14,6 +14,7 @@ import { AFFIX_COLOR, AFFIXES, itemDef, MODS, modValue, tierOf, TRAITS, type Ite
 import { cellsOf, socket, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
 import { portraits } from '../view/portraits';
+import { gunLoop, loopShare } from './gun-loop';
 
 export const VERB_COLOR: Record<Verb, string> = {
   GUN: '#ff8a4a',
@@ -207,7 +208,12 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   ctx.fillRect(bx, by, box, box);
   ctx.fillStyle = '#16101f';
   ctx.fillRect(bx + 1, by + 1, box - 2, box - 2);
-  if (portraits.draw(ctx, base.id, bx + 1, by + 1, box - 2, t, o.livery)) {
+  // a gun fires in it instead: in focus, or (a card on its own) after a turn of the model
+  const [share, lt] = base.gun ? loopShare(t, o.on) : [0, t];
+  const model = share < 1 && portraits.draw(ctx, base.id, bx + 1, by + 1, box - 2, t, o.livery);
+  if (!model && share < 1 && base.gun) gunLoop(ctx, def, bx + 1, by + 1, box - 2, box - 2, t);
+  else if (share > 0) gunLoop(ctx, def, bx + 1, by + 1, box - 2, box - 2, lt, { share });
+  if (model || base.gun) {
     // a tier-coloured corner bracket on each corner
     ctx.fillStyle = tier === 'common' ? EDGE : tc;
     for (const [cx, cy, sx, sy] of [[bx, by, 1, 1], [bx + box - 1, by, -1, 1], [bx, by + box - 1, 1, -1], [bx + box - 1, by + box - 1, -1, -1]]) {
@@ -257,9 +263,9 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   };
 
   // numbers (with the rolls already in them), the link it wants
-  const st = partStats(def).filter((s) => !s.startsWith('LOAD ') && !s.startsWith('SPECIAL:') && !s.startsWith('AUX:'));
+  const st = partStats(def).filter((s) => !s.startsWith('LOAD '));
   const mass = partStats(def).find((s) => s.startsWith('LOAD '));
-  for (let s of st.slice(0, 3)) {
+  for (let s of st.slice(0, def.gun ? 3 : 4)) {
     const want = s.startsWith('NEEDS') || s.startsWith('LINK');
     if (s.startsWith('EDGE')) {
       // the gun's edge: how it wants to be flown, in crit pink (wrapped: it's the line that matters)

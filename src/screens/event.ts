@@ -14,7 +14,10 @@ import { CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/
 import { LIVERY } from '../view/ship-model';
 import { button, hints, type Action } from '../ui/widgets';
 import { Accord, tag } from '../ui/accord';
-import { chipRows, TONE_INK } from '../ui/chips';
+import { gradeKey, outcomeRows, TONE_INK } from '../ui/chips';
+import type { Chip } from '../sim/events';
+import { keywordPanel, termsIn } from '../ui/glossary';
+import { Intro } from '../ui/intro';
 import { lootCard } from '../ui/loot-card';
 import { bestFit } from '../sim/fit';
 import { drawArt } from './art';
@@ -95,6 +98,11 @@ export class EventScreen implements Screen {
   private accord: Accord<number | 'on'>;
   /** Co-op: who plays the game (whoever took it on). */
   private player = 0;
+  /** Whether every choice card has room for an outcome a row, or only the one in focus. */
+  private stacked: 'all' | 'focus' = 'all';
+  /** The keywords on the choice in focus, opened with INFO; and the ones said unasked, first time met. */
+  private keys = false;
+  private intro = new Intro();
 
   constructor(
     private game: Game,
@@ -284,6 +292,7 @@ export class EventScreen implements Screen {
     this.pt += dt;
     this.msgT -= dt;
     this.shakeT -= dt;
+    this.intro.update(dt);
     if (this.phase === 'ready') {
       this.game.menu();
       // a tick on each beat of the countdown, and a kick on GO
@@ -376,7 +385,13 @@ export class EventScreen implements Screen {
       }
       return;
     }
-    // choosing
+    // choosing (what the chips name that's a system of its own is said the first time it's met)
+    if (this.pt > 0.5) this.intro.meetAll(this.choices.flatMap((c) => this.systemsOn(c)));
+    if (m.info) {
+      this.keys = !this.keys;
+      this.intro.dismiss();
+      audio.play(this.keys ? 'ui_select' : 'ui_back');
+    }
     const n = this.choices.length;
     if (m.up) this.at = (this.at + n - 1) % n;
     if (m.down) this.at = (this.at + 1) % n;
@@ -416,7 +431,12 @@ export class EventScreen implements Screen {
     } else if (this.phase === 'choose') {
       this.drawChoices(ctx);
       const c = this.choices[this.at];
-      this.foot(ctx, [['move', 'CHOOSE'], ['confirm', c.game ? 'SIZE IT UP' : 'DECIDE']]);
+      const terms = this.termsOf(c);
+      this.foot(ctx, [['move', 'CHOOSE'], ['confirm', c.game ? 'SIZE IT UP' : 'DECIDE'], ...(terms.length ? ([['info', this.keys ? 'HIDE KEYWORDS' : 'KEYWORDS']] as [Action, string][]) : [])]);
+      // over the painting, above the words: the keywords asked for, or one met for the first time
+      const top = this.dialogueTop();
+      if (this.keys && terms.length) keywordPanel(ctx, terms, 12, 50, 314, top - 70);
+      else this.intro.draw(ctx, 12, 50, 314, button(this.game.hintDevices()[0], 'info'));
     } else if (this.phase === 'roll') {
       this.drawRoll(ctx);
     } else if (this.phase === 'outcome') {
@@ -480,6 +500,11 @@ export class EventScreen implements Screen {
     drawText(ctx, this.ev.title, x, 20, INK, { scale: 2 });
   }
 
+  /** Where the words' box starts (the plate sits above it). */
+  private dialogueTop() {
+    return H - 26 - Math.max(3, this.lines.length) * 10 - 16 - 14;
+  }
+
   /** The speaker's plate and their words; returns the top of the box. */
   private dialogue(ctx: CanvasRenderingContext2D) {
     const cast = this.cast;
@@ -536,11 +561,43 @@ export class EventScreen implements Screen {
     return top;
   }
 
-  private cardHeight(c: Choice, on: boolean) {
-    let h = 13;
-    const chips = c.chips?.(this.run, this.bold && on, this.scene) ?? [];
+  /** What a choice costs and pays, every way it can go (why not, if it's locked; NOTHING if it's nothing). */
+  private chipsOf(c: Choice, bold: boolean): Chip[] {
     const locked = c.locked?.(this.run, this.scene);
-    if (chips.length || locked) h += chipRows(null, locked ? [{ icon: 'risk', text: locked, tone: 'bad' }] : chips, 0, 0, COL_W - 16) + 3;
+    if (locked) return [{ icon: 'risk', text: locked, tone: 'bad' }];
+    const chips = c.chips?.(this.run, bold, this.scene) ?? [];
+    return chips.length ? chips : [{ icon: 'none', text: 'NOTHING CHANGES', tone: 'info' }];
+  }
+
+  /** The keywords a choice's words use. */
+  private termsOf(c: Choice) {
+    const chips = this.chipsOf(c, this.bold && !!c.game);
+    return termsIn(c.label, ...chips.map((x) => x.text), c.note?.(this.run, this.bold, this.scene) ?? '', c.game ? 'GRADES' : '');
+  }
+
+  /** The run's own systems a choice's chips name (a bounty, the Sweep, the core): said unasked, the first time. */
+  private systemsOn(c: Choice) {
+    const chips = this.chipsOf(c, false);
+    const ids = new Set<string>();
+    for (const x of chips) {
+      if (x.icon === 'bounty') ids.add('bounty');
+      if (x.icon === 'rep') ids.add('rep');
+      if (x.icon === 'sweep') ids.add('sweep');
+      if (x.icon === 'debt') ids.add('debt');
+      if (x.icon === 'favour') ids.add('favour');
+      if (x.icon === 'core') ids.add('imprint');
+    }
+    if (c.game && this.choices[this.at] === c) ids.add('grades');
+    return [...ids];
+  }
+
+  private oddsOf(c: Choice) {
+    return c.odds?.(this.run, this.scene);
+  }
+
+  private cardHeight(c: Choice, on: boolean, stacked = on) {
+    let h = 13;
+    h += outcomeRows(null, this.chipsOf(c, this.bold && on && !!c.game), 0, 0, COL_W - 16, { stacked, odds: this.oddsOf(c) }) + 3;
     if (on) {
       const note = c.note?.(this.run, this.bold, this.scene);
       if (note) h += wrap(note, COL_W - 16).slice(0, 2).length * 9 + 2;
@@ -551,9 +608,13 @@ export class EventScreen implements Screen {
   }
 
   private drawChoices(ctx: CanvasRenderingContext2D) {
-    const hs = this.choices.map((c, k) => this.cardHeight(c, k === this.at));
-    const total = hs.reduce((a, b) => a + b + 3, -3);
+    // every outcome in its own row on each card; short of room, the ones not in focus flow theirs on
     const bottom = H - 26;
+    const sum = (xs: number[]) => xs.reduce((a, b) => a + b + 3, -3);
+    let hs = this.choices.map((c, k) => this.cardHeight(c, k === this.at, true));
+    this.stacked = sum(hs) <= bottom - 70 ? 'all' : 'focus';
+    if (this.stacked === 'focus') hs = this.choices.map((c, k) => this.cardHeight(c, k === this.at));
+    const total = sum(hs);
     let y = Math.max(70, bottom - total);
     const sel = this.choices[this.at];
     // a part on offer, as a card above the choices
@@ -617,8 +678,7 @@ export class EventScreen implements Screen {
       drawText(ctx, info.name, x + COL_W - 6, ly, locked ? '#6a5e78' : info.color, { align: 'right' });
     } else if (c.odds) drawText(ctx, `${Math.round(c.odds(this.run, this.scene) * 100)}%`, x + COL_W - 6, ly, TONE_INK.risk, { align: 'right' });
     ly += 12;
-    const chips = c.chips?.(this.run, bold, this.scene) ?? [];
-    if (locked || chips.length) ly += chipRows(ctx, locked ? [{ icon: 'risk', text: locked, tone: 'bad' }] : chips, lx, ly, COL_W - 16, !on && !locked) + 3;
+    ly += outcomeRows(ctx, this.chipsOf(c, bold), lx, ly, COL_W - 16, { dim: !on && !locked, stacked: on || this.stacked === 'all', odds: this.oddsOf(c) }) + 3;
     if (!on) return;
     if (c.odds) {
       // the odds as a bar: green for yours, red for theirs
@@ -640,9 +700,10 @@ export class EventScreen implements Screen {
     }
     if (c.game) {
       // how hard it's come: five pips
+      // how hard it's come, and what the grades on its rows mean
       drawText(ctx, 'GAME', lx, ly + 2, DIM);
       this.pips(ctx, lx + 30, ly + 1, lv, 9);
-      drawText(ctx, this.bold ? 'PAYS THE BIG REWARD' : 'PAYS THE SMALL REWARD', lx + 30 + 5 * 11 + 6, ly + 2, this.bold ? '#ff9a8a' : DIM);
+      gradeKey(ctx, lx + 30 + 5 * 11 + 8, ly + 2, true);
     }
   }
 
@@ -750,8 +811,8 @@ export class EventScreen implements Screen {
     const a = smooth(Math.min(1, this.pt / 0.25));
     const pw = 420;
     const how = wrap(m.how, pw - 40);
-    const chips = c.chips?.(this.run, this.bold, this.scene) ?? [];
-    const chipH = chips.length ? chipRows(null, chips, 0, 0, pw - 40) : 0;
+    const chips = this.chipsOf(c, this.bold);
+    const chipH = outcomeRows(null, chips, 0, 0, pw - 40, { stacked: true }) + 14;
     const note = c.note?.(this.run, this.bold, this.scene);
     const noteL = note ? wrap(note, pw - 40).slice(0, 2) : [];
     const ph = 132 + how.length * 10 + chipH + noteL.length * 9 + (this.run.crew.length > 1 ? 12 : 0);
@@ -785,7 +846,10 @@ export class EventScreen implements Screen {
       y += 10;
     }
     y += 4;
-    if (chips.length) y += chipRows(ctx, chips, px + 20, y, pw - 40) + 3;
+    // what each grade pays, and what the grades are
+    gradeKey(ctx, px + 20, y);
+    y += 12;
+    y += outcomeRows(ctx, chips, px + 20, y, pw - 40, { stacked: true }) + 3;
     for (const l of noteL) {
       drawText(ctx, l, px + 20, y, '#a898b8');
       y += 9;

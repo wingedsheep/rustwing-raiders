@@ -21,7 +21,7 @@ export interface Frame {
 }
 
 const INTENT_BITS = ['fire', 'heavy', 'dash', 'special', 'aux', 'focus'] as const;
-const MENU_BITS = ['up', 'down', 'left', 'right', 'confirm', 'back', 'start', 'alt', 'prev', 'next'] as const;
+const MENU_BITS = ['up', 'down', 'left', 'right', 'confirm', 'back', 'start', 'alt', 'prev', 'next', 'info'] as const;
 
 /** A frame as it goes over the wire: [x, y, boost, intent bits, menu bits, aim x, aim z]. */
 type Packed = [number, number, number, number, number, number?, number?];

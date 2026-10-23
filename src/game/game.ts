@@ -332,7 +332,7 @@ export class Game {
 
   /** Menu input merged over every player's device. */
   menu(): MenuInput {
-    const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };
+    const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false, info: false };
     for (const d of this.menuDevices()) {
       const m = this.menuOf(d);
       for (const k of Object.keys(out) as (keyof MenuInput)[]) out[k] ||= m[k];

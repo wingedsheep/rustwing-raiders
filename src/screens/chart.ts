@@ -7,7 +7,11 @@ import { eventById } from '../sim/events';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, HEIST, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, haulerIcon, hullGauge, hints, strongboxIcon, type Action } from '../ui/widgets';
+import { backdrop, haulerIcon, hintRows, hints, hullGauge, shapeIcon, strongboxIcon, type Hint } from '../ui/widgets';
+import { Intro } from '../ui/intro';
+import { firstTime } from '../ui/glossary';
+import { newParts } from './hangar';
+import { partById } from '../game/parts';
 import { Accord } from '../ui/accord';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
@@ -112,6 +116,9 @@ const REWARD: Record<Reward, [string, string]> = {
 /** The five steps of threat, easy to brutal. */
 const THREAT_COLOR = ['#8affb0', '#d8e060', '#ffb04a', '#ff7a4a', '#ff4a5a'];
 
+/** Charts whose name has been up (it shows once a sector, not again after the hangar). */
+const named = new WeakSet<object>();
+
 const SYSTEMS = ['KAPTEYN DRIFT', 'OLD LANTERN', 'THE ANVIL', 'MERIDIAN REACH', 'SALT NEBULA', 'HOLLOW CROWN', 'NINE WELLS', 'THE ORCHARD'];
 
 /**
@@ -146,6 +153,14 @@ export class ChartScreen implements Screen {
   /** Pictures of the sites, made as they're first picked. */
   private previews = new Map<number, EncounterPreview>();
   private shownPreview: EncounterPreview | null = null;
+  /** How the chart works, open (seconds since), or -1: unasked the first time, then on INFO. */
+  private guide = -1;
+  /** Seconds the chart's been up with the guide shut (the sector's name shows first). */
+  private seen = 0;
+  /** A thing said the first time it's met: the hold, fuel, an elite. */
+  private intro = new Intro();
+  /** The first time on this chart: its name comes up. */
+  private firstLook: boolean;
 
   constructor(
     private game: Game,
@@ -154,6 +169,8 @@ export class ChartScreen implements Screen {
     const c = run.chart;
     this.shown = c.time;
     this.accord = new Accord(run.crew.length);
+    this.firstLook = c.time === 0 && !named.has(c);
+    named.add(c);
     this.build();
     // the crew's ships: the lead, and in co-op a wingman off its quarter
     this.ships = run.crew.map((cr, i) => new ShipModel(cr.build, LIVERY[i]));
@@ -320,10 +337,26 @@ export class ChartScreen implements Screen {
     this.shown = c.time;
     for (const sh of this.ships) sh.update(dt);
     this.shownPreview?.update(dt);
+    // the first look at a chart: how it works, unasked (not for the hands-off test runs)
+    const quiet = this.game.params.has('autorun');
+    if (this.guide < 0 && !quiet && firstTime('guide:chart')) this.openGuide();
+    if (this.guide >= 0) {
+      this.guide += dt;
+      const gm = this.game.menu();
+      if (this.guide > 0.3 && (gm.info || gm.confirm || gm.back || gm.start || gm.alt)) {
+        this.guide = -1;
+        audio.play('ui_back');
+      }
+      return;
+    }
+    this.seen += dt;
+    if (!quiet && !this.banner) this.meet();
+    this.intro.update(dt);
     // (co-op: a jump, a drift or a fight is the crew's, so it waits for everyone; see Accord)
     const ms = this.game.crewMenus();
     this.accord.withdraw(ms);
     const m = this.game.menu();
+    if (m.info) return this.openGuide();
     const stuck = !this.options.some((o) => this.run.canJump(c.cost(o))) && c.swept(c.nodes[c.here], c.time + 1);
     if (stuck) {
       if (this.accord.confirm(ms, 'fight') !== null) {
@@ -381,6 +414,49 @@ export class ChartScreen implements Screen {
         audio.play('ui_move');
       }
     }
+  }
+
+  private openGuide() {
+    this.guide = 0;
+    this.intro.dismiss();
+    audio.play('ui_select');
+  }
+
+  /** Is the sector's name up (the first watch, just come in)? */
+  private get banner() {
+    return this.firstLook && this.chart.time === 0 && this.seen < 5;
+  }
+
+  /** Says what's new on the chart, the first time each is met. */
+  private meet() {
+    const run = this.run;
+    const c = this.chart;
+    if (run.crew.some((_, i) => newParts(run, i) > 0)) this.intro.meet('hold');
+    const n = this.picked;
+    if (n?.elite) this.intro.meet('elite');
+    if (n && (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'gate') && DANGER_PAY[run.danger(n)] > 1) this.intro.meet('dangerpay');
+    if (n && run.jumpCost(c.cost(n)) > run.fuel) this.intro.meet('fuel');
+    if (c.alert >= 0) this.intro.meet('alert');
+    if (run.contract) this.intro.meet('crate');
+  }
+
+  /** Parts waiting in the holds that nobody's looked at in the hangar yet. */
+  private get fresh() {
+    return this.run.crew.reduce((s, _, i) => s + newParts(this.run, i), 0);
+  }
+
+  /** The panel's buttons, in rows that fit it (new parts get a callout of their own, over them). */
+  private controls(): Hint[][] {
+    const dev = this.game.hintDevices();
+    if (this.stuck) return [[['confirm', 'FIGHT OUT']]];
+    const drift: Hint = ['back', this.accord.open ? 'TAKE BACK' : this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH'];
+    const items: Hint[] = [['confirm', 'JUMP'], drift, ...(this.fresh ? [] : [['alt', 'FIT PARTS'] as Hint]), ['start', 'CORE']];
+    return hintRows(dev, items, W - PANEL_X - 20);
+  }
+
+  /** Where the card has to stop, for the buttons under it. */
+  private cardBottom() {
+    return H - 8 - this.controls().length * 15 - (this.fresh && !this.stuck ? 21 : 0);
   }
 
   private drift() {
@@ -488,6 +564,11 @@ export class ChartScreen implements Screen {
     this.toasts(ctx);
     this.accord.banner(ctx, MAP_W / 2, this.noteT > 0 && this.note ? H - 60 : H - 34, (k) => this.wish(k), this.t);
     this.panel(ctx);
+    if (!this.anim && this.guide < 0 && !this.banner) {
+      this.intro.draw(ctx, 12, 30, 300);
+      if (!this.intro.showing) hints(ctx, this.game.hintDevices(), [['info', 'HOW IT WORKS']], MAP_W - 12, 31, 'right');
+    }
+    if (this.guide >= 0) this.drawGuide(ctx);
   }
 
   /** What a co-op vote is for, in a few words. */
@@ -768,8 +849,8 @@ export class ChartScreen implements Screen {
       drawText(ctx, this.note, MAP_W / 2, H - 33, GOLD, { align: 'center' });
       ctx.globalAlpha = 1;
     }
-    if (c.time === 0 && this.t < 5) {
-      const a = Math.min(1, this.t * 2) * Math.min(1, (5 - this.t) * 2);
+    if (this.guide < 0 && this.banner) {
+      const a = Math.min(1, this.seen * 2) * Math.min(1, (5 - this.seen) * 2);
       ctx.globalAlpha = a;
       const w = 262;
       const x = Math.round(MAP_W / 2 - w / 2);
@@ -839,7 +920,13 @@ export class ChartScreen implements Screen {
     run.crew.forEach((cr, i) => {
       drawText(ctx, `P${i + 1}`, px + 6, ty, hex(LIVERY[i][2]));
       hullGauge(ctx, cr.hull, crewHull(cr), px + 24, ty, 40);
-      drawText(ctx, `HOLD ${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, DIM, { align: 'right' });
+      // (parts nobody's fitted or looked at yet: lit, with a blinking pip)
+      const nu = newParts(run, i);
+      const hw = drawText(ctx, `HOLD ${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, nu ? GOLD : DIM, { align: 'right' });
+      if (nu && Math.floor(this.t * 3) % 2) {
+        ctx.fillStyle = GOLD;
+        ctx.fillRect(px + pw - 6 - hw - 6, ty + 2, 3, 3);
+      }
       ty += 10;
     });
     drawText(ctx, 'FUEL', px + 6, ty, DIM);
@@ -852,7 +939,7 @@ export class ChartScreen implements Screen {
       ty += 9;
     }
     y = this.cardY();
-    const bottom = H - 23 - 15 * (this.game.hintDevices().length > 1 ? 2 : 1);
+    const bottom = this.cardBottom();
     const n = this.picked;
     if (this.stuck) {
       frame(ctx, px, y, pw, 70, '#3a1420', '#6a2430');
@@ -869,13 +956,126 @@ export class ChartScreen implements Screen {
       frame(ctx, px, bottom - 14, pw, 13, '#3a1420', '#6a2430');
       drawText(ctx, this.msg, px + pw / 2, bottom - 11, RED, { align: 'center' });
     }
-    if (this.stuck) hints(ctx, dev, [['confirm', 'FIGHT OUT']], px + pw / 2, H - 20, 'center');
-    else if (!this.anim) {
-      // (moving the cursor goes without saying; the rest fits the panel in rows, a row more for two players' keys)
-      const drift: [Action, string] = ['back', this.accord.open ? 'TAKE BACK' : this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH'];
-      const rows: [Action, string][][] = dev.length > 1 ? [[['confirm', 'JUMP']], [['start', 'CORE'], ['alt', 'HANGAR']], [drift]] : [[['confirm', 'JUMP'], ['start', 'CORE'], ['alt', 'HANGAR']], [drift]];
-      rows.forEach((r, k) => hints(ctx, dev, r, px + pw / 2, H - 15 - (rows.length - 1 - k) * 15, 'center'));
+    if (this.anim) return;
+    // (moving the cursor goes without saying; the rest fits the panel in rows, as many as the keys need)
+    const rows = this.controls();
+    rows.forEach((r, k) => hints(ctx, dev, r, px + pw / 2, H - 15 - (rows.length - 1 - k) * 15, 'center'));
+    const fresh = this.fresh;
+    if (fresh && !this.stuck) {
+      // new parts in the hold: the one thing worth doing before the next jump, so it's said loudly
+      const cy = H - 8 - rows.length * 15 - 19;
+      const pulse = 0.5 + 0.5 * Math.sin(this.t * 5);
+      frame(ctx, px, cy, pw, 17, 'rgba(40,30,14,0.96)', pulse > 0.5 ? GOLD : '#8a6a2a');
+      const label = `FIT ${fresh} NEW PART${fresh > 1 ? 'S' : ''}`;
+      hints(ctx, dev, [['alt', label, GOLD]], px + pw / 2, cy + 5, 'center');
     }
+  }
+
+  /**
+   * How the chart works, in five: pick a site, a jump costs fuel, the Sweep behind you, build
+   * your ship on the way (with the real buttons), and the gate. Each with a little picture.
+   */
+  private drawGuide(ctx: CanvasRenderingContext2D) {
+    const a = smoothstep(0, 1, Math.min(1, this.guide / 0.2));
+    const t = this.t;
+    const dev = this.game.hintDevices();
+    ctx.fillStyle = `rgba(8,5,12,${0.72 * a})`;
+    ctx.fillRect(0, 0, W, H);
+    const pw = 540;
+    const ph = 304;
+    const px = (W - pw) / 2;
+    const py = Math.round(24 + (1 - a) * 12);
+    ctx.globalAlpha = a;
+    frame(ctx, px, py, pw, ph, 'rgba(16,11,24,0.98)', GOLD);
+    drawText(ctx, 'HOW THE STAR MAP WORKS', W / 2, py + 10, INK, { scale: 2, align: 'center' });
+    const tx = px + 92;
+    const tw = pw - 92 - 16;
+    let y = py + 36;
+    const step = (n: number, head: string, body: string, pic: (cx: number, cy: number) => void, extra = 0) => {
+      const lines = wrap(body, tw);
+      const h = Math.max(46, 12 + lines.length * 9 + extra);
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(px + 8, y - 4, pw - 16, h - 2);
+      drawText(ctx, `${n}`, px + 16, y, '#5a4e68', { scale: 2 });
+      pic(px + 56, y + Math.min(h, 46) / 2 - 4);
+      drawText(ctx, head, tx, y, GOLD);
+      lines.forEach((l, k) => drawText(ctx, l, tx, y + 11 + k * 9, '#d8cce8'));
+      const top = y;
+      y += h + 2;
+      return top + 12 + lines.length * 9;
+    };
+    const site = (kind: NodeKind, x: number, y0: number, dim = false) => {
+      const look = KIND[kind];
+      chamfer(ctx, x, y0, 6, DARK);
+      chamfer(ctx, x, y0, 5, dim ? '#3a3048' : look.color);
+      icon(ctx, look.icon, x - 3, y0 - 3, dim ? '#1c1526' : DARK);
+    };
+    // 1: sites in reach, one picked
+    step(1, 'PICK WHERE TO GO', 'EVERYTHING YOU CAN REACH SHINES. MOVE TO CHOOSE ONE: THE CARD ON THE RIGHT SAYS WHAT IT IS, HOW HARD IT IS AND WHAT IT PAYS. THEN JUMP THERE.', (cx, cy) => {
+      const kinds: NodeKind[] = ['raid', 'dock', 'hunt'];
+      const at = Math.floor(t * 0.8) % 3;
+      kinds.forEach((k, i) => {
+        const sx = cx - 20 + i * 20;
+        const sy = cy + (i === 1 ? -6 : 4);
+        site(k, sx, sy);
+        if (i !== at) return;
+        const b = 9 + Math.round(Math.sin(t * 6));
+        ctx.fillStyle = GOLD;
+        for (const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          const bx = Math.round(sx + ox * b);
+          const by = Math.round(sy + oy * b);
+          ctx.fillRect(bx - (ox > 0 ? 2 : 0), by, 3, 1);
+          ctx.fillRect(bx, by - (oy > 0 ? 2 : 0), 1, 3);
+        }
+      });
+    });
+    // 2: a hop and a long jump
+    step(2, 'A JUMP COSTS FUEL', 'A CYAN ROUTE IS A HOP, ONE FUEL. AN AMBER ONE IS A LONG JUMP, TWO. DOCKS AND DEALERS SELL MORE. OUT OF FUEL, A JUMP BURNS HULL INSTEAD.', (cx, cy) => {
+      const ph0 = Math.floor(-t * 14) & 3;
+      ctx.fillStyle = hex(LIVERY[0][2]);
+      ctx.fillRect(cx - 24, cy - 1, 3, 3);
+      dots(ctx, { x: cx - 20, y: cy }, { x: cx + 8, y: cy - 10 }, CYAN, 4, ph0);
+      dots(ctx, { x: cx - 20, y: cy }, { x: cx + 22, y: cy + 10 }, FUEL, 4, ph0);
+      drawText(ctx, '◆', cx + 11, cy - 14, CYAN);
+      drawText(ctx, '◆◆', cx + 12, cy + 12, FUEL);
+    });
+    // 3: the Sweep coming across, sites going out behind it
+    step(3, 'THE SWEEP IS BEHIND YOU', 'EVERY JUMP IS A WATCH, AND SO IS DRIFTING (WAITING ONE OUT). EACH WATCH THE RED SWEEP COMES ON FROM WHERE YOU CAME IN, AND WHAT IT PASSES IS LOST. IF IT CATCHES YOU, YOU HAVE TO FIGHT YOUR WAY OUT.', (cx, cy) => {
+      const f = (t * 0.25) % 1;
+      const x0 = cx - 30;
+      const front = Math.round(x0 + f * 60);
+      ctx.fillStyle = 'rgba(150,16,36,0.5)';
+      ctx.fillRect(x0, cy - 12, front - x0, 24);
+      ctx.fillStyle = '#ff4a5a';
+      ctx.fillRect(front, cy - 12, 1, 24);
+      [-18, 0, 18].forEach((ox, i) => {
+        const sx = cx + ox;
+        if (sx < front) {
+          chamfer(ctx, sx, cy, 3, DARK);
+          chamfer(ctx, sx, cy, 2, '#6a2a38');
+        } else site((['raid', 'salvage', 'event'] as NodeKind[])[i], sx, cy);
+      });
+    });
+    // 4: a part into the grid, and the buttons for it
+    const y4 = step(4, 'BUILD YOUR SHIP AS YOU GO', 'FIGHTS PAY IN PARTS. THEY WAIT IN YOUR HOLD, DOING NOTHING, UNTIL YOU FIT THEM TO YOUR SHIP IN THE HANGAR. THE CORE SHOWS WHAT YOUR FLYING HAS TAUGHT IT.', (cx, cy) => {
+      ctx.fillStyle = '#2a2236';
+      for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 3; gy++) ctx.fillRect(cx - 4 + gx * 8, cy - 8 + gy * 8, 7, 7);
+      // (the ship's biggest part, sliding in from the hold, at the grid's own cell size)
+      const f = smoothstep(0, 1, Math.min(1, ((t * 0.5) % 1) * 1.6));
+      const def = this.run.crew[0].build.parts.map((p) => partById(p.id)).filter((d) => d.shape.length <= 3).sort((p, q) => q.shape.length - p.shape.length)[0];
+      if (def) shapeIcon(ctx, def, Math.round(lerp(cx - 34, cx - 4, f)), cy - 8, 8);
+    }, 16);
+    hints(ctx, dev, [['alt', 'FIT PARTS'], ['start', 'THE CORE']], tx + 3, y4 + 3);
+    // 5: the gate
+    step(5, 'THEN TAKE THE GATE', `ITS WARDEN GUARDS THE WAY OUT OF THE SECTOR. BEAT IT AND THE NEXT ONE OPENS: ${SECTORS} SECTORS IN ALL. THE STRIP ALONG THE TOP SHOWS HOW FAR YOU ARE, AND HOW CLOSE THE SWEEP.`, (cx, cy) => {
+      const k = Math.round(9 + Math.sin(t * 3));
+      ring(ctx, cx, cy, k, 'rgba(255,74,90,0.5)');
+      chamfer(ctx, cx, cy, 7, DARK);
+      chamfer(ctx, cx, cy, 6, RED);
+      icon(ctx, 'gate', cx - 3, cy - 3, DARK);
+    });
+    hints(ctx, dev, [['confirm', 'GOT IT']], W / 2, py + ph - 14, 'center');
+    ctx.globalAlpha = 1;
   }
 
   /** The things hanging over you, a line each. */

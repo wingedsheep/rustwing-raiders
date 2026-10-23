@@ -20,7 +20,7 @@
  */
 
 import type { Run } from './run';
-import { listPrice, SELL } from './run';
+import { listPrice, RATE, SELL, type Lender } from './run';
 import type { ChartNode } from './chart';
 import { HULL_STEP, type Mode } from './level';
 import type { Planet } from '../world/planets';
@@ -30,6 +30,9 @@ import { itemName, rollItem, TIER_VALUE, TIERS, tierOf, type Item, type Tier } f
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { everDid, lastOf } from './memory';
 import { pick, rng, type Rng } from '../util';
+import { IMPRINTS, WAYS, type ImprintId } from '../game/core';
+import { factionOf } from './factions';
+import { PLANETS } from '../world/planets';
 
 export type MiniKind = 'tow' | 'tune' | 'grab' | 'reels' | 'dock' | 'thread' | 'haggle' | 'shake';
 
@@ -76,13 +79,24 @@ export interface Result {
 }
 
 export type Tone = 'good' | 'bad' | 'info' | 'risk';
-export type ChipIcon = 'scrap' | 'fuel' | 'hull' | 'part' | 'bounty' | 'rep' | 'fight' | 'chart' | 'sweep' | 'favour' | 'debt' | 'crew' | 'core' | 'risk';
+export type ChipIcon = 'scrap' | 'fuel' | 'hull' | 'part' | 'bounty' | 'rep' | 'fight' | 'chart' | 'sweep' | 'favour' | 'debt' | 'crew' | 'core' | 'risk' | 'none';
+
+/**
+ * When a chip comes true. Unset: whatever happens. A game's chips go by its grade, as the results
+ * card stamps it: `fail` an F (under 25%), `pass` a C or better, `a` an A or better (55%), `s` an S
+ * (85%). A gamble's by how it falls: `win` or `lose`.
+ */
+export type When = 'fail' | 'pass' | 'a' | 's' | 'win' | 'lose';
+
+/** The least score for each of a game's grades. */
+export const GRADE_AT: Record<'pass' | 'a' | 's', number> = { pass: 0.25, a: 0.55, s: 0.85 };
 
 /** A cost or a payoff, as a little icon and a few words. */
 export interface Chip {
   icon: ChipIcon;
   text: string;
   tone: Tone;
+  on?: When;
 }
 
 /** What a game is set up with, when the choice knows more than the game does. */
@@ -216,7 +230,8 @@ const SHORT: Record<string, string> = { 'Port Authority': 'PORT AUTH', 'Vantorr 
 /** Chips, the costs and payoffs under a choice. */
 const c = {
   scrap: (n: number): Chip => ({ icon: 'scrap', text: `${n > 0 ? '+' : ''}${n}`, tone: n > 0 ? 'good' : 'bad' }),
-  upTo: (n: number): Chip => ({ icon: 'scrap', text: `UP TO +${n}`, tone: 'good' }),
+  /** Scrap that scales with how well a game went: `lo` at a bare pass, `hi` at 100%. */
+  range: (lo: number, hi: number): Chip => ({ icon: 'scrap', text: `+${lo} TO ${hi}`, tone: 'good' }),
   fuel: (n: number): Chip => ({ icon: 'fuel', text: `${n > 0 ? '+' : ''}${n} FUEL`, tone: n > 0 ? 'good' : 'bad' }),
   hull: (steps: number): Chip => ({ icon: 'hull', text: steps >= 9 ? 'FULL HULL' : `${steps > 0 ? '+' : ''}${steps * HULL_STEP} HULL`, tone: steps > 0 ? 'good' : 'bad' }),
   part: (what: string): Chip => ({ icon: 'part', text: what, tone: 'good' }),
@@ -232,7 +247,31 @@ const c = {
   debt: (text: string, tone: Tone = 'bad'): Chip => ({ icon: 'debt', text, tone }),
   risk: (text: string): Chip => ({ icon: 'risk', text, tone: 'risk' }),
   odds: (f: number, text: string): Chip => ({ icon: 'risk', text: `${pct(f)} ${text}`, tone: 'risk' }),
+  /** These chips, only on that result. */
+  on: (when: When, ...cs: Chip[]): Chip[] => cs.map((x) => ({ ...x, on: when })),
 };
+
+/** The cores copying an imprint, said only if some pilot's core hasn't got it yet. */
+const copies = (run: Run, id: ImprintId): Chip[] => (run.crew.some((cr) => !cr.core.owned.includes(id)) ? [c.core(`THE CORE COPIES ${IMPRINTS[id].name}`)] : []);
+
+/** A faction's mood moved, and the ways the cores pick up off it once it likes you enough (run.mood). */
+function rep(run: Run, faction: string, d: number): Chip[] {
+  const planet = PLANETS.find((pl) => pl.faction === faction);
+  const liked = d > 0 && planet && Math.min(3, run.moodOf(faction) + d) >= 2;
+  return [c.rep(faction, d), ...(liked ? copies(run, WAYS[factionOf(planet)]) : [])];
+}
+
+/** What a debt of `d` comes to after `jumps` jumps at a lender's rate (run.jump's interest). */
+function owed(d: number, lender: Lender, jumps: number) {
+  for (let k = 0; k < jumps; k++) d = Math.ceil(d * (1 + RATE[lender]));
+  return d;
+}
+
+/** A Sweep held back by somewhere between `lo` and `hi` watches, as a game goes. */
+const sweepRange = (lo: number, hi: number): Chip => ({ icon: 'sweep', text: `SWEEP HELD ${lo} TO ${hi}`, tone: 'good' });
+
+/** What a game that pays `k × score` pays at a bare pass, and at its best. */
+const span = (k: number): [number, number] => [Math.round(GRADE_AT.pass * k), k];
 
 const BOUNTY_STEP = 40;
 
@@ -257,9 +296,15 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'BOARD HER',
         game: 'grab',
-        note: (_, bold) => (bold ? 'DEEP HOLD: MORE CRATES, LESS TIME. FAIL: -40 HULL' : 'GRAB CRATES, GET OUT BEFORE THE HATCH SEALS'),
+        chips: (_, bold) => [
+          ...c.on('pass', c.range(...span(bold ? 90 : 50))),
+          ...c.on('a', c.part('A RARE PART')),
+          ...(bold ? c.on('s', c.part('EPIC, NOT RARE')) : []),
+          ...c.on('fail', c.hull(bold ? -2 : -1)),
+        ],
+        note: (_, bold) => (bold ? 'DEEP HOLD: MORE CRATES, LESS TIME' : 'GRAB CRATES, GET OUT BEFORE THE HATCH SEALS'),
         outcome: (run, p) => {
-          if (p.score <= 0) {
+          if (tier(p.score) === 0) {
             run.hurt(p.bold ? 2 : 1);
             return { text: 'The hatch grinds shut on your tail. Whatever lives in there gets a good bite in before you tear free.' };
           }
@@ -273,17 +318,17 @@ export const EVENTS: RunEvent[] = [
           return { text: 'A few crates of plating and wire. The heartbeat quickens as you leave. You do not look back.' };
         },
       },
-      { label: 'STRIP THE HULL', note: () => '+25 SCRAP, NO RISK', outcome: (run) => ((run.scrap += 25), { text: 'Plating, wiring, a good kettle. 25 scrap.' }) },
+      { label: 'STRIP THE HULL', chips: () => [c.scrap(25)], note: () => 'NO RISK', outcome: (run) => ((run.scrap += 25), { text: 'Plating, wiring, a good kettle. 25 scrap.' }) },
       {
         label: 'SELL HER POSITION TO THE SCAVS',
-        note: () => '+15 SCRAP, SCAV CLANS LIKE YOU',
+        chips: (run) => [c.scrap(15), ...rep(run, 'Scav Clans', 1)],
         outcome: (run) => {
           run.scrap += 15;
           run.mood('Scav Clans', 1);
           return { text: 'The Scav Clans pay little, but they remember who tipped them off.' };
         },
       },
-      { label: 'LEAVE HER BE', note: () => '', outcome: () => ({ text: 'Some ghosts are best left alone.' }) },
+      { label: 'LEAVE HER BE', outcome: () => ({ text: 'Some ghosts are best left alone.' }) },
     ],
   },
   {
@@ -304,7 +349,11 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'TOW HER CLEAR',
         game: 'tow',
-        chips: (_, bold) => (bold ? [c.upTo(90), c.part('A RARE PART, ON A GOOD TOW'), c.hull(-1)] : [c.upTo(45), c.rep('Port Authority', 1)]),
+        chips: (run, bold) => [
+          ...c.on('pass', c.range(...span(bold ? 90 : 45)), ...rep(run, 'Port Authority', 1)),
+          ...(bold ? c.on('a', c.part('A RARE PART')) : []),
+          ...c.on('fail', c.hull(-1)),
+        ],
         note: (_, bold) => (bold ? 'A HEAVY TOW, THROUGH THE ROCKS. SNAP IT AND IT WHIPS YOUR HULL' : 'KEEP THE CABLE TAUT, NOT TIGHT'),
         outcome: (run, p) => {
           const t = tier(p.score);
@@ -325,8 +374,8 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'CARRY HER CRATE',
-        chips: (run, _, s) => [c.scrap(90), c.crew(`LAND ON ${run.farPlanet(s.node).name} BEFORE THE GATE`)],
-        note: () => "DON'T SHAKE IT",
+        chips: (run, _, s) => [c.crew(`DELIVER TO ${run.farPlanet(s.node).name}: +90`, 'good')],
+        note: () => "LAND THERE BEFORE THE GATE. DON'T SHAKE IT",
         if: (run) => !run.contract && !everDid('juno', 'robbed'),
         outcome: (run, p) => {
           const to = run.farPlanet(p.node);
@@ -336,7 +385,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'TAKE THE CRATE',
-        chips: () => [c.scrap(70), c.bounty(1), c.fight('THE SYNDICATE, NOW')],
+        chips: (run) => [c.scrap(70), c.bounty(1), c.fight('THE SYNDICATE, NOW'), ...copies(run, 'price')],
         outcome: (run) => {
           run.scrap += 70;
           run.bounty++;
@@ -366,7 +415,11 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'TUNE IN',
         game: 'tune',
-        chips: (_, bold) => (bold ? [c.part('AN EPIC PART'), c.reveal(3), c.hull(-2)] : [c.part('A RARE PART'), c.hull(-1)]),
+        chips: (_, bold) => [
+          ...c.on('pass', c.reveal(2)),
+          ...c.on('a', c.part(bold ? 'AN EPIC PART' : 'A RARE PART'), ...(bold ? [{ ...c.reveal(1), text: '1 MORE SITE' }] : [])),
+          ...c.on('fail', c.hull(bold ? -2 : -1)),
+        ],
         note: (_, bold) => (bold ? 'ALL THREE VOICES. GET IT WRONG AND IT DRILLS YOUR HULL' : 'LOCK ON. GET IT WRONG AND IT HURTS'),
         outcome: (run, p) => {
           const t = tier(p.score);
@@ -374,14 +427,12 @@ export const EVENTS: RunEvent[] = [
             run.hurt(p.bold ? 2 : 1);
             return { text: 'The song turns sour and goes through your hull like a drill.' };
           }
-          if (t === 1) {
-            run.chart.reveal(2);
-            return { text: 'You catch half a verse. Nothing for the hold, but the song names two places on the chart.' };
-          }
+          run.chart.reveal(2);
+          if (t === 1) return { text: 'You catch half a verse. Nothing for the hold, but the song names two places on the chart.' };
           const id = part(p.r, p.bold ? 'epic' : 'rare');
           run.give(id);
-          if (p.bold) run.chart.reveal(3);
-          return { text: `The song settles in your cores and comes out as a ${name(id)}. You don't ask how.` };
+          if (p.bold) run.chart.reveal(1);
+          return { text: `The song settles in your cores and comes out as a ${name(id)}. You don't ask how. It names ${p.bold ? 'three places' : 'two places'} on the chart on the way.` };
         },
       },
       {
@@ -399,7 +450,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'ASK WHO THE COLLECTOR IS',
         if: (run) => run.collector >= 2 && !run.has('collector', 'met'),
-        chips: () => [c.crew('HE HAS NEVER SAID')],
+        chips: () => [c.crew('SOMEONE ELSE ANSWERS')],
         outcome: (run) => {
           run.did('collector', 'met');
           return {
@@ -459,7 +510,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'STRIP HER ENGINES',
         odds: () => 0.65,
-        chips: () => [c.part('AN ENGINE EACH'), c.odds(0.35, 'THEY CATCH YOU: A RAID')],
+        chips: () => [c.part('AN ENGINE EACH'), ...c.on('lose', c.fight('THEY CATCH YOU: A RAID'))],
         outcome: (run, p) => {
           run.give(() => ofClass(p.r, 'engine'));
           if (!p.won) return { text: 'Engines. Fast ones. You have the second one half out when the shadows come over the ridge: the ones who shot her down.', fight: 'raid' };
@@ -501,7 +552,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'CATCH THE POD',
         game: 'dock',
-        chips: (_, bold) => (bold ? [c.hull(3), c.favour('DR VARGA OWES YOU'), c.hull(-2)] : [c.hull(1), c.favour('DR VARGA OWES YOU'), c.hull(-1)]),
+        chips: (run, bold) => [...c.on('pass', c.hull(bold ? 3 : 1), c.favour('DR VARGA OWES YOU'), ...copies(run, 'brisk')), ...c.on('fail', c.hull(bold ? -2 : -1))],
         note: (_, bold) => (bold ? 'SPINNING FAST. CLIP IT AND IT HURTS' : 'MATCH ITS SPIN'),
         outcome: (run, p) => {
           if (tier(p.score) === 0) {
@@ -527,7 +578,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'LEAVE A BEACON ON IT',
-        chips: () => [c.rep('Port Authority', 1)],
+        chips: (run) => rep(run, 'Port Authority', 1),
         outcome: (run) => {
           run.mood('Port Authority', 1);
           return { text: 'A patrol will find her. Someone will write your name down for the right reasons, for once.' };
@@ -550,8 +601,8 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'HACK THE CARRIER',
         game: 'tune',
-        chips: (_, bold) => (bold ? [c.sweep(3), c.sweep(-1)] : [c.sweep(1.5)]),
-        note: (_, bold) => (bold ? 'UP TO 3 WATCHES. FAIL AND IT CALLS THE SWEEP ON' : 'UP TO 1.5 WATCHES. FAIL AND NOTHING HAPPENS'),
+        chips: (_, bold) => [...c.on('pass', bold ? sweepRange(1.2, 3) : sweepRange(0.6, 1.5)), ...(bold ? c.on('fail', c.sweep(-1)) : [])],
+        note: (_, bold) => (bold ? 'THE LOUD CHANNEL. GET IT WRONG AND IT CALLS THE SWEEP ON' : 'THE QUIET CHANNEL'),
         outcome: (run, p) => {
           const t = tier(p.score);
           if (t === 0) {
@@ -575,7 +626,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'READ ITS ORDERS',
         odds: () => 0.5,
-        chips: () => [c.reveal(99), c.odds(0.5, 'IT PINGS YOU: SWEEP 1 CLOSER')],
+        chips: () => [c.reveal(99), ...c.on('lose', c.sweep(-1))],
         outcome: (run, p) => {
           run.chart.reveal(99);
           if (!p.won) {
@@ -609,7 +660,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'BORROW 60',
         if: (run) => run.lender === 'mama' || !run.debt,
-        chips: () => [c.scrap(60), c.debt('OWE 66 AFTER A JUMP, 80 AFTER THREE')],
+        chips: (run) => [c.scrap(60), c.debt(`OWE ${owed(run.debt + 60, 'mama', 1)} IN A JUMP, ${owed(run.debt + 60, 'mama', 3)} IN 3`)],
         outcome: (run) => {
           run.scrap += 60;
           run.debt += 60;
@@ -620,7 +671,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'BORROW 150',
         if: (run) => run.lender === 'mama' || !run.debt,
-        chips: () => [c.scrap(150), c.debt('OWE 165 AFTER A JUMP, 200 AFTER THREE'), c.core("THE CORE COPIES MAMA'S LUCK")],
+        chips: (run) => [c.scrap(150), c.debt(`OWE ${owed(run.debt + 150, 'mama', 1)} IN A JUMP, ${owed(run.debt + 150, 'mama', 3)} IN 3`), ...copies(run, 'luck')],
         outcome: (run) => {
           run.scrap += 150;
           run.debt += 150;
@@ -632,7 +683,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'PAY WHAT YOU OWE',
         if: (run) => run.debt > 0 && run.lender === 'mama',
-        chips: (run) => [c.scrap(-run.debt)],
+        chips: (run) => [c.scrap(-run.debt), c.debt('DEBT CLEARED', 'good')],
         locked: (run) => (run.scrap < run.debt ? `NEEDS ${run.debt} SCRAP` : null),
         outcome: (run) => {
           run.scrap -= run.debt;
@@ -669,7 +720,11 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'PLAY THE REELS',
         game: 'reels',
-        chips: (_, bold) => (bold ? [c.scrap(-40), c.risk('×2, ×5 OR ×10 BACK')] : [c.scrap(-15), c.risk('×2, ×5 OR ×10 BACK')]),
+        chips: (run, bold) => {
+          const stake = bold && run.scrap >= 40 ? 40 : 15;
+          const back = (k: number): Chip => ({ icon: 'scrap', text: `×${k} BACK: +${stake * k - stake}`, tone: 'good' });
+          return [...c.on('pass', back(2), ...(bold ? copies(run, 'sleeve') : [])), ...c.on('a', back(5)), ...c.on('s', back(10)), ...c.on('fail', c.scrap(-stake))];
+        },
         note: (_, bold) => (bold ? 'THE FAST REELS' : 'THE SLOW REELS'),
         locked: (run) => (run.scrap < 15 ? 'NEEDS 15 SCRAP' : null),
         outcome: (run, p) => {
@@ -696,8 +751,8 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'SELL HIM YOUR STORY',
         if: (run) => run.bounty > 0,
-        chips: (run) => [c.scrap(run.bounty * 20), c.crew('KASPAR DRINKS HERE TOO', 'bad')],
-        note: () => 'ONE IN THREE, KASPAR HEARS IT',
+        chips: (run) => [c.scrap(run.bounty * 20), ...c.on('lose', c.crew('KASPAR HEARS IT: HE COMES', 'bad'))],
+        note: () => 'KASPAR DRINKS HERE TOO',
         odds: () => 0.67,
         outcome: (run, p) => {
           run.scrap += run.bounty * 20;
@@ -726,7 +781,7 @@ export const EVENTS: RunEvent[] = [
         item: (run) => coreHeld(run)?.it ?? null,
         chips: (run) => {
           const h = coreHeld(run);
-          return [...(h ? [c.lose(name(h.it).toUpperCase()), c.scrap(worth(h.it) * 2)] : []), c.rep('Port Authority', 1)];
+          return [...(h ? [c.lose(name(h.it).toUpperCase()), c.scrap(worth(h.it) * 2)] : []), ...rep(run, 'Port Authority', 1)];
         },
         note: () => 'TWICE WHAT A DEALER PAYS',
         locked: (run) => (coreHeld(run) ? null : 'NOTHING WITH A CORE IN IT'),
@@ -741,8 +796,8 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'CARRY HIS CRATE',
         if: (run) => !run.contract,
-        chips: (run, _, s) => [c.scrap(110), c.rep('Port Authority', 1), c.crew(`LAND ON ${run.farPlanet(s.node).name} BEFORE THE GATE`)],
-        note: () => '1 IN 4, THE CENSUS OFFICE SCANS YOU ON THE WAY',
+        chips: (run, _, s) => [c.crew(`DELIVER TO ${run.farPlanet(s.node).name}: +110`, 'good'), ...rep(run, 'Port Authority', 1), ...c.on('lose', c.sweep(-1))],
+        note: () => 'LAND THERE BEFORE THE GATE. AN IMPERIAL CUTTER MAY SCAN YOU ON THE WAY',
         odds: () => 0.75,
         outcome: (run, p) => {
           const to = run.farPlanet(p.node);
@@ -758,7 +813,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'LET 7-HOLLY FILE HIS REPORT',
         if: (run) => run.aboard.includes('holly') && !run.has('holly', 'customs'),
-        chips: () => [c.rep('Port Authority', 1), c.reveal(2), c.crew('ONCE A RUN')],
+        chips: (run) => [...rep(run, 'Port Authority', 1), c.reveal(2), c.crew('ONCE A RUN')],
         outcome: (run) => {
           run.did('holly', 'customs');
           run.mood('Port Authority', 1);
@@ -801,7 +856,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'THE GOLD POLICY',
-        chips: () => [c.scrap(-60), c.favour(`30 SCRAP PER ${HULL_STEP} HULL LOST`), c.core("THE CORE COPIES PIP'S POLICY")],
+        chips: (run) => [c.scrap(-60), c.favour(`30 SCRAP PER ${HULL_STEP} HULL LOST`), ...copies(run, 'policy')],
         note: () => 'UNTIL THE GATE',
         locked: lacks(60),
         if: (run) => run.policy < 30,
@@ -830,8 +885,8 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'THREAD THE FIELD',
         game: 'thread',
-        chips: (_, bold) => (bold ? [c.upTo(90), c.part('AN EPIC, ALL THE WAY IN'), c.hull(-2)] : [c.upTo(50), c.part('A RARE, ALL THE WAY IN'), c.hull(-1)]),
-        note: (_, bold) => (bold ? 'THE DEEP CACHE' : 'THE NEAR CACHE'),
+        chips: (_, bold) => [c.range(0, bold ? 90 : 50), ...c.on('s', c.part(bold ? 'AN EPIC PART' : 'A RARE PART')), ...c.on('fail', c.hull(bold ? -2 : -1))],
+        note: (_, bold) => (bold ? 'THE DEEP CACHE. THE FURTHER IN, THE MORE SCRAP' : 'THE NEAR CACHE. THE FURTHER IN, THE MORE SCRAP'),
         outcome: (run, p) => {
           const got = Math.round(p.score * (p.bold ? 90 : 50));
           run.scrap += got;
@@ -839,7 +894,7 @@ export const EVENTS: RunEvent[] = [
             run.hurt(p.bold ? 2 : 1);
             return { text: `The mines find you before the cache does. You limp out with ${got} scrap and fresh holes.` };
           }
-          if (p.score >= 0.95) {
+          if (tier(p.score) === 3) {
             const id = part(p.r, p.bold ? 'epic' : 'rare');
             run.give(id);
             return { text: `All the way in. The cache holds ${got} scrap and a ${name(id)}, and a note: "TELL MY WIFE".` };
@@ -874,7 +929,10 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'DOCK WITH HER',
         game: 'dock',
-        chips: (_, bold) => (bold ? [c.part('2 RARE PARTS EACH'), c.fuel(2), c.hull(-2)] : [c.part('A PART EACH'), c.fuel(1), c.hull(-1)]),
+        chips: (run, bold) => [
+          ...c.on('pass', c.part(bold ? '2 RARE PARTS EACH' : 'A PART EACH'), c.fuel(bold ? 2 : 1), ...(bold ? copies(run, 'minute') : [])),
+          ...c.on('fail', c.hull(bold ? -2 : -1)),
+        ],
         note: (_, bold) => (bold ? 'COME IN FAST' : 'COME IN SLOW'),
         outcome: (run, p) => {
           if (tier(p.score) === 0) {
@@ -979,12 +1037,19 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'HOLD THE HOSE YOURSELF',
         game: 'tow',
-        chips: (_, bold) => (bold ? [c.scrap(-10), c.fuel(5), c.hull(-1)] : [c.scrap(-10), c.fuel(3)]),
-        note: (_, bold) => (bold ? 'FULL PRESSURE: UP TO 5. LOSE IT AND IT BURNS' : 'UP TO 3'),
+        chips: (run, bold) => {
+          const [lo, hi] = [Math.round(GRADE_AT.pass * (bold ? 5 : 3)), bold ? 5 : 3];
+          return [
+            c.scrap(-10),
+            ...c.on('pass', { icon: 'fuel', text: `+${lo} TO ${hi} FUEL`, tone: 'good' }, ...(bold ? copies(run, 'laugh') : [])),
+            ...(bold ? c.on('fail', c.hull(-1)) : []),
+          ];
+        },
+        note: (_, bold) => (bold ? 'FULL PRESSURE. LOSE IT AND IT BURNS' : 'THE HOSE HAS A MIND OF ITS OWN'),
         locked: lacks(10),
         outcome: (run, p) => {
           run.scrap -= 10;
-          const got = Math.round(p.score * (p.bold ? 5 : 3));
+          const got = tier(p.score) ? Math.round(p.score * (p.bold ? 5 : 3)) : 0;
           run.addFuel(got);
           if (p.bold && tier(p.score) === 0) {
             run.hurt(1);
@@ -1079,7 +1144,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'ASK WHICH LANES SIT RIGHT',
-        chips: () => [c.fuel(-1), c.favour('3 LONG JUMPS AT A HOP\'S FUEL')],
+        chips: (run) => [c.fuel(-1), c.favour('3 LONG JUMPS AT A HOP\'S FUEL'), ...copies(run, 'sight')],
         note: () => 'THIS SECTOR',
         locked: (run) => (run.fuel < 1 ? 'NEEDS 1 FUEL' : null),
         outcome: (run) => {
@@ -1184,7 +1249,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'ASK THEM TO SETTLE IT BETWEEN THEM',
-        chips: () => [c.odds(0.5, 'THEY BOTH PAY YOU TO TAKE A SIDE'), c.risk('OR THEY BOTH SULK')],
+        chips: () => [...c.on('win', c.crew('WITNESS: 60 SCRAP OR A PART', 'good')), ...c.on('lose', c.crew('NEITHER DEALS WITH YOU', 'bad'))],
         odds: () => 0.5,
         outcome: (run, p) => {
           if (!p.won) {
@@ -1251,9 +1316,13 @@ export const EVENTS: RunEvent[] = [
           // never a deal you can't pay for: short of his floor, he'll come down to what you've got
           return { item: it, ask, floor: Math.min(tobboFloor(s, ask), Math.round(run.scrap * 0.97)), purse: run.scrap };
         },
-        chips: (_, bold, s) => {
+        chips: (run, bold, s) => {
           const it = offer(s, bold ? 0x70c : 0x70b, ['common', 'rare'], bold ? 'epic' : 'rare');
-          return [c.part(`${name(it)} (${bold ? 'EPIC' : 'RARE'})`), c.scrap(-Math.round(listPrice(it) * 1.15)), c.risk('PUSH TOO HARD: HE SHUTS THE GATE')];
+          const ask = Math.round(listPrice(it) * (everDid('tobbo', 'shut') ? 1.35 : 1.15));
+          const floor = Math.min(tobboFloor(s, ask), Math.round(run.scrap * 0.97));
+          // (good timing brings him a tenth of the way under his floor)
+          const least = Math.round(floor - Math.max(1, ask - floor) * 0.1);
+          return [c.part(`${name(it)} (${bold ? 'EPIC' : 'RARE'})`), { icon: 'scrap', text: `-${least} TO ${Math.min(ask, run.scrap)}`, tone: 'bad' }, c.risk('PUSH TOO HARD: NO DEAL')];
         },
         note: (_, bold) => (bold ? 'HIS GOOD STOCK. HE IS TOUCHIER ABOUT IT' : 'HE WILL COME DOWN. HOW FAR, HIS WINGS WILL TELL YOU'),
         locked: (run, s) => (run.scrap < tobboFloor(s, Math.round(listPrice(offer(s, 0x70b, ['common', 'rare'], 'rare')) * 1.15)) * 0.85 ? 'YOU CAN\'T AFFORD TO START' : null),
@@ -1274,7 +1343,7 @@ export const EVENTS: RunEvent[] = [
         label: 'TAKE HIS BET',
         item: (_, s) => offer(s, 0x70b, ['common', 'rare'], 'rare'),
         odds: () => 0.4,
-        chips: () => [c.odds(0.4, 'THE PART, FREE'), c.scrap(-40)],
+        chips: (_, __, s) => [...c.on('win', c.part(`${name(offer(s, 0x70b, ['common', 'rare'], 'rare'))}, FREE`)), ...c.on('lose', c.scrap(-40))],
         note: () => 'DOUBLE OR NOTHING ON A SPIN OF HIS WHEEL. HE SAYS 50%. IT IS 40%',
         locked: lacks(40),
         outcome: (run, p) => {
@@ -1305,7 +1374,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'THE SMALL CRATE',
         odds: () => 0.7,
-        chips: () => [c.scrap(-25), c.odds(0.7, 'A PART'), c.risk('30%: A VERY NICE BOLT')],
+        chips: () => [c.scrap(-25), ...c.on('win', c.part('A PART, 30%: RARE')), ...c.on('lose', c.crew('A VERY NICE BOLT'))],
         locked: lacks(25),
         outcome: (run, p) => {
           run.scrap -= 25;
@@ -1318,7 +1387,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'THE BIG CRATE',
         odds: () => 0.5,
-        chips: () => [c.scrap(-75), c.odds(0.5, 'AN EPIC PART'), c.risk('50%: A PLAIN ONE')],
+        chips: () => [c.scrap(-75), ...c.on('win', c.part('AN EPIC PART')), ...c.on('lose', c.part('A PLAIN PART'))],
         locked: lacks(75),
         outcome: (run, p) => {
           run.scrap -= 75;
@@ -1490,7 +1559,7 @@ export const EVENTS: RunEvent[] = [
         odds: () => 0.4,
         chips: (run) => {
           const h = bestHeld(run);
-          return h ? [c.lose(name(h.it)), c.odds(0.4, `+${worth(h.it) * 10}`), c.risk('60%: SHE LEAVES, BORED')] : [];
+          return h ? [...c.on('win', c.lose(name(h.it)), c.scrap(worth(h.it) * 10)), ...c.on('lose', c.crew('SHE LEAVES, BORED', 'bad'))] : [];
         },
         outcome: (run, p) => {
           if (!p.won) return { text: '"Haggling." She says it the way one says "mildew". The yacht is gone before you finish your sentence. Your part is still in your hold, looking cheaper than before.', mood: 'annoyed' };
@@ -1513,7 +1582,7 @@ export const EVENTS: RunEvent[] = [
         label: 'TELL HER SHE IS THE BORING ONE',
         if: (run) => !anyHeld(run),
         odds: () => 0.35,
-        chips: () => [c.odds(0.35, '+150'), c.risk('65%: HER BODYGUARDS'), c.fight()],
+        chips: () => [...c.on('win', c.scrap(150)), ...c.on('lose', c.fight('HER BODYGUARDS'))],
         note: () => 'NOBODY HAS EVER SAID IT TO HER',
         outcome: (run, p) => {
           if (!p.won) return { text: 'Her crest goes white. She does not raise her voice; she raises one finger, and the yacht\'s escort peels off to teach you manners.', fight: 'raid', mood: 'annoyed' };
@@ -1551,7 +1620,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'SAY YOU ARE A VANTORR TENANT',
         odds: () => 0.5,
-        chips: () => [c.odds(0.5, 'A TRANSIT SEAL: THE WARDEN FIGHTS WEAKER'), c.risk('50%: SHE SMELLS IT'), c.bounty(2), c.fight()],
+        chips: () => [...c.on('win', c.favour('THE WARDEN FIGHTS WEAKER')), ...c.on('lose', c.bounty(2), c.fight('A HARD HUNT'))],
         outcome: (run, p) => {
           if (p.won) {
             run.wardenEase += 0.15;
@@ -1591,7 +1660,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'PAY THE TOLL',
-        chips: (run) => [c.scrap(-20), run.bounty ? c.bounty(-1) : c.rep('Port Authority', 1)],
+        chips: (run) => [c.scrap(-20), ...(run.bounty ? [c.bounty(-1)] : rep(run, 'Port Authority', 1))],
         locked: lacks(20),
         outcome: (run) => {
           run.scrap -= 20;
@@ -1604,7 +1673,7 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'TAKE IT WITH YOU',
         if: (run) => !run.aboard.includes('holly'),
-        chips: () => [c.crew('7-HOLLY JOINS YOU', 'good'), c.favour('HANDLES HOLLOWAY, KASPAR AND MAMA'), c.rep('Port Authority', -1)],
+        chips: (run) => [c.crew('7-HOLLY JOINS YOU', 'good'), c.favour('HANDLES HOLLOWAY, KASPAR AND MAMA'), c.rep('Port Authority', -1), ...rep(run, 'Talkwa', 1)],
         note: () => 'THE PORT AUTHORITY WILL CALL IT THEFT. 7-HOLLY WILL CALL IT A TRANSFER',
         outcome: (run) => {
           run.aboard.push('holly');
@@ -1616,7 +1685,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'SELL ITS CORE TO VANTORR',
-        chips: () => [c.scrap(90), c.rep('Vantorr Security', 1), c.rep('Talkwa', -2)],
+        chips: (run) => [c.scrap(90), ...rep(run, 'Vantorr Security', 1), c.rep('Talkwa', -2)],
         note: () => 'A WOKEN CORE FETCHES A GOOD PRICE. VANTORR RESETS THEM',
         outcome: (run) => {
           run.scrap += 90;
@@ -1649,7 +1718,7 @@ export const EVENTS: RunEvent[] = [
         item: (run) => blessing(run)?.keep ?? null,
         chips: (run) => {
           const b = blessing(run);
-          return b ? [c.lose(name(b.give)), c.part(`${name(b.keep)}: ${tierOf(b.keep).toUpperCase()} → ${nextTier(tierOf(b.keep)).toUpperCase()}`)] : [c.risk('TWO PARTS IN ONE HOLD')];
+          return b ? [c.lose(name(b.give)), c.part(`${name(b.keep)}: ${tierOf(b.keep).toUpperCase()} → ${nextTier(tierOf(b.keep)).toUpperCase()}`), ...copies(run, 'creed')] : [c.risk('TWO PARTS IN ONE HOLD')];
         },
         note: () => 'YOUR BEST PART MADE BETTER. YOUR LEAST, GIVEN TO THE SHRINE',
         locked: (run) => (blessing(run) ? null : 'NEEDS TWO PARTS IN A HOLD'),
@@ -1685,7 +1754,7 @@ export const EVENTS: RunEvent[] = [
           return { text: 'Nobody stops you. The acolytes only watch, and write your hull number in wax on the shrine wall. Saint Ferrule rings the bell once as you go. It sounds exactly the same as before.', mood: 'annoyed' };
         },
       },
-      { label: 'LEAVE A WASHER', chips: () => [c.scrap(-5), c.rep('Scav Clans', 1)], locked: lacks(5), outcome: (run) => ((run.scrap -= 5), run.mood('Scav Clans', 1), { text: 'A washer, a nod, a bell. "Go oiled."', mood: 'pleased' }) },
+      { label: 'LEAVE A WASHER', chips: (run) => [c.scrap(-5), ...rep(run, 'Scav Clans', 1)], locked: lacks(5), outcome: (run) => ((run.scrap -= 5), run.mood('Scav Clans', 1), { text: 'A washer, a nod, a bell. "Go oiled."', mood: 'pleased' }) },
     ],
   },
   {
@@ -1702,7 +1771,10 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'LET IT GROW INTO YOUR SHIP',
-        chips: () => [c.hull(9), c.part('AN EPIC PART'), c.rep('the Hive', 2), c.rep('Port Authority', -1), c.rep('Vantorr Security', -1)],
+        chips: (run) => {
+          const [hive, ...ways] = rep(run, 'the Hive', 2);
+          return [c.hull(9), c.part('AN EPIC PART'), hive, c.rep('Port Authority', -1), c.rep('Vantorr Security', -1), ...ways, ...copies(run, 'hum')];
+        },
         note: () => 'SOMETHING STAYS BEHIND IN THE SEAMS. OTHERS WILL SMELL IT',
         outcome: (run, p) => {
           run.heal(99);
@@ -1717,7 +1789,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'TAKE A CUTTING',
-        chips: () => [c.part('A RARE PART'), c.rep('the Hive', 1)],
+        chips: (run) => [c.part('A RARE PART'), ...rep(run, 'the Hive', 1)],
         outcome: (run, p) => {
           run.stow(0, part(p.r, 'rare'));
           run.mood('the Hive', 1);
@@ -1726,7 +1798,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'BURN IT OUT',
-        chips: () => [c.scrap(40), c.rep('the Hive', -2), c.rep('Port Authority', 1)],
+        chips: (run) => [c.scrap(40), c.rep('the Hive', -2), ...rep(run, 'Port Authority', 1)],
         outcome: (run) => {
           run.scrap += 40;
           run.mood('the Hive', -2);
@@ -1753,8 +1825,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'CARRY HER CORE',
-        chips: () => [c.crew('THE WREN RIDES IN YOUR HOLD', 'good'), c.favour('AT THE GATE, THE TALKWA PAY YOUR DEBT')],
-        note: () => 'NO DEBT? THEY PAY 100 SCRAP INSTEAD',
+        chips: (run) => [c.crew('THE WREN RIDES IN YOUR HOLD', 'good'), c.favour('AT THE GATE: YOUR DEBT PAID'), c.favour('NO DEBT: 100 SCRAP'), ...rep(run, 'Talkwa', 1)],
         if: (run) => !run.aboard.includes('wren'),
         outcome: (run) => {
           run.aboard.push('wren');
@@ -1765,7 +1836,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'CLAIM THE WRIT',
-        chips: () => [c.scrap(140), c.rep('Vantorr Security', 1), c.rep('Talkwa', -2)],
+        chips: (run) => [c.scrap(140), ...rep(run, 'Vantorr Security', 1), c.rep('Talkwa', -2)],
         outcome: (run) => {
           run.scrap += 140;
           run.mood('Vantorr Security', 1);
@@ -1776,7 +1847,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'TOW HER TO A RELAY',
-        chips: () => [c.sweep(-1.5), c.reveal(99), c.rep('Talkwa', 1)],
+        chips: (run) => [c.sweep(-1.5), c.reveal(99), ...rep(run, 'Talkwa', 1)],
         note: () => 'THE RELAY NET WILL HIDE HER, AND TELL HER EVERYTHING',
         outcome: (run) => {
           run.holdSweep(-1.5);
@@ -1820,7 +1891,7 @@ export const EVENTS: RunEvent[] = [
         label: 'SING IT A WAY OUT',
         game: 'tune',
         boldOnly: true,
-        chips: () => [c.sweep(2), c.reveal(99), c.risk('GET IT WRONG AND THEY TAKE IT')],
+        chips: () => [...c.on('a', c.sweep(2), c.reveal(99)), c.risk('UNDER AN A, THEY TAKE IT')],
         note: () => 'FIND ITS POD\'S CALL IN THE STATIC AND PLAY IT BACK',
         outcome: (run, p) => {
           if (tier(p.score) <= 1) return { text: 'Your song is close, and close is not enough. The calf turns towards you, confused, and the harpooner\'s iron finds it while it\'s turning. You hear all of it on the open channel.', mood: 'annoyed' };
@@ -1832,7 +1903,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: "TAKE THE HUNTERS' CUT",
-        chips: () => [c.scrap(110), c.rep('Reef Pirates', 1), c.sweep(-1)],
+        chips: (run) => [c.scrap(110), ...rep(run, 'Reef Pirates', 1), c.sweep(-1)],
         note: () => 'THE UMORA HOLD THE LANES. EVERY ONE KILLED LEAVES THEM THINNER',
         outcome: (run) => {
           run.scrap += 110;
@@ -1860,7 +1931,12 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'FLY HER THROUGH THE STORMWALL',
         game: 'thread',
-        chips: (_, bold) => (bold ? [c.part("HER OLD SHIP'S BEST PART"), c.core('THE CORE COPIES SCOOP THE TIN'), c.hull(-2)] : [c.part("A PART OFF HER OLD SHIP"), c.hull(-1)]),
+        chips: (run, bold) => [
+          ...c.on('pass', c.part('A PART OFF HER OLD SHIP'), ...(bold ? copies(run, 'tin') : [])),
+          ...c.on('a', c.part('RARE, NOT PLAIN')),
+          ...(bold ? c.on('s', c.part('EPIC, AT LEGENDARY')) : []),
+          ...c.on('fail', c.hull(bold ? -2 : -1)),
+        ],
         note: (_, bold) => (bold ? 'THE HEART OF THE STORM, WHERE SHE LOST HER FIRST' : 'THE EDGE OF THE STORM'),
         outcome: (run, p) => {
           const t = tier(p.score);
@@ -1916,7 +1992,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'FIGHT HIM',
-        chips: () => [c.fight('A HARD HUNT'), c.bounty(99), c.core("THE CORE COPIES KASPAR'S CODE")],
+        chips: (run) => [c.fight('A HARD HUNT'), c.bounty(99), ...copies(run, 'code')],
         outcome: (run) => {
           run.bounty = 0;
           run.copy('code');
@@ -1928,7 +2004,7 @@ export const EVENTS: RunEvent[] = [
         label: 'LET 7-HOLLY FILE A COUNTER-WRIT',
         if: (run) => run.aboard.includes('holly') && !run.has('holly', 'writ'),
         odds: () => 0.6,
-        chips: () => [c.odds(0.6, 'HE WITHDRAWS: BOUNTY CLEARED'), c.risk('40%: A HARD HUNT')],
+        chips: () => [c.bounty(99), ...c.on('lose', c.fight('A HARD HUNT'))],
         outcome: (run, p) => {
           run.did('holly', 'writ');
           if (p.won) {
@@ -1942,10 +2018,10 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'OUTRUN HIM',
         game: 'thread',
-        chips: (_, bold) => (bold ? [c.crew('LOSE HIM FOR NOW', 'good'), c.fight('FAIL: FIGHT HIM')] : [c.crew('LOSE HIM FOR NOW', 'good'), c.hull(-2)]),
+        chips: (_, bold) => [...c.on('pass', c.crew('LOSE HIM FOR NOW', 'good')), ...c.on('fail', bold ? c.fight('HE IS WAITING: A HARD HUNT') : c.hull(-2))],
         note: (_, bold) => (bold ? 'THROUGH THE DEBRIS. FAIL, AND HE IS WAITING' : 'FAIL, AND HIS HARPOONS RAKE YOU'),
         outcome: (run, p) => {
-          if (tier(p.score) <= 1) {
+          if (tier(p.score) === 0) {
             if (p.bold) return { text: 'He was waiting on the other side. Of course he was.', fight: 'hunt', harder: 0.3 };
             run.hurt(2);
             return { text: 'His harpoons rake you as you go. You get away. He has your scent now.' };
@@ -1969,7 +2045,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'PAY UP',
-        chips: (run) => [c.scrap(-run.debt)],
+        chips: (run) => [c.scrap(-run.debt), c.debt('DEBT CLEARED', 'good')],
         locked: (run) => (run.scrap < run.debt ? `NEEDS ${run.debt} SCRAP` : null),
         outcome: (run) => {
           run.scrap -= run.debt;
@@ -1990,10 +2066,10 @@ export const EVENTS: RunEvent[] = [
               who: 'mama',
               text: `"Fine. FINE. ${run.debt}, and get that thing off my frequency." The boys put their masks back on.`,
               choices: [
-                { label: 'PAY UP', chips: (r2) => [c.scrap(-r2.debt)], locked: (r2) => (r2.scrap < r2.debt ? `NEEDS ${r2.debt} SCRAP` : null), outcome: (r2) => ((r2.scrap -= r2.debt), (r2.debt = 0), { text: '"Never come back." She will, of course, lend to you again.', mood: 'annoyed' }) },
+                { label: 'PAY UP', chips: (r2) => [c.scrap(-r2.debt), c.debt('DEBT CLEARED', 'good')], locked: (r2) => (r2.scrap < r2.debt ? `NEEDS ${r2.debt} SCRAP` : null), outcome: (r2) => ((r2.scrap -= r2.debt), (r2.debt = 0), { text: '"Never come back." She will, of course, lend to you again.', mood: 'annoyed' }) },
                 {
                   label: 'LET THEM TAKE IT',
-                  chips: () => [c.lose('ALL YOUR SCRAP, AND A PART PER 40 SHORT')],
+                  chips: (r2) => seized(r2, 40),
                   outcome: (r2) => ({ text: seize(r2, 40) }),
                 },
               ],
@@ -2004,7 +2080,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'LET THEM TAKE IT',
-        chips: () => [c.lose('ALL YOUR SCRAP, AND A PART PER 40 SHORT')],
+        chips: (run) => seized(run, 40),
         outcome: (run) => ({ text: `${seize(run, 40)} "Mama says come again!"`, mood: 'pleased' }),
       },
       {
@@ -2033,7 +2109,7 @@ export const EVENTS: RunEvent[] = [
     choices: [
       {
         label: 'PAY',
-        chips: (run) => [c.scrap(-run.debt)],
+        chips: (run) => [c.scrap(-run.debt), c.debt('DEBT CLEARED', 'good')],
         locked: (run) => (run.scrap < run.debt ? `NEEDS ${run.debt} SCRAP` : null),
         outcome: (run) => {
           run.scrap -= run.debt;
@@ -2043,7 +2119,7 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'LET THEM COLLECT',
-        chips: () => [c.lose('ALL YOUR SCRAP, AND A PART PER 30 SHORT'), c.crew('NOT A BOLT MORE', 'good')],
+        chips: (run) => [...seized(run, 30, true), c.crew('NOT A BOLT MORE', 'good')],
         outcome: (run) => ({ text: `${seize(run, 30, true)} The clerk gives you a receipt.`, mood: 'pleased' }),
       },
       {
@@ -2073,7 +2149,11 @@ export const EVENTS: RunEvent[] = [
       {
         label: 'SHOOT THEM OFF',
         game: 'shake',
-        chips: (_, bold) => (bold ? [c.scrap(30), c.fuel(-2), c.hull(-1)] : [c.fuel(-1), c.hull(-1)]),
+        chips: (_, bold) => [
+          ...c.on('pass', c.fuel(-1)),
+          ...c.on('a', { icon: 'fuel', text: 'NO FUEL LOST', tone: 'good' }, ...(bold ? [c.scrap(30)] : [])),
+          ...c.on('fail', c.fuel(-2), c.hull(-1)),
+        ],
         note: (_, bold) => (bold ? 'SHOOT THEM IN THE DARK, BEFORE THEY LAND. THEIR EGGS SELL' : 'EVERY ONE LEFT ON THE GLASS AT THE END DRINKS'),
         outcome: (run, p) => {
           const t = tier(p.score);
@@ -2101,8 +2181,8 @@ export const EVENTS: RunEvent[] = [
       },
       {
         label: 'LET THEM FEED',
-        chips: () => [c.fuel(-2)],
-        note: () => 'THEY DROP OFF FULL AT THE NEXT LANTERN',
+        chips: (run) => [c.fuel(-2), ...(run.fuel < 2 ? [c.hull(-(2 - run.fuel))] : [])],
+        note: (run) => (run.fuel < 2 ? 'SHORT OF FUEL, THEY DRINK THE HULL' : 'THEY DROP OFF FULL AT THE NEXT LANTERN'),
         outcome: (run) => {
           const short = Math.max(0, 2 - run.fuel);
           run.fuel = Math.max(0, run.fuel - 2);
@@ -2113,6 +2193,21 @@ export const EVENTS: RunEvent[] = [
     ],
   },
 ];
+
+/** What seizing the debt takes, as chips (see seize). */
+function seized(run: Run, per: number, gentle = false): Chip[] {
+  let short = run.debt - run.scrap;
+  let parts = 0;
+  const held = run.crew.reduce((a, cr) => a + cr.cargo.length, 0);
+  while (short > 0 && parts < held) (short -= per), parts++;
+  const take = Math.min(run.scrap, run.debt);
+  return [
+    ...(take > 0 ? [c.scrap(-take)] : []),
+    ...(parts ? [c.lose(`${parts} PART${parts > 1 ? 'S' : ''} FROM THE HOLD`)] : []),
+    ...(short > 0 && !gentle ? [c.hull(-1)] : []),
+    c.debt('DEBT CLEARED', 'good'),
+  ];
+}
 
 /** A debt seized: all the scrap, then a part from the hold for every `per` still short. */
 function seize(run: Run, per: number, gentle = false): string {

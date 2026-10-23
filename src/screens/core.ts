@@ -8,13 +8,14 @@ import {
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CYAN, DARK, DIM, EDGE, GOLD, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, heading, hints } from '../ui/widgets';
+import { backdrop, heading, hints, type Action } from '../ui/widgets';
 import { coreBall, disc, knotIcon, ring, seal } from '../ui/core-icon';
 import { LIVERY } from '../view/ship-model';
 import { tag } from '../ui/accord';
-import { rng } from '../util';
+import { rng, smooth as smoothstep } from '../util';
 import { stats, type Stats } from '../sim/build';
-import type { KnackId } from '../game/core';
+import type { KnackId, KnotKind } from '../game/core';
+import { firstTime } from '../ui/glossary';
 
 /**
  * Whether a knack or an imprint has something to work on in this ship: one that loads the heavies
@@ -43,6 +44,25 @@ export function shipFit(id: KnackId | ImprintId, s: Stats): { ok: boolean; text:
 }
 
 type Rect = { x: number; y: number; w: number; h: number };
+
+/** A list said with dots (A · B · C) in lines no wider than `w`, broken only between its items. */
+function byItems(list: string, w: number) {
+  const lines: string[] = [];
+  for (const item of list.split(' · ')) {
+    const last = lines[lines.length - 1];
+    if (last && textWidth(`${last} · ${item}`) <= w) lines[lines.length - 1] = `${last} · ${item}`;
+    else lines.push(item);
+  }
+  return lines;
+}
+
+/** The kinds of knot, as the key and the guide say them. */
+const KINDS: [KnotKind, string, string][] = [
+  ['knack', 'KNACK', 'A RULE FOR GOOD, FOR THE REST OF THE RUN'],
+  ['room', 'ROOM', 'ROOM FOR ONE MORE IMPRINT'],
+  ['imprint', 'IMPRINT', 'COPY ONE OF THREE IMPRINTS, THERE AND THEN'],
+  ['talisman', 'TALISMAN', "THE VEIN'S BIG ONE, AT ITS FOOT"],
+];
 
 /** Where things are: the core at the top of the tree, the veins hanging below it, the panel on the right. */
 const CORE = { x: 206, y: 82, r: 15 };
@@ -133,6 +153,8 @@ export class CoreScreen implements Screen {
   private together: boolean;
   /** Stepping a turn that isn't on this screen: no sparks, no sound. */
   private quiet = false;
+  /** How the core works, laid out over the tree: by itself the first time, on INFO after. Since when. */
+  private guide = -1;
 
   constructor(
     private game: Game,
@@ -191,6 +213,11 @@ export class CoreScreen implements Screen {
     t.offerAt = 0;
     t.phase = 'imprint';
     t.t = 0;
+  }
+
+  private openGuide() {
+    this.guide = 0;
+    this.play('ui_select');
   }
 
   /** This pilot's ship, as built. */
@@ -282,6 +309,19 @@ export class CoreScreen implements Screen {
     for (const v of VEINS) t.pulse[v] = Math.max(0, t.pulse[v] - dt * 2.2);
     this.updateMotes(t, dt);
     const m = this.game.menuOf(this.dev(t));
+    if (!this.quiet && t.phase !== 'feed' && t.phase !== 'wake') {
+      // the first look at a core that's done learning: how it all works, unasked
+      if (this.guide < 0 && firstTime('guide:core')) this.openGuide();
+      if (this.guide >= 0) {
+        this.guide += dt;
+        if (this.guide > 0.3 && (m.info || m.confirm || m.back || m.start)) {
+          this.guide = -1;
+          this.play('ui_back');
+        }
+        return;
+      }
+      if (m.info) return this.openGuide();
+    }
     switch (t.phase) {
       case 'feed':
         this.feed(t, m.confirm);
@@ -622,6 +662,7 @@ export class CoreScreen implements Screen {
     ctx.globalAlpha = 1;
     if (t.phase === 'wake') this.waking(ctx, t);
     this.footer(ctx, t);
+    if (this.guide >= 0) this.drawGuide(ctx, t);
     if (t.done) {
       // online, done with yours: the other's still choosing on their screen
       ctx.fillStyle = 'rgba(12,8,18,0.72)';
@@ -666,7 +707,8 @@ export class CoreScreen implements Screen {
       const col = VEIN_COLOR[v];
       const y = ROW_Y.foot + 27;
       drawText(ctx, VEIN_NAME[v], x, y, fed || t.pulse[v] > 0 ? col : DIM, { align: 'center', scale: 1 });
-      wrap(VEIN_WHAT[v], 104).forEach((line, n) => drawText(ctx, line, x, y + 10 + n * 8, '#5a5068', { align: 'center' }));
+      // what feeds it, so you know how to fly for the knot you want
+      byItems(VEIN_FED[v], 120).forEach((line, n) => drawText(ctx, line, x, y + 10 + n * 8, '#7a6e8a', { align: 'center' }));
       if (t.phase === 'grow') {
         if (fed) {
           const w = textWidth('FED') + 6;
@@ -922,7 +964,8 @@ export class CoreScreen implements Screen {
             ? [`FEED ${VEIN_NAME[kn.vein]} TO GROW HERE`, RED]
             : ['IT CAN GROW HERE NEXT', DIM];
     for (const [n, line] of wrap(status, tw).entries()) drawText(ctx, line, x, sy + n * 9, sc);
-    drawText(ctx, `FED BY ${VEIN_FED[kn.vein]}`, x, sy + 22, '#5a5068');
+    drawText(ctx, `FED BY ${VEIN_FED[kn.vein]}`, x, sy + 22, '#7a6e8a');
+    drawText(ctx, `ITS KNOTS: ${VEIN_WHAT[kn.vein]}`, x, sy + 31, '#5a5068');
   }
 
   /** The fight's tally: each line, the vein it fed and by how much. */
@@ -1155,10 +1198,110 @@ export class CoreScreen implements Screen {
     }
     if (t.phase === 'wake') return;
     const y = 340;
+    const how: [Action, string] = ['info', 'HOW IT WORKS'];
+    if (t.phase !== 'feed' && t.phase !== 'imprint') this.legend(ctx, 318);
+    if (this.guide >= 0) return;
     if (t.phase === 'feed') hints(ctx, dev, [['confirm', 'ALL AT ONCE']], W / 2, y, 'center');
-    else if (t.phase === 'imprint') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', t.offerAt < t.offer.length ? 'COPY IT' : 'LEAVE THEM']], W / 2, y, 'center');
-    else if (t.panel === 'room') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'HOLD / LET GO'], ['next', 'THE KNOTS'], ['back', t.phase === 'grow' ? 'BACK' : 'DONE']], W / 2, y, 'center');
-    else if (t.phase === 'grow') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'GROW IT'], ['next', 'THE ROOM']], W / 2, y, 'center');
-    else hints(ctx, dev, [['move', 'LOOK'], ['next', 'THE ROOM'], ['confirm', 'DONE']], W / 2, y, 'center');
+    else if (t.phase === 'imprint') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', t.offerAt < t.offer.length ? 'COPY IT' : 'LEAVE THEM'], how], W / 2, y, 'center');
+    else if (t.panel === 'room') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'HOLD / LET GO'], ['next', 'THE KNOTS'], ['back', t.phase === 'grow' ? 'BACK' : 'DONE'], how], W / 2, y, 'center');
+    else if (t.phase === 'grow') hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'GROW IT'], ['next', 'THE ROOM'], how], W / 2, y, 'center');
+    else hints(ctx, dev, [['move', 'LOOK'], ['next', 'THE ROOM'], ['confirm', 'DONE'], how], W / 2, y, 'center');
+  }
+
+  /** A knot of each kind, small, with what it is: the key to the tree. */
+  private legend(ctx: CanvasRenderingContext2D, y: number) {
+    let x = 20;
+    for (const [kind, word] of KINDS) {
+      this.miniKnot(ctx, kind, x + 7, y + 3, '#8a7e98');
+      x += 18;
+      x += drawText(ctx, word, x, y, '#8a7e98') + 14;
+    }
+  }
+
+  /** A knot of a kind, drawn small (the key, the guide). */
+  private miniKnot(ctx: CanvasRenderingContext2D, kind: KnotKind, x: number, y: number, col: string) {
+    const kn: Knot = { vein: 'nerve', pos: kind === 'talisman' ? 'foot' : 'k1', kind, knack: kind === 'knack' ? 'stillnerve' : kind === 'talisman' ? 'deadeye' : undefined } as Knot;
+    disc(ctx, x, y + 1, 7, DARK);
+    disc(ctx, x, y, 7, '#2a2236');
+    disc(ctx, x, y, 6, '#160f1e');
+    knotIcon(ctx, kn, x - 4, y - 4, col, '#ffffff');
+    if (kind === 'talisman') {
+      ctx.fillStyle = col;
+      for (let n = 0; n < 8; n++) {
+        const a = (n / 8) * Math.PI * 2 + this.time * 0.4;
+        ctx.fillRect(Math.round(x + Math.cos(a) * 9), Math.round(y + Math.sin(a) * 9), 1, 1);
+      }
+    }
+  }
+
+  /**
+   * How it all works, in four: it learns how you fly, enough grows a knot (on a vein you fed),
+   * what a knot can be, and the waking. Each with a little picture.
+   */
+  private drawGuide(ctx: CanvasRenderingContext2D, t: Turn) {
+    const a = smoothstep(Math.min(1, this.guide / 0.2));
+    ctx.fillStyle = `rgba(8,5,12,${0.72 * a})`;
+    ctx.fillRect(0, 0, W, 360);
+    const pw = 540;
+    const ph = 300;
+    const px = (W - pw) / 2;
+    const py = Math.round(26 + (1 - a) * 12);
+    ctx.globalAlpha = a;
+    frame(ctx, px, py, pw, ph, 'rgba(16,11,24,0.98)', CYAN);
+    drawText(ctx, 'HOW THE CORE WORKS', W / 2, py + 10, INK, { scale: 2, align: 'center' });
+    const tx = px + 92;
+    const tw = pw - 92 - 16;
+    let y = py + 36;
+    const step = (n: number, head: string, body: string, pic: (cx: number, cy: number) => void, extra = 0) => {
+      const lines = wrap(body, tw);
+      const h = Math.max(46, 12 + lines.length * 9 + extra);
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(px + 8, y - 4, pw - 16, h - 2);
+      drawText(ctx, `${n}`, px + 16, y, '#5a4e68', { scale: 2 });
+      pic(px + 56, y + Math.min(h, 46) / 2 - 4);
+      drawText(ctx, head, tx, y, GOLD);
+      lines.forEach((l, k) => drawText(ctx, l, tx, y + 11 + k * 9, '#d8cce8'));
+      const top = y;
+      y += h + 2;
+      return top + 12 + lines.length * 9;
+    };
+    // 1: three veins feeding the core
+    const y1 = step(1, 'IT LEARNS HOW YOU FLY', 'EVERY FIGHT FEEDS ITS THREE VEINS, EACH BY ITS OWN KIND OF FLYING:', (cx, cy) => {
+      coreBall(ctx, cx, cy, 8, this.time);
+      VEINS.forEach((v, k) => {
+        const f = (this.time * 0.7 + k / 3) % 1;
+        const sx = cx - 26 + k * 26;
+        ctx.fillStyle = VEIN_COLOR[v];
+        ctx.fillRect(Math.round(sx + (cx - sx) * f), Math.round(cy + 18 - 18 * f), 2, 2);
+      });
+    }, 30);
+    VEINS.forEach((v, k) => {
+      drawText(ctx, VEIN_NAME[v], tx, y1 + 2 + k * 9, VEIN_COLOR[v]);
+      drawText(ctx, VEIN_FED[v], tx + 48, y1 + 2 + k * 9, '#b8acc8');
+    });
+    // 2: the ring filling, a knot
+    step(2, 'ENOUGH, AND A KNOT GROWS', 'THE RING ROUND THE CORE FILLS AS IT LEARNS. FULL, YOU GROW A KNOT, BUT ONLY ON A VEIN YOU FED IN THAT FIGHT: HOW YOU FLEW CHOOSES WHERE, YOU CHOOSE WHICH. EACH VEIN GROWS DOWNWARDS, ONE KNOT AT A TIME.', (cx, cy) => {
+      const f = (this.time * 0.35) % 1;
+      ring(ctx, cx, cy, 11, '#2a2236');
+      ring(ctx, cx, cy, 11, '#f4ecd8', 0, f);
+      disc(ctx, cx, cy, 6, '#c8b8a0');
+    });
+    // 3: the kinds of knot
+    const y3 = step(3, 'WHAT A KNOT CAN BE', 'IMPRINTS ARE HABITS COPIED OFF PEOPLE YOU MEET, EACH WITH A RULE. THEY TAKE ROOM (SEE THE ROOM TAB); ONE PAST IT AND THE CORE LEANS: EVERY HIT SHAKES THE NEWEST LOOSE.', (cx, cy) => this.miniKnot(ctx, 'imprint', cx, cy, VEIN_COLOR.grease), 46);
+    KINDS.forEach(([kind, word, what], k) => {
+      const ky = y3 + 4 + k * 10;
+      this.miniKnot(ctx, kind, tx + 6, ky + 3, VEIN_COLOR[VEINS[k % 3]]);
+      drawText(ctx, word, tx + 18, ky, INK);
+      drawText(ctx, what, tx + 84, ky, '#b8acc8');
+    });
+    // 4: the waking
+    step(4, `${WAKE_AT} KNOTS, AND IT WAKES`, 'IT BECOMES A NEMVA: A MIND MADE OF HOW YOU FLEW, WITH A NAME AND A VOICE. FROM THE SECOND SECTOR THE ENGINE CALLS EVERY CORE AT THE GATE. A SLEEPING ONE ANSWERS AND GOES QUIET MID-FIGHT; A WOKEN ONE REFUSES.', (cx, cy) => {
+      for (let n = 0; n < WAKE_AT; n++) {
+        ctx.fillStyle = n < grownCount(t.core) ? '#f4ecd8' : '#3a3048';
+        ctx.fillRect(cx - 17 + n * 6, cy, 4, 4);
+      }
+    });
+    hints(ctx, this.dev(t), [['confirm', 'GOT IT']], W / 2, py + ph - 14, 'center');
+    ctx.globalAlpha = 1;
   }
 }

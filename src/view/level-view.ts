@@ -8,12 +8,12 @@ import { HazardView } from './hazard-view';
 import { Fx } from './fx';
 import { Strokes } from './strokes';
 import { Life } from './life';
-import { Threats } from './threats';
+import { GLASSY, TELL_COLOR, Threats } from './threats';
 import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Guards, Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { HOT_BOLTS, TORPEDO, WELD } from '../sim/level';
+import { HOT_BOLTS, JUMP_JOLT, TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
@@ -37,6 +37,8 @@ import { HeistView } from './heist-view';
 import { TraitsView, type TraitHost } from './traits';
 import { GraftsView } from './grafts-view';
 import { CoreView } from './core-view';
+import { JumpView } from './jump-view';
+import { VEIN_COLOR, FEED } from '../game/core';
 import { AFFIXES, AFFIX_COLOR, TRAITS, itemName, tierOf, type AffixId, type Tier } from '../game/loot';
 import { TIER_COLOR } from '../ui/widgets';
 import { HOT as HOT_TEXT } from '../ui/hud';
@@ -168,6 +170,10 @@ export class LevelView {
   private grafts: GraftsView;
   /** The core in flight (see core-view.ts). */
   private core: CoreView;
+  /** Co-op downs: the reach, the charge, the call (see jump-view.ts). */
+  private jumps: JumpView;
+  /** Each ship's engines catching after a jumpstart (1, burning down). */
+  private relight = [0, 0];
   private shields: Shields;
   private guards: Guards;
   /** An escort's haulers. */
@@ -374,6 +380,8 @@ export class LevelView {
     this.grafts = new GraftsView(lv, this.fx, host);
     this.scene.add(this.grafts.group);
     this.core = new CoreView(lv, this.fx, host);
+    this.jumps = new JumpView(lv, this.fx, host);
+    this.overlay.add(this.jumps.group);
     const disc = new THREE.CircleGeometry(0.5, 10);
     // the hitbox while focusing: a white dot ringed dark, the size the sim really uses
     lv.players.forEach((p) => {
@@ -631,11 +639,39 @@ export class LevelView {
           this.fx.sparks(e.x, FLIGHT_Y, e.z, 30, 0xffb060, 18, 0.6, 0.3);
           this.strokes.burst(e.x, e.z, 26, 0xff7030, 18, 0.4, 0.7);
           break;
-        case 'jumpstart':
-          audio.play('shield_up');
-          this.fx.ring(lv.players[e.id].x, FLIGHT_Y, lv.players[e.id].z, 6, 0.4, true, 0x8affb0);
-          this.strokes.burst(lv.players[e.id].x, lv.players[e.id].z, 10, 0x8affb0, 6, 0.3, 0.35);
+        case 'jumpstart': {
+          // the jolt: a flash and a shockwave that sweeps the fire off, one last arc between the
+          // ships, the engines catching in a burst, and the name of it, with what it earned
+          const p = lv.players[e.id];
+          const by = lv.players[e.by];
+          this.trauma = Math.min(1, this.trauma + 0.55);
+          this.flash = Math.max(this.flash, 0.55);
+          this.flashColor.set(0x8affb0);
+          this.blast(p.x, FLIGHT_Y, p.z, 5);
+          this.fx.ring(p.x, FLIGHT_Y, p.z, 2.5, 0.18, true, 0xffffff);
+          this.fx.ring(p.x, FLIGHT_Y, p.z, JUMP_JOLT, 0.45, true, 0x8affb0);
+          this.fx.ring(p.x, FLIGHT_Y, p.z, JUMP_JOLT * 0.6, 0.32, true, 0xd0ffe0);
+          this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 26, 0x8affb0, 22, 0.45, 0.24);
+          this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 12, 0xffffff, 30, 0.22, 0.2);
+          this.strokes.burst(p.x, p.z, 22, 0x8affb0, 14, 0.35, 0.6);
+          this.strokes.star(p.x, p.z - 1, 6, 0xffffff, 0.3);
+          if (by) {
+            this.bolt([by.x, by.z, p.x, p.z], 0xffffff);
+            this.fx.ring(by.x, FLIGHT_Y, by.z, 3, 0.25, true, 0x8affb0);
+          }
+          this.relight[e.id] = 1;
+          const ship = this.ships[e.id];
+          for (const f of ship?.flames ?? []) {
+            f.getWorldPosition(this.v);
+            for (let k = 0; k < 7; k++)
+              this.fx.add({ x: this.v.x + (Math.random() - 0.5) * 0.4, y: this.v.y, z: this.v.z + 0.4, vx: (Math.random() - 0.5) * 5, vz: 14 + Math.random() * 14, size: 0.7 + Math.random() * 0.5, grow: 1.4, life: 0.3 + Math.random() * 0.2, drag: 4, color: new THREE.Color(0xfff0c0), to: new THREE.Color(LIVERY[e.id][2]), carried: true });
+          }
+          this.warn('JUMPSTART!', p.x, p.z, '#8affb0');
+          if (by) this.pops.push({ text: `+${FEED.jumpstart} GREASE`, x: by.x, z: by.z - 2, t: 0, color: VEIN_COLOR.grease, big: false });
+          audio.play('jolt', { pan: p.x / HALF_W });
+          audio.play('revive', { pan: p.x / HALF_W, vol: 0.8 });
           break;
+        }
         case 'graze':
           this.fx.sparks(e.x, FLIGHT_Y + 0.6, e.z, 3, LIVERY[e.id][2], 8, 0.22, 0.18);
           audio.play('graze', { pan: e.x / HALF_W, vol: 0.5 });
@@ -709,6 +745,10 @@ export class LevelView {
             if (m === 'pursuit' || m === 'summon') audio.play('notice', { pitch: m === 'summon' ? 0.9 : 1, vol: 0.7 });
             else if (m === 'lien') audio.play('printer', { pan: en.x / HALF_W, pitch: en.boss.called ? 0.8 : 1 });
             else if (m === 'ballast') audio.play('plate_tear', { pan: en.x / HALF_W, pitch: 0.9 + en.boss.torn * 0.06 });
+            break;
+          }
+          if (en?.boss && lv.spec.planet.id === 'ashgrave') {
+            this.khetWindup(en);
             break;
           }
           // Vask's own: she draws breath for a screech, her wings creak up for a gust
@@ -843,6 +883,12 @@ export class LevelView {
             this.fx.explode(e.x, FLIGHT_Y - 1, e.z, Math.max(0.6, e.r * 0.5), 0xffb02a, true);
             this.trauma = Math.min(1, this.trauma + 0.12);
             audio.play('explode_small', { pan: e.x / HALF_W, pitch: 0.8 });
+          } else if (e.kind === 'puddle' && e.color !== undefined && GLASSY.has(e.color)) {
+            // ground going to glass: a clear note, a flash of it, flakes kicked up
+            this.fx.ring(e.x, FLIGHT_Y - 1, e.z, e.r, 0.18, true, 0xffffff);
+            this.shards(e.x, e.z, e.r > 4 ? 10 : 3, e.color);
+            audio.play(e.r > 4 ? 'glass_burst' : 'glass_fall', { pan: e.x / HALF_W, vol: e.r > 4 ? 0.7 : 0.35, pitch: 0.9 + Math.random() * 0.2 });
+            if (e.r > 4) this.trauma = Math.min(1, this.trauma + 0.08);
           } else if (e.kind === 'acid' || e.kind === 'puddle') {
             this.fx.sparks(e.x, FLIGHT_Y - 1, e.z, 10, 0xb0ff4a, 10, 0.4, 0.3);
             audio.play('geyser', { pan: e.x / HALF_W, vol: 0.4 });
@@ -1047,6 +1093,11 @@ export class LevelView {
           this.bossBanner = { name: e.name, title: e.title, t: 0 };
           audio.play('boss_warning');
           audio.music(bossTrack(lv.spec.planet.id));
+          // Khet arrives shouting to the clans
+          if (lv.spec.planet.id === 'ashgrave') {
+            this.pop('SANKVEN! WATCH THIS!', 0, lv.scroll - 6, '#ffb02a', true);
+            audio.play('khet_yell', { pitch: 1.1 });
+          }
           break;
         case 'armourBreak': {
           // the armour comes off in plates: it reels, wide open (an elite's gold is the big one;
@@ -1136,6 +1187,7 @@ export class LevelView {
             this.shards(e.x, e.z, 24, 0xe8f8ff);
           } else if (e.move === 'tide') audio.play('tide_turn', { pan: e.x / HALF_W, vol: 0.8 });
           else if (lv.spec.planet.id === 'cinder') this.aruBeat(e);
+          else if (lv.spec.planet.id === 'ashgrave') this.khetBeat(e);
           else if (e.move === 'swell') audio.play('whale_breath', { pan: e.x / HALF_W, pitch: 1.4, vol: 0.5 });
           break;
         case 'biome': {
@@ -1153,6 +1205,11 @@ export class LevelView {
             this.flash = 1;
             this.flashColor.set(0xffffff);
             audio.play('explode_boss');
+            // and Unbending, through the head's old speaker, the one thing it ever says
+            if (lv.spec.planet.id === 'ashgrave') {
+              this.pop("NOBODY'S TITAN.", 0, lv.scroll - 6, '#9af4ff', true);
+              audio.play('light_tone', { pitch: 0.5, vol: 1 });
+            }
           }
           break;
         case 'failed':
@@ -1898,6 +1955,11 @@ export class LevelView {
         this.aberr = 1;
         this.punch(1);
         break;
+      case 'jumpstart':
+        this.impact(0xd0ffe0, 0.08);
+        this.aberr = Math.max(this.aberr, 0.5);
+        this.punch(0.7);
+        break;
       case 'parry':
         // Keep the clang around this ship, without a full-screen impact or camera punch.
         this.strokes.burst(e.x, e.z, 14 + Math.min(8, e.count * 2), 0xffffff, 9, 0.22, 0.4);
@@ -1979,6 +2041,21 @@ export class LevelView {
     c.updateProjectionMatrix();
   }
 
+  /**
+   * What must still read with the world greyed out (the art direction's test, for `just look`):
+   * the ships, the foes, their fire and tells, the hazards, the pickups, and the wall lips (anything
+   * tagged `userData.lip`).
+   */
+  readers(): THREE.Object3D[] {
+    const out: THREE.Object3D[] = [this.bullets.group, this.threats.group, this.hazards.group, ...this.laserMeshes, ...this.plates];
+    for (const s of this.ships) if (s) out.push(s.root);
+    for (const b of this.balls) out.push(b.ball, ...b.links);
+    for (const e of this.enemies.values()) out.push(e.obj, ...(e.ring ? [e.ring] : []), ...(e.tow ? [e.tow] : []));
+    for (const p of this.pickups.values()) out.push(p.obj, ...(p.beacon ? [p.beacon] : []));
+    this.scene.traverse((o) => void (o.userData.lip && out.push(o)));
+    return out;
+  }
+
   update(dt: number) {
     const lv = this.lv;
     this.time += dt;
@@ -2019,6 +2096,8 @@ export class LevelView {
     this.traits.update(dt, scrollDz);
     this.grafts.update(dt, scrollDz);
     this.core.update(dt);
+    this.jumps.update(dt);
+    for (let k = 0; k < 2; k++) this.relight[k] = Math.max(0, this.relight[k] - dt * 1.4);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.guards.update(dt, lv, (id) => LIVERY[id][2]);
@@ -2269,7 +2348,8 @@ export class LevelView {
       ship.body.position.y = Math.sin(this.time * 2.3 + i) * 0.12;
       ship.body.position.z = this.recoil[i] ?? 0;
       // engines burn hotter going forward
-      const push = (clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6) * (p.down ? 0 : 1);
+      // (and roar, a moment, as a jumpstart catches)
+      const push = (clamp(1 - p.vz / p.stats.speed, 0.3, 2) + p.boosting * 1.6 + this.relight[i] * 2.5) * (p.down ? 0 : 1);
       for (const f of ship.flames) {
         const fl = 0.8 + Math.random() * 0.4;
         f.scale.set(0.45 * fl, (0.6 + push * 0.6) * fl, 0.45 * fl);
@@ -2624,6 +2704,99 @@ export class LevelView {
         const shed = v?.pose?.shedTo(3);
         for (const q of shed?.pieces ?? []) this.shards(q.x, q.z, 10, q.color);
         this.pop('IT HAS BEEN CALLED', e.x, e.z - 8, '#9af4ff', true);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Khet's tells: his own moves (his scrap: the ram, the leap, the eye, his gangs) he shouts for, and
+   * a thruster lights or the titan's joints groan; the light's own (the Glassing, the Kneel, the
+   * Measure) come with its even tone and nothing else.
+   */
+  private khetWindup(en: Enemy) {
+    const b = en.boss!;
+    const pan = en.x / HALF_W;
+    if (b.look === 'lattice') {
+      const pitch = b.move === 'kneel' ? 0.75 : b.move === 'measure' ? 1 + b.k * 0.12 : 1.12;
+      audio.play('light_tone', { pan, pitch });
+      if (b.move === 'kneel') audio.play('titan_servo', { pan, pitch: 0.8 });
+      this.fx.ring(en.x, FLIGHT_Y, en.z, 5, 0.3, true, TELL_COLOR.lattice);
+      return;
+    }
+    if (b.k === 0 && b.move !== 'eye') audio.play('khet_yell', { pan, pitch: b.move === 'leap' ? 1.12 : b.move === 'summon' ? 0.9 : 1 });
+    if (b.move === 'ram' || b.move === 'leap') {
+      // a junk thruster lights behind it, both sides
+      audio.play('thruster', { pan, pitch: b.move === 'leap' ? 0.8 : 1 });
+      for (const s of [-1, 1]) {
+        this.fx.explode(en.x + s * 4, FLIGHT_Y, en.z + 3, 0.7, 0xff7a2a, true);
+        this.fx.sparks(en.x + s * 4, FLIGHT_Y, en.z + 3, 8, 0xffb02a, 10, 0.4, 0.25);
+      }
+    } else audio.play('titan_servo', { pan, pitch: b.move === 'eye' ? 0.9 : 1.1 });
+  }
+
+  /**
+   * Khet's beats: the retro-burn stopping a ram, the titan landing, the light drawing its plan and
+   * its lances, the Measure; the light overruling him (and him shouting at it), and deciding.
+   */
+  private khetBeat(e: { move: string; k: number; x: number; z: number }) {
+    const lv = this.lv;
+    const boss = lv.enemies.find((o) => o.boss && !o.dead);
+    const v = boss && this.enemies.get(boss.id);
+    const pan = e.x / HALF_W;
+    const light = TELL_COLOR.lattice;
+    switch (e.move) {
+      case 'retro':
+        audio.play('thruster', { pan, pitch: 1.3, vol: 0.9 });
+        this.fx.explode(e.x, FLIGHT_Y, e.z, 1.4, 0xff7a2a, true);
+        this.fx.sparks(e.x, FLIGHT_Y, e.z, 16, 0xffb02a, 16, 0.4, 0.3);
+        this.trauma = Math.min(1, this.trauma + 0.25);
+        break;
+      case 'land':
+        audio.play('titan_land', { pan });
+        this.trauma = Math.min(1, this.trauma + 0.55);
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 7, 0.3, true, 0xfff0d0);
+        this.fx.explode(e.x, FLIGHT_Y - 1, e.z, 2.4, 0xff7a2a, true);
+        this.shards(e.x, e.z, 22, 0x9a6a4a);
+        if (v) v.punch = 1;
+        break;
+      case 'plot':
+        // the plan drawn out, a circle at a time
+        if (e.k % 2 === 0) audio.play('light_tone', { pan, pitch: 1.5 + (e.k % 6) * 0.06, vol: 0.5 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 2, 0.25, true, light);
+        break;
+      case 'lance':
+        audio.play('laser_charge', { pan, pitch: 1.25, vol: 0.5 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.2, true, light);
+        break;
+      case 'rise':
+        audio.play('titan_servo', { pan, pitch: 1.15 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.3, true, light);
+        break;
+      case 'measure':
+        audio.play('laser_fire', { pan, pitch: 0.8, vol: 0.6 });
+        this.trauma = Math.min(1, this.trauma + 0.1);
+        break;
+      case 'defy':
+        // the light takes the move off him mid-shout; he's furious about it
+        audio.play('light_tone', { pan, pitch: 0.5, vol: 1 });
+        audio.play('khet_yell', { pan, pitch: 1.3 });
+        this.flash = 0.25;
+        this.flashColor.set(light);
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 10, 0.3, true, light);
+        this.pop("IT ISN'T LISTENING", 0, lv.scroll - 4, '#9af4ff', true);
+        break;
+      case 'decided': {
+        // the light has had enough of him: the junk comes off, and it stands up straight
+        this.trauma = 0.8;
+        this.flash = 0.5;
+        this.flashColor.set(light);
+        audio.play('light_tone', { pitch: 0.5, vol: 1 });
+        audio.play('toll', { pitch: 0.42, vol: 0.9 });
+        audio.play('titan_servo', { pitch: 0.7 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 18, 0.5, true, light);
+        this.shards(e.x, e.z, 30, 0x9a6a4a);
+        this.pop('IT HAS DECIDED', 0, lv.scroll - 4, '#9af4ff', true);
         break;
       }
     }
@@ -3159,6 +3332,7 @@ export class LevelView {
     this.heist?.dispose();
     this.traits.dispose();
     this.grafts.dispose();
+    this.jumps.dispose();
     for (const v of this.pickups.values()) v.inst?.dispose();
     audio.loop('beam', 'p0', false);
     audio.loop('beam', 'p1', false);

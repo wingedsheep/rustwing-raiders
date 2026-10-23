@@ -188,7 +188,7 @@ function style(p: Player) {
 
 function goalFor(lv: Level, p: Player): { x: number; z: number } {
   // a partner down: go and get them
-  const partner = lv.players.find((q) => q !== p && q.down);
+  const partner = lv.players.find((q) => q !== p && q.down && !q.out);
   if (partner) return { x: partner.x, z: partner.z };
   const bottom = lv.bottom - 9;
   // a beam broken at a distance (the Engine's scan): the break is the one place it doesn't reach
@@ -202,6 +202,14 @@ function goalFor(lv: Level, p: Player): { x: number; z: number } {
   // a broadside (Istra's): run with her, in the gap under her waist
   const broad = lv.enemies.find((e) => !e.dead && e.boss?.move === 'broadside' && e.tele?.shape === 'gate');
   if (broad && broad.tele?.shape === 'gate') return { x: clamp(broad.tele.gx, -HALF_W + 3, HALF_W - 3), z: clamp(p.z, lv.scroll - 2, bottom) };
+  // a titan's eye following you: in close, where you go round faster than it turns, ahead of it
+  const eye = lv.enemies.find((e) => !e.dead && e.boss?.move === 'eye' && e.state === 'attack' && lv.spec.planet.id === 'ashgrave');
+  if (eye) {
+    const pa = Math.atan2(p.x - eye.x, p.z - eye.z);
+    const ahead = Math.sign(Math.atan2(Math.sin(pa - eye.aim), Math.cos(pa - eye.aim))) || 1;
+    const a = clamp(pa + ahead * 0.5, -1.3, 1.3);
+    return { x: clamp(eye.x + Math.sin(a) * 15, -HALF_W + 3, HALF_W - 3), z: clamp(eye.z + Math.cos(a) * 15, lv.top + 6, bottom) };
+  }
   // a kneel (Khet's titan): its shield follows you slowly, so draw it out to one side and cut
   // back under it to the other
   const kneel = lv.enemies.find((e) => !e.dead && e.boss?.move === 'kneel' && e.guard > 0);

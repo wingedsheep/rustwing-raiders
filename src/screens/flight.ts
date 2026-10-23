@@ -15,6 +15,7 @@ import { rollItem, type Item } from '../game/loot';
 import { EDGES, type Edge } from '../game/parts';
 import { GRAFTS, type GraftId, type Grafts, type Wreck } from '../game/grafts';
 import { IMPRINTS, KNACKS, ROOM, type CoreKit, type Fed, type ImprintId, type KnackId, type Vein } from '../game/core';
+import { look, posed } from '../look';
 
 export interface FlightResult {
   cleared: boolean;
@@ -99,6 +100,9 @@ export class Flight implements Screen {
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
     const rk = Number(game.params.get('runner'));
     if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
+    // &down=2: P2 starts the level down (to see the countdown and a jumpstart)
+    const downed = this.lv.players[Number(game.params.get('down')) - 1];
+    if (downed) Object.assign(downed, { down: true, hp: 0, jump: 0, downT: 0, x: downed.id ? 18 : -18 });
     // &hot: a hot crate straight away (to see it, and fly for it)
     if (game.params.has('hot')) {
       this.lv.hotCrate();
@@ -124,13 +128,14 @@ export class Flight implements Screen {
     this.hud.quit = new Quit(Math.max(1, game.devices.length));
     // (&autopilot=2: only P2 is the pilot's, P1 is yours: a bot partner)
     const auto = game.params.get('autopilot');
-    this.pilots = game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
+    this.pilots = look || game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
     if (auto === '2') this.only = 1;
     audio.music(spec.planet.id as Track);
     Object.assign(window, { level: this.lv, view: this.view, flight: this, audio });
   }
 
   update(dt: number) {
+    if (look) return this.still();
     const ms = this.game.crewMenus();
     const m = this.game.menu();
     if (m.start && this.lv.state !== 'clear' && this.lv.state !== 'failed') {
@@ -170,6 +175,18 @@ export class Flight implements Screen {
     if (!this.done && ((lv.state === 'clear' && lv.ending > 4) || (lv.state === 'failed' && lv.ending > 3.5))) this.finish(lv.state === 'clear');
   }
 
+  /** ?look: the autopilot flies up to the moment in fixed steps, the view stepped with each, then it all holds. */
+  private still() {
+    for (let n = 0; n < 120 && !look!.ready; n++) {
+      this.lv.step(this.lv.players.map((p, i) => pilot(this.lv, p, this.pilots![i])));
+      this.view.handle(this.lv.events);
+      this.lv.events.length = 0;
+      this.view.update(DT);
+      this.acc += DT;
+      if (this.acc >= look!.at - 1e-9) look!.ready = true;
+    }
+  }
+
   private finish(cleared: boolean) {
     if (this.done) return;
     this.done = true;
@@ -200,7 +217,8 @@ export class Flight implements Screen {
       g.renderer.setRenderTarget(null);
       g.renderer.setViewport(0, 0, g.dw, g.dh);
       g.renderer.render(this.view.scene, this.view.eye);
-    } else g.pixel.render(this.view.scene, this.view.eye, 0, 0, g.dw, g.dh, g.px, this.view.overlay);
+    } else posed(() => this.view.readers(), () => g.pixel.render(this.view.scene, this.view.eye, 0, 0, g.dw, g.dh, g.px, this.view.overlay));
+    if (look) return;
     const names = g.devices.map((d) => input.padName(d));
     this.hud.dw = g.dw;
     this.hud.dh = g.dh;
@@ -208,6 +226,7 @@ export class Flight implements Screen {
     this.hud.heavyKeys = g.devices.map((d) => input.heavyKey(d));
     this.hud.auxKeys = g.devices.map((d) => input.auxKey(d));
     this.hud.devs = g.devices;
+    this.hud.run = g.run;
     this.hud.hintDevs = g.hintDevices();
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HOT_BOLTS, HOT_CRACK, HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, WELD_HEAL, type Enemy, type Level, type Player } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, HULL_STEP, JUMP_TIME, JUMP_WAIT, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, WELD_HEAL, jumpHelper, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, sigName } from '../sim/boss';
 import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
@@ -23,6 +23,9 @@ import type { DeviceId } from '../input';
 import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
 import { SoundPanel, SOUND_H, SOUND_W } from './sound';
 import { Quit } from './accord';
+
+/** The runs whose pilots have been told, big, to fly to a down partner (after that it's said small). */
+const TOLD_DOWN = new WeakSet<object>();
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -214,6 +217,12 @@ export class Hud {
   private motesFor = 1;
   /** Each player's hull as the bar last showed it: it drains down after a hit, so you see the bite. */
   private hullShown: number[] = [];
+  /** The run being flown (the flight sets it), for what's said once a run. */
+  run: object | null = null;
+  /** Each ship: down last frame, when it went down, and whether its partner's call is the big one. */
+  private wasDown: boolean[] = [];
+  private downAt: number[] = [];
+  private downBig: boolean[] = [];
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
@@ -571,7 +580,13 @@ export class Hud {
       drawText(ctx, `P${p.id + 1}`, tx + 3, top + ph + 1, '#1a1020', { shadow: false });
     }
     const edge = side === 'left' ? x0 + (coop ? 24 : 4) : x0 + pw - (coop ? 24 : 4);
-    if (p.down) drawText(ctx, coop ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', edge, top + ph + 3, RED, { align: side, outline: DARK });
+    if (p.out) drawText(ctx, 'CRASHED: OUT THIS LEVEL', edge, top + ph + 3, DIM, { align: side, outline: DARK });
+    else if (p.down && coop && jumpHelper(lv.players, p)) drawText(ctx, 'JUMPSTARTING...', edge, top + ph + 3, GREEN, { align: side, outline: DARK });
+    else if (p.down && coop) {
+      const left = Math.ceil(Math.max(0, JUMP_WAIT - p.downT));
+      const blink = left <= 5 && Math.floor(this.time * 6) % 2 === 0;
+      drawText(ctx, `DOWN! ${left}S  P${2 - p.id} FLY CLOSE`, edge, top + ph + 3, blink ? '#ffffff' : RED, { align: side, outline: DARK });
+    } else if (p.down) drawText(ctx, 'DOWN!', edge, top + ph + 3, RED, { align: side, outline: DARK });
     else this.grafts(ctx, p, edge, side);
     return side === 'left' ? x0 + pw : x0;
   }
@@ -901,6 +916,63 @@ export class Hud {
   }
 
   /** A world point (on the flight plane) in UI texels. */
+  /**
+   * A co-op down, over the field (its reach and the time draining round it are the view's, see
+   * jump-view.ts): over the down ship, the seconds it has left or that it's being jumpstarted; by its partner, the call to fly over (big, with how, the
+   * first time in a run) and an arrow pointing the way.
+   */
+  private jumpstarts(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const coop = lv.players.length > 1 && lv.state !== 'clear' && lv.state !== 'failed';
+    for (const d of lv.players) {
+      const down = coop && d.down && !d.out;
+      if (down && !this.wasDown[d.id]) {
+        this.downAt[d.id] = this.time;
+        this.downBig[d.id] = !TOLD_DOWN.has(this.run ?? this);
+        TOLD_DOWN.add(this.run ?? this);
+      }
+      this.wasDown[d.id] = down;
+      if (!down) continue;
+      const s = this.toScreen(view, d.x, FLIGHT_Y, d.z);
+      const helper = jumpHelper(lv.players, d);
+      const left = Math.max(0, JUMP_WAIT - d.downT);
+      const k = clamp(d.jump / JUMP_TIME, 0, 1);
+      const urgent = left < 5;
+      const blink = Math.floor(this.time * (urgent ? 8 : 4)) % 2 === 0;
+      // over the reach: the seconds left (big at the end), or the jumpstart going, with how far
+      const top = s.y - 36;
+      if (helper) {
+        drawText(ctx, 'JUMPSTARTING', s.x, top - 6, k > 0.8 && blink ? '#ffffff' : GREEN, { align: 'center', outline: DARK });
+        bar(ctx, Math.round(s.x - 20), Math.round(top + 4), 40, 2, k, GREEN, 'rgba(14,10,22,0.8)');
+      } else drawText(ctx, `${Math.ceil(left)}`, s.x, top - (urgent ? 8 : 0), urgent && blink ? '#ffffff' : RED, { align: 'center', outline: DARK, scale: urgent ? 2 : 1 });
+      // its partner: told where to go, until it's there
+      for (const h of lv.players) {
+        if (h === d || h.down || h.out || helper === h) continue;
+        const hs = this.toScreen(view, h.x, FLIGHT_Y, h.z);
+        const a = Math.atan2(s.y - hs.y, s.x - hs.x);
+        const far = Math.hypot(s.x - hs.x, s.y - hs.y);
+        if (far > 34) arrowhead(ctx, hs.x + Math.cos(a) * 22, hs.y + Math.sin(a) * 22, a, blink ? '#ffffff' : RED);
+        const since = this.time - (this.downAt[d.id] ?? 0);
+        const big = this.downBig[d.id] && since < 4;
+        const call = `P${d.id + 1} DOWN: FLY TO THEM`;
+        const sc = big ? 2 : 1;
+        const tw = textWidth(call, sc);
+        const cx = clamp(hs.x, tw / 2 + 6, VIEW.w - tw / 2 - 6);
+        const cy = Math.max(hs.y - (big ? 70 : 40), 36);
+        if (big) {
+          // the first time: a dark band behind it, the call and how it's done
+          const pop = since < 0.12 ? 1 : 0;
+          ctx.fillStyle = 'rgba(10,6,16,0.72)';
+          ctx.fillRect(Math.round(cx - tw / 2 - 6), Math.round(cy - 4), Math.round(tw + 12), 32);
+          ctx.fillStyle = RED;
+          ctx.fillRect(Math.round(cx - tw / 2 - 6), Math.round(cy - 4), Math.round(tw + 12), 1);
+          ctx.fillRect(Math.round(cx - tw / 2 - 6), Math.round(cy + 27), Math.round(tw + 12), 1);
+          drawText(ctx, call, cx, cy, pop || blink ? '#ffffff' : RED, { align: 'center', scale: sc, outline: DARK });
+          drawText(ctx, 'HOLD CLOSE TO KICK THEIR ENGINES BACK ON', cx, cy + 18, INK, { align: 'center', outline: DARK });
+        } else drawText(ctx, call, cx, cy, blink ? '#ffffff' : RED, { align: 'center', outline: DARK });
+      }
+    }
+  }
+
   private toScreen(view: LevelView, x: number, y: number, z: number) {
     this.v.set(x, y, z).project(view.eye);
     return { x: (((this.v.x + 1) / 2) * this.dw) / this.scale, y: (((1 - this.v.y) / 2) * this.dh) / this.scale };
@@ -953,7 +1025,7 @@ export class Hud {
     for (const p of lv.players) {
       const s = this.toScreen(view, p.x, FLIGHT_Y, p.z);
       // P1/P2 tags over the ships in co-op
-      if (lv.players.length > 1) drawText(ctx, `P${p.id + 1}`, s.x, s.y + 18, hex(LIVERY[p.id][2]), { align: 'center' });
+      if (lv.players.length > 1 && !p.out) drawText(ctx, `P${p.id + 1}`, s.x, s.y + 18, hex(LIVERY[p.id][2]), { align: 'center' });
       if (p.down) continue;
       // boosting with the tank nearly dry: say so where the eyes are
       if (p.boosting > 0 && p.burn < 0.2 && Math.floor(this.time * 8) % 2) drawText(ctx, 'BURN LOW', s.x, s.y + 20, '#ff8a3a', { align: 'center' });
@@ -978,6 +1050,7 @@ export class Hud {
         drawText(ctx, lc.text, s.x, s.y - 21, '#d8cce8', { align: 'center' });
       }
     }
+    this.jumpstarts(ctx, lv, view);
     // an escort's or a heist's orders, as it starts (in place of the biome's name)
     const mb = view.missionBanner;
     if (mb && mb.t < 5 && lv.heist) {
@@ -1229,4 +1302,18 @@ export class Hud {
     this.sound.draw(ctx, mid - SOUND_W / 2, y + 44 + CONTROLS_H);
     this.quit.draw(ctx, this.hintDevs.length ? this.hintDevs : this.devs, mid, y + 56 + CONTROLS_H + SOUND_H);
   }
+}
+
+/** An arrowhead of dots pointing along `a`, its tip at (x, y). */
+function arrowhead(ctx: CanvasRenderingContext2D, x: number, y: number, a: number, color: string) {
+  const dots: [number, number][] = [];
+  for (let k = 0; k <= 6; k++)
+    for (const side of [-1, 1]) {
+      const b = a + Math.PI + side * 0.6;
+      dots.push([x + Math.cos(b) * k * 1.5, y + Math.sin(b) * k * 1.5]);
+    }
+  ctx.fillStyle = DARK;
+  for (const [px, py] of dots) ctx.fillRect(Math.round(px) - 1, Math.round(py) - 1, 3, 3);
+  ctx.fillStyle = color;
+  for (const [px, py] of dots) ctx.fillRect(Math.round(px), Math.round(py), 2, 2);
 }

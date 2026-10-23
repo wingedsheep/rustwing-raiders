@@ -14,16 +14,17 @@ import { clamp, damp } from '../util';
  *  - Facing: on a charge, a rake or a sky dive it turns to face where it's going (its aim while it
  *    winds up) and banks into the turn; on a sky dive or a broadside it goes side-on.
  *  - Shedding: a part tagged `shed` (a glTF extra) breaks off as that phase starts; one tagged
- *    `plate` breaks off when the boss has torn that many away (ARU-0's ballast).
+ *    `plate` breaks off when the boss has torn that many away (ARU-0's ballast). One tagged
+ *    `appear` is hidden until that phase (Khet in his titan's jaw, the Compact's light on it).
  *  - Looking up the screen: a pursuer on its chase (behind you), ARU-0 in its silence (facing
  *    Glacis, in its `silence` clip).
  */
 
 /** Moves it turns to face (a sky dive and a broadside: side-on, along the way it'll go). */
-const TURNS = new Set(['charge', 'rake', 'skydive', 'broadside']);
+const TURNS = new Set(['charge', 'rake', 'skydive', 'broadside', 'ram']);
 const SIDE_ON = new Set(['skydive', 'broadside']);
-/** Moves it turns its gaze along (part of the way: a fortress doesn't spin round; Istra brings her bow round on you). */
-const LOOKS: Record<string, number> = { scan: 0.35, irons: 0.6 };
+/** Moves it turns its gaze along (part of the way: a fortress doesn't spin round; Istra brings her bow round on you; Khet's titan its eye, and its brow over its shield). */
+const LOOKS: Record<string, number> = { scan: 0.35, irons: 0.6, eye: 0.45, measure: 0.5, kneel: 0.7 };
 const FADE = 0.18;
 
 /** What it says when it sheds, by planet and phase. */
@@ -57,6 +58,9 @@ export class BossPose {
   ) {
     this.idle = [...inst.actions].find(([n]) => n.endsWith('_idle'))?.[1] ?? null;
     this.cur = this.idle;
+    inst.obj.traverse((o) => {
+      if (o.userData.appear) o.visible = false;
+    });
   }
 
   update(e: Enemy, dt: number, obj: THREE.Object3D) {
@@ -141,6 +145,10 @@ export class BossPose {
       const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshToonMaterial | undefined;
       pieces.push({ x: p.x, y: p.y, z: p.z, color: mat?.color?.getHex() ?? 0xc8a040 });
       o.visible = false;
+    });
+    this.inst.obj.traverse((o) => {
+      const at = o.userData.appear as number | undefined;
+      if (at !== undefined && at <= phase) o.visible = true;
     });
     const line = pieces.length ? SHED_LINE[this.kind.replace('boss_', '')]?.[phase] ?? '' : '';
     return { line, pieces };

@@ -142,23 +142,26 @@ export class Chart {
     const gate = add('gate', -1, this.axis, EDGE, 'WARDEN GATE', boss);
     gate.danger = 3;
     gate.reward = 'trade';
-    // sites on each planet
+    // sites on each planet: mostly fights, and at most one escort or heist a sector
     const kinds: [NodeKind, number][] = [
-      ['raid', 34],
-      ['hunt', this.sector > 0 ? 17 : 7],
-      ['escort', 12],
-      ['heist', 10],
-      ['salvage', 11],
-      ['dock', 5],
-      ['event', 15],
+      ['raid', 52],
+      ['hunt', this.sector > 0 ? 22 : 12],
+      ['escort', 6],
+      ['heist', 5],
+      ['salvage', 6],
+      ['dock', 3],
+      ['event', 6],
     ];
+    const fights = kinds.filter(([k]) => k !== 'escort' && k !== 'heist');
+    let errand = false;
     planets.forEach((p, i) => {
       const n = 2 + (r() < 0.6 ? 1 : 0);
       const off = r() * Math.PI * 2;
       const hot = i === this.alert ? 1 : 0;
       const market = MARKET[p.id];
       for (let k = 0; k < n; k++) {
-        const kind = weighted(r, kinds);
+        const kind = weighted(r, errand ? fights : kinds);
+        if (kind === 'escort' || kind === 'heist') errand = true;
         const node = add(kind, i, off + (k / n) * Math.PI * 2, this.bodies[i].size + 1.6, '', p);
         if (kind === 'escort') {
           // haulers don't fly where it's hottest: never elite, a pip more only on alert
@@ -186,12 +189,10 @@ export class Chart {
     });
     const comet = add('salvage', 4, 0, 0, 'TRADER COMET', null);
     comet.reward = 'trade';
-    // things drifting at the edge, one near each end, a couple more anywhere, and two in the belt
+    // things drifting at the edge, one near each end, and two in the belt
     const spots: [number, number][] = [
       [this.axis + Math.PI + (r() - 0.5) * 0.9, 23 + r() * 3],
       [this.axis + (r() - 0.5) * 0.9, 23 + r() * 3],
-      [r() * Math.PI * 2, 23 + r() * 3],
-      [r() * Math.PI * 2, 23 + r() * 3],
       [this.axis + Math.PI / 2 + (r() - 0.5) * 1.4, 9 + r() * 8],
       [this.axis - Math.PI / 2 + (r() - 0.5) * 1.4, 9 + r() * 8],
     ];

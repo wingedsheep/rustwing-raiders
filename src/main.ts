@@ -1,3 +1,4 @@
+import './look';
 import { Game } from './game/game';
 import { library } from './render/assets';
 import { Flight } from './screens/flight';
@@ -104,6 +105,8 @@ async function boot() {
     (q.get('grafts') ?? '').split(';').forEach((list, i) => {
       if (run.crew[i]) run.crew[i].grafts = Object.fromEntries(list.split(',').filter((id) => id in GRAFTS).map((id) => [GRAFTS[id as keyof typeof GRAFTS].verb, id]));
     });
+    // &hold=rail,amp: parts waiting in every hold, unfitted (the chart calls them out)
+    for (const id of q.get('hold')?.split(',') ?? []) if (PARTS.some((d) => d.id === id)) run.give(id);
     const screen = q.get('screen');
     // &site=escort: start beside a site of that kind on the chart (to look at its card)
     const site = q.get('site');

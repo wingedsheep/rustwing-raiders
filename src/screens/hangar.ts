@@ -12,16 +12,19 @@ import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, H, HARDPOINT_COLOR, INK, RED
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
-import { backdrop, hullGauge, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
+import { backdrop, button, hullGauge, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { AFFIX_COLOR, AFFIXES, itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
 import { TIER_WORD, VERB_COLOR, verbLabel } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
+import { gunLoop, loopShare } from '../ui/gun-loop';
 import type { DeviceId } from '../input';
 import { markKinds, reactionsOf } from '../sim/marks';
 import { markIcon, REACTION_COLOR } from '../ui/mark-icons';
 import { graftIcon, FACTION_COLOR } from '../ui/graft-icon';
 import { BONDS, VERBS, VERB_COLOR as GRAFT_VERB_COLOR, bondsOf, hasVerb } from '../game/grafts';
 import { waysOf } from '../game/core';
+import { keywordPanel, termsIn } from '../ui/glossary';
+import { Intro } from '../ui/intro';
 
 interface Bay {
   cur: { c: number; r: number };
@@ -36,6 +39,9 @@ interface Bay {
   ready: boolean;
   msg: string;
   msgT: number;
+  /** The keywords on the part in focus, opened with INFO; how long that part's been in focus. */
+  keys: boolean;
+  seen: { it: Item | null; t: number };
   stage: Stage;
   model: ShipModel | null;
   /** The turntable it sits over. */
@@ -123,6 +129,14 @@ function dps(s: Stats) {
   return s.guns.reduce((t, g) => t + g.spec.damage * (g.spec.shot === 'beam' ? 1 : g.spec.count) * g.spec.rate, 0);
 }
 
+/** Parts that have sat in a hold while its pilot was in the hangar: the rest are new (the chart calls them out). */
+const looked = new WeakSet<Item>();
+
+/** How many parts in this pilot's hold they haven't seen in the hangar yet. */
+export const newParts = (run: Run, i: number) => run.crew[i].cargo.filter((it) => !looked.has(it)).length;
+
+const lookAll = (run: Run) => run.crew.forEach((c) => c.cargo.forEach((it) => looked.add(it)));
+
 /**
  * The hangar: each player at their own ship, with their own pad. Lift parts off the grid, drop
  * parts from the hold onto it, turn long ones, hand them across to your partner. The numbers
@@ -131,12 +145,15 @@ function dps(s: Stats) {
 export class Hangar implements Screen {
   private bays: Bay[];
   private t = 0;
+  /** A system said the first time it's met: on a part looked at for a moment. */
+  private intro = new Intro();
 
   constructor(
     private game: Game,
     private run: Run,
     private onDone: () => void,
   ) {
+    lookAll(run);
     const coop = run.crew.length > 1;
     this.bays = run.crew.map((_, i) => ({
       cur: { c: 1, r: 1 },
@@ -148,6 +165,8 @@ export class Hangar implements Screen {
       ready: false,
       msg: '',
       msgT: 0,
+      keys: false,
+      seen: { it: null, t: 0 },
       stage: new Stage(164, 104, 15, 50),
       model: null,
       pad: null,
@@ -252,8 +271,13 @@ export class Hangar implements Screen {
 
   update(dt: number) {
     this.t += dt;
+    this.intro.update(dt);
     this.bays.forEach((bay, i) => {
       bay.msgT -= dt;
+      // a part looked at for a moment: what's new in its words is said (two at a time, not a lecture)
+      const it = this.focused(bay, i);
+      if (it !== bay.seen.it) bay.seen = { it, t: 0 };
+      else if (it && (bay.seen.t += dt) > 0.8 && bay.seen.t - dt <= 0.8) for (const k of this.termsOf(it).slice(0, 2)) this.intro.meet(k.id);
       if (bay.fx) {
         const was = Math.floor(bay.fx.t / STEP_T);
         bay.fx.t += dt;
@@ -290,6 +314,11 @@ export class Hangar implements Screen {
         audio.play('ui_back');
       }
       return;
+    }
+    if (m.info) {
+      bay.keys = !bay.keys;
+      this.intro.dismiss();
+      audio.play(bay.keys ? 'ui_select' : 'ui_back');
     }
     if (m.left) this.step(bay, f, -1, 0);
     if (m.right) this.step(bay, f, 1, 0);
@@ -527,6 +556,18 @@ export class Hangar implements Screen {
    * The ship as it would be: with the carried part dropped at the cursor (if it fits there), and
    * the placement in focus (that one, or whatever's under the cursor).
    */
+  /** The part the focus card shows: in hand, under the cursor, or picked in the hold. */
+  private focused(bay: Bay, i: number): Item | null {
+    const crew = this.run.crew[i];
+    return bay.hand ?? partAt(crew.build, bay.cur.c, bay.cur.r) ?? crew.cargo[bay.sel] ?? null;
+  }
+
+  /** The keywords a part's card uses. */
+  private termsOf(it: Item) {
+    const def = itemDef(it);
+    return termsIn(def.text, verbLabel(def), ...partStats(def), it.affix ? AFFIXES[it.affix].text : '', it.trait ? TRAITS[it.trait].text : '');
+  }
+
   private viewed(bay: Bay, b: Build): { build: Build; focus: Placement | null; lk: Links; out: Placement | null } {
     let build = b;
     let focus: Placement | null = partAt(b, bay.cur.c, bay.cur.r) ?? null;
@@ -605,8 +646,19 @@ export class Hangar implements Screen {
     } else {
       const on = partAt(b, bay.cur.c, bay.cur.r);
       hints(ctx, dev, [['confirm', on ? 'LIFT' : crew.cargo.length ? 'TAKE FROM HOLD' : 'LIFT'], ['prev', ''], ['next', 'PICK IN HOLD']], hx, hy, 'center');
-      hints(ctx, dev, solo ? [['back', 'DONE']] : [['alt', 'GIVE TO PARTNER'], ['back', 'DONE']], hx, hy + 16, 'center');
+      hints(ctx, dev, solo ? [['info', bay.keys ? 'HIDE KEYWORDS' : 'KEYWORDS'], ['back', 'DONE']] : [['alt', 'GIVE TO PARTNER'], ['info', 'KEYWORDS'], ['back', 'DONE']], hx, hy + 16, 'center');
     }
+    // the keywords asked for, over the ship; or one met for the first time
+    const terms = it ? this.termsOf(it) : [];
+    const kx = solo ? DECK.x + 6 : x + 2;
+    const ky = solo ? DECK.y + 6 : 42;
+    const kw = solo ? DECK.w - 12 : AREA_W - 6;
+    if (bay.keys && terms.length) keywordPanel(ctx, terms, kx, ky, kw, solo ? DECK.h - 12 : 196);
+    else if (bay.keys) {
+      frame(ctx, kx, ky, kw, 20, 'rgba(14,10,22,0.97)', '#5a4e68');
+      drawText(ctx, 'NO KEYWORDS ON THIS ONE', kx + 6, ky + 7, DIM);
+    } else if (solo) this.intro.draw(ctx, kx, ky, kw, button(dev, 'info'));
+    else if (i === 0) this.intro.draw(ctx, W / 2 - 154, 42, 308);
   }
 
   /** The hold: what you carry and haven't bolted on, the one you'd take next lit. */
@@ -735,9 +787,12 @@ export class Hangar implements Screen {
     const verb = verbOf(def);
     const vw = drawText(ctx, verbLabel(def), x + w - 6, y + 4, VERB_COLOR[verb], { align: 'right' });
     if (tier !== 'common') drawText(ctx, TIER_WORD[tier], x + w - 12 - vw, y + 4, TIER_COLOR[tier], { align: 'right' });
-    // the part itself, turning, on the right; the words go round it
+    // the part itself, turning, on the right (a gun firing, between turns); the words go round it
     const pw = 48;
-    const shown = portraits.draw(ctx, it.id, x + w - pw - 3, y + 14, pw, this.t, who);
+    const [share, lt] = def.gun ? loopShare(this.t) : [0, this.t];
+    const model = portraits.draw(ctx, it.id, x + w - pw - 3, y + 14, pw, this.t, who);
+    if (def.gun) gunLoop(ctx, def, x + w - pw - 3, y + 14, pw, pw, model ? lt : this.t, { share: model ? share : 1 });
+    const shown = model || !!def.gun;
     if (shown) {
       ctx.fillStyle = tier === 'common' ? EDGE : TIER_COLOR[tier];
       ctx.fillRect(x + w - pw - 4, y + 13, 1, pw + 1);
@@ -753,7 +808,7 @@ export class Hangar implements Screen {
     if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
     for (const l of wrap(def.text, tw).slice(0, it.trait || it.affix ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     const hp = hardpointOf(def);
-    lines.push([hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT. ANY SOCKET` : 'NO HARDPOINT NEEDED: ANY SOCKET', hp ? HARDPOINT_COLOR[hp] : DIM]);
+    lines.push([hp ? `TAKES ${HARDPOINTS[hp].name === 'AUX' ? 'AN' : 'A'} ${HARDPOINTS[hp].name} HARDPOINT. ANY SOCKET` : 'NO HARDPOINT NEEDED: ANY SOCKET', hp ? HARDPOINT_COLOR[hp] : DIM]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     const lp = linkedPct(this.run.crew[who].build.frame);
     if (pl) {
@@ -1180,6 +1235,7 @@ export class Hangar implements Screen {
   }
 
   dispose() {
+    lookAll(this.run);
     for (const b of this.bays) {
       b.model?.dispose();
       b.deckModel?.dispose();

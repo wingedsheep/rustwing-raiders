@@ -38,6 +38,8 @@ export type Sfx =
   | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
   | 'istra_call' | 'crew_ho' | 'cannon' | 'whale_dive' | 'whale_breach' | 'tide_turn' | 'whale_breath'
   | 'notice' | 'printer' | 'claw' | 'winch' | 'plate_on' | 'plate_tear' | 'clang'
+  // Warlord Khet and his titan: his shout, its thrusters and joints, the light's tone, its glass
+  | 'khet_yell' | 'thruster' | 'titan_servo' | 'titan_land' | 'light_tone' | 'glass_fall' | 'glass_burst'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
@@ -47,6 +49,8 @@ export type Sfx =
   | 'foot_mark' | 'crew_kill'
   | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
   | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive'
+  // co-op downs: a down ship's distress ping, and its engines kicked back on
+  | 'down_ping' | 'jolt'
   // the forge's guns, each its own voice (see view/gun-looks.ts), and the combos' cash-ins
   | 'shot_saw' | 'saw_ting' | 'saw_grind' | 'shot_needle' | 'needle_hit' | 'shot_hive' | 'hive_hit' | 'shot_wave' | 'wave_hit'
   | 'shot_charge' | 'charge_ready' | 'charge_hit' | 'shot_anchor' | 'anchor_pin' | 'chain_snap' | 'shot_bumper' | 'bonk' | 'frost_hit'
@@ -58,8 +62,8 @@ export type Sfx =
 /** A sound a minigame defines for itself, in its own file (see `defineSfx`). */
 export type MiniSfx = `mini_${string}`;
 export type AnySfx = Sfx | MiniSfx;
-export type Loop = 'beam' | 'flame' | 'frost' | 'charge' | 'engine' | 'wind' | 'truck';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'boss_cinder' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
+export type Loop = 'beam' | 'flame' | 'frost' | 'charge' | 'engine' | 'wind' | 'truck' | 'jumpstart';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'boss_cinder' | 'boss_ashgrave' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
 
 // ================================================================================================
 // Engine state
@@ -951,6 +955,74 @@ const SFX: Record<Sfx, SfxDef> = {
     for (const [f, a, d] of [[310, 0.12, 0.9], [697, 0.08, 0.6], [1137, 0.05, 0.4], [1720, 0.03, 0.25]] as const) tone(o, t, 'sine', f * p, f * p * 0.995, d, a, 0.001);
     return 0.95;
   }, 0.08, 3, { rev: 0.35, tuned: true }),
+
+  // Khet's shout from the brow: one rough voice, a bark of "HYAH" (a buzz through an open a)
+  khet_yell: S((t, p, o) => {
+    noise(o, t, 0.06, 'bandpass', 1500 * p, 1100 * p, 1, 0.08, 0.005);
+    for (const [g0, g1, v] of [[680, 760, 0.3], [1150, 1250, 0.18], [2500, 2400, 0.06]] as const) {
+      const bp = filt(o, 'bandpass', g0 * p, 6);
+      bp.frequency.linearRampToValueAtTime(g1 * p, t + 0.3);
+      tone(bp, t + 0.03, 'sawtooth', 170 * p, 128 * p, 0.32, v, 0.02);
+      tone(bp, t + 0.03, 'sawtooth', 173 * p, 130 * p, 0.32, v * 0.6, 0.03);
+    }
+    return 0.4;
+  }, 0.35, 1, { rev: 0.25 }),
+
+  // a junk thruster bolted to the titan lighting: a cough, then a ragged roar with grit in it
+  thruster: S((t, p, o) => {
+    noise(o, t, 0.05, 'bandpass', 900 * p, 500 * p, 1.5, 0.2, 0.002);
+    noise(o, t + 0.03, 0.8, 'lowpass', 600 * p, 2200 * p, 0.9, 0.26, 0.12);
+    noise(o, t + 0.03, 0.7, 'bandpass', 2400 * p, 3600 * p, 1.4, 0.06, 0.2);
+    tone(o, t, 'sine', 52 * p, 64 * p, 0.8, 0.2, 0.08);
+    crackle(o, t + 0.1, 0.6, 14, 0.12);
+    return 0.9;
+  }, 0.25, 2, { rev: 0.15 }),
+
+  // the titan's own joints: a slow hydraulic groan under a hiss, and the stop as it seats
+  titan_servo: S((t, p, o) => {
+    tone(o, t, 'sine', 46 * p, 62 * p, 0.7, 0.24, 0.15);
+    tone(o, t, 'sine', 92 * p, 124 * p, 0.6, 0.06, 0.2);
+    noise(o, t, 0.6, 'bandpass', 380 * p, 620 * p, 3, 0.1, 0.2);
+    noise(o, t + 0.1, 0.5, 'highpass', 5200 * p, 4200 * p, 0.7, 0.03, 0.15);
+    metal(o, t + 0.62, 140 * p, 0.07, 0.6);
+    return 1.3;
+  }, 0.3, 2, { rev: 0.3 }),
+
+  // the titan coming down: the ground taking it, and the head ringing like a struck bell
+  titan_land: S((t, p, o) => {
+    boom(o, t, p * 0.55, 1.6, 0.42);
+    metal(o, t + 0.02, 74 * p, 0.12, 1.6);
+    metal(o, t + 0.04, 187 * p, 0.05, 0.9);
+    noise(o, t + 0.05, 0.9, 'lowpass', 1200 * p, 140 * p, 0.8, 0.2, 0.01);
+    return 1.7;
+  }, 0.3, 1, { rev: 0.4, duck: [0.4, 0.6], shock: 0.25 }),
+
+  // the Compact's light marking out what it will do: two clean tones a fifth apart, held, even
+  light_tone: S((t, p, o) => {
+    for (const [f, v] of [[587, 0.07], [880, 0.05], [1174, 0.02]] as const) tone(o, t, 'sine', f * p, f * p, 0.9, v, 0.08);
+    noise(o, t, 0.5, 'highpass', 7000 * p, 7000 * p, 0.7, 0.012, 0.1);
+    return 1;
+  }, 0.12, 3, { tuned: true, rev: 0.45 }),
+
+  // the light glassing the ground: a clear note as it touches, the sand going to glass in a ring
+  glass_fall: S((t, p, o) => {
+    tone(o, t, 'sine', 1760 * p, 1760 * p, 0.5, 0.05, 0.003);
+    for (const [f, d] of [[3170, 0.3], [4620, 0.22], [6110, 0.15]] as const) tone(o, t + 0.02, 'sine', f * p, f * p * 0.996, d, 0.02, 0.001);
+    noise(o, t, 0.25, 'highpass', 6000 * p, 4000 * p, 0.8, 0.05, 0.004);
+    tone(o, t, 'sine', 90 * p, 60 * p, 0.25, 0.1, 0.004);
+    return 0.55;
+  }, 0.04, 6, { tuned: true, rev: 0.4 }),
+
+  // glass breaking: a burst of tiny high pings and grit
+  glass_burst: S((t, p, o) => {
+    noise(o, t, 0.04, 'highpass', 4000 * p, 4000 * p, 0.8, 0.22, 0.001);
+    for (let k = 0; k < 9; k++) {
+      const f = (2600 + Math.random() * 4200) * p;
+      tone(o, t + Math.random() * 0.12, 'sine', f, f * 0.99, 0.06 + Math.random() * 0.1, 0.03, 0.001);
+    }
+    noise(o, t + 0.02, 0.3, 'bandpass', 5200 * p, 2600 * p, 1, 0.07, 0.01);
+    return 0.4;
+  }, 0.05, 4, { rev: 0.25 }),
 
   // heists: an engine on the runner blows, and its turbine winds down
   engine_out: S((t, p, o) => {
@@ -2521,6 +2593,30 @@ const SFX: Record<Sfx, SfxDef> = {
     });
     return 0.75;
   }, 0.3, 1, { tuned: true, rev: 0.25 }),
+
+  // a down ship calling: a glassy ping off its hull with a dull knock under it (the view pitches
+  // it up and quickens it as the time runs out)
+  down_ping: S((t, p, o) => {
+    tone(o, t, 'sine', 1320 * p, 1300 * p, 0.16, 0.12, 0.002);
+    tone(o, t, 'sine', 2640 * p, 2600 * p, 0.07, 0.035, 0.002);
+    metal(o, t, 660 * p, 0.05, 0.12);
+    tone(o, t, 'sine', 150 * p, 90 * p, 0.06, 0.1, 0.001);
+    return 0.18;
+  }, 0.08, 1, { tuned: true, rev: 0.2 }),
+
+  // a jumpstart landing: a heavy contact thump, the arc snapping, then the engines catching and
+  // roaring up, a bright ring off the hull over it all
+  jolt: S((t, p, o) => {
+    tone(o, t, 'sine', 120 * p, 38 * p, 0.35, 0.5, 0.001);
+    noise(o, t, 0.05, 'highpass', 4000 * p, 2500 * p, 0.8, 0.3, 0.001);
+    crackle(o, t, 0.18, 22, 0.2);
+    metal(o, t + 0.01, 210 * p, 0.12, 0.9);
+    noise(o, t + 0.08, 0.9, 'bandpass', 300 * p, 2600 * p, 1.2, 0.3, 0.12);
+    noise(o, t + 0.08, 0.7, 'lowpass', 200 * p, 900 * p, 0.8, 0.22, 0.08);
+    tone(o, t + 0.08, 'sine', 70 * p, 140 * p, 0.7, 0.18, 0.1);
+    tone(o, t + 0.12, 'sine', 880 * p, 1760 * p, 0.5, 0.05, 0.05);
+    return 1;
+  }, 0.3, 1, { rev: 0.35, duck: [0.5, 0.6] }),
 };
 
 // ---- boarding helpers ----------------------------------------------------------------------------
@@ -2778,6 +2874,28 @@ function makeLoop(name: Loop): LoopVoice {
       trem.frequency.setTargetAtTime(4 + 18 * i, n, 0.1);
       lp.frequency.setTargetAtTime(250 + 1600 * i, n, 0.1);
       lvl.gain.setTargetAtTime(0.02 + 0.07 * i, n, 0.08);
+    };
+  } else if (name === 'jumpstart') {
+    // a jumpstart charging: current crackling across the gap, a hum under it climbing to a whine
+    const lp = bq('lowpass', 400, 4, lvl);
+    const o1 = osc('sine', 70, lvl, 0.35);
+    const o2 = osc('sine', 140, lvl, 0.12, 9);
+    const fizz = bq('bandpass', 2400, 2.5, lvl);
+    nz(fizz, 0.5);
+    nz(lp, 0.4);
+    const buzz = ctx.createGain();
+    buzz.gain.value = 0.5;
+    buzz.connect(fizz);
+    nodes.push(buzz);
+    const flick = osc('sine', 23, buzz.gain, 0.5);
+    set = (i) => {
+      const n = ctx.currentTime;
+      o1.frequency.setTargetAtTime(70 + 150 * i, n, 0.08);
+      o2.frequency.setTargetAtTime(140 + 760 * i * i, n, 0.08);
+      flick.frequency.setTargetAtTime(23 + 30 * i, n, 0.08);
+      fizz.frequency.setTargetAtTime(2000 + 3500 * i, n, 0.08);
+      lp.frequency.setTargetAtTime(300 + 1400 * i, n, 0.08);
+      lvl.gain.setTargetAtTime(0.06 + 0.12 * i, n, 0.05);
     };
   } else if (name === 'wind') {
     // boosting: air tearing past, a band of noise that opens up the harder you push
@@ -3735,6 +3853,50 @@ const TRACKS: Record<Track, TrackDef> = {
           metal: '1.1.1.1.1.1.1.1.', hat: '1212121212121212',
         },
         fill: { snare: '0.1.0.110.1.0000' },
+      },
+    ],
+  },
+  // Warlord Khet, Nobody's Titan: 116, the titan's step (its leap lands on the beat), in
+  // Ashgrave's D phrygian. Riding it: his scrap band, a grinding riff, stomps and a gang chanting
+  // on the clap. It isn't listening: every other bar the riff drops out and a Compact march shows
+  // through, snare in strict time, a cold pad under it. It has decided: the march alone, clean
+  // brass and bells over a slow heavy kick. Its last stand: his riff and its march at once.
+  boss_ashgrave: {
+    bpm: 116, root: 38, scale: SC.phrygian, progA: [0, 0, 1, 0], progB: [5, 6, 1, 0, 5, 6, 1, 1],
+    lead: 'saw', leadOct: 24, density: 0.5,
+    bass: 'dist', bassStyle: 'grind', pad: 'dark', padOct: 12,
+    arp: 'pulse12', arpOct: 24, arpRate: 1, arpAt: 0.55, arpStyle: 'down',
+    drums: {
+      kick: '0..0..0...0.0...', metal: '..1...1...1..11.', clap: '....1.......1..2', tomLo: '0.....0...0.....',
+      hat: '2.2.2.2.2.2.2.2.',
+    },
+    fill: { metal: '..1.1.1.11111111', tomLo: '0.0.0.0.0.000000' },
+    crash: true, kick: [110, 36, 0.42], minI: 0.6, mix: { lead: 0.15, pad: 0.06 },
+    parts: [
+      {},
+      {
+        lead: 'saw', pad: 'cold', padOct: 12,
+        drums: {
+          kick: ['0..0..0...0.0...', '0.......0.......'], metal: ['..1...1...1..11.', '................'],
+          clap: ['....1.......1..2', '................'], tomLo: ['0.....0...0.....', '................'],
+          snare: ['................', '0...0.0.0...0.0.'], rim: ['................', '..1...1...1...1.'], hat: '2.2.2.2.2.2.2.2.',
+        },
+        fill: { snare: '0...0.0.0.0.0000' },
+      },
+      {
+        lead: 'brass', leadOct: 24, bass: 'sub', bassStyle: 'march', pad: 'cold', padOct: 24, arp: 'bell', arpOct: 36, arpRate: 2, arpStyle: 'up',
+        crash: false, kick: [90, 32, 0.5],
+        drums: { kick: '0.......0.......', snare: '0...0.0.0...0.0.', rim: '..1...1...1...1.' },
+        fill: { snare: '0...0.0.0.0.0000' },
+      },
+      {
+        lead: 'brass', dbl: true, bass: 'dist', bassStyle: 'grind', pad: 'dark', padOct: 12, arp: 'bell', arpOct: 36, arpRate: 1, arpStyle: 'updown',
+        crash: true, kick: [110, 34, 0.45],
+        drums: {
+          kick: '0..0..0.0.0.0...', snare: '0...0.0.0...0.0.', metal: '..1...1...1..11.', clap: '....1.......1..1',
+          tomLo: '0.....0...0.....', hat: '1212121212121212',
+        },
+        fill: { snare: '0.0.0.0.0.0.0000', metal: '..1.1.1.11111111' },
       },
     ],
   },

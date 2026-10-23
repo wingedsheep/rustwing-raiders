@@ -59,7 +59,17 @@ shot query="" *args:
     @npx esbuild tools/shot.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-shot.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-shot.mjs" "{{query}}" {{args}}
 
+# a biome's still beside its painting, and the grey frame, at a fixed seed and moment (e.g. just look kessra mesarun --at 20, just look --all; see docs/readability.md)
+look *args:
+    @npx esbuild tools/look.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-look.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-look.mjs" {{args}}
+
 # the forge, headless: builds side by side against a target (e.g. just forge --a rivet,flak --b frost,anchor --target plated --combos=both)
 forge *args:
     @npx esbuild tools/forge.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-forge.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-forge.mjs" {{args}}
+
+# check every event choice shows what it does: plays each one out every way it can go (e.g. just event-audit derelict)
+event-audit event="":
+    @npx esbuild tools/event-audit.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-event-audit.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-event-audit.mjs" {{event}}

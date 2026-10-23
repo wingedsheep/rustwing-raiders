@@ -487,7 +487,8 @@ export type LevelEvent =
   | { type: 'down'; id: number; x: number; z: number }
   /** A down ship nobody jumpstarted in time: it goes in, and is out for the level. */
   | { type: 'crashed'; id: number; x: number; z: number }
-  | { type: 'jumpstart'; id: number }
+  /** `by`: the partner who brought it back (its jolt clears the bullets round it). */
+  | { type: 'jumpstart'; id: number; by: number }
   | { type: 'graze'; id: number; x: number; z: number }
   /** The new kit (see kit.ts): the Bulwark, the Swap Beacon, the skins and the bombs. */
   | { type: 'kit'; id: number; what: KitWhat; x: number; z: number; n?: number; x2?: number; z2?: number }
@@ -1539,7 +1540,7 @@ export class Level {
     if (this.players.length < 2 || this.state === 'failed' || this.state === 'clear') return;
     for (const p of this.players) {
       if (!p.down || p.out) continue;
-      const helper = this.players.find((q) => q !== p && !q.down && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < JUMP_REACH * JUMP_REACH);
+      const helper = jumpHelper(this.players, p);
       if (helper) p.jump += DT;
       else {
         p.jump = Math.max(0, p.jump - DT * 0.5);
@@ -1550,13 +1551,15 @@ export class Level {
           continue;
         }
       }
-      if (p.jump >= JUMP_TIME) {
+      if (helper && p.jump >= JUMP_TIME) {
         p.down = false;
         p.jump = 0;
         p.downT = 0;
         p.hp = Math.round(p.stats.hp * JUMP_HULL);
         p.inv = 2.5;
-        this.emit({ type: 'jumpstart', id: p.id });
+        // the jolt: a shockwave off the hull that turns the fire round both ships to scrap
+        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < JUMP_JOLT * JUMP_JOLT) this.cancel(b, 0.6);
+        this.emit({ type: 'jumpstart', id: p.id, by: helper.id });
       }
     }
   }
@@ -3320,10 +3323,10 @@ export class Level {
 // The kit (dash mods, aux, passives): the numbers.
 /** Parry Emitter: the burst, its parry window at the start, how far each reaches, what a block can take. */
 const PARRY_BURST = 0.35;
-const PARRY_WINDOW = 0.1;
+export const PARRY_WINDOW = 0.1;
 const PARRY_R = 2.4;
 const BLOCK_R = 1.9;
-const BLOCK_MAX = 3;
+export const BLOCK_MAX = 3;
 /** A parried small projectile's damage (more with Burn). */
 const PARRY_DMG = 14;
 /** RIPOSTE: how long after a perfect parry the guns crit, and how much harder they hit in it. */
@@ -3335,31 +3338,31 @@ const PERFECT_CHAIN = 3;
 const PARRY_CHARGE = 0.08;
 const PARRY_CHARGE_EACH = 0.03;
 /** The wait after: a parry, a block, a whiff (a good read comes back soonest; it can't be held up against everything), and a tether kill. */
-const CD_PARRY = 1.5;
+export const CD_PARRY = 1.5;
 const CD_BLOCK = 2.5;
-const CD_WHIFF = 3;
+export const CD_WHIFF = 3;
 const CD_TETHER_KILL = 0.2;
 /** Grapple Tether: reach, reel speed, the hit on arrival, how long it can reel, the waits. */
-const TETHER_RANGE = 24;
+export const TETHER_RANGE = 24;
 const REEL = 75;
-const TETHER_HIT = 24;
+export const TETHER_HIT = 24;
 const TETHER_TIME = 0.6;
-const CD_TETHER = 3;
+export const CD_TETHER = 3;
 const CD_MISS = 0.6;
 /** Decoy Flare, and how far away aimed fire notices a decoy. */
-const FLARE_LIFE = 2.5;
-const FLARE_DMG = 24;
+export const FLARE_LIFE = 2.5;
+export const FLARE_DMG = 24;
 const FLARE_R = 4.5;
-const CD_FLARE = 6;
+export const CD_FLARE = 6;
 const DECOY_REACH = 45;
 /** Void Siphon: how long, its pull and reach, the mouth, bullets per shield, the slowdown, the wait. */
-const SIPHON_TIME = 1.5;
+export const SIPHON_TIME = 1.5;
 const SIPHON_R = 10;
 const SIPHON_PULL = 90;
 const SIPHON_EAT = 1.6;
-const SIPHON_PER = 6;
-const SIPHON_SLOW = 0.3;
-const CD_SIPHON = 7;
+export const SIPHON_PER = 6;
+export const SIPHON_SLOW = 0.3;
+export const CD_SIPHON = 7;
 /** Dash mods: afterimage life and size, wake mines. Passives: echo delay, reflector shots, sentry reach. */
 const GHOST_LIFE = 1.2;
 const GHOST_R = 2.5;
@@ -3432,8 +3435,12 @@ export const HULL_STEP = 20;
 export const WELD_HEAL = 0.25;
 const JUMP_HULL = 0.4;
 /** Co-op downs: a partner within this reach for this long jumpstarts you. */
-const JUMP_REACH = 3.6;
-const JUMP_TIME = 1.6;
+export const JUMP_REACH = 3.6;
+export const JUMP_TIME = 1.6;
+/** How far a jumpstart's jolt clears the fire. */
+export const JUMP_JOLT = 9;
+/** The partner close enough to be jumpstarting a down ship, if any. */
+export const jumpHelper = (players: Player[], p: Player) => players.find((q) => q !== p && !q.down && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < JUMP_REACH * JUMP_REACH);
 /** How long a down ship holds out with nobody close before it crashes (s). */
 export const JUMP_WAIT = 20;
 const SECOND_WIND = 0.1;
