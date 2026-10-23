@@ -5,7 +5,7 @@
  */
 
 import { EDGES, frameById, LOAD_CLASS, partById } from '../game/parts';
-import { itemName, type Item } from '../game/loot';
+import { itemName, type Item, type ItemDef } from '../game/loot';
 import { SHIELD_CELL, fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
 import { links } from './links';
 import { markKinds, markNames, reactionsOf } from './marks';
@@ -50,6 +50,8 @@ function worth(b: Build, s: Stats) {
   const kinds = markKinds(s.marks).length;
   v += kinds * 1.5 + reactionsOf(s.marks).length * 4;
   if (s.guns.some((g) => g.flaw)) v += kinds ? 3 : -1;
+  // an Edge Hone's harder crits
+  for (const g of s.guns) v += (g.edgeMul - 2) * 2;
   if (s.mod.detonate) v += kinds ? 3 : -1;
   return v;
 }
@@ -89,7 +91,7 @@ export function bestFit(b: Build, it: Item): Fit {
   return { place: found.place, swap: found.swap, build: found.build, before, after, deltas: deltas(before, after), state: state(found.build, found.place) };
 }
 
-function deltas(a: Stats, b: Stats): Delta[] {
+export function deltas(a: Stats, b: Stats): Delta[] {
   const out: (Delta & { w: number })[] = [];
   const row = (label: string, x: number, y: number, fmt: (n: number) => string, w: number, lowerBetter = false) => {
     if (Math.abs(y - x) < 1e-3 || fmt(x) === fmt(y)) return;
@@ -106,6 +108,9 @@ function deltas(a: Stats, b: Stats): Delta[] {
     out.push({ label: 'LOAD', from: LOAD_CLASS[a.loadClass].name, to: LOAD_CLASS[b.loadClass].name, good: order.indexOf(b.loadClass) < order.indexOf(a.loadClass), w: 14 });
   } else row('LOAD', a.load, b.load, (n) => n.toFixed(1), 0.8, true);
   row('SPEED', a.speed, b.speed, (n) => n.toFixed(1), 3);
+  // an Edge Hone: what the crits of the guns it reaches hit for
+  const crit = (s: Stats) => Math.max(2, ...s.guns.map((g) => g.edgeMul));
+  row('CRITS', crit(a), crit(b), (n) => `×${n.toFixed(1).replace(/\.0$/, '')}`, 4);
   row('DASH CD', a.dashCooldown, b.dashCooldown, (n) => `${n.toFixed(2)}S`, 2, true);
   row('CHARGE', a.specialRate, b.specialRate, (n) => `×${n.toFixed(2)}`, 2);
   // a new verb for a button: just what it is (or what it was, gone)
@@ -132,12 +137,20 @@ function deltas(a: Stats, b: Stats): Delta[] {
 }
 
 function state(b: Build, p: Placement): Fit['state'] {
-  const pl = links(b).of(p);
+  const lk = links(b);
+  const pl = lk.of(p);
   if (!pl) return null;
   const d = pl.def;
   if (pl.idle) return { text: pl.idle, good: false };
   if (d.link && !pl.link?.ok) return { text: `${d.link.need ? 'NEEDS' : 'WANTS'} ${d.link.text}`, good: false };
-  if (pl.str > 1.001) return { text: `RUNS AT ${Math.round(pl.str * 100)}%`, good: true };
+  // a booster is only as good as the guns it reaches: say which
+  if (d.boost) {
+    const guns = lk.edges.filter((e) => e.kind === 'boost' && e.a === p).map((e) => partById(e.b.id).name.toUpperCase());
+    if (!guns.length) return { text: 'NO GUN NEXT TO IT: IDLE', good: false };
+    return { text: `BOOSTS ${guns.length === 1 ? guns[0] : `${guns.length} GUNS`}`, good: true };
+  }
+  // its rolls are on the card already: only a link's boost is news here
+  if (pl.str > ((d as ItemDef).potency ?? 1) + 0.001) return { text: `LINKED: RUNS AT ${Math.round(pl.str * 100)}%`, good: true };
   if (d.link && pl.link?.ok) return { text: 'LINKED', good: true };
   return null;
 }

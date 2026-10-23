@@ -56,24 +56,28 @@ export function partStats(def: PartDef): string[] {
   if (def.armor) out.push(`ARMOUR ${def.armor}: EVERY HIT -${def.armor}`);
   if (def.shield) out.push(`SHIELD +${def.shield * SHIELD_CELL}`);
   if (def.boost) {
+    // in plain words, at the strength its rolls give it (an Edge Hone at 119% crits ×3.2)
     const b = def.boost;
+    const k = (def as { potency?: number }).potency ?? 1;
+    const pc = (v: number) => Math.round(v * k * 100);
     const bits = [
-      b.damage && `DMG +${Math.round(b.damage * 100)}%`,
-      b.rate && !b.rounds && `RATE +${Math.round(b.rate * 100)}%`,
-      b.cool && 'COOLER',
-      b.mark && `MARK ${b.mark.toUpperCase()}`,
-      b.flaw && 'CRIT MARKED',
-      b.hone && 'EDGES ×3',
-      b.rounds && `HEAVIES +${b.rounds} ROUND, RELOAD +${Math.round((b.rate ?? 0) * 100)}%`,
+      b.damage && `+${pc(b.damage)}% DAMAGE`,
+      b.rate && !b.rounds && `FIRE ${pc(b.rate)}% FASTER`,
+      b.cool && `COOL ${num(1 + b.cool * k)}× FASTER`,
+      b.mark && `HITS LEAVE ${b.mark.toUpperCase()}`,
+      b.chill && 'HITS CHILL',
+      b.flaw && 'CRIT ANYTHING MARKED',
+      b.hone && `CRITS HIT ×${num(2 + k)}, NOT ×2`,
+      b.rounds && `HEAVIES +${b.rounds} ROUND, RELOAD ${pc(b.rate ?? 0)}% FASTER`,
     ].filter(Boolean);
-    out.push(`TOUCHING GUNS: ${bits.join(' ')}`);
+    out.push(`GUNS IT TOUCHES: ${bits.join(', ')}`);
   }
   if (def.special) out.push(`SPECIAL: ${def.special.toUpperCase()}`);
   if (def.aux) out.push(`AUX: ${def.aux.toUpperCase()}`);
   if (def.mod) out.push(`DASH MOD${def.mod.ram ? ` RAM ${def.mod.ram}` : ''}${def.mod.blink ? ` BLINK ${def.mod.blink}` : ''}${def.mod.mines ? ` MINES ${def.mod.mines}` : ''}${def.mod.ghost ? ' AFTERIMAGE' : ''}${def.mod.detonate ? ' DETONATE MARKS' : ''}${def.mod.strike ? ' STRIKE +100%' : ''}`);
   if (def.link) out.push(`${def.link.need ? 'NEEDS' : 'LINK +50%:'} ${def.link.text}`);
   const hp = hardpointOf(def);
-  out.push(`LOAD ${num(def.mass)}  ${hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT` : 'A FITTING'}`);
+  out.push(`LOAD ${num(def.mass)}${hp ? `  TAKES A ${HARDPOINTS[hp].name} HARDPOINT` : ''}`);
   return out;
 }
 

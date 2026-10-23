@@ -3,7 +3,7 @@ import type { Game, Screen } from '../game/game';
 import { CARGO, Run, crewHull } from '../sim/run';
 import { cellsOf, fits, gunDir, mountFree, mountsUsed, partAt, room, rotOf, socket, stats, type Build, type Placement, type Stats } from '../sim/build';
 import { CELL, EDGES, frameById, hardpointOf, HARDPOINTS, linkedStr, LOAD_CLASS, partById, verbOf, type FrameDef, type Hardpoint, type PartDef } from '../game/parts';
-import { bestFit } from '../sim/fit';
+import { bestFit, deltas } from '../sim/fit';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -14,7 +14,7 @@ import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
 import { backdrop, hullGauge, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { AFFIX_COLOR, AFFIXES, itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
-import { TIER_WORD, VERB_COLOR } from '../ui/loot-card';
+import { TIER_WORD, VERB_COLOR, verbLabel } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
 import type { DeviceId } from '../input';
 import { markKinds, reactionsOf } from '../sim/marks';
@@ -28,6 +28,10 @@ interface Bay {
   /** The part being carried, and where it came from on the grid (to put it back). */
   hand: Placement | null;
   from: Placement | null;
+  /** Where the carried part came from: the hold (it has a place there, at `sel`) or the ship. */
+  src: 'hold' | 'ship';
+  /** The ship as it was before a part was lifted off it: what a move is weighed against. */
+  base: Build | null;
   sel: number;
   ready: boolean;
   msg: string;
@@ -138,6 +142,8 @@ export class Hangar implements Screen {
       cur: { c: 1, r: 1 },
       hand: null,
       from: null,
+      src: 'hold',
+      base: null,
       sel: 0,
       ready: false,
       msg: '',
@@ -290,18 +296,21 @@ export class Hangar implements Screen {
     if (m.up) this.step(bay, f, 0, -1);
     if (m.down) this.step(bay, f, 0, 1);
     if (m.left || m.right || m.up || m.down) audio.play('ui_move', { vol: 0.5 });
-    if (crew.cargo.length) {
-      if (m.prev) bay.sel = (bay.sel + crew.cargo.length - 1) % crew.cargo.length;
-      if (m.next) bay.sel = (bay.sel + 1) % crew.cargo.length;
-      if (m.prev || m.next) audio.play('ui_move');
+    if (crew.cargo.length && (m.prev || m.next)) {
+      // carrying: trade it for the next part in the hold, so the hold can be flipped through on the ship
+      if (bay.hand) this.trade(bay, i, m.next ? 1 : -1);
+      else bay.sel = (bay.sel + (m.next ? 1 : crew.cargo.length - 1)) % crew.cargo.length;
+      audio.play('ui_move');
     }
-    bay.sel = Math.min(bay.sel, Math.max(0, crew.cargo.length - 1));
+    // (a carried part's place in the hold can be one past its end)
+    if (!bay.hand) bay.sel = Math.min(bay.sel, Math.max(0, crew.cargo.length - 1));
 
     if (m.confirm) {
       if (bay.hand) this.drop(bay, i);
       else {
         const at = partAt(b, bay.cur.c, bay.cur.r);
         if (at) {
+          bay.base = { frame: b.frame, parts: [...b.parts] };
           const was = stats(b).loadClass;
           b.parts.splice(b.parts.indexOf(at), 1);
           const now = stats(b).loadClass;
@@ -313,6 +322,7 @@ export class Hangar implements Screen {
           }
           bay.hand = { ...at };
           bay.from = at;
+          bay.src = 'ship';
           // held by its corner, so it stays where it was until moved
           bay.cur = { c: at.c, r: at.r };
           audio.play('ui_select');
@@ -320,18 +330,9 @@ export class Hangar implements Screen {
         } else if (crew.cargo.length) {
           // out of the hold into your hand: on the socket you're at if it fits there (any way
           // round), else at the best place for it. One more press bolts it on
-          const it = crew.cargo.splice(bay.sel, 1)[0];
-          const here = [0, 1, 2, 3].map((rot) => ({ ...toItem(it), c: bay.cur.c, r: bay.cur.r, rot })).find((p) => fits(b, p));
-          const best = here ?? bestFit(b, it).place;
-          if (best && fits(b, best)) {
-            bay.hand = { ...toItem(it), c: best.c, r: best.r, rot: rotOf(best) };
-            bay.cur = { c: best.c, r: best.r };
-          } else {
-            bay.hand = { ...toItem(it), c: bay.cur.c, r: bay.cur.r };
-            const why = this.blocked(b, bay.hand);
-            if (why) this.say(bay, why);
-          }
+          this.pose(bay, b, crew.cargo.splice(bay.sel, 1)[0]);
           bay.from = null;
+          bay.src = 'hold';
           audio.play('ui_select');
         } else this.say(bay, 'THE HOLD IS EMPTY');
       }
@@ -368,6 +369,65 @@ export class Hangar implements Screen {
     }
   }
 
+  /**
+   * A part into your hand: on the socket you're at if it fits there (any way round), else at the
+   * best place for it, even if that means swapping something out. One more press bolts it on.
+   */
+  private pose(bay: Bay, b: Build, it: Item) {
+    const here = [0, 1, 2, 3].map((rot) => ({ ...toItem(it), c: bay.cur.c, r: bay.cur.r, rot })).find((p) => fits(b, p));
+    const best = here ?? bestFit(b, it).place;
+    if (best) {
+      bay.hand = { ...toItem(it), c: best.c, r: best.r, rot: rotOf(best) };
+      bay.cur = { c: best.c, r: best.r };
+    } else {
+      bay.hand = { ...toItem(it), c: bay.cur.c, r: bay.cur.r };
+      const why = this.blocked(b, bay.hand);
+      if (why) this.say(bay, why);
+    }
+  }
+
+  /**
+   * The carried part for the next one in the hold (`dir` 1 on, -1 back): what you held goes into
+   * the hold in order, and the ship it's weighed against stays the ship as it was.
+   */
+  private trade(bay: Bay, i: number, dir: number) {
+    const crew = this.run.crew[i];
+    const c = crew.cargo;
+    const held = toItem(bay.hand!);
+    // a part from the hold has a place there (`sel`): put back there, the hold is as it was
+    let it: Item;
+    if (bay.src === 'hold') {
+      c.splice(bay.sel, 0, held);
+      const k = (bay.sel + dir + c.length) % c.length;
+      it = c.splice(k, 1)[0];
+      bay.sel = k;
+    } else {
+      // off the ship: it takes the slot of the one it's traded for (the hold's no fuller)
+      const k = dir > 0 ? bay.sel % c.length : (bay.sel - 1 + c.length) % c.length;
+      it = c[k];
+      c[k] = held;
+      bay.sel = dir > 0 ? k + 1 : k;
+    }
+    bay.from = null;
+    bay.src = 'hold';
+    this.pose(bay, crew.build, it);
+  }
+
+  /** What a carried part would bump off the ship dropped here: the one part in its way, if that makes room. */
+  private bumped(b: Build, p: Placement): Placement | null {
+    if (fits(b, p)) return null;
+    const inWay = new Set(cellsOf(p).map(([c, r]) => partAt(b, c, r)).filter((q): q is Placement => !!q));
+    // room enough, but its only hardpoint taken: the tool on it
+    const h = hardpointOf(partById(p.id));
+    if (!inWay.size && h && room(b, p)) {
+      const on = b.parts.filter((q) => hardpointOf(partById(q.id)) === h);
+      return on.length === 1 && fits(b, p, on[0]) ? on[0] : null;
+    }
+    if (inWay.size !== 1) return null;
+    const q = [...inWay][0];
+    return fits(b, p, q) ? q : null;
+  }
+
   /** Why a part can't go on the ship at all, for want of a hardpoint ('' if it can). */
   private blocked(b: Build, p: Placement) {
     const h = hardpointOf(partById(p.id));
@@ -379,16 +439,24 @@ export class Hangar implements Screen {
     return m.of > 1 ? `ALL ${m.of} ${name} HARDPOINTS TAKEN: LIFT ONE` : `THE ${name} HARDPOINT IS TAKEN: LIFT IT`;
   }
 
-  /** Bolts the carried part on at the cursor, if it fits. */
+  /** Bolts the carried part on at the cursor, if it fits; dropped on a part, it swaps, and that one's in your hand. */
   private drop(bay: Bay, i: number) {
     const b = this.run.crew[i].build;
     const p: Placement = { ...toItem(bay.hand!), c: bay.cur.c, r: bay.cur.r, rot: rotOf(bay.hand!) };
-    if (!fits(b, p)) return this.say(bay, this.blocked(b, p) || "NO ROOM THERE");
-    const before = stats(b);
+    const out = this.bumped(b, p);
+    if (!fits(b, p) && !out) return this.say(bay, this.blocked(b, p) || 'NO ROOM THERE');
+    const before = stats(bay.base ?? b);
+    if (out) b.parts.splice(b.parts.indexOf(out), 1);
     b.parts.push(p);
     bay.fx = { t: 0, steps: explain(b, p, before) };
-    bay.hand = null;
+    bay.hand = out ? { ...out } : null;
     bay.from = null;
+    bay.src = 'ship';
+    bay.base = null;
+    if (out) {
+      bay.msg = `SWAPPED: ${itemName(out)} IN HAND`;
+      bay.msgT = 2;
+    }
     audio.play('ui_place');
     if (stats(b).loadClass !== before.loadClass) audio.play('load_class', { pitch: 0.8 });
     this.remodel(i);
@@ -398,8 +466,10 @@ export class Hangar implements Screen {
   private stow(bay: Bay, i: number) {
     const crew = this.run.crew[i];
     if (crew.cargo.length < CARGO) {
-      crew.cargo.push(toItem(bay.hand!));
-      bay.sel = crew.cargo.length - 1;
+      // back where it was in the hold, or at the end
+      const k = bay.src === 'hold' ? Math.min(bay.sel, crew.cargo.length) : crew.cargo.length;
+      crew.cargo.splice(k, 0, toItem(bay.hand!));
+      bay.sel = k;
       audio.play('ui_back');
     } else if (bay.from && fits(crew.build, bay.from)) {
       crew.build.parts.push(bay.from);
@@ -411,6 +481,7 @@ export class Hangar implements Screen {
     }
     bay.hand = null;
     bay.from = null;
+    bay.base = null;
   }
 
   draw() {
@@ -456,35 +527,40 @@ export class Hangar implements Screen {
    * The ship as it would be: with the carried part dropped at the cursor (if it fits there), and
    * the placement in focus (that one, or whatever's under the cursor).
    */
-  private viewed(bay: Bay, b: Build): { build: Build; focus: Placement | null; lk: Links } {
+  private viewed(bay: Bay, b: Build): { build: Build; focus: Placement | null; lk: Links; out: Placement | null } {
     let build = b;
     let focus: Placement | null = partAt(b, bay.cur.c, bay.cur.r) ?? null;
+    let out: Placement | null = null;
     if (bay.hand) {
       const p: Placement = { ...bay.hand, c: bay.cur.c, r: bay.cur.r };
-      if (fits(b, p)) {
-        build = { frame: b.frame, parts: [...b.parts, p] };
+      out = this.bumped(b, p);
+      if (fits(b, p) || out) {
+        build = { frame: b.frame, parts: [...b.parts.filter((q) => q !== out), p] };
         focus = p;
       } else focus = null;
     }
-    return { build, focus, lk: links(build) };
+    return { build, focus, lk: links(build), out };
   }
 
   private area(ctx: CanvasRenderingContext2D, bay: Bay, i: number) {
     const crew = this.run.crew[i];
     const b = crew.build;
     const f = frameById(b.frame);
-    const s = stats(b);
     const x = bay.x;
     const col = hex(LIVERY[i][2]);
     const solo = !!bay.deck;
     const view = this.viewed(bay, b);
+    // weighed against the ship as it was before anything was lifted off it
+    const base = bay.base ?? b;
+    const s = stats(base);
     // header
     drawText(ctx, `P${i + 1}`, x, 26, col, { scale: 1 });
     const nw = drawText(ctx, f.name.toUpperCase(), x + 18, 26, INK);
     if (solo) drawText(ctx, f.perk.name, x + 24 + nw, 26, GOLD);
     hullGauge(ctx, crew.hull, crewHull(crew), solo ? DECK.x + DECK.w - 64 : x + 100, 26, 60);
     // the deck (solo: the ship itself from above, the grid laid over it), or the grid beside a turntable
-    const after = view.build !== b ? stats(view.build) : null;
+    const after = view.build !== base ? stats(view.build) : null;
+    const change = !after ? '' : view.out ? `IN PLACE OF ${itemName(view.out)}` : view.build !== b ? 'BOLTED ON HERE' : 'TAKEN OFF';
     const it: Item | undefined = bay.hand ?? view.focus ?? crew.cargo[bay.sel];
     const where = bay.hand ? 'hand' : view.focus ? 'ship' : 'hold';
     if (solo) {
@@ -493,7 +569,7 @@ export class Hangar implements Screen {
       ctx.clearRect(DECK.x, DECK.y, DECK.w, DECK.h);
       this.grid(ctx, bay, b, view, DECK.x + DECK.w / 2, DECK.y + DECK.h / 2, DECK.cell, true);
       this.deckLabels(ctx, bay, b, view.build);
-      this.statsBox(ctx, s, after, RIGHT, 38, 290);
+      this.statsBox(ctx, s, after, change, RIGHT, 38, 290);
       if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, RIGHT, 128, 290, i, where);
       else this.emptyCard(ctx, RIGHT, 128, 290);
       this.hold(ctx, bay, i, RIGHT, 198, 290);
@@ -503,7 +579,7 @@ export class Hangar implements Screen {
       this.grid(ctx, bay, b, view, x + 70, 93, cell, false);
       frame(ctx, x + 145, 40, 166, 106, '#0c0a14');
       ctx.clearRect(x + 146, 41, 164, 104);
-      this.statsBox(ctx, s, after, x + 145, 152, 166);
+      this.statsBox(ctx, s, after, change, x + 145, 152, 166);
       this.hold(ctx, bay, i, x, 152, 140);
       if (it) this.focusCard(ctx, it, bay.hand || view.focus ? view : null, x, 242, AREA_W - 2, i, where);
     }
@@ -512,7 +588,7 @@ export class Hangar implements Screen {
     const hy = solo ? DECK.y + DECK.h + 8 : 324;
     if (bay.msgT > 0) {
       const my = solo ? DECK.y + DECK.h - 36 : 310;
-      const good = bay.msg.startsWith('HANDED') || bay.msg.endsWith('AGAIN');
+      const good = bay.msg.startsWith('HANDED') || bay.msg.startsWith('SWAPPED') || bay.msg.endsWith('AGAIN');
       const w = textWidth(bay.msg);
       ctx.fillStyle = 'rgba(18,12,24,0.85)';
       ctx.fillRect(Math.round(hx - w / 2) - 3, my - 2, w + 6, 11);
@@ -524,7 +600,8 @@ export class Hangar implements Screen {
       drawText(ctx, solo ? 'READY' : 'READY - WAITING FOR PARTNER', hx, hy + 2, GREEN, { align: 'center' });
       hints(ctx, dev, [['back', 'NOT YET']], hx, hy + 16, 'center');
     } else if (bay.hand) {
-      hints(ctx, dev, [['confirm', 'BOLT ON'], ['alt', 'TURN'], ['back', 'TO HOLD']], hx, hy, 'center');
+      hints(ctx, dev, [['confirm', view.out ? 'SWAP' : 'BOLT ON'], ['alt', 'TURN'], ['back', 'TO HOLD']], hx, hy, 'center');
+      if (crew.cargo.length) hints(ctx, dev, [['prev', ''], ['next', 'TRADE FOR NEXT IN HOLD']], hx, hy + 16, 'center');
     } else {
       const on = partAt(b, bay.cur.c, bay.cur.r);
       hints(ctx, dev, [['confirm', on ? 'LIFT' : crew.cargo.length ? 'TAKE FROM HOLD' : 'LIFT'], ['prev', ''], ['next', 'PICK IN HOLD']], hx, hy, 'center');
@@ -538,9 +615,20 @@ export class Hangar implements Screen {
     frame(ctx, x, y, w, 84);
     drawText(ctx, `HOLD ${crew.cargo.length}/${CARGO}`, x + 6, y + 4, DIM);
     const room = Math.floor((w - 28) / 6);
+    // a part from the hold, carried, keeps its place there: a gap with its name, so Q/E reads as flipping through
+    const held = bay.hand && bay.src === 'hold' ? Math.min(bay.sel, crew.cargo.length) : -1;
+    const rows: (Item | undefined)[] = [...crew.cargo];
+    if (held >= 0) rows.splice(held, 0, bay.hand!);
     for (let k = 0; k < CARGO; k++) {
-      const it = crew.cargo[k];
+      const it = rows[k];
       const ry = y + 16 + k * 11;
+      if (k === held) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.strokeRect(x + 2.5, ry - 1.5, w - 5, 10);
+        const name = `IN HAND: ${itemName(it!)}`;
+        drawText(ctx, name.length > room + 2 ? name.slice(0, room + 1) + '.' : name, x + 8, ry, '#ffffff');
+        continue;
+      }
       const on = it !== undefined && k === bay.sel && !bay.hand;
       if (on) {
         ctx.fillStyle = '#2c2240';
@@ -560,7 +648,7 @@ export class Hangar implements Screen {
       drawText(ctx, name.length > room ? name.slice(0, room - 1) + '.' : name, x + 18, ry, on ? (tier === 'common' ? GOLD : '#ffffff') : glint ? '#fff0c0' : col);
       // its verb, as a coloured pip (a word, with room)
       const v = verbOf(def);
-      if (w > 200) drawText(ctx, v, x + w - 6, ry, VERB_COLOR[v], { align: 'right' });
+      if (w > 200) drawText(ctx, verbLabel(def), x + w - 6, ry, VERB_COLOR[v], { align: 'right' });
       else {
         ctx.fillStyle = VERB_COLOR[v];
         ctx.fillRect(x + w - 7, ry + 2, 3, 3);
@@ -645,7 +733,7 @@ export class Hangar implements Screen {
     shapeIcon(ctx, def, x + 6, y + 5, 4);
     drawText(ctx, itemName(it), x + 22, y + 4, tier === 'common' ? INK : TIER_COLOR[tier]);
     const verb = verbOf(def);
-    const vw = drawText(ctx, verb, x + w - 6, y + 4, VERB_COLOR[verb], { align: 'right' });
+    const vw = drawText(ctx, verbLabel(def), x + w - 6, y + 4, VERB_COLOR[verb], { align: 'right' });
     if (tier !== 'common') drawText(ctx, TIER_WORD[tier], x + w - 12 - vw, y + 4, TIER_COLOR[tier], { align: 'right' });
     // the part itself, turning, on the right; the words go round it
     const pw = 48;
@@ -665,7 +753,7 @@ export class Hangar implements Screen {
     if (it.trait) for (const l of wrap(`★ ${TRAITS[it.trait].name}: ${TRAITS[it.trait].text}`, tw).slice(0, 2)) lines.push([l, GOLD]);
     for (const l of wrap(def.text, tw).slice(0, it.trait || it.affix ? 1 : it.mods ? 1 : 2)) lines.push([l, '#b8acc8']);
     const hp = hardpointOf(def);
-    lines.push([hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT. ANY SOCKET` : 'A FITTING: ANY SOCKET', hp ? HARDPOINT_COLOR[hp] : DIM]);
+    lines.push([hp ? `TAKES A ${HARDPOINTS[hp].name} HARDPOINT. ANY SOCKET` : 'NO HARDPOINT NEEDED: ANY SOCKET', hp ? HARDPOINT_COLOR[hp] : DIM]);
     const pl = view?.focus ? view.lk.of(view.focus) : undefined;
     const lp = linkedPct(this.run.crew[who].build.frame);
     if (pl) {
@@ -755,7 +843,7 @@ export class Hangar implements Screen {
    * The grid. `over`: laid over the deck's 3D, so sockets are brackets and parts outlines (the
    * models show through); else drawn flat, a block per part.
    */
-  private grid(ctx: CanvasRenderingContext2D, bay: Bay, b: Build, view: { build: Build; focus: Placement | null; lk: Links }, cx: number, cy: number, cell: number, over: boolean) {
+  private grid(ctx: CanvasRenderingContext2D, bay: Bay, b: Build, view: { build: Build; focus: Placement | null; lk: Links; out: Placement | null }, cx: number, cy: number, cell: number, over: boolean) {
     const f = frameById(b.frame);
     const cols = f.grid[0].length;
     const rows = f.grid.length;
@@ -997,7 +1085,21 @@ export class Hangar implements Screen {
     }
     if (bay.hand) {
       const p: Placement = { ...bay.hand, c: bay.cur.c, r: bay.cur.r };
-      const ok = fits(b, p);
+      const ok = fits(b, p) || !!view.out;
+      // the part it would swap out, blinking red, named under the grid
+      if (view.out) {
+        // outlined and struck through, so the new part's model shows under it
+        ctx.strokeStyle = blink ? RED : '#802a2a';
+        ctx.fillStyle = ctx.strokeStyle;
+        for (const [c, r] of cellsOf(view.out)) {
+          const px = x0 + c * cell;
+          const py = y0 + r * cell;
+          ctx.strokeRect(px + 0.5, py + 0.5, cell - 3, cell - 3);
+          ctx.strokeRect(px + 1.5, py + 1.5, cell - 5, cell - 5);
+          for (let k = 3; k < cell - 4; k++) ctx.fillRect(px + k, py + k, 1, 1);
+        }
+        drawText(ctx, `SWAPS OUT ${itemName(view.out)}`, cx, over ? y0 + rows * cell + 6 : y0 + rows * cell + 4, '#ff9a6a', { align: 'center', shadow: DARK });
+      }
       if (ok && over) {
         // it's in the model already: a bright pulsing rim round it
         ctx.strokeStyle = '#ffffff';
@@ -1033,31 +1135,47 @@ export class Hangar implements Screen {
     }
   }
 
-  private statsBox(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, x: number, y: number, w: number) {
+  private statsBox(ctx: CanvasRenderingContext2D, s: Stats, after: Stats | null, change: string, x: number, y: number, w: number) {
     frame(ctx, x, y, w, 84);
     // the load first: it says how the ship will fly, and what every part costs
     loadGauge(ctx, s, after, x + 6, y + 5, w - 12, this.t);
-    // then the numbers, two to a row
-    const cells: [string, number, number | undefined, (n: number) => string, boolean?][] = [
-      ['HULL', s.hp, after?.hp, (n) => `${n}`],
-      ['SHIELD', s.shield, after?.shield, (n) => `${n}`],
-      ['ARMOUR', s.armor, after?.armor, (n) => `${n}`],
-      ['DASHES', s.dashes, after?.dashes, (n) => `${n}`],
-      ['GUNS', s.guns.length, after?.guns.length, (n) => `${n}`],
-      ['DPS', dps(s), after ? dps(after) : undefined, (n) => `${Math.round(n)}`],
-      ['SPEED', s.speed, after?.speed, (n) => `${Math.round(n)}`],
+    if (after) {
+      // a move being weighed: only what it changes, most important first
+      drawText(ctx, change, x + 6, y + 36, '#ffffff');
+      const ds = deltas(s, after).filter((d) => d.label !== 'LOAD');
+      if (!ds.length) drawText(ctx, 'NOTHING ELSE CHANGES', x + 6, y + 47, DIM);
+      const per = w > 200 ? 2 : 1;
+      const cw = Math.floor((w - 12) / per);
+      ds.slice(0, 3 * per).forEach((d, k) => {
+        const cx = x + 6 + (k % per) * cw;
+        const ry = y + 47 + Math.floor(k / per) * 11;
+        const col = d.good ? GREEN : RED;
+        const lw = drawText(ctx, d.label, cx, ry, DIM);
+        const room = cw - lw - 12;
+        let v = d.from ? `${d.from}→${d.to}` : d.to;
+        if (textWidth(v) > room && d.from) v = `→${d.to}`;
+        if (textWidth(v) > room) v = v.slice(0, Math.max(1, Math.floor(room / 6) - 1)) + '.';
+        drawText(ctx, v, cx + cw - 8, ry, col, { align: 'right' });
+      });
+      return;
+    }
+    // at rest: the numbers, a few to a row
+    const cells: [string, string][] = [
+      ['HULL', `${s.hp}`],
+      ['SHIELD', `${s.shield}`],
+      ['ARMOUR', `${s.armor}`],
+      ['DASHES', `${s.dashes}`],
+      ['GUNS', `${s.guns.length}`],
+      ['DPS', `${Math.round(dps(s))}`],
+      ['SPEED', `${Math.round(s.speed)}`],
     ];
     const per = w > 200 ? 3 : 2;
     const cw = w > 200 ? 96 : 84;
-    cells.forEach(([label, now, then, fmt, lowerBetter], k) => {
+    cells.forEach(([label, v], k) => {
       const cx = x + 6 + (k % per) * cw;
       const ry = y + 38 + Math.floor(k / per) * 11;
       drawText(ctx, label, cx, ry, DIM);
-      drawText(ctx, fmt(now), cx + 58, ry, INK, { align: 'right' });
-      if (then !== undefined && fmt(then) !== fmt(now)) {
-        const better = lowerBetter ? then < now : then > now;
-        drawText(ctx, `→${fmt(then)}`, cx + 60, ry, better ? GREEN : RED);
-      }
+      drawText(ctx, v, cx + 58, ry, INK, { align: 'right' });
     });
   }
 

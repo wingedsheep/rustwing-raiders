@@ -301,7 +301,7 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'hone', name: 'Edge Hone', cls: 'booster', tags: ['tech', 'kinetic'], rarity: 'rare', shape: [[0, 0]], mass: 0.6, boost: { hone: true },
-    text: 'A grinding wheel for touching guns: when their edge comes off, they hit three times as hard, not twice.',
+    text: 'A grinding wheel for the guns it touches: their crits hit three times as hard, not twice.',
   },
   // --- loadout: feeding the heavies, carrying the load ---------------------------------------
   {

@@ -23,6 +23,9 @@ export const VERB_COLOR: Record<Verb, string> = {
   PASSIVE: '#d08aff',
 };
 
+/** The word for what a part is: its verb, or BOOSTER for a passive that helps the guns it touches. */
+export const verbLabel = (d: PartDef) => (d.boost ? 'BOOSTER' : verbOf(d));
+
 export const TIER_WORD: Record<Tier, string> = { common: 'COMMON', rare: 'RARE', epic: 'EPIC', legendary: 'LEGENDARY' };
 
 export interface CardOpts {
@@ -190,7 +193,7 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   if (legend) glint(ctx, x + 1, y + 1, w - 2, 12, t);
   if (tier !== 'common') drawText(ctx, '◆', x + 4, y + 4, tc);
   drawText(ctx, TIER_WORD[tier], x + (tier !== 'common' ? 13 : 5), y + 4, tc);
-  drawText(ctx, verb, x + w - 5, y + 4, VERB_COLOR[verb], { align: 'right' });
+  drawText(ctx, verbLabel(base), x + w - 5, y + 4, VERB_COLOR[verb], { align: 'right' });
 
   // the part itself, turning on its sockets in a well (its shape small in the corner); the
   // shape alone, big, if it has no model
@@ -251,9 +254,9 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
   };
 
   // numbers (with the rolls already in them), the link it wants
-  const st = partStats(def).filter((s) => !s.startsWith('MASS') && !s.startsWith('SPECIAL:') && !s.startsWith('AUX:'));
-  const mass = partStats(def).find((s) => s.startsWith('MASS'));
-  for (const s of st.slice(0, 3)) {
+  const st = partStats(def).filter((s) => !s.startsWith('LOAD ') && !s.startsWith('SPECIAL:') && !s.startsWith('AUX:'));
+  const mass = partStats(def).find((s) => s.startsWith('LOAD '));
+  for (let s of st.slice(0, 3)) {
     const want = s.startsWith('NEEDS') || s.startsWith('LINK');
     if (s.startsWith('EDGE')) {
       // the gun's edge: how it wants to be flown, in crit pink (wrapped: it's the line that matters)
@@ -264,7 +267,14 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
       for (const l of ls.slice(0, 2)) line(l, '#ffa8d8', 6);
       continue;
     }
-    if (!line(s, want ? '#e0c070' : '#c8bcd8')) break;
+    // a booster's line is the whole part: who it's for, then what it does, wrapped
+    if (s.startsWith('GUNS IT TOUCHES: ')) {
+      line('FOR THE GUNS IT TOUCHES:', DIM);
+      s = s.slice(17);
+    }
+    const ls = wrap(s, w - 14);
+    if (ty + 9 * Math.min(ls.length, 2) > limit) break;
+    for (const l of ls.slice(0, 2)) line(l, want ? '#e0c070' : def.boost ? INK : '#c8bcd8');
   }
   if (mass) line(mass, DIM);
 
@@ -365,7 +375,7 @@ function foot(ctx: CanvasRenderingContext2D, f: Fit, b: Build, x: number, y: num
   const room = Math.floor((h - 17) / 9);
   const items: [string, string, string?, boolean?][] = [];
   for (const d of f.deltas) items.push([d.label, d.from ? `${d.from}→${d.to}` : d.to, d.good ? GREEN : RED]);
-  if (f.state) items.splice(Math.min(2, items.length), 0, ['', f.state.text, f.state.good ? GREEN : '#ff9a8a', true]);
+  if (f.state) items.unshift(['', f.state.text, f.state.good ? GREEN : '#ff9a8a', true]);
   if (!items.length) items.push(['', 'NO CHANGE TO SPEAK OF', DIM, true]);
   const avail = x + w - 6 - dx;
   for (const [label, val, col, whole] of items.slice(0, room)) {
