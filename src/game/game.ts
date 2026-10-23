@@ -210,6 +210,17 @@ export class Game {
     return m;
   }
 
+  /** Each player's menu presses this frame, P1 first (alone: every device, merged, is the one player). */
+  crewMenus(): MenuInput[] {
+    return this.devices.length > 1 ? this.devices.map((d) => this.menuOf(d)) : [this.menu()];
+  }
+
+  /** Whose buttons a shared screen's hints name: everyone at this screen (online, just you). */
+  hintDevices(): DeviceId[] {
+    if (this.net) return [this.net.mine];
+    return this.devices.length ? this.devices : ['keys'];
+  }
+
   /** Menu input merged over every player's device. */
   menu(): MenuInput {
     const out: MenuInput = { up: false, down: false, left: false, right: false, confirm: false, back: false, start: false, alt: false, prev: false, next: false };

@@ -9,9 +9,11 @@ import { meet, timesMet } from '../sim/memory';
 import { audio } from '../audio';
 import { bark, hush, preloadVoice, type Bark } from '../voices';
 import { input } from '../input';
-import { drawText, wrap } from '../ui/font';
-import { CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame } from '../ui/hud';
-import { button, hints } from '../ui/widgets';
+import { drawText, textWidth, wrap } from '../ui/font';
+import { CYAN, DARK, DIM, GOLD, GREEN, H, INK, RED, W, frame, hex } from '../ui/hud';
+import { LIVERY } from '../view/ship-model';
+import { button, hints, type Action } from '../ui/widgets';
+import { Accord, tag } from '../ui/accord';
 import { chipRows, TONE_INK } from '../ui/chips';
 import { lootCard } from '../ui/loot-card';
 import { bestFit } from '../sim/fit';
@@ -89,6 +91,10 @@ export class EventScreen implements Screen {
   /** Changes shown so far in the outcome's tally. */
   private shown = 0;
   private fits = new Map<Item, ReturnType<typeof bestFit>>();
+  /** Co-op: who wants which answer (a choice's place in the list), or to go on. */
+  private accord: Accord<number | 'on'>;
+  /** Co-op: who plays the game (whoever took it on). */
+  private player = 0;
 
   constructor(
     private game: Game,
@@ -99,6 +105,7 @@ export class EventScreen implements Screen {
     private onDone: (result: Result) => void,
   ) {
     this.before = run.snapshot();
+    this.accord = new Accord(run.crew.length);
     this.who = ev.who;
     const again = ev.who ? timesMet(ev.who) : 0;
     this.scene = { node, planet, again };
@@ -174,16 +181,20 @@ export class EventScreen implements Screen {
     return this.typed >= this.text.length;
   }
 
+  /** The game's controls: the one player who took it on (alone, any device). */
   private pad(): Pad {
     const out: Pad = { x: 0, y: 0, hold: false, press: false };
-    for (const d of this.game.menuDevices()) {
+    const coop = this.game.devices.length > 1;
+    const devs = coop ? [this.game.devices[this.player]] : this.game.menuDevices();
+    for (const d of devs) {
       const i = input.intent(d);
       if (Math.abs(i.x) > Math.abs(out.x)) out.x = i.x;
       if (Math.abs(i.y) > Math.abs(out.y)) out.y = -i.y;
       out.hold ||= i.fire;
+      out.press ||= this.game.menuOf(d).confirm;
     }
-    out.hold ||= input.keyHeld('Enter');
-    out.press = this.game.menu().confirm;
+    // (alone on the keyboard, Enter holds too; on a shared one it's the other player's)
+    if (!coop) out.hold ||= input.keyHeld('Enter');
     return out;
   }
 
@@ -295,6 +306,8 @@ export class EventScreen implements Screen {
       }
       return;
     }
+    const ms = this.game.crewMenus();
+    this.accord.withdraw(ms);
     const m = this.game.menu();
     if (this.phase === 'scored') {
       // the game goes on ticking, idle, so its sparks settle
@@ -317,7 +330,11 @@ export class EventScreen implements Screen {
         this.phase = 'choose';
         this.pt = 1;
         audio.play('ui_back');
-      } else if (m.confirm && this.pt > 0.25) this.accept();
+      } else if (m.confirm && this.pt > 0.25) {
+        // whoever takes it on plays it
+        this.player = Math.max(0, ms.findIndex((pm) => pm.confirm));
+        this.accept();
+      }
       return;
     }
     if (this.phase === 'roll') {
@@ -349,6 +366,8 @@ export class EventScreen implements Screen {
           this.shown = this.changes.length;
           return;
         }
+        // (co-op: everyone's read it before it moves on)
+        if (this.accord.confirm(ms, 'on') === null) return;
         audio.play('ui_select');
         hush();
         const r = this.result!;
@@ -362,7 +381,9 @@ export class EventScreen implements Screen {
     if (m.up) this.at = (this.at + n - 1) % n;
     if (m.down) this.at = (this.at + 1) % n;
     if (m.up || m.down) audio.play('ui_move');
-    if (m.confirm) this.choose();
+    if (!m.confirm) return;
+    // (an answer you can't give says why at once; one you can is the crew's to agree on)
+    if (this.choices[this.at].locked?.(this.run, this.scene) || this.accord.confirm(ms, this.at) !== null) this.choose();
   }
 
   /** Where the roll's needle is, 0..1 along the bar. */
@@ -389,21 +410,31 @@ export class EventScreen implements Screen {
     if (playing) return this.drawGame(ctx);
     this.heading(ctx);
     status(ctx, this.run, W - 8, 8);
-    const dev = g.devices[0] ?? 'keys';
     this.dialogue(ctx);
     if (this.phase === 'talk') {
-      hints(ctx, dev, [['confirm', 'GO ON']], W / 2, H - 12, 'center');
+      this.foot(ctx, [['confirm', 'GO ON']]);
     } else if (this.phase === 'choose') {
       this.drawChoices(ctx);
       const c = this.choices[this.at];
-      hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', c.game ? 'SIZE IT UP' : 'DECIDE']], W / 2, H - 12, 'center');
+      this.foot(ctx, [['move', 'CHOOSE'], ['confirm', c.game ? 'SIZE IT UP' : 'DECIDE']]);
     } else if (this.phase === 'roll') {
       this.drawRoll(ctx);
     } else if (this.phase === 'outcome') {
       this.drawOutcome(ctx);
       const r = this.result!;
-      hints(ctx, dev, [['confirm', r.fight ? 'FIGHT' : r.then ? 'GO ON' : 'ON YOU GO']], W / 2, H - 12, 'center');
+      this.foot(ctx, [['confirm', r.fight ? 'FIGHT' : r.then ? 'GO ON' : 'ON YOU GO']]);
     }
+  }
+
+  /** The hints along the foot; in co-op, once someone's voted, who wants what beside them. */
+  private foot(ctx: CanvasRenderingContext2D, items: [Action, string][]) {
+    const dev = this.game.hintDevices();
+    if (!this.accord.open) {
+      hints(ctx, dev, items, W / 2, H - 12, 'center');
+      return;
+    }
+    this.accord.banner(ctx, 8, H - 12, (k) => (k === 'on' ? 'READY TO GO ON' : this.choices[k]?.label ?? ''), this.t, 'left');
+    hints(ctx, dev, [...items.filter(([a]) => a !== 'move'), ['back', 'TAKE BACK']], W - 12, H - 12, 'right');
   }
 
   /** The painting, settling in as the scene opens; darker at the foot, where the words go. */
@@ -563,7 +594,9 @@ export class EventScreen implements Screen {
     }
     const lx = x + 8;
     let ly = y + 4;
-    drawText(ctx, c.label, lx, ly, locked ? '#6a5e78' : on ? accent : INK);
+    const lw = drawText(ctx, c.label, lx, ly, locked ? '#6a5e78' : on ? accent : INK);
+    // co-op: who's picked it
+    this.accord.tags(ctx, this.choices.indexOf(c), lx + lw + 6, ly);
     // what kind of choice it is, on the right: a game's level, a gamble's odds
     const lv = this.levels.get(c) ?? 0;
     if (c.game) {
@@ -708,7 +741,7 @@ export class EventScreen implements Screen {
     const chipH = chips.length ? chipRows(null, chips, 0, 0, pw - 40) : 0;
     const note = c.note?.(this.run, this.bold, this.scene);
     const noteL = note ? wrap(note, pw - 40).slice(0, 2) : [];
-    const ph = 132 + how.length * 10 + chipH + noteL.length * 9;
+    const ph = 132 + how.length * 10 + chipH + noteL.length * 9 + (this.run.crew.length > 1 ? 12 : 0);
     const px = Math.round((W - pw) / 2);
     const py = Math.round((H - ph) / 2 + (1 - a) * 16);
     ctx.globalAlpha = a;
@@ -755,10 +788,12 @@ export class EventScreen implements Screen {
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(bx, by, bw, 1);
     glow(ctx, bx + bw / 2, by + 7, 50, GREEN, 0.2 + 0.08 * Math.sin(this.t * 7));
-    drawText(ctx, '→ TAKE IT ON', bx + bw / 2, by + 4, DARK, { align: 'center', shadow: false });
+    const coop = this.run.crew.length > 1;
+    drawText(ctx, coop ? '→ TAKE THE STICK' : '→ TAKE IT ON', bx + bw / 2, by + 4, DARK, { align: 'center', shadow: false });
+    // co-op: one of you plays it, the one who takes it on
+    if (coop) drawText(ctx, 'ONE OF YOU FLIES IT: WHOEVER TAKES IT ON', W / 2, by - 12, GOLD, { align: 'center' });
     ctx.globalAlpha = 1;
-    const dev = this.game.devices[0] ?? 'keys';
-    hints(ctx, dev, [['confirm', 'TAKE IT ON'], ['back', 'BACK TO THE CHOICES']], W / 2, H - 12, 'center');
+    hints(ctx, this.game.hintDevices(), [['confirm', coop ? "I'LL FLY IT" : 'TAKE IT ON'], ['back', 'BACK TO THE CHOICES']], W / 2, H - 12, 'center');
   }
 
   private drawGame(ctx: CanvasRenderingContext2D) {
@@ -783,9 +818,17 @@ export class EventScreen implements Screen {
     m.draw(ctx, gw, gh, this.t);
     ctx.restore();
     drawText(ctx, m.status(), W / 2, gy + gh + 8, CYAN, { align: 'center' });
-    const dev = this.game.devices[0] ?? 'keys';
+    const coop = this.game.devices.length > 1;
+    const dev = this.game.devices[coop ? this.player : 0] ?? 'keys';
     const btn = dev === 'keys' ? 'SPACE' : button(dev, 'confirm');
-    drawText(ctx, `STICK, D-PAD OR ARROWS TO MOVE.  ${btn}: THE BUTTON`, W / 2, H - 14, DIM, { align: 'center' });
+    if (coop) {
+      // who's at the stick, their own keys
+      const line = `AT THE STICK  ·  ${button(dev, 'move')} TO MOVE.  ${btn}: THE BUTTON`;
+      const x = Math.round(W / 2 - (textWidth(line) + 20) / 2);
+      tag(ctx, this.player, x, H - 14);
+      drawText(ctx, line, x + 20, H - 14, DIM);
+      drawText(ctx, 'AT THE STICK', x + 20, H - 14, hex(LIVERY[this.player][2]));
+    } else drawText(ctx, `STICK, D-PAD OR ARROWS TO MOVE.  ${btn}: THE BUTTON`, W / 2, H - 14, DIM, { align: 'center' });
     if (this.phase === 'ready') this.drawCount(ctx, gx, gy, gw, gh);
     // GO lingers a moment into the game, shrinking away
     if (this.phase === 'play' && this.pt < 0.35) {
@@ -855,8 +898,7 @@ export class EventScreen implements Screen {
     });
     ctx.globalAlpha = 1;
     if (this.pt > STAMP_AT + 0.3) {
-      const dev = this.game.devices[0] ?? 'keys';
-      hints(ctx, dev, [['confirm', 'GO ON']], W / 2, gy + gh + 22, 'center');
+      hints(ctx, this.game.hintDevices(), [['confirm', 'GO ON']], W / 2, gy + gh + 22, 'center');
     }
   }
 }

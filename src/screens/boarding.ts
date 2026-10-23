@@ -12,6 +12,7 @@ import { drawText, textWidth } from '../ui/font';
 import { CYAN, DARK, DIM, EDGE, GOLD, GREEN, HEIST, INK, RED, VIEW, frame, hex } from '../ui/hud';
 import { flightButton, type FlightAction } from '../ui/widgets';
 import { SoundPanel, SOUND_H, SOUND_W } from '../ui/sound';
+import { Quit } from '../ui/accord';
 import { icon, iconSize, type Icon } from '../ui/board-icons';
 import { clamp } from '../util';
 
@@ -56,6 +57,8 @@ export class BoardingScreen implements Screen {
   readonly view: BoardingView;
   private acc = 0;
   private paused = false;
+  /** Cutting and running, from the pause. */
+  private quit: Quit;
   private sound = new SoundPanel();
   private done = false;
   private banners: Banner[] = [];
@@ -80,6 +83,7 @@ export class BoardingScreen implements Screen {
     frame = 'kestrel',
   ) {
     this.b = new Boarding(spec);
+    this.quit = new Quit(Math.max(1, game.devices.length));
     this.view = new BoardingView(this.b, skin, LIVERY, frame);
     this.bot = game.params.has('bot') ? new BoardBot(this.b) : null;
     this.haulFlash = new Array(this.b.crates.length + 2).fill(0);
@@ -97,14 +101,18 @@ export class BoardingScreen implements Screen {
   update(dt: number) {
     this.time += dt;
     const b = this.b;
+    const ms = this.game.crewMenus();
     const m = this.game.menu();
     if (m.start && b.state !== 'out' && b.state !== 'failed') {
       this.paused = !this.paused;
+      this.quit.reset();
       audio.play(this.paused ? 'ui_back' : 'ui_select');
       audio.muffle(this.paused);
+      // (Esc is start and back both on the keyboard: the press that pauses isn't a give-up)
+      return;
     }
     if (this.paused) {
-      if (m.back) {
+      if (this.quit.update(ms, dt)) {
         // cut and run: back to your ship with what you're carrying (the kelters don't get you)
         this.paused = false;
         audio.muffle(false);
@@ -673,21 +681,15 @@ export class BoardingScreen implements Screen {
       ['heavy', 'BLAST / SET DOWN'],
       ['focus', 'HOLD AIM'],
     ];
+    // (co-op: each player's key, side by side, where they differ)
+    const players = this.b.heroes.map((_, i) => i);
     rows.forEach(([a, word], i) => {
-      const cw = cap(ctx, this.btn(0, a), mid - 40, y + 32 + i * 14, 'left');
-      drawText(ctx, word, mid - 40 + cw + 6, y + 34 + i * 14, INK);
+      let x = mid - 40;
+      for (const label of new Set(players.map((p) => this.btn(p, a)))) x += cap(ctx, label, x, y + 32 + i * 14, 'left') + 4;
+      drawText(ctx, word, x + 2, y + 34 + i * 14, INK);
     });
-    const k = this.game.devices[0] ?? 'keys';
-    const resume = k.startsWith('pad') ? 'START' : 'ESC';
-    const quit = k.startsWith('pad') ? 'BACK' : 'Q';
     this.sound.draw(ctx, mid - SOUND_W / 2, y + 92);
-    const hy = y + 104 + SOUND_H;
-    let x = mid - 70;
-    x += cap(ctx, resume, x, hy - 2, 'left') + 4;
-    drawText(ctx, 'RESUME', x, hy, DIM);
-    x = mid + 10;
-    x += cap(ctx, quit, x, hy - 2, 'left') + 4;
-    drawText(ctx, 'CUT AND RUN', x, hy, DIM);
+    this.quit.draw(ctx, this.game.hintDevices(), mid, y + 104 + SOUND_H, 'CUT AND RUN', 'BACK TO YOUR SHIP WITH WHAT YOU CARRY');
   }
 
   dispose() {

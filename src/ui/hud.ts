@@ -22,6 +22,7 @@ import type { MarkKind } from '../game/parts';
 import type { DeviceId } from '../input';
 import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
 import { SoundPanel, SOUND_H, SOUND_W } from './sound';
+import { Quit } from './accord';
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -200,6 +201,10 @@ export class Hud {
   devs: DeviceId[] = [];
   /** The sound levels the pause shows (the flight turns them). */
   readonly sound = new SoundPanel();
+  /** Giving up, from the pause (the flight asks it). */
+  quit = new Quit(1);
+  /** Whose buttons the pause's foot names. */
+  hintDevs: DeviceId[] = [];
   /** Scrap on its way up to the tin, from where it was picked up (UI texels); it counts when it lands. */
   private motes: { x: number; y: number; t: number; v: number; bend: number }[] = [];
   /** Where the tin is, and how hard the count last jumped (1, falling away). */
@@ -797,7 +802,7 @@ export class Hud {
       slantBar(ctx, sx, 41, Math.round(sw) - 2, 4, seg, col);
     }
     // poise: fills as it's hit, and breaks
-    const pz = poiseOf(boss);
+    const pz = poiseOf(lv, boss);
     const stag = boss.state === 'stagger';
     if (stag) brokenBar(ctx, x0, 47, bw - 10, 2, this.time, GOLD);
     else bar(ctx, x0, 47, bw - 10, 2, pz, '#e8d8a0', 'rgba(42,34,54,0.7)');
@@ -1204,6 +1209,6 @@ export class Hud {
       controlsCard(ctx, this.devs[i] ?? 'keys', p, hex(LIVERY[i][2]), x0 + i * (CONTROLS_W + gap), y + 34);
     });
     this.sound.draw(ctx, mid - SOUND_W / 2, y + 44 + CONTROLS_H);
-    drawText(ctx, 'STICK / ARROWS: SOUND      START / ESC: RESUME      BACK / Q: ABANDON RUN', mid, y + 56 + CONTROLS_H + SOUND_H, DIM, { align: 'center' });
+    this.quit.draw(ctx, this.hintDevs.length ? this.hintDevs : this.devs, mid, y + 56 + CONTROLS_H + SOUND_H);
   }
 }

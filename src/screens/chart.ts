@@ -7,7 +7,8 @@ import { eventById } from '../sim/events';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
 import { CLASS_COLOR, CYAN, DARK, DIM, GOLD, GREEN, H, HEIST, INK, RED, W, frame, hex } from '../ui/hud';
-import { backdrop, haulerIcon, hullGauge, hints, strongboxIcon } from '../ui/widgets';
+import { backdrop, haulerIcon, hullGauge, hints, strongboxIcon, type Action } from '../ui/widgets';
+import { Accord } from '../ui/accord';
 import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { EncounterPreview } from '../view/encounter-preview';
@@ -133,6 +134,8 @@ export class ChartScreen implements Screen {
   private options: ChartNode[] = [];
   private anim: { kind: 'jump' | 'drift'; t: number; to: ChartNode | null; from: { x: number; y: number } } | null = null;
   private driftAsk = 0;
+  /** Co-op: who wants to go where (a site's id, or to drift, or to fight out). */
+  private accord: Accord<number | 'drift' | 'fight'>;
   private t = 0;
   private msg = '';
   private msgT = 0;
@@ -149,6 +152,7 @@ export class ChartScreen implements Screen {
   ) {
     const c = run.chart;
     this.shown = c.time;
+    this.accord = new Accord(run.crew.length);
     this.build();
     this.ship = new ShipModel(run.crew[0].build, LIVERY[0]);
     this.ship.root.scale.setScalar(0.55);
@@ -311,10 +315,13 @@ export class ChartScreen implements Screen {
     this.shown = c.time;
     this.ship.update(dt);
     this.shownPreview?.update(dt);
+    // (co-op: a jump, a drift or a fight is the crew's, so it waits for everyone; see Accord)
+    const ms = this.game.crewMenus();
+    this.accord.withdraw(ms);
     const m = this.game.menu();
     const stuck = !this.options.some((o) => this.run.canJump(c.cost(o))) && c.swept(c.nodes[c.here], c.time + 1);
     if (stuck) {
-      if (m.confirm) {
+      if (this.accord.confirm(ms, 'fight') !== null) {
         audio.play('boss_warning');
         caught(this.game);
       }
@@ -337,6 +344,7 @@ export class ChartScreen implements Screen {
           if (this.game.params.has('autorun') && !c.swept(c.nodes[c.here], c.time + 1)) this.anim = { kind: 'drift', t: 0, to: null, from: c.pos(c.nodes[c.here]) };
           return;
         }
+        if (this.accord.confirm(ms, to.id) === null) return;
         this.anim = { kind: 'jump', t: 0, to, from: c.pos(c.nodes[c.here]) };
         audio.play('warp');
         return;
@@ -357,15 +365,24 @@ export class ChartScreen implements Screen {
     }
     if (m.back) {
       if (c.swept(c.nodes[c.here], c.time + 1)) this.say('NO TIME TO WAIT: THE SWEEP IS HERE');
-      else if (this.driftAsk > 0 || this.game.params.has('autorun')) {
-        this.driftAsk = 0;
-        this.anim = { kind: 'drift', t: 0, to: null, from: c.pos(c.nodes[c.here]) };
-        audio.play('ui_select');
-      } else {
+      else if (this.accord.coop) {
+        // a back from someone with no vote out is a vote to drift
+        let go = false;
+        ms.forEach((pm, i) => pm.back && (go = this.accord.vote(i, 'drift') !== null || go));
+        if (go) this.drift();
+      } else if (this.driftAsk > 0 || this.game.params.has('autorun')) this.drift();
+      else {
         this.driftAsk = 2;
         audio.play('ui_move');
       }
     }
+  }
+
+  private drift() {
+    const c = this.chart;
+    this.driftAsk = 0;
+    this.anim = { kind: 'drift', t: 0, to: null, from: c.pos(c.nodes[c.here]) };
+    audio.play('ui_select');
   }
 
   /** Picks the nearest option in a direction on screen from the one selected. */
@@ -456,7 +473,16 @@ export class ChartScreen implements Screen {
     this.strip(ctx);
     this.legend(ctx);
     this.toasts(ctx);
+    this.accord.banner(ctx, MAP_W / 2, this.noteT > 0 && this.note ? H - 60 : H - 34, (k) => this.wish(k), this.t);
     this.panel(ctx);
+  }
+
+  /** What a co-op vote is for, in a few words. */
+  private wish(k: number | 'drift' | 'fight') {
+    if (k === 'drift') return 'DRIFT A WATCH';
+    if (k === 'fight') return 'FIGHT OUT';
+    const n = this.chart.nodes[k];
+    return `JUMP TO ${n.kind === 'event' && !n.known ? 'SOMETHING IN THE DARK' : n.name}`;
   }
 
   private overlay(ctx: CanvasRenderingContext2D) {
@@ -525,6 +551,8 @@ export class ChartScreen implements Screen {
       if (n.done || gone) continue;
       if (n.kind === 'gate' && !reach) drawText(ctx, 'WARDEN GATE', Math.min(p.x, MAP_W - 4 - textWidth('WARDEN GATE') / 2), p.y + 13, '#a83a4a', { align: 'center' });
       if (!reach) continue;
+      // who wants to go there, over it
+      this.accord.tags(ctx, n.id, p.x - (n.kind === 'gate' ? 9 : 7) - 4, p.y - 3, 'right');
       // danger pips under it, what it pays in to its right
       const d = this.run.danger(n);
       const unknown = n.kind === 'event' && !n.known;
@@ -811,7 +839,7 @@ export class ChartScreen implements Screen {
       ty += 9;
     }
     y = this.cardY();
-    const bottom = H - 38;
+    const bottom = H - 23 - 15 * (this.game.hintDevices().length > 1 ? 2 : 1);
     const n = this.picked;
     if (this.stuck) {
       frame(ctx, px, y, pw, 70, '#3a1420', '#6a2430');
@@ -823,16 +851,17 @@ export class ChartScreen implements Screen {
       wrap('Nothing in range. Drift a watch and let the planets come round.', pw - 12).forEach((l, k) => drawText(ctx, l, px + 6, y + 6 + k * 9, INK));
     }
     // controls
-    const dev = this.game.devices[0] ?? 'keys';
+    const dev = this.game.hintDevices();
     if (this.msgT > 0) {
       frame(ctx, px, bottom - 14, pw, 13, '#3a1420', '#6a2430');
       drawText(ctx, this.msg, px + pw / 2, bottom - 11, RED, { align: 'center' });
     }
     if (this.stuck) hints(ctx, dev, [['confirm', 'FIGHT OUT']], px + pw / 2, H - 20, 'center');
     else if (!this.anim) {
-      // (moving the cursor goes without saying; the rest fits the panel in two rows)
-      hints(ctx, dev, [['confirm', 'JUMP'], ['start', 'CORE'], ['alt', 'HANGAR']], px + pw / 2, H - 30, 'center');
-      hints(ctx, dev, [['back', this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH']], px + pw / 2, H - 15, 'center');
+      // (moving the cursor goes without saying; the rest fits the panel in rows, a row more for two players' keys)
+      const drift: [Action, string] = ['back', this.accord.open ? 'TAKE BACK' : this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH'];
+      const rows: [Action, string][][] = dev.length > 1 ? [[['confirm', 'JUMP']], [['start', 'CORE'], ['alt', 'HANGAR']], [drift]] : [[['confirm', 'JUMP'], ['start', 'CORE'], ['alt', 'HANGAR']], [drift]];
+      rows.forEach((r, k) => hints(ctx, dev, r, px + pw / 2, H - 15 - (rows.length - 1 - k) * 15, 'center'));
     }
   }
 

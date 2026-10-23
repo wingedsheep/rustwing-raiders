@@ -5,6 +5,7 @@ import { parseWaves } from '../sim/director';
 import { DT, type Intent } from '../sim/types';
 import { LevelView } from '../view/level-view';
 import { Hud } from '../ui/hud';
+import { Quit } from '../ui/accord';
 import { input } from '../input';
 import { audio, type Track } from '../audio';
 import { newPilot, pilot, type PilotState } from '../sim/pilot';
@@ -118,6 +119,7 @@ export class Flight implements Screen {
     const waves = game.params.get('waves');
     if (waves !== null) this.lv.director.script(parseWaves(waves));
     this.view = new LevelView(this.lv);
+    this.hud.quit = new Quit(Math.max(1, game.devices.length));
     // (&autopilot=2: only P2 is the pilot's, P1 is yours: a bot partner)
     const auto = game.params.get('autopilot');
     this.pilots = game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
@@ -127,14 +129,18 @@ export class Flight implements Screen {
   }
 
   update(dt: number) {
+    const ms = this.game.crewMenus();
     const m = this.game.menu();
     if (m.start && this.lv.state !== 'clear' && this.lv.state !== 'failed') {
       this.paused = !this.paused;
+      this.hud.quit.reset();
       audio.play(this.paused ? 'ui_back' : 'ui_select');
       audio.muffle(this.paused);
+      // (Esc is start and back both on the keyboard: the press that pauses isn't a give-up)
+      return;
     }
     if (this.paused) {
-      if (m.back) {
+      if (this.hud.quit.update(ms, dt)) {
         this.paused = false;
         audio.muffle(false);
         this.finish(false);
@@ -196,6 +202,7 @@ export class Flight implements Screen {
     this.hud.heavyKeys = g.devices.map((d) => input.heavyKey(d));
     this.hud.auxKeys = g.devices.map((d) => input.auxKey(d));
     this.hud.devs = g.devices;
+    this.hud.hintDevs = g.hintDevices();
     this.hud.draw(g.ui, this.lv, this.view, names, this.paused);
   }
 

@@ -214,29 +214,35 @@ export function flightButton(dev: DeviceId, a: FlightAction): string {
 }
 
 /** A row of "[BUTTON] WHAT" hints, centred or from the left. Returns its width. */
-export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId, items: [Action, string][], x: number, y: number, align: 'left' | 'center' | 'right' = 'left') {
-  const parts = items.map(([a, t]) => [button(dev, a), t] as const);
-  const w = parts.reduce((s, [b, t]) => s + textWidth(b) + 6 + textWidth(t) + 12, -12);
+export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId | DeviceId[], items: [Action, string][], x: number, y: number, align: 'left' | 'center' | 'right' = 'left') {
+  // (several devices: each one's key, side by side, where they differ: co-op on a shared screen)
+  const devs = Array.isArray(dev) ? dev : [dev];
+  const parts = items.map(([a, t]) => [[...new Set(devs.map((d) => button(d, a)))], t] as const);
+  const w = parts.reduce((s, [bs, t]) => s + bs.reduce((q, b) => q + textWidth(b) + 6, 0) + textWidth(t) + 12, -12);
   let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   cx = Math.round(cx);
-  for (const [b, t] of parts) {
-    // a keycap: rounded, lit along its top, a darker lip under it, a keyline round the lot
-    const bw = textWidth(b) + 4;
-    ctx.fillStyle = DARK;
-    ctx.fillRect(cx - 3, y - 2, bw + 2, 13);
-    ctx.fillRect(cx - 2, y - 3, bw, 15);
-    ctx.fillStyle = '#2a2036';
-    ctx.fillRect(cx - 2, y + 8, bw, 2);
-    ctx.fillStyle = '#4a3c5c';
-    ctx.fillRect(cx - 2, y - 2, bw, 10);
-    ctx.fillStyle = '#6a5a80';
-    ctx.fillRect(cx - 1, y - 2, bw - 2, 1);
-    drawText(ctx, b, cx, y, INK, { shadow: false });
-    cx += bw + 4;
+  for (const [bs, t] of parts) {
+    for (const b of bs) cx += keycap(ctx, b, cx, y) + 4;
     drawText(ctx, t, cx, y, DIM);
     cx += textWidth(t) + 12;
   }
   return w;
+}
+
+/** A keycap: rounded, lit along its top, a darker lip under it, a keyline round the lot. Returns its width. */
+export function keycap(ctx: CanvasRenderingContext2D, b: string, x: number, y: number) {
+  const bw = textWidth(b) + 4;
+  ctx.fillStyle = DARK;
+  ctx.fillRect(x - 3, y - 2, bw + 2, 13);
+  ctx.fillRect(x - 2, y - 3, bw, 15);
+  ctx.fillStyle = '#2a2036';
+  ctx.fillRect(x - 2, y + 8, bw, 2);
+  ctx.fillStyle = '#4a3c5c';
+  ctx.fillRect(x - 2, y - 2, bw, 10);
+  ctx.fillStyle = '#6a5a80';
+  ctx.fillRect(x - 1, y - 2, bw - 2, 1);
+  drawText(ctx, b, x, y, INK, { shadow: false });
+  return bw;
 }
 
 /** Hull as hearts. */

@@ -6,6 +6,7 @@ import { drawText, textWidth } from '../ui/font';
 import { icon, iconSize, type Icon } from '../ui/board-icons';
 import { CYAN, DARK, DIM, EDGE, GOLD, HEIST, INK, PANEL, RED, W, H, frame } from '../ui/hud';
 import { hints } from '../ui/widgets';
+import { Accord } from '../ui/accord';
 import { audio } from '../audio';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -22,6 +23,8 @@ export class BoardChoice implements Screen {
   private chosenT = 0;
   private deck: Boarding['deck'];
   private clock: number;
+  /** Co-op: who wants which (0 in the air, 1 aboard). */
+  private accord: Accord<number>;
 
   constructor(
     private game: Game,
@@ -30,6 +33,7 @@ export class BoardChoice implements Screen {
     spec: BoardSpec,
     private onChoose: (board: boolean) => void,
   ) {
+    this.accord = new Accord(run.crew.length);
     const b = new Boarding(spec);
     this.deck = b.deck;
     this.clock = b.clockMax;
@@ -43,12 +47,14 @@ export class BoardChoice implements Screen {
       if (this.chosenT > 0.55) this.onChoose(this.chosen === 1);
       return;
     }
+    const ms = this.game.crewMenus();
+    this.accord.withdraw(ms);
     const m = this.game.menu();
     if (m.left || m.right || m.up || m.down) {
       this.at = 1 - this.at;
       audio.play('ui_move');
     }
-    if (m.confirm) {
+    if (m.confirm && this.accord.confirm(ms, this.at) !== null) {
       this.chosen = this.at;
       audio.play(this.at ? 'kelter_clamp' : 'ui_select', { vol: this.at ? 0.6 : 1 });
     }
@@ -83,8 +89,13 @@ export class BoardChoice implements Screen {
       drawText(ctx, title, x + cw / 2, y + 10, on ? INK : DIM, { scale: 2, align: 'center' });
       if (i === 1) this.board(ctx, x + 12, y + 34, cw - 24, on);
       else this.air(ctx, x + 12, y + 34, cw - 24, on);
+      // co-op: who wants this one, in its corner
+      this.accord.tags(ctx, i, x + cw - 6, y + 6, 'right');
     });
-    hints(ctx, this.game.devices[0] ?? 'keys', [['move', 'CHOOSE'], ['confirm', 'GO']], W / 2, H - 16, 'center');
+    if (this.accord.open) {
+      this.accord.banner(ctx, 14, H - 16, (k) => titles[k], this.t, 'left');
+      hints(ctx, this.game.hintDevices(), [['confirm', 'GO'], ['back', 'TAKE BACK']], W - 14, H - 16, 'right');
+    } else hints(ctx, this.game.hintDevices(), [['move', 'CHOOSE'], ['confirm', 'GO']], W / 2, H - 16, 'center');
   }
 
   /** A row of pictures with a number or a word beside each, centred in `w`. */
