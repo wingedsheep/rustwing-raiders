@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HOT_BOLTS, HOT_CRACK, HULL_STEP, JUMP_WAIT, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, WELD_HEAL, type Enemy, type Level, type Player } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, WELD_HEAL, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, sigName } from '../sim/boss';
 import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
