@@ -50,7 +50,9 @@ Every biome's layout runs the same steps, in order, but each step is its own per
 6. **Breathers**: stretches with little scenery and no fire, so the busy parts read as busy.
 7. **Effects and life**: the ambient effects and moving details that belong to the bones (spray on the banks, steam on the faults, dust on the ridges), within the budget.
 
-The toolkit gives the shared parts (a route the sim can follow, a lane carved through the bones, group placement along a curve or round a point, big-to-small placement, the budget, the beat clock). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
+The toolkit gives the shared parts (a route the sim can follow, other lines to group along, a lane carved through the bones, groups whose details settle round what's already down, big-to-small placement, the budget, the beat clock, the place's effects). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
+
+**A stretch is a whole place, with a way in and a way out.** It opens and closes on beats of its own, so it reads as somewhere you flew through, not a cut from an endless strip: Red Mesa Run, the old race course, starts under its start gantry and ends under the finish. Its features fit the stretch they have: one that doesn't fit gives way to one that does, rather than to a plain run.
 
 ### Each biome's layout
 
@@ -59,7 +61,7 @@ A first idea for each painted biome, to be tried in screenshots and changed. Eve
 | Biome | Bones | Groups | Routes and posts | Beats |
 |---|---|---|---|---|
 | Salt Pans | flat salt, crossed by dry cracks and a few old haul tracks | salt pillars in tight clusters on the crack lines, wide bare salt between | skimmers race the tracks; mortars at track crossings | a stranded hauler; long bright breathers |
-| Red Mesa Run | a winding gorge, its walls, a dry wash on the floor | rubble and scrub under the cliffs and along the wash | vehicles in the wash and on ledge tracks; guns dug into the walls at the narrows | the broken arch; the depot in the wall |
+| Red Mesa Run | the old race course: a winding gorge, its stepped walls, a dry wash on the floor, the racing line's ruts; open mesa country between | fallen blocks heaped at the cliffs' feet with scree and scrub round them, scrub along the wash, hoodoo stands, tyre walls round the wash's bends | vehicles in the wash and on the depot's track; guns on the ledges at the narrows, guarding the depot, on a butte's skirt | in under the start gantry, out under the finish; the broken arch; the depot in the wall; narrows, a bowl, a split round a butte |
 | Glowcap Forest | wet hollows and the dry rises between them | caps in groups in the hollows at the sides | crawlers along the rises; spitter pods in the hollows | a ring of giant caps; a clearing |
 | Spore Vents | a field of vent lines along buried faults | vents in rows on the faults, growth thickest round them | grown things root by the vents; fliers come out of the fog | a vent column; a dead quiet stretch |
 | Aurora Shelf | a shelf edge and its crevasses | ice spires in threes and fives on the ridges | sledges on the shelf road; pylons on the ridges | a calving face; open ice |

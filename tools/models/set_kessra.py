@@ -607,10 +607,16 @@ def rope_bridge(variants):
 
 def race_gantry(variants):
     """Span: the old race's start gantry, an iron truss over the gorge hung with chequered boards
-    and lamps, rusted to the colour of the rock."""
-    r = root("kessra_race_gantry", 0)
-    rng = random.Random(3240)
-    m = Model("kessra_race_gantry_0", 3240)
+    and lamps, rusted to the colour of the rock; and the finish (variant 1), hung with one wide
+    chequered band from tower to tower."""
+    for i in range(variants):
+        _gantry(i)
+
+
+def _gantry(i):
+    r = root("kessra_race_gantry", i)
+    rng = random.Random(3240 + i)
+    m = Model(f"kessra_race_gantry_{i}", 3240 + i)
     fs = []
     for s in (-1, 1):
         fs += _cliff_leg(m, rng, r, s * 43, 6.0, 4.6)
@@ -636,7 +642,20 @@ def race_gantry(variants):
                 m.plank_line((x0, sy * 1.6, 18.4), (x0 + 4, sy * 1.6, 14.2), 0.35, 0.35, IRON[0])
     for k in range(23):
         m.box((0.4, 3.6, 0.4), (-42 + k * 4, 0, 18.4), IRON[2])
-    m.box((84, 2.6, 0.2), (0, 0, 18.8), IRON[0])                          # a catwalk on top
+    # a catwalk on top, its plates rusted to the rock's colour, lit (what's seen from up there)
+    for k in range(21):
+        m.box((3.9, 2.2, 0.2), (-40 + k * 4, 0, 18.8), ("#a85a36", "#9a4e30", "#b86a40")[k % 3])
+    if i == 1:
+        # the finish: a chequered band the width of the gorge, both faces, three rows deep
+        for k in range(40):
+            for j in range(3):
+                x = -30 + k * 1.5 + 0.75
+                m.box((1.5, 0.2, 1.2), (x, -1.95, 17.6 - j * 1.2), CHECK[(k + j) % 2])
+                m.box((1.5, 0.2, 1.2), (x, 1.95, 17.6 - j * 1.2), CHECK[(k + j + 1) % 2])
+        for k in range(10):
+            m.prism([(-0.9, 0), (0.9, 0), (0.6, -1.0), (0, -0.6), (-0.6, -1.0)], 0.1, (-36 + k * 8, -2.0, 14.0), FLAGS[k % 4])
+        m.build(r)
+        return
     # chequered boards hung off its middle, both faces, and a big lamp row
     for k in range(10):
         for j in range(2):
@@ -648,7 +667,8 @@ def race_gantry(variants):
         if abs(x) < 8:
             continue
         m.box((1.0, 0.5, 0.6), (x, -1.9, 13.9), IRON[0])
-        m.ball(0.42, (x, -2.1, 13.5), ("#ff3a2a", LAMP, "#4aff6a")[k % 3], subdiv=1, glow=True)
+        # (dead since the last race: a lit coloured speck would read as fire)
+        m.ball(0.42, (x, -2.1, 13.5), ("#6a3a30", "#7a6a50", "#3a4a3a")[k % 3], subdiv=1)
     for k in range(12):                                                    # tattered banners
         x = -38 + k * 6.9
         if abs(x) < 8:
@@ -756,7 +776,7 @@ def ironscrub(variants):
 
 def race_debris(variants):
     """Scenery: what's left of the old race course: a racer nosed into the sand, barrel barriers,
-    a checkered course pylon with its lamp still lit."""
+    a checkered course pylon, its lamp long dead."""
     for i in range(3):
         r = root("kessra_race_debris", i)
         rng = random.Random(3290 + i)
@@ -797,7 +817,7 @@ def race_debris(variants):
             tube(m, pts, [0.32, 0.3, 0.27, 0.24, 0.2], CHECK[0], segs=6, colors=[CHECK[k % 2] for k in range(4)])
             m.cyl(0.8, 0.4, (0, 0, -0.1), IRON[0], segs=6, r_top=0.6)
             top = pts[-1]
-            m.ball(0.35, (top.x, top.y, top.z + 0.2), "#ff5a2a", subdiv=1, glow=True)
+            m.ball(0.35, (top.x, top.y, top.z + 0.2), "#7a4a3a", subdiv=1)              # its lamp long dead
             m.prism([(0, 0), (1.6, -0.3), (0, -0.9)], 0.08, (top.x, top.y, top.z - 0.3), "#f0c040")
             m.box((2.6, 0.6, 0.08), (1.3, -1.2, 0.03), "#e8dcc0", rot=(0, 0, 0.3))      # a fallen banner
             m.box((0.8, 0.62, 0.09), (0.6, -1.4, 0.04), "#c83a2a", rot=(0, 0, 0.3))
@@ -809,9 +829,12 @@ def race_debris(variants):
 SCREE = ["#9a4430", "#b85a36", "#a84a30", "#c0683a"]
 SCREE_TOP = ["#e8a874", "#dc9866"]
 SCREE_SHADE = "#6a2a24"
-SAGE = ["#7a8450", "#6a7444", "#86905a"]
-SAGE_TOP = ["#b4bc7c", "#a8b070"]
-SAGE_DARK = "#3e4430"
+# (dark and dusty, so a clump reads against the floor from up there, as in the painting)
+SAGE = ["#566034", "#4a5430", "#626c3c"]
+SAGE_TOP = ["#8e9a5a", "#848e52"]
+SAGE_DARK = "#2a2e22"
+RUSTBRUSH = ["#7a3424", "#8a4228", "#6a2e22"]
+RUSTBRUSH_TOP = ["#b8643a", "#a85a34"]
 BLOOM = ["#f0c040", "#e87a3a"]
 DEADWOOD = ["#a8968a", "#988478"]
 DEADWOOD_DARK = "#7a6458"
@@ -878,13 +901,18 @@ def _bush(m, rng, x, y, R, h):
 
 def brush(variants):
     """Ground cover: desert brush, dusty sage cushions that hold the wash's banks and the ledges:
-    one round clump, three together, a low spread starred with yellow bloom."""
-    for i in range(3):
+    one round clump, three together, a low spread starred with yellow bloom, a sprawl of rust brush."""
+    for i in range(4):
         r = root("kessra_brush", i)
         rng = random.Random(3420 + i)
         m = Model(f"kessra_brush_{i}", 3420 + i)
         if i == 0:
             _bush(m, rng, 0, 0, 1.0, 1.0)
+        elif i == 3:
+            # rust brush: the red dry kind, in a low sprawl, its twigs showing through
+            for x, y, R in ((0, 0, 0.95), (1.3, 0.3, 0.7), (-0.5, 1.1, 0.6)):
+                fs = _bush(m, rng, x, y, R, 0.7)
+                recolor(m, fs, lambda f: RUSTBRUSH_TOP[rng.randrange(2)] if f.normal.z > 0.6 else RUSTBRUSH[rng.randrange(3)])
         elif i == 1:
             _bush(m, rng, 0, 0, 1.0, 1.05)
             _bush(m, rng, 1.5, 0.5, 0.7, 0.75)
@@ -1021,6 +1049,199 @@ def depot(variants):
         for k in range(5):                                                 # spill, tracks, footprints
             m.box((rng.uniform(0.6, 1.4), 0.3, 0.04), (rng.uniform(-3, 3), rng.uniform(-3.4, -2.6), 0.02), "#7a3a24",
                   rot=(0, 0, rng.uniform(-0.4, 0.4)))
+        m.build(r)
+
+
+BOULDER_BANDS = ["#9a4430", "#b0522f", "#a84a30", "#c0683a", "#8a3a2a"]
+BOULDER_TOP = ["#e0a070", "#d4925e", "#e8ac7a"]
+BOULDER_SHADE = "#5a2420"
+
+
+def _rock(m, rng, x, y, z, w, d, h, turn=0.0, tilt=(0.0, 0.0), cut=0.22):
+    """A block of the red sandstone as it splits: squared, its corners knocked off (each by its own
+    amount), its top a bedding plane, near flat; banded up its sides, the top lit, the far side deep."""
+    c, s = math.cos(turn), math.sin(turn)
+    pts = []
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        k = rng.uniform(cut * 0.4, cut)
+        for zz, shrink in ((0.0, 1.0), (rng.uniform(0.55, 0.8), rng.uniform(0.93, 1.02)), (1.0, rng.uniform(0.82, 0.95))):
+            # each corner cut back to two points, so it's a chamfer, not a box corner
+            for ax in (0, 1):
+                px = sx * w / 2 * shrink * (1 - k * ax)
+                py = sy * d / 2 * shrink * (1 - k * (1 - ax))
+                pz = z + zz * h * (1 + rng.uniform(-0.1, 0.1)) + px * tilt[0] + py * tilt[1]
+                # (and every point off true a little: weathered, not sawn)
+                px += rng.uniform(-0.07, 0.07) * w
+                py += rng.uniform(-0.07, 0.07) * d
+                pts.append((x + px * c - py * s, y + px * s + py * c, pz))
+    fs = hull(m, pts, BOULDER_BANDS[0])
+    _bands(m, fs, z + rng.uniform(-0.2, 0.2), rng.uniform(0.35, 0.55), BOULDER_BANDS[rng.randrange(5):] + BOULDER_BANDS)
+    _paint(m, fs, BOULDER_TOP[rng.randrange(3)], BOULDER_SHADE, dot=0.7, shade_dot=-0.45)
+    return fs
+
+
+def _chips(m, rng, cx, cy, R0, R1, n, size=0.5):
+    for k in range(n):
+        a = rng.uniform(0, math.tau)
+        dd = rng.uniform(R0, R1)
+        sz = rng.uniform(0.6, 1.0) * size
+        _rock(m, rng, cx + math.cos(a) * dd, cy + math.sin(a) * dd, -0.1, sz * 1.4, sz, sz * 0.6, turn=rng.uniform(0, 3),
+              cut=0.35)
+
+
+def boulder(variants):
+    """Scenery, the mid-sized forms the cliffs' feet are made of: blocks of the red sandstone that
+    fell and split, generated so no two are the same (a lone block, one split in two, a pile, a
+    slab stood on end, a toppled drum, a block with its lid slid off), each with its chips round it.
+    Under the flight line."""
+    for i in range(variants):
+        r = root("kessra_boulder", i)
+        rng = random.Random(3500 + i)
+        m = Model(f"kessra_boulder_{i}", 3500 + i)
+        kind = i % 6
+        W = rng.uniform(2.6, 3.4)
+        if kind == 0:
+            _rock(m, rng, 0, 0, -0.2, W, W * rng.uniform(0.7, 0.85), rng.uniform(1.5, 2.0), tilt=(0.06, -0.04))
+            _chips(m, rng, 0, 0, W * 0.65, W * 0.95, 6)
+        elif kind == 1:
+            # split down the middle, the halves fallen apart
+            for sx in (-1, 1):
+                _rock(m, rng, sx * (W * 0.29 + 0.25), rng.uniform(-0.2, 0.2), -0.2, W * 0.48, W * 0.8, rng.uniform(1.4, 1.8),
+                      tilt=(sx * 0.12, 0.0), turn=sx * rng.uniform(0.05, 0.15))
+            _chips(m, rng, 0, 0, W * 0.7, W, 5)
+        elif kind == 2:
+            # a pile: two on the ground, one come to rest across them
+            _rock(m, rng, -0.9, 0.2, -0.2, 1.8, 1.6, 1.3, turn=0.3)
+            _rock(m, rng, 1.0, -0.3, -0.2, 1.7, 1.5, 1.1, turn=-0.4)
+            _rock(m, rng, 0.1, 0.0, 0.9, 2.6, 1.3, 0.8, turn=0.15, tilt=(0.12, 0.0))
+            _chips(m, rng, 0, 0, 2.0, 2.8, 6)
+        elif kind == 3:
+            # a slab stood on end where it landed
+            _rock(m, rng, 0, 0, -0.3, W * 0.85, 0.9, 2.6, turn=rng.uniform(0, 1), tilt=(0.0, 0.25))
+            _rock(m, rng, 0.8, 1.3, -0.2, 1.3, 1.1, 0.8, turn=0.7)
+            _chips(m, rng, 0, 0, 1.6, 2.6, 5)
+        elif kind == 4:
+            # an old one, worn round by the wind, its bands showing, a smaller one leant on it
+            fs = lump(m, rng, (0, 0, 0.6), (W * 0.55, W * 0.45, 1.3), BOULDER_BANDS[0], n=18, flat=0.45)
+            _bands(m, fs, -0.2, 0.4, BOULDER_BANDS)
+            _paint(m, fs, BOULDER_TOP[1], BOULDER_SHADE, dot=0.72, shade_dot=-0.45)
+            _rock(m, rng, W * 0.55, -0.6, -0.2, 1.3, 1.1, 0.9, turn=0.5, tilt=(0.2, 0.0))
+            _chips(m, rng, 0, 0, W * 0.7, W, 5)
+        else:
+            # a block, its top layer slid half off
+            _rock(m, rng, 0, 0, -0.2, W, W * 0.8, 1.2)
+            _rock(m, rng, 0.7, 0.3, 0.95, W * 0.8, W * 0.7, 0.55, turn=0.25, tilt=(-0.08, 0.0), cut=0.15)
+            _chips(m, rng, 0, 0, W * 0.7, W, 5)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+TYRE = ["#2a2426", "#332c2c", "#241e20"]
+TYRE_IN = "#141012"
+# (faded by the sun: a bright red speck would read as fire)
+TYRE_PAINT = ["#a8584a", "#d8ccb4"]
+
+
+def _tyres(m, rng, x, y, n, paint=None):
+    """A stack of old tyres, a little askew, the top one's hole dark; painted bands now and then."""
+    for k in range(n):
+        ox, oy = rng.uniform(-0.1, 0.1), rng.uniform(-0.1, 0.1)
+        col = paint if (paint and k % 2 == 1) else TYRE[rng.randrange(3)]
+        m.cyl(0.62, 0.38, (x + ox, y + oy, k * 0.4), col, segs=8)
+    m.cyl(0.3, 0.06, (x, y, n * 0.4 - 0.02), TYRE_IN, segs=7)
+
+
+def tyre_wall(variants):
+    """Scenery: the old course's crash barriers, tyre stacks strung round the outside of a bend in
+    the wash (painted red and cream for the racers to aim by), one bowled over; a straight run with
+    a fallen board. Under the flight line."""
+    for i in range(2):
+        r = root("kessra_tyre_wall", i)
+        rng = random.Random(3520 + i)
+        m = Model(f"kessra_tyre_wall_{i}", 3520 + i)
+        n = 9 if i == 0 else 7
+        for k in range(n):
+            t = k / (n - 1) - 0.5
+            if i == 0:
+                # round the outside of a bend: an arc, its middle towards +y
+                a = t * 1.6
+                x, y = math.sin(a) * 6.0, math.cos(a) * 6.0 - 6.0
+            else:
+                x, y = t * 8.4, rng.uniform(-0.12, 0.12)
+            if k == n // 2 + 1:
+                # one bowled over, its tyres rolled off
+                for j in range(3):
+                    m.cyl(0.62, 0.38, (x + rng.uniform(-0.9, 0.9), y - 1.2 - j * 0.6, 0.0), TYRE[j % 3], segs=8,
+                          rot=(rng.uniform(1.2, 1.6), 0, rng.uniform(0, 3)))
+                continue
+            _tyres(m, rng, x, y, rng.choice((2, 3, 3)), TYRE_PAINT[k % 2])
+        if i == 1:
+            m.box((3.0, 1.1, 0.1), (1.2, -1.6, 0.05), TYRE_PAINT[1], rot=(0, 0, 0.25))
+            for k in range(3):
+                m.prism([(-0.35, -0.4), (0.05, 0), (-0.35, 0.4), (-0.05, 0.4), (0.35, 0), (-0.05, -0.4)], 0.12,
+                        (0.3 + k * 0.85, -1.4, 0.12), TYRE_PAINT[0], rot=(math.pi / 2, 0, 0.25))
+        m.build(r)
+
+
+def turn_board(variants):
+    """Scenery: a course board at a bend, red chevrons on cream leaned back on two posts so a
+    racer coming down the gorge could read it, pointing the way the course turns (+x); one
+    standing, one fallen. On the ledges and at the cliffs' feet."""
+    for i in range(2):
+        r = root("kessra_turn_board", i)
+        rng = random.Random(3540 + i)
+        m = Model(f"kessra_turn_board_{i}", 3540 + i)
+        lean = 0.95 if i == 0 else 1.5                                    # leaned back from upright (radians)
+        z = 1.4 if i == 0 else 0.15
+        W = 4.2
+        for sx in (-1, 1):
+            m.box((0.22, 0.22, z + 0.6), (sx * (W / 2 - 0.5), 0.3, (z + 0.6) / 2 - 0.1), IRON[0] if i else WOOD[2],
+                  rot=(0, 0, rng.uniform(-0.1, 0.1)))
+        m.box((W, 0.16, 1.5), (0, 0, z), TYRE_PAINT[1], rot=(lean, 0, 0))
+        m.box((W + 0.2, 0.12, 0.2), (0, -math.sin(lean) * 0.0 - 0.02, z + math.cos(lean) * 0.72), "#3a2a24", rot=(lean, 0, 0))
+        # (the chevrons in the board's plane, leaned with it, through both its faces)
+        for k in range(3):
+            m.prism([(-0.4, -0.55), (0.1, 0), (-0.4, 0.55), (-0.05, 0.55), (0.45, 0), (-0.05, -0.55)], 0.24,
+                    (-1.2 + k * 1.2, 0, z), TYRE_PAINT[0], rot=(lean, 0, 0))
+        m.build(r)
+
+
+def grandstand(variants):
+    """Rim dressing: the old race's stands, dug into a cliff top over the finish: stepped benches
+    of rusted iron and plank, a torn awning in the race colours, flag poles. Seen from above: the
+    stripes of the steps and the awning. Its front (-y) looks over the gorge."""
+    for i in range(2):
+        r = root("kessra_grandstand", i)
+        rng = random.Random(3560 + i)
+        m = Model(f"kessra_grandstand_{i}", 3560 + i)
+        W = 11.0 if i == 0 else 8.0
+        steps = 4
+        for k in range(steps):
+            y = -1.8 + k * 1.2
+            zt = 0.5 + k * 0.6
+            m.box((W, 1.2, zt), (0, y, zt / 2 - 0.2), IRON[k % 2] if k % 2 else "#7a5a44")
+            # benches, gaps where they rotted
+            x = -W / 2 + 0.3
+            while x < W / 2 - 0.8:
+                L = rng.uniform(1.4, 2.6)
+                if rng.random() > 0.2:
+                    m.box((min(L, W / 2 - x - 0.3), 0.45, 0.14), (x + L / 2, y - 0.2, zt - 0.1 + 0.12), WOOD[rng.randrange(3)])
+                x += L + rng.uniform(0.2, 0.6)
+        # the awning over the back rows on poles, striped, torn at one end
+        yb = -1.8 + (steps - 1) * 1.2
+        for x in (-W / 2 + 0.4, 0, W / 2 - 0.4):
+            m.cyl(0.12, 3.2, (x, yb + 0.6, 0), IRON[0], segs=5)
+        nstripe = int(W / 1.1)
+        for k in range(nstripe):
+            if i == 1 and k > nstripe - 3:
+                continue
+            x = -W / 2 + (k + 0.5) * W / nstripe
+            m.box((W / nstripe, 3.0, 0.08), (x, yb - 0.6, 3.25), FLAGS[0] if k % 2 else FLAGS[3], rot=(-0.25, 0, 0))
+        for k, x in enumerate((-W / 2 - 0.6, W / 2 + 0.6)):
+            m.cyl(0.08, 4.6, (x, yb, 0), IRON[1], segs=4)
+            m.prism([(0, 0), (1.4, -0.35), (0, -0.8)], 0.08, (x, yb, 4.5), FLAGS[k * 2 + 1])
+        for k in range(4):                                                 # litter, a fallen sheet
+            m.box((rng.uniform(0.5, 1.0), rng.uniform(0.4, 0.8), 0.05), (rng.uniform(-W / 2, W / 2), -3.0 - rng.uniform(0, 1), 0.03),
+                  ("#c8b8a0", "#8a6a44")[k % 2], rot=(0, 0, rng.uniform(0, 3)))
         m.build(r)
 
 
@@ -2053,15 +2274,19 @@ def build():
     land_yacht(2)
     rock_bridge(2)
     rope_bridge(2)
-    race_gantry(1)
+    race_gantry(2)
     hoodoo(4)
     ironscrub(3)
     race_debris(3)
     scree(4)
-    brush(3)
+    brush(4)
     deadwood(2)
     spire(3)
     depot(2)
+    boulder(8)
+    tyre_wall(2)
+    turn_board(2)
+    grandstand(2)
     colossus(2)
     henge(2)
     obelisk_span(2)

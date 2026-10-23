@@ -68,6 +68,8 @@ export class Life {
   private flockT = 3;
   private fishT = 1;
   private sprayT = 0;
+  /** The clock the placed effects turn on. */
+  private placeT = 0;
 
   constructor(
     private scene: THREE.Scene,
@@ -80,6 +82,65 @@ export class Life {
     this.wonders(dt, lv, b, halfW);
     this.fish(dt, lv, halfW);
     this.spray(dt, lv);
+    this.placed(dt, lv);
+  }
+
+  /**
+   * The place's own effects, where its layout put them (sim/layout.ts, Emitter): dust streaming
+   * off a rim, a dust devil turning out in the open, smoke over a camp, stones trickling down a
+   * face. Soft, dim and slow, never a bright speck that could be a shot, and thinner while a fight
+   * is on.
+   */
+  private placed(dt: number, lv: Level) {
+    const t = lv.terrain;
+    const quiet = 1 - 0.6 * busy(lv);
+    const wind = weather.uWindDir.value;
+    this.placeT += dt;
+    const roll = (rate: number) => Math.random() < rate * dt * quiet;
+    for (const e of t.emitters(lv.bottom + 8, lv.top - 12)) {
+      const b = t.biome(e.z);
+      switch (e.kind) {
+        case 'dust': {
+          // a sheet of dust lifted off the lip, blown out over the drop and gone
+          if (!roll(2.2)) break;
+          const z = e.z + (Math.random() - 0.5) * 6;
+          const h = t.height(e.x, z);
+          this.fx.add({ x: e.x + e.side * 0.5, y: h + 0.4, z, vx: -e.side * (2.5 + Math.random() * 2) + wind.x * 0.5, vy: -0.4, vz: 0.8 + wind.y * 0.5, size: 0.8 + Math.random() * 0.4, grow: 2, life: 1.4, glow: false, color: tone(b.ground[3], 0.85), to: tone(b.ground[2]) });
+          break;
+        }
+        case 'devil': {
+          // a column of dust wandering slowly over the floor, turning, narrow at its foot
+          const cx = e.x + Math.sin(this.placeT * 0.23 + e.z) * 5;
+          const cz = e.z + Math.cos(this.placeT * 0.17 + e.z) * 4;
+          for (let k = 0; k < 3; k++) {
+            if (!roll(10)) continue;
+            const a = this.placeT * 7 + Math.random() * Math.PI * 2;
+            const rr = 0.4 + Math.random() * 0.5;
+            const y = t.height(cx, cz) + 0.2;
+            const up = 2.6 + Math.random() * 1.6;
+            this.fx.add({ x: cx + Math.cos(a) * rr, y, z: cz + Math.sin(a) * rr, vx: -Math.sin(a) * 2.2 + Math.cos(a) * 0.6 + wind.x * 0.4, vy: up, vz: Math.cos(a) * 2.2 + Math.sin(a) * 0.6 + wind.y * 0.4, size: 0.7 + Math.random() * 0.4, grow: 3.2, life: 1.9, glow: false, color: tone(b.ground[2], 0.92), to: tone(b.ground[1]) });
+          }
+          break;
+        }
+        case 'smoke': {
+          // a cook fire or a burning drum: a thin dark thread leaning with the wind
+          if (!roll(4)) break;
+          const y = t.height(e.x, e.z) + 2.5;
+          this.fx.add({ x: e.x + (Math.random() - 0.5) * 0.6, y, z: e.z, vx: wind.x * 0.8, vy: 2.2, vz: wind.y * 0.8, size: 0.7, grow: 3.4, life: 2.6, glow: false, color: SMOKE, to: SMOKE_END });
+          break;
+        }
+        case 'trickle': {
+          // now and then a few stones come off the face, a puff where they leave it
+          if (!roll(0.5)) break;
+          const z = e.z + (Math.random() - 0.5) * 4;
+          const top = Math.max(t.height(e.x + e.side * 3, z), 6);
+          for (let k = 0; k < 3 + Math.floor(Math.random() * 3); k++)
+            this.fx.add({ x: e.x + e.side * (2 + Math.random()), y: top - Math.random(), z: z + (Math.random() - 0.5), vx: -e.side * (0.8 + Math.random()), vy: -1, gravity: 22, size: 0.22 + Math.random() * 0.18, life: 1.1, solid: true, spin: 6, color: tone(b.cliff, 0.7) });
+          this.fx.add({ x: e.x + e.side * 2, y: top, z, vx: -e.side, vy: -0.5, size: 0.9, grow: 2.2, life: 1.2, glow: false, color: tone(b.ground[3], 0.8), to: tone(b.ground[2]) });
+          break;
+        }
+      }
+    }
   }
 
   private birds(dt: number, lv: Level, b: Biome, halfW: number) {
@@ -236,4 +297,14 @@ export class Life {
 }
 
 const SPRAY = new THREE.Color(0xeaf4f8);
+/** A colour of the place's, shaded, kept (fx.add holds on to a particle's `to`). */
+const tones = new Map<number, THREE.Color>();
+const tone = (hex: number, k = 1) => {
+  const key = hex * 64 + Math.round(k * 32);
+  let c = tones.get(key);
+  if (!c) tones.set(key, (c = new THREE.Color(hex).multiplyScalar(k)));
+  return c;
+};
+const SMOKE = new THREE.Color(0x4a3a34);
+const SMOKE_END = new THREE.Color(0x8a7a70);
 const FOAM = new THREE.Color(0xa8c8d0);

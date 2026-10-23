@@ -154,6 +154,134 @@
   "mounts": [],
   "variant": 2
  },
+ "kessra_boulder#0": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   3.012,
+   1.969,
+   3.127
+  ],
+  "min": [
+   -3.192,
+   -0.325,
+   -3.42
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_boulder#1": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   2.502,
+   1.648,
+   2.363
+  ],
+  "min": [
+   -2.929,
+   -0.279,
+   -1.922
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_boulder#2": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   3.37,
+   1.866,
+   3.812
+  ],
+  "min": [
+   -3.387,
+   -0.2,
+   -2.948
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "kessra_boulder#3": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   3.104,
+   2.529,
+   2.582
+  ],
+  "min": [
+   -2.309,
+   -0.412,
+   -2.827
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "kessra_boulder#4": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   4.081,
+   1.845,
+   3.979
+  ],
+  "min": [
+   -3.58,
+   -0.33,
+   -3.246
+  ],
+  "mounts": [],
+  "variant": 4
+ },
+ "kessra_boulder#5": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   3.435,
+   1.638,
+   4.395
+  ],
+  "min": [
+   -3.32,
+   -0.2,
+   -2.382
+  ],
+  "mounts": [],
+  "variant": 5
+ },
+ "kessra_boulder#6": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   2.979,
+   1.589,
+   3.438
+  ],
+  "min": [
+   -3.313,
+   -0.326,
+   -3.206
+  ],
+  "mounts": [],
+  "variant": 6
+ },
+ "kessra_boulder#7": {
+  "colliders": [],
+  "kind": "kessra_boulder",
+  "max": [
+   2.387,
+   1.562,
+   3.253
+  ],
+  "min": [
+   -2.652,
+   -0.279,
+   -3.141
+  ],
+  "mounts": [],
+  "variant": 7
+ },
  "kessra_brine_mat#0": {
   "colliders": [],
   "kind": "kessra_brine_mat",
@@ -297,6 +425,22 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "kessra_brush#3": {
+  "colliders": [],
+  "kind": "kessra_brush",
+  "max": [
+   1.515,
+   0.757,
+   1.497
+  ],
+  "min": [
+   -2.235,
+   -0.129,
+   -2.215
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "kessra_cistern_rosette#0": {
   "colliders": [],
@@ -489,6 +633,38 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "kessra_grandstand#0": {
+  "colliders": [],
+  "kind": "kessra_grandstand",
+  "max": [
+   7.5,
+   4.6,
+   4.231
+  ],
+  "min": [
+   -6.18,
+   -0.2,
+   -2.663
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_grandstand#1": {
+  "colliders": [],
+  "kind": "kessra_grandstand",
+  "max": [
+   6.0,
+   4.6,
+   3.916
+  ],
+  "min": [
+   -4.68,
+   -0.2,
+   -2.663
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "kessra_henge#0": {
   "colliders": [
@@ -964,6 +1140,33 @@
   ],
   "mounts": [],
   "variant": 0
+ },
+ "kessra_race_gantry#1": {
+  "colliders": [
+   {
+    "r": 4.83,
+    "x": -43.0,
+    "z": -0.0
+   },
+   {
+    "r": 4.83,
+    "x": 43.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "kessra_race_gantry",
+  "max": [
+   49.172,
+   19.9,
+   6.033
+  ],
+  "min": [
+   -48.699,
+   -3.0,
+   -6.219
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "kessra_rock_bridge#0": {
   "colliders": [
@@ -1598,6 +1801,70 @@
    -50.265,
    -3.0,
    -9.099
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_turn_board#0": {
+  "colliders": [],
+  "kind": "kessra_turn_board",
+  "max": [
+   2.2,
+   1.926,
+   0.657
+  ],
+  "min": [
+   -2.2,
+   -0.1,
+   -0.657
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_turn_board#1": {
+  "colliders": [],
+  "kind": "kessra_turn_board",
+  "max": [
+   2.2,
+   0.65,
+   0.754
+  ],
+  "min": [
+   -2.2,
+   -0.1,
+   -0.754
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_tyre_wall#0": {
+  "colliders": [],
+  "kind": "kessra_tyre_wall",
+  "max": [
+   5.005,
+   1.24,
+   3.014
+  ],
+  "min": [
+   -4.97,
+   -0.616,
+   -0.659
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_tyre_wall#1": {
+  "colliders": [],
+  "kind": "kessra_tyre_wall",
+  "max": [
+   4.85,
+   1.24,
+   3.118
+  ],
+  "min": [
+   -4.881,
+   -0.619,
+   -0.717
   ],
   "mounts": [],
   "variant": 1

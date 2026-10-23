@@ -6,7 +6,7 @@
  */
 
 import type { Archetype, Biome, EnemySkin, Planet } from '../world/planets';
-import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, toFlight, type Intent } from './types';
+import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, REACH_W, toFlight, type Intent } from './types';
 import { Terrain } from './terrain';
 import { SHIELD_CELL, stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
@@ -1131,7 +1131,7 @@ export class Level {
     }
     p.x += p.vx * DT;
     p.z += p.vz * DT;
-    p.x = clamp(p.x, -HALF_W + 1.2, HALF_W - 1.2);
+    p.x = clamp(p.x, -REACH_W + 1.2, REACH_W - 1.2);
     p.z = clamp(p.z, this.top + 3, this.bottom - 2);
 
     // dash
@@ -2579,7 +2579,7 @@ export class Level {
       const d = Math.hypot(dx, dz) || 1;
       p.vx = (dx / d) * REEL;
       p.vz = (dz / d) * REEL;
-      p.x = clamp(p.x + p.vx * DT, -HALF_W + 1.2, HALF_W - 1.2);
+      p.x = clamp(p.x + p.vx * DT, -REACH_W + 1.2, REACH_W - 1.2);
       p.z = clamp(p.z + p.vz * DT, this.top + 3, this.bottom - 2);
       p.inv = Math.max(p.inv, DT * 2);
       if (d < hooked.r + 1.4) {
@@ -2824,7 +2824,7 @@ export class Level {
     let x = x0;
     let z = z0;
     for (let d = p.stats.mod.blink; d > 0; d -= 0.5) {
-      const tx = clamp(x0 + p.dashX * d, -HALF_W + 1.2, HALF_W - 1.2);
+      const tx = clamp(x0 + p.dashX * d, -REACH_W + 1.2, REACH_W - 1.2);
       const tz = clamp(z0 + p.dashZ * d, this.top + 3, this.bottom - 2);
       if (clear(tx, tz)) {
         x = tx;

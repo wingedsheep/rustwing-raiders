@@ -573,6 +573,8 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
     out.setHex(g[k]);
     // (ledges and shelves a step up: a shade lighter than the floor, not yet the tops)
     if (k === 1) out.lerp(tmpC.setHex(g[3]), 0.25);
+    // (and their edges dark: a step you can see is a step)
+    if (k === 1 && steep > 0.3) out.lerp(tmpC.setHex(b.cliff), clamp((steep - 0.3) / 0.25, 0, 1) * 0.8);
     // the floor in big soft patches of dust and darker grit, like a painter's underlayer
     if (k === 0) out.multiplyScalar(0.9 + noise2(x * 0.035, z * 0.035, 23) * 0.2);
     if (k === 3) out.lerp(tmpC.setHex(g[2]), clamp((h - 18) / 8, 0, 1) * 0.6);

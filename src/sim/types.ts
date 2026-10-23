@@ -13,6 +13,8 @@ export const TILT = (30 * Math.PI) / 180;
 /** Half the playfield on the flight plane: across (widescreen), and along (screen up/down). */
 export const HALF_W = 36;
 export const HALF_H = 26;
+/** How far across a ship can fly: out to a 16:9 screen's sides, past the field into the land round it. */
+export const REACH_W = 42.5;
 
 /** Where a thing at height `h` above (x, z) shows on the flight plane (the screen). */
 export const toFlight = (z: number, h: number) => z + (FLIGHT_Y - h) * Math.tan(TILT);

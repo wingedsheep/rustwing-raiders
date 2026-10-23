@@ -10,7 +10,7 @@ import { lookOf, type SetRole } from '../world/looks';
 import { FLIGHT_Y, HALF_W } from './types';
 import { fbm, noise2, ridged, rng, smooth, smoothstep, weighted, clamp, lerp, type Rng } from '../util';
 import { metaOf, variants, height as metaHeight } from './meta';
-import { Kit, type Bones, type Plan, type Post, type Route } from './layout';
+import { Kit, type Bones, type Emitter, type Plan, type Post, type Route } from './layout';
 import { LAYOUTS } from './layouts';
 
 export const CHUNK = 16;
@@ -293,7 +293,7 @@ export class Terrain {
         this.planCache.set(i, null);
         layout.plan(kit, bones);
         kit.props.sort((a, b) => b.z - a.z);
-        p = { beats: kit.beats, props: kit.props, posts: kit.posts, routes: [...(bones.routes ?? []), ...kit.routes] };
+        p = { beats: kit.beats, props: kit.props, posts: kit.posts, routes: [...(bones.routes ?? []), ...kit.routes], fx: kit.fx };
       }
       this.planCache.set(i, p);
     }
@@ -312,6 +312,17 @@ export class Terrain {
       const s = this.segments[i];
       if (s.z1 > z0 || s.z0 < z1) continue;
       for (const p of this.plan(i)?.posts ?? []) if (p.z <= z0 && p.z > z1) out.push(p);
+    }
+    return out;
+  }
+
+  /** The place's own effects reaching between z0 and z1 (z1 < z0), from the plans. */
+  emitters(z0: number, z1: number): Emitter[] {
+    const out: Emitter[] = [];
+    for (let i = 0; i < this.segments.length; i++) {
+      const s = this.segments[i];
+      if (s.z1 > z0 || s.z0 < z1 || !LAYOUTS[s.biome.id]) continue;
+      for (const e of this.plan(i)?.fx ?? []) if (e.z - e.len <= z0 && e.z > z1) out.push(e);
     }
     return out;
   }

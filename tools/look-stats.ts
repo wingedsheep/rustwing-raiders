@@ -483,7 +483,11 @@ export function strip(lv: Level, file: string) {
     const m = metaOf(p.kind, p.variant);
     const foot = p.foot ?? (m ? (Math.max(m.max[0] - m.min[0], m.max[2] - m.min[2]) * p.s) / 2 : 1);
     if (p.as === 'collider') for (const c of p.cols) disc(c.x, c.z, c.r, colour.collider);
-    else disc(p.x, p.z, Math.max(0.6, foot), colour[p.as]);
+    // (a span is a band across, flown under: its legs are its colliders)
+    else if (p.role === 'span') {
+      for (let x = p.x - foot; x <= p.x + foot; x += 1 / K) disc(x, p.z, 0.5, colour.set);
+      for (const c of p.cols) disc(c.x, c.z, c.r, colour.collider);
+    } else disc(p.x, p.z, Math.max(0.6, foot), colour[p.as]);
   }
   for (let s = lv.z0; s > lv.z1; s -= SCREEN) for (let px = 0; px < w; px += 2) put(px, at(0, s)[1], [0x30, 0x60, 0xd0]);
   for (let py = 0; py < h; py++) {

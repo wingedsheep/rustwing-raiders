@@ -38,8 +38,21 @@ export interface Post {
 
 /** Something to drive along, from the near end of the stretch to the far one. */
 export interface Route {
-  kind: 'wash' | 'track' | 'road' | 'water';
+  kind: 'wash' | 'track' | 'road' | 'water' | 'crack';
   pts: { x: number; z: number }[];
+}
+
+/**
+ * A place's own effect, where its bones say (step 7 of laying out): dust off a rim, a dust devil
+ * out in the open, smoke over a camp. `side` is which way it leans (a rim's dust blows off it).
+ */
+export interface Emitter {
+  kind: 'dust' | 'devil' | 'smoke' | 'trickle';
+  x: number;
+  z: number;
+  /** How far it runs along z (a rim's length), 0 for a point. */
+  len: number;
+  side: -1 | 1;
 }
 
 /** The big features the ground is shaped by. */
@@ -53,6 +66,8 @@ export interface Bones {
   /** How much (x, z) is a dry bed or a worn track (0..1), for the ground's colour. */
   wash?(x: number, z: number): number;
   routes?: Route[];
+  /** Other lines the ground is shaped by (cracks, faults): things group along them, nothing drives them. */
+  lines?: Route[];
   beats?: Beat[];
 }
 
@@ -62,6 +77,7 @@ export interface Plan {
   props: Placed[];
   posts: Post[];
   routes: Route[];
+  fx: Emitter[];
 }
 
 /** What the toolkit needs of the land (the terrain, without importing it). */
@@ -119,6 +135,7 @@ export class Kit {
   readonly props: Placed[] = [];
   readonly posts: Post[] = [];
   readonly routes: Route[] = [];
+  readonly fx: Emitter[] = [];
   private taken: { x: number; z: number; r: number }[] = [];
   /** Scenery per screen down the stretch (index: screens from its near end). */
   private counts: number[] = [];
@@ -164,7 +181,8 @@ export class Kit {
   put(kind: string, x: number, z: number, o: Put = {}): Placed | null {
     if (z > this.z0 || z <= this.z1) return null;
     const sc = this.screen(z);
-    const scenery = !o.rim;
+    // (what's on a rim counts when it's on screen: it's as much in the picture)
+    const scenery = !o.rim || inField(x, -10);
     if (scenery && (this.counts[sc] ?? 0) >= this.budget) return null;
     const p = o.rim ? this.onRim(kind, x, z) : this.ground.place(kind, x, z, this.r, this.biome);
     if (!p) return null;
@@ -197,27 +215,37 @@ export class Kit {
    */
   group(x: number, z: number, g: Group): Placed[] {
     const out: Placed[] = [];
+    // (a group the screen hasn't room for is left out whole: one cut short is a lone stone)
+    if (!g.rim || inField(x, -10)) {
+      const sc = z <= this.z0 && z > this.z1 ? this.screen(z) : -1;
+      if (sc >= 0 && (this.counts[sc] ?? 0) + Math.ceil(g.n * 0.75) > this.budget) return out;
+    }
     const r = this.r;
     const c = Math.cos(g.along ?? 0);
     const sn = Math.sin(g.along ?? 0);
     const st = g.stretch ?? 1;
     for (let i = 0, tries = 0; i < g.n && tries < g.n * 6; tries++) {
-      // the first in the middle; the rest out round it, further for the later (smaller) ones
+      // the first in the middle; each of the rest settles against one already down (the details
+      // gather round what's there, never strewn), the later ones smaller, all within the spread
       const k = i / Math.max(1, g.n - 1);
       const a = r() * Math.PI * 2;
-      const d = i === 0 ? 0 : g.spread * (0.3 + 0.55 * Math.sqrt(k)) * (0.7 + r() * 0.5);
+      const by = out.length ? out[Math.floor(r() * out.length)] : null;
+      const d = by ? this.reach(by.kind, by.s, by.variant) * 0.7 + g.spread * 0.2 * (0.5 + r()) : 0;
       const u = Math.cos(a) * d * st;
       const v = Math.sin(a) * d;
       // (stretched along `along`: u runs that way)
-      const px = x + u * sn + v * c;
-      const pz = z - u * c + v * sn;
+      const px = (by?.x ?? x) + u * sn + v * c;
+      const pz = (by?.z ?? z) - u * c + v * sn;
+      if (Math.hypot(px - x, (pz - z) / st) > g.spread * 1.2) continue;
       if (g.keep && !g.keep(px, pz)) continue;
       const kind = i === 0 && g.kinds.length > 1 ? g.kinds[0][0] : weighted(r, g.kinds);
       const big = g.big === 'fit' ? 'fit' : g.big;
       const s: Size = i === 0 ? big : lerp(typeof big === 'number' ? big : 1.4, g.small, smooth(k)) * (0.85 + r() * 0.3);
       // (the details nestle in against what's there; only the first keeps its room)
       const p = this.put(kind, px, pz, { s, rim: g.rim, pad: i === 0 ? 0.2 : -this.reach(kind, typeof s === 'number' ? s : 1) * 0.45 });
-      if (p) out.push(p);
+      // (only what's put down counts: a group that lost half its members to crowding reads as strewn)
+      if (!p) continue;
+      out.push(p);
       i++;
     }
     return out;
@@ -227,10 +255,10 @@ export class Kit {
    * A set piece (see world/looks.ts) at (x, z), turned `rot`: a span across (its legs out in the
    * rock), a gate, a giant lying under you.
    */
-  set(kind: string, role: SetRole, x: number, z: number, rot: number): Placed | null {
+  set(kind: string, role: SetRole, x: number, z: number, rot: number, variant = Math.floor(this.r() * variants(kind).length)): Placed | null {
     const vs = variants(kind);
     if (!vs.length || z > this.z0 || z <= this.z1) return null;
-    const variant = Math.floor(this.r() * vs.length);
+    variant = Math.min(variant, vs.length - 1);
     const m = vs[variant];
     const cols = turned(m, x, z, rot, 1);
     const p: Placed = { kind, variant, x, z, y: role === 'giant' ? this.ground.height(x, z) - 0.2 : 0, rot, s: 1, obstacle: cols.length > 0, cols, biome: this.biome, role };
@@ -253,6 +281,12 @@ export class Kit {
     this.claim(x, z, this.reach(kind, s, p.variant) * 0.9);
     this.props.push(p);
     return p;
+  }
+
+  /** An effect of the place's own (see Emitter). */
+  emit(kind: Emitter['kind'], x: number, z: number, len = 0, side: -1 | 1 = 1) {
+    if (z > this.z0 || z - len <= this.z1) return;
+    this.fx.push({ kind, x, z, len, side });
   }
 
   /** A post worth guarding. */

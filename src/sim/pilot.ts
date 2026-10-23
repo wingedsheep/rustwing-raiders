@@ -16,7 +16,7 @@
 import { kitPilot } from './kit';
 import type { Bullet, Level, Player } from './level';
 import type { Gun } from './build';
-import { DT, HALF_H, HALF_W, type Intent } from './types';
+import { DT, HALF_H, HALF_W, REACH_W, type Intent } from './types';
 import { clamp, rng, type Rng } from '../util';
 import { holdFire, targetWorth, threatCost, threatDash } from './dodge';
 import { canParryProjectile } from './parry';
@@ -415,7 +415,7 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
   for (let i = 0; i < STEPS.length; i++) {
     const t = STEPS[i];
     const lag = Math.min(t, 0.07);
-    x = clamp(p.x + p.vx * lag + tvx * (t - lag), -HALF_W + 1.2, HALF_W - 1.2);
+    x = clamp(p.x + p.vx * lag + tvx * (t - lag), -REACH_W + 1.2, REACH_W - 1.2);
     const sz = clamp(p.z - lv.scroll + p.vz * lag + tvz * (t - lag), -HALF_H + 3, HALF_H - 2);
     z = lv.scroll - scroll * t + sz;
     const weight = 1.6 - t;

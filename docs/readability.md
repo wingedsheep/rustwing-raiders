@@ -74,18 +74,6 @@ Today a prop is a collider at 11 or taller and scenery reaches 8.5, with nothing
 - **Pass, collider map:** a debug frame with every collider tinted, next to the normal frame. In the five-second test, newcomers pick out the same things as solid.
 - **Pass, look:** fly into a collider. It stays solid all the way.
 
-### Push 10: the generator, and Red Mesa's layout
-The [shared toolkit](level-design.md#the-shared-toolkit) and the first biome layout on it, Red Mesa Run's [row](level-design.md#each-biomes-layout). Today each chunk scatters props at random x, landmarks up to 26 wide included. Build the toolkit so a second, very different layout (Salt Pans or Tide Caves) fits it without changes: try it as a sketch before the push closes.
-
-- **Pass, screenshots:** a set of twelve seeds, calm and mid-fight, in today's models. On every screen you can say why each group is where it is.
-- **Pass, big and small:** every screen has a few big forms with details gathered round them. No screen is all crumbs, all blocks, or one size everywhere.
-- **Pass, second layout:** a rough Salt Pans or Tide Caves layout on the same toolkit, in a strip and a few stills. It reads as a different place laid out by different rules.
-- **Pass, clumping:** clearly below 1 (start at ≤ 0.7), against today's score of about 1.
-- **Pass, open lane:** at least three ship widths on every screen.
-- **Pass, budget:** no screen over its budget, and at most one landmark per screen.
-- **Pass, seeds:** twelve seeds look like one family.
-- **Pass, strip:** the level has visible bones, beats and breathers.
-
 ### Push 11: foes that belong where they are
 The generator places the foes: vehicles along the wash and the canyon tracks, turrets dug into the walls at the narrows and guarding the depot, fliers coming in over the rim. Any foe in the roster whose route the canyon lacks moves to a biome that has it.
 
@@ -103,7 +91,7 @@ A first guess at the families, to be changed as the rows get written:
 | Push | Family | Biomes |
 |---|---|---|
 | 12 | Gorges and walls | mesarun, tidecaves, bonearch, basalt |
-| 13 | Open flats | saltpans, tundra, coralflats, oasis |
+| 13 | Open flats | saltpans (from the sketch in `src/sim/layouts/saltpans.ts`), tundra, coralflats, oasis |
 | 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap, fernwood, whitewood, orchards, jade |
@@ -111,7 +99,7 @@ A first guess at the families, to be changed as the rows get written:
 | 18 | Monuments and giants | titans, monoliths, temple, arkbones |
 | 19 | Sky and ice | stormwall, shelf |
 
-Each family push passes push 10's and push 11's checks for every biome in it, and:
+Each family push passes push 11's checks for every biome in it, and the generator's: a set of twelve seeds, calm and mid-fight, where you can say why each group is where it is; a few big forms on every screen with the details gathered round them; clumping at most 0.7; an open lane of at least three ship widths; no screen over its budget and at most one landmark on it; twelve seeds that look like one family; a strip with visible bones, beats and breathers; a way in and a way out. And:
 
 - **Pass, screenshots:** each biome's set passes every principle.
 - **Pass, squint:** next to each other, the family's biomes read as different places, not one layout reskinned.

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Enemy, Level, LevelEvent, Player } from '../sim/level';
-import { FLIGHT_Y, HALF_H, HALF_W, TILT, fromFlight, toFlight } from '../sim/types';
+import { FLIGHT_Y, HALF_H, HALF_W, REACH_W, TILT, fromFlight, toFlight } from '../sim/types';
 import { WorldView } from './world-view';
 import { NearLayer, PUFF } from './near';
 import { xray } from './xray';
@@ -199,10 +199,10 @@ export class LevelView {
   private shots: THREE.InstancedMesh;
   private beams: THREE.Mesh[] = [];
   private laserMeshes: THREE.Mesh[] = [];
-  private balls: { ball: THREE.Group; links: THREE.Mesh[] }[] = [];
-  /** ARU-0's ballast: plates of its company hull, thrown flat and spinning. */
   /** Each laser as last heard: charging, or burning (its sound plays as it changes). */
   private laserHeard = new WeakMap<object, 'warn' | 'on'>();
+  private balls: { ball: THREE.Group; links: THREE.Mesh[] }[] = [];
+  /** ARU-0's ballast: plates of its company hull, thrown flat and spinning. */
   private plates: THREE.Group[] = [];
   private bolts: { mesh: THREE.Mesh; t: number }[] = [];
   private clouds: { obj: THREE.Group; x: number; z: number; drift: number }[] = [];
@@ -2105,6 +2105,11 @@ export class LevelView {
       this.halfW = FIELD_W / 2;
       this.halfH = this.halfW / aspect;
     }
+    // (and as far across as a ship can fly, so it's never off the screen's side)
+    if (this.halfW < REACH_W) {
+      this.halfW = REACH_W;
+      this.halfH = REACH_W / aspect;
+    }
     this.halfW *= this.zoom * (1 + this.punchZ);
     this.halfH *= this.zoom * (1 + this.punchZ);
     const c = this.camera;
@@ -3188,12 +3193,6 @@ export class LevelView {
       const dx = l.x2 - x0;
       const dz = l.z2 - z0;
       const len = Math.hypot(dx, dz);
-      m.visible = true;
-      m.position.set(x0 + dx / 2, FLIGHT_Y + 0.9, z0 + dz / 2);
-      m.rotation.y = Math.atan2(dx, dz);
-      const mat = m.material as THREE.MeshBasicMaterial;
-      m.children[0].visible = l.warn <= 0 && !l.tow;
-      if (l.warn > 0) {
       // its sound: a rising whine as it charges, the crack and roar as it fires (not a tow line,
       // and not a lane only drawn for a blink)
       const now = l.warn > 0 ? 'warn' : 'on';
@@ -3204,6 +3203,12 @@ export class LevelView {
         if (now === 'warn') audio.play('laser_charge', { pan, vol: 0.45 });
         else if (l.on > 0.05) audio.play('laser_fire', { pan, vol: 0.55 });
       }
+      m.visible = true;
+      m.position.set(x0 + dx / 2, FLIGHT_Y + 0.9, z0 + dz / 2);
+      m.rotation.y = Math.atan2(dx, dz);
+      const mat = m.material as THREE.MeshBasicMaterial;
+      m.children[0].visible = l.warn <= 0 && !l.tow;
+      if (l.warn > 0) {
         // the warning: a thin flickering line, faster as it's about to fire
         const on = Math.floor(this.time * (8 + (1 - l.warn) * 30)) % 2 === 0;
         m.visible = on;
