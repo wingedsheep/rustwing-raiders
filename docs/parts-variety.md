@@ -1,6 +1,6 @@
 # The arsenal (draft)
 
-A draft, 2026-10-23, not agreed yet. The aim: a wide arsenal where every part fires, moves or protects in its own way, and pilots end up with favourites. Read with [combat and builds](combat-and-builds.md); this only touches the **Ship** layer.
+A draft, 2026-10-23, not agreed yet. The aim: a wide arsenal where every part fires, moves or protects in its own way, and pilots end up with favourites. Read with [combat and builds](combat-and-builds.md); this only touches the **Ship** layer. How a weapon should look and feel, and how to model it: [enemy and weapon design](enemy-and-weapon-design.md).
 
 ## The rule: every part has a personality
 

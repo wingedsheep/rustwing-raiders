@@ -1,6 +1,6 @@
 # Bosses
 
-One boss a planet, met at the end of its sector. This folder tracks how far along each one is: who it is, how its fight dances, its model and animation, and its music. This page has the scores and what they all share; each boss has a page of its own (linked from the table). Enemies have their own folder ([`docs/enemies/`](../enemies/README.md)).
+One boss a planet, met at the end of its sector. This folder tracks how far along each one is: who it is, how its fight dances, its model and animation, and its music. This page has the scores and what they all share; each boss has a page of its own (linked from the table). Enemies have their own folder ([`docs/enemies/`](../enemies/README.md)). The rules for designing one are in [enemy and weapon design](../enemy-and-weapon-design.md): read them first.
 
 Code: `src/sim/boss.ts` (the fight), `tools/models/bosses.py` (the models), `src/view/boss-pose.ts` (poses and facing), `src/audio.ts` (`TRACKS`, the boss themes). Each boss's name, title and colours live in `src/world/planets.ts`.
 

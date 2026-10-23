@@ -1,6 +1,6 @@
 # Enemies: where each one stands
 
-Every regular enemy in the game, how worked-out it is, and what it still needs. This page has the scores and what they share; each enemy has a page of its own (linked from the table and the lists below). Bosses are in [`docs/bosses/`](../bosses/README.md).
+Every regular enemy in the game, how worked-out it is, and what it still needs. This page has the scores and what they share; each enemy has a page of its own (linked from the table and the lists below). Bosses are in [`docs/bosses/`](../bosses/README.md). The rules for designing one are in [enemy and weapon design](../enemy-and-weapon-design.md): read them first.
 
 Each page opens with **who it is** (who builds or breeds it, and why it fights the way it does, from the [lore](../lore/README.md)) and a **ship's log** line: what your own core would write about it ([tone](../lore/tone.md#how-its-told), rule 7; not built). The old guard's pages also list what each planet's version is (**worn as**).
 
