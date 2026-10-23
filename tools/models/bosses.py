@@ -897,145 +897,260 @@ def boss_ashgrave():
     mount(root, (2.0, 2.2, 5.5), "weak")
 
 
-# --- VESH: QUEEN ISTRA, a pirate queen in a hollowed sky-whale ------------------------------------
+# --- VESH: QUEEN ISTRA, a pirate queen in a dead umora's shell -----------------------------------
 #
-# The Throne-Whale: the bull umora Istra brought in to win the Tidecall, hollowed by her Court and
-# flown as her flagship. From above: a long blue-grey whale, its back opened to a deck under arched
-# ribs, the queen's cabin at the stern and Istra herself on its roof (a red coat, a black hat, a
-# pink plume: what you aim at), a mast amidships. Parts hinge where she moves (head and jaw, the
-# flippers, the tail and its fluke, a gun-port lid for each gun, the queen's arm) for her poses
-# (see ISTRA_POSES). Her hunting gear goes in the second phase (the whaleboats on their davits and
-# the planks over her gun ports: `shed=1`), her crew's rigging in the third (mast, sail, crow's
-# nest, the deck huts: `shed=2`), and she's left alone at the helm.
+# The Throne-Shell: the hollowed shell of Ume'ayo, the bull umora Istra brought in to win the
+# Tidecall (docs/npcs/the-umora.md). From above: a string of glass-like blue-grey chambers, each ringed
+# with its growth lines and pinched at the joins, an intake of grinding plates at the bow and a vent
+# at the stern, the two black vanes cut down and worked on cables. The Court opened the two great
+# chambers into a deck, braced it with steel, set her reactor glowing pink in the heart chamber,
+# bolted drives either side of the vent and a bridge on the third chamber, with Istra herself on its
+# roof (a red coat, a black hat, a pink plume: what you aim at), a mast amidships. Parts hinge
+# where she moves (the bow chamber and its intake's lower plates, each vane, the tail chambers and
+# the vent, a gun-port hatch for each gun, the queen's arm) for her poses (see ISTRA_POSES). Her
+# hunting gear goes in the second phase (the harpoon skiffs on their davits and the plates bolted
+# over her gun ports: `shed=1`), her crew's rigging in the third (mast, solar sail, sensor dish,
+# deck cabins: `shed=2`), and she's left alone at the helm.
+
+def ix(pts, k=1.0, ky=1.0):
+    """A half outline (right side, bow to stern) closed with its mirror, x scaled by k."""
+    half = [(x * k, y * ky) for x, y in pts]
+    return ccw(half + [(-x, y) for x, y in reversed(half) if abs(x) > 1e-6])
+
+
+def bead(y0, y1, w, k=1.0, front=0.78, back=0.78):
+    """One chamber's outline from above: a long lens, full width amidships and narrowing to its
+    joins (front and back give each end's width), scaled by k about its own middle."""
+    c, h = (y0 + y1) / 2, (y1 - y0) / 2
+    half = [(front, -1.0), (0.4 + front * 0.6, -0.62), (1.0, -0.2), (1.0, 0.2), (0.4 + back * 0.6, 0.62), (back, 1.0)]
+    return ix([(x * w * k, c + y * h * k) for x, y in half])
+
+
+def chamber(m, y0, y1, w, z0, z1, cols, rings=2, open_top=None, **ends):
+    """A chamber of shell: a narrow keel, full walls, a rounded shoulder and its growth lines on top
+    (cols: keel, wall, shoulder, ring, ring...). open_top=(rim, deck): cut open by the Court instead,
+    its pale cut edge round a deck."""
+    keel, wall, shoulder, *ring = cols
+    zm = z0 + (z1 - z0) * 0.3
+    m.slab(bead(y0, y1, w, 0.62, **ends), z0, zm, keel, top=bead(y0, y1, w, 0.95, **ends))
+    m.slab(bead(y0, y1, w, 0.95, **ends), zm, zm + 0.25, keel)
+    if open_top:
+        rim, deck = open_top
+        m.slab(bead(y0, y1, w, **ends), zm + 0.25, z1 - 0.1, wall)
+        m.slab(bead(y0, y1, w, **ends), z1 - 0.1, z1, rim)
+        m.slab(bead(y0, y1, w, 0.86, **ends), z1, z1 + 0.1, deck)
+        return
+    m.slab(bead(y0, y1, w, **ends), zm + 0.25, z1 - 0.4, wall)
+    m.slab(bead(y0, y1, w, **ends), z1 - 0.4, z1, shoulder, top=bead(y0, y1, w, 0.8, **ends))
+    for k in range(rings):                                                     # growth lines
+        m.slab(bead(y0, y1, w, 0.62 - k * 0.2, **ends), z1, z1 + 0.04 + k * 0.03, ring[k % len(ring)])
+
 
 def boss_vesh():
     BLUE, BONE, PINK = hexc(0x5a8ab0), hexc(0xf0e8d8), hexc(0xff4a6a)
-    BLUE2, BLUE3, BELLY = "#3a6a94", "#2a4a6a", "#c8d8e0"
-    WOOD, WOOD2, CLOTH, RED, HAT = "#8a5a3a", "#5a3a26", "#d8ccb0", "#b02a3a", "#1e1a22"
-    SCAR, LAMP = "#7a3a4a", hexc(0xffb060)
+    BLUE2, BLUE3, KEEL = "#3a6a94", "#2a4a6a", "#9cb8c8"
+    SHELL, CLEAR, RING, DECKM = "#6a94b2", "#c8e2ee", "#8cb2c8", "#4a525e"
+    VANE, SHEEN, SPINE = "#1a1e2c", "#3e3866", "#b8d0dc"
+    PLATE, FRAME = "#4e7ea4", "#a8b2bc"
+    CLOTH, RED, HAT = "#d8ccb0", "#b02a3a", "#1e1a22"
+    SCAR, LAMP, EYE, HOT = "#7a3a4a", hexc(0xffb060), "#8af0ff", "#ff8aa0"
+    WALL = (KEEL, BLUE, SHELL, RING, CLEAR)
     root = group("boss_vesh", kind="boss_vesh")
     whale = group("istra_whale", loc=(0, 0, 2.4), parent=root)
 
-    # the hulk: a long body with a pale belly, barnacles and old harpoon scars, its back cut open
+    # the shell: four chambers bow to stern, the two great ones cut open into the Court's deck
     m = Model("istra_body", seed=2)
-    m.ball(3.0, (0, 0.2, 0), BLUE, subdiv=2, scale=(1.05, 2.4, 0.85))
-    m.ball(2.7, (0, -0.2, -0.65), BELLY, subdiv=1, scale=(1.0, 2.3, 0.55))
-    for x, y, z in ((-2.6, 2.2, 0.9), (2.7, -1.3, 1.0), (-2.4, -2.6, 1.3), (2.2, 3.4, 1.2), (0.6, 4.6, 1.6)):
-        m.ball(0.32, (x, y, z), BONE, subdiv=0)                                   # barnacles
-    for x, y in ((2.85, 1.2), (-2.9, 0.4), (2.6, 3.0)):
-        m.box((0.16, 1.1, 0.12), (x, y, 0.4), SCAR, rot=(0, 0, 0.5))               # old harpoon scars
-    # the deck in the hollow, and the ribs arching over it
-    m.slab(ccw([(-1.9, -3.0), (1.9, -3.0), (2.1, 3.8), (-2.1, 3.8)]), 1.55, 2.0, WOOD)
-    for y in (-3.0, -0.9, 1.2, 3.3):
-        m.box((4.0, 0.12, 0.08), (0, y + 0.5, 2.02), WOOD2)                          # deck seams
-    for y in (-2.5, -1.2, 0.1, 1.4, 2.7):
-        for sx in (1, -1):
-            pts = [(sx * 2.55, y, 1.3), (sx * 2.45, y, 2.8), (sx * 1.3, y, 3.65)]
-            for p0, p1 in zip(pts, pts[1:]):
-                m.plank_line(p0, p1, 0.34, 0.34, BONE)
-    # the whale's heart, glowing between the ribs (a weak point)
-    m.cyl(0.7, 0.4, (0, 0.1, 1.95), "#5a1a2a", segs=7)
-    m.ball(0.6, (0, 0.1, 2.45), PINK, subdiv=1, glow=True)
-    # the queen's cabin at the stern: carved bone gallery windows, warm light
-    m.box((3.0, 2.0, 1.5), (0, 3.6, 2.7), WOOD)
-    m.box((3.2, 0.2, 0.2), (0, 2.6, 3.45), BONE)
-    m.box((2.0, 0.1, 0.45), (0, 2.58, 2.85), LAMP, glow=True)
-    m.box((3.3, 2.2, 0.16), (0, 3.6, 3.5), WOOD2)                                  # its roof, her quarterdeck
+    chamber(m, -3.7, -0.9, 2.9, -1.25, 1.9, WALL, open_top=(CLEAR, DECKM), front=0.92, back=0.9)
+    chamber(m, -1.0, 3.0, 3.2, -1.35, 1.9, WALL, open_top=(CLEAR, DECKM), front=0.82)     # the heart chamber
+    chamber(m, 2.9, 5.1, 2.6, -1.15, 1.75, WALL, rings=3)
+    chamber(m, 5.0, 6.6, 1.95, -0.95, 1.45, WALL, rings=2)
+    for y in (-0.95, 2.95, 5.05):                                             # the joins, pinched dark
+        m.box((2.2 if y < 4 else 1.6, 0.14, 2.4), (0, y, 0.3), BLUE3)
     for sx in (1, -1):
-        m.box((0.14, 2.0, 0.4), (sx * 1.6, 3.6, 3.75), BONE)                       # rail
+        for y0, y1, w in ((-3.4, -1.2, 2.9), (-0.6, 2.6, 3.2)):                # growth lines down the flanks
+            for k in range(3):
+                m.box((0.08, (y1 - y0) * (0.8 - k * 0.15), 0.08), (sx * (w + 0.02 - k * 0.04), (y0 + y1) / 2, -0.5 + k * 0.45), RING)
+        m.box((0.06, 1.6, 0.5), (sx * 3.22, 1.0, 0.1), "#c86a8a")               # the reactor's glow through the glass
+        m.box((0.7, 0.4, 0.5), (sx * 2.3, -2.3, 1.75), DARK)                    # the vane winches
+        m.cyl(0.3, 0.6, (sx * 2.3, -2.3, 2.05), STEEL, segs=6, rot=(0, math.pi / 2, 0))
+    # old irons scored into the shell, and plates bolted over the holes they made
+    for x, y, z, r in ((3.05, 1.8, 0.5, 0.5), (-2.95, -0.2, 0.2, -0.4), (2.5, 4.0, 0.6, 0.7), (-2.4, 3.6, 0.9, -0.6)):
+        m.box((0.18, 1.0, 0.12), (x, y, z), SCAR, rot=(0, 0, r))
+    for x, y, z in ((-3.12, 1.6, 0.6), (2.5, 3.5, 1.0)):
+        m.box((0.12, 0.9, 0.7), (x, y, z), PLATE)
+        for dy in (-0.32, 0.32):
+            m.box((0.16, 0.12, 0.12), (x * 1.02, y + dy, z + 0.24), STEEL)
+    # the deck: seams, a hazard edge at its bow end, steel straps across the open chambers
+    for y in (-2.4, 0.0, 2.0):
+        m.box((3.6, 0.1, 0.04), (0, y, 2.02), BLUE3)
+    m.box((0.1, 5.6, 0.04), (0, -0.4, 2.02), BLUE3)
+    for i in range(-3, 4):
+        m.box((0.24, 0.4, 0.05), (i * 0.42, -3.1, 2.02), "#f0c020" if i % 2 else HAT, rot=(0, 0, 0.6))
+    for y in (-2.0, 1.5):
+        m.box((6.6, 0.32, 0.22), (0, y, 2.06), STEEL)                          # straps holding the walls
+        for sx in (1, -1):
+            m.box((0.4, 0.5, 0.9), (sx * 3.05, y, 1.6), STEEL)                  # their clamps over the rim
+    # the reactor in the heart chamber, glowing between the straps (a weak point)
+    m.cyl(0.95, 0.35, (0, 0.1, 1.95), DARK, segs=8)
+    m.cyl(0.78, 0.2, (0, 0.1, 2.3), STEEL, segs=8)
+    for k in range(4):
+        a = TAU * (k + 0.5) / 4
+        m.box((0.3, 0.3, 0.7), (math.cos(a) * 0.82, 0.1 + math.sin(a) * 0.82, 2.4), BLUE3)
+    m.ball(0.6, (0, 0.1, 2.45), PINK, subdiv=1, glow=True)
+    for sx in (1, -1):
+        m.plank_line((sx * 0.7, 0.1, 2.2), (sx * 2.2, 0.9, 2.05), 0.16, 0.16, DARK)  # oil lines from the walls
+    # the bridge on the third chamber: armoured, a band of warm windows, her quarterdeck on its roof
+    m.slab(ccw([(-1.5, 2.6), (1.5, 2.6), (1.5, 4.6), (1.1, 4.9), (-1.1, 4.9), (-1.5, 4.6)]), 1.95, 3.45, BLUE2)
+    m.box((3.1, 0.24, 0.22), (0, 2.58, 3.4), STEEL)
+    m.box((2.2, 0.1, 0.36), (0, 2.56, 2.95), LAMP, glow=True)
+    for sx in (1, -1):
+        m.box((0.1, 0.06, 0.36), (sx * 0.55, 2.52, 2.95), BLUE3)                   # window mullions
+    m.slab(ccw([(-1.65, 2.5), (1.65, 2.5), (1.65, 4.7), (1.2, 5.05), (-1.2, 5.05), (-1.65, 4.7)]), 3.45, 3.6, BLUE3)
+    for sx in (1, -1):
+        m.box((0.14, 2.0, 0.36), (sx * 1.6, 3.6, 3.78), STEEL)                     # rail
+        m.plank_line((sx * 1.2, 4.7, 3.6), (sx * 1.2, 4.9, 5.0), 0.08, 0.08, STEEL)  # whip aerials
+        m.box((0.14, 0.14, 0.14), (sx * 1.2, 4.9, 5.05), HOT, glow=True)
     m.build(whale)
 
-    # the head and its jaw: it nods (pitch) and the jaw drops for her breath
+    # the bow chamber, nodding (pitch): its intake a ring of grinding plates round a dark opening,
+    # the Court's sensor lamps clamped on its cheeks, the harpoon gun on top
     hd = Model("istra_head", seed=3)
-    hd.ball(2.3, (0, -2.4, 0.1), BLUE2, subdiv=2, scale=(1.08, 1.45, 0.8))
-    hd.ball(1.6, (0, -4.3, 0.45), BLUE2, subdiv=1, scale=(1.0, 1.0, 0.62))
-    for i in range(-3, 4):
-        hd.ball(0.24, (i * 0.62, -3.6 + abs(i) * 0.35, 1.75 - abs(i) * 0.18), BONE, subdiv=0)
+    chamber(hd, -4.5, 1.0, 2.75, -1.0, 1.75, WALL, rings=3, front=0.62, back=0.95)
+    IC, IR = (0, -4.75, 0.45), 1.45                                              # the intake's centre, radius
+    hd.cyl(IR + 0.25, 0.9, (0, -4.25, 0.45), BLUE, segs=10, r_top=IR + 0.45, rot=FWD)   # its collar
+    hd.cyl(IR - 0.15, 0.2, (0, -4.95, 0.45), "#0c1218", segs=10, rot=FWD)        # the dark opening
+    hd.cyl(0.42, 0.06, (0, -4.86, 0.45), PINK, segs=8, rot=FWD, glow=True)      # the reactor, far down it
+    for k in range(9):                                                          # the upper plates
+        a = math.pi * (0.1 + 0.8 * k / 8)
+        x, z = math.cos(a) * IR, math.sin(a) * IR
+        hd.box((0.62, 0.5, 0.26), (x, -5.05, 0.45 + z), CLEAR, rot=(0, -a + math.pi / 2, 0), taper=0.7)
     for sx in (1, -1):
-        hd.ball(0.32, (sx * 2.35, -2.1, 0.25), "#141420", subdiv=0)                # dead eyes, sewn shut
-        hd.box((0.5, 0.08, 0.06), (sx * 2.45, -2.1, 0.45), BONE)
-    hd.box((4.4, 0.18, 0.18), (0, -4.6, -0.25), "#14202a")                         # mouth line
-    # the iron-thrower on the bow: a swivel gun with a rack of irons, and a lantern
-    hd.cyl(0.42, 0.4, (0, -3.2, 1.9), STEEL, segs=6)
-    hd.cyl(0.18, 2.3, (0, -4.0, 2.2), DARK, segs=5, rot=FWD)
-    hd.cyl(0.06, 1.6, (0, -5.4, 2.2), BONE, segs=4, r_top=0.01, rot=FWD)            # the iron, nocked
+        hd.box((0.3, 0.5, 0.3), (sx * 2.45, -2.6, 0.9), STEEL)                       # clamped sensor lamps
+        hd.box((0.12, 0.3, 0.2), (sx * 2.62, -2.75, 0.9), EYE, glow=True)
+    hd.box((0.18, 1.2, 0.12), (1.9, -1.4, 1.2), SCAR, rot=(0, 0, 0.4))
+    # the harpoon gun: a swivel mount with a long barrel and an iron nocked, a rack of irons behind
+    hd.cyl(0.5, 0.4, (0, -2.6, 1.8), STEEL, segs=8)
+    hd.cyl(0.32, 0.2, (0, -2.6, 2.2), DARK, segs=8)
+    hd.cyl(0.2, 2.3, (0, -3.4, 2.2), DARK, segs=6, rot=FWD)
+    hd.cyl(0.07, 1.6, (0, -4.8, 2.2), METAL, segs=4, r_top=0.01, rot=FWD)       # the iron, nocked
     for sx in (1, -1):
-        hd.plank_line((sx * 0.8, -2.4, 1.9), (sx * 0.8, -1.0, 2.0), 0.12, 0.12, STEEL)
+        hd.plank_line((sx * 0.8, -1.8, 1.8), (sx * 0.8, -0.4, 1.9), 0.14, 0.14, STEEL)
         for k in range(3):
-            hd.plank_line((sx * (0.65 + k * 0.12), -2.3, 2.05), (sx * (0.65 + k * 0.12), -0.9, 2.1), 0.06, 0.06, BONE)
+            hd.plank_line((sx * (0.65 + k * 0.12), -1.7, 1.95), (sx * (0.65 + k * 0.12), -0.3, 2.0), 0.07, 0.07, METAL)
     head = hd.build(whale, loc=(0, -3.6, 0.15))
+    # the intake's lower plates, hinged under the bow: they drop to open it wide
     jw = Model("istra_jaw")
-    jw.slab(ccw([(-1.9, 0.6), (1.9, 0.6), (1.6, -2.6), (0.7, -3.6), (-0.7, -3.6), (-1.6, -2.6)]), -0.5, 0.0, BELLY,
-            top=ccw([(-1.8, 0.5), (1.8, 0.5), (1.5, -2.5), (0.65, -3.45), (-0.65, -3.45), (-1.5, -2.5)]))
-    jw.slab(ccw([(-1.5, 0.3), (1.5, 0.3), (1.2, -2.3), (0.5, -3.1), (-0.5, -3.1), (-1.2, -2.3)]), 0.0, 0.08, "#c84a5a")  # the maw
-    for k in range(9):                                                            # baleen
-        x = -1.3 + k * 0.325
-        jw.box((0.12, 0.12, 0.5), (x, -2.4 - (1 - abs(x) / 1.4) * 0.8, 0.25), BONE)
+    cx, cz = 0, 0.9                                                             # IC in the jaw's frame
+    jw.slab(ccw([(-1.9, 0.6), (1.9, 0.6), (1.7, -2.6), (-1.7, -2.6)]), -0.3, 0.1, KEEL,
+            top=ccw([(-1.7, 0.5), (1.7, 0.5), (1.5, -2.6), (-1.5, -2.6)]))
+    for k in range(5):
+        a = math.pi * (1.15 + 0.7 * k / 4)
+        x, z = math.cos(a) * IR, math.sin(a) * IR
+        jw.box((0.62, 0.5, 0.26), (cx + x, -3.85, cz + z), CLEAR, rot=(0, -a + math.pi / 2, 0), taper=0.7)
     jaw = jw.build(head, loc=(0, -1.2, -0.45))
 
-    # the flippers, hinged at the shoulder, armoured with bone plates
+    # the vanes, hinged at the shoulder: two pale jointed spines with the black membrane between,
+    # cut down by the Court, splinted in steel where the cables pull
     flips = {}
     for s in (1, -1):
         f = Model(f"istra_flipper_{'r' if s > 0 else 'l'}")
-        pts = [(0, 0.9), (0, -0.9), (2.4, -2.2), (4.9, -2.5), (5.6, -1.9), (3.1, 0.3)]
-        pts = ccw([(s * x, y) for x, y in pts])
-        f.slab(pts, -0.2, 0.2, BLUE2, top=[(x * 0.97, y * 0.97) for x, y in pts])
-        for k in range(3):
-            f.ball(0.22, (s * (1.6 + k * 1.2), -1.0 - k * 0.38, 0.22), BONE, subdiv=0)
+        fore = [(0, -0.3), (3.2, -1.9), (6.4, -1.6)]
+        aft = [(0, 0.4), (3.2, 0.7), (5.8, 2.4)]
+        mem = [(0.2, -0.3), (3.2, -1.8), (6.4, -1.55), (5.9, -0.7), (6.2, 0.3), (5.7, 2.3), (4.1, 1.1), (3.2, 0.8), (0.2, 0.4)]
+        f.slab(ccw([(s * x, y) for x, y in mem]), -0.08, 0.08, VANE)
+        f.slab(ccw([(s * x, y) for x, y in [(1.6, -0.7), (4.6, -1.4), (4.4, -0.7), (1.6, -0.25)]]), 0.08, 0.1, SHEEN)
+        for spine, r0 in ((fore, 0.24), (aft, 0.2)):
+            for (x0, y0), (x1, y1) in zip(spine, spine[1:]):
+                f.plank_line((s * x0, y0, 0.05), (s * x1, y1, 0.05), r0, r0, SPINE)
+            for x, y in spine[1:]:
+                f.ball(r0 * 1.3, (s * x, y, 0.05), CLEAR, subdiv=0)               # the joints
+        f.box((0.5, 0.36, 0.34), (s * 1.3, -0.9, 0.08), STEEL, rot=(0, 0, s * 0.45))  # the splint and its cable lug
+        f.box((0.12, 0.12, 0.3), (s * 1.3, -0.9, 0.3), DARK)
+        f.slab(ccw([(s * x, y) for x, y in [(5.9, -0.7), (6.2, 0.3), (5.6, 0.1)]]), 0.08, 0.1, SCAR)  # torn edge
         flips[s] = f.build(whale, loc=(s * 2.6, -2.3, -0.55))
 
-    # the tail stock and the fluke, each hinged
+    # the tail: three small chambers, the last ones the umora grew, steel-banded; the vent hinged
+    # at its end, with the Court's two main drives bolted either side of it
     t = Model("istra_tail")
-    limb(t, (0, 0, 0), (0, 3.6, 0.2), 1.5, 0.65, BLUE, segs=7)
-    t.box((0.3, 2.6, 0.3), (0, 1.8, 1.2), BONE)                                    # a ridge of vertebrae
+    chamber(t, 0.0, 1.6, 1.55, -0.75, 0.95, WALL, rings=2)
+    chamber(t, 1.5, 2.8, 1.2, -0.6, 0.8, WALL, rings=1)
+    chamber(t, 2.7, 3.7, 0.9, -0.45, 0.6, WALL, rings=1)
+    t.box((3.3, 0.3, 0.3), (0, 1.0, 0.95), STEEL)                              # a band, and its clamps
+    for sx in (1, -1):
+        t.box((0.3, 0.34, 1.4), (sx * 1.55, 1.0, 0.3), STEEL)
     tail = t.build(whale, loc=(0, 6.0, -0.1))
     fl = Model("istra_fluke")
-    fl.slab(ccw([(-3.9, 1.8), (-0.5, 0.0), (0.5, 0.0), (3.9, 1.8), (3.0, 2.6), (0.0, 1.5), (-3.0, 2.6)]), -0.12, 0.25, BLUE2)
-    fl.slab(ccw([(-3.2, 1.9), (-2.4, 1.7), (-2.6, 2.4)]), 0.25, 0.3, SCAR)          # a notch bitten out
+    fl.cyl(0.85, 0.7, (0, 0.2, 0.05), BLUE, segs=10, r_top=1.0, rot=UPY)        # the vent's lip
+    fl.cyl(0.6, 0.1, (0, 0.92, 0.05), "#0c1218", segs=10, rot=UPY)
+    for k in range(6):                                                           # its petals, flared
+        a = TAU * k / 6
+        fl.box((0.5, 0.7, 0.18), (math.cos(a) * 0.95, 0.75, 0.05 + math.sin(a) * 0.95), CLEAR,
+               rot=(math.sin(a) * -0.5, 0, 0), taper=0.6)
+    fl.box((2.6, 0.4, 0.3), (0, 0.2, 0.05), STEEL)                              # the drive mounts
+    for sx in (1, -1):
+        fl.cyl(0.5, 2.1, (sx * 1.7, 0.3, 0.05), BLUE3, segs=8, r_top=0.44, rot=UPY)  # the main drives
+        fl.cyl(0.56, 0.3, (sx * 1.7, 2.3, 0.05), STEEL, segs=8, r_top=0.6, rot=UPY)
+        fl.cyl(0.4, 0.06, (sx * 1.7, 2.6, 0.05), HOT, segs=8, rot=UPY, glow=True)
+    fl.box((0.5, 0.8, 0.3), (1.05, 0.3, 0.38), SCAR)                            # a burned-out panel
     fluke = fl.build(tail, loc=(0, 3.5, 0.2))
 
-    # gun ports: three a flank, each a cannon behind a lid hinged at its top edge
+    # gun ports: three a flank, cut through the shell, each a cannon behind a hatch hinged at its top
     ports = []
     for s in (1, -1):
         g = Model(f"istra_guns_{'r' if s > 0 else 'l'}")
         for y in (-1.8, 0.2, 2.2):
-            g.box((0.5, 1.0, 0.8), (s * 2.9, y, 0.7), "#1a1012")
-            g.cyl(0.24, 1.1, (s * 3.2, y, 0.7), STEEL, segs=6, rot=(0, s * math.pi / 2, 0))
+            g.box((0.5, 1.0, 0.8), (s * 2.95, y, 0.7), "#1a1012")
+            g.cyl(0.26, 1.1, (s * 3.25, y, 0.7), STEEL, segs=6, rot=(0, s * math.pi / 2, 0))
+            g.cyl(0.3, 0.16, (s * 3.8, y, 0.7), DARK, segs=6, rot=(0, s * math.pi / 2, 0))
         g.build(whale)
         for k, y in enumerate((-1.8, 0.2, 2.2)):
             lid = Model(f"istra_port_{'r' if s > 0 else 'l'}{k}")
-            lid.box((0.14, 1.2, 0.95), (0, 0, -0.48), WOOD)
-            lid.box((0.16, 1.24, 0.12), (0, 0, -0.1), BONE)
+            lid.box((0.16, 1.2, 0.95), (0, 0, -0.48), BLUE3)
+            lid.box((0.18, 1.24, 0.14), (0, 0, -0.1), STEEL)
+            lid.box((0.18, 0.14, 0.7), (0, 0, -0.5), PLATE)
             ports.append((s, lid.build(whale, loc=(s * 3.15, y, 1.2))))
 
-    # her hunting gear: whaleboats slung on davits, and planks nailed over her gun ports (gone in
-    # the second phase: the boats go after you, the guns run out)
+    # her hunting gear: harpoon skiffs slung on davits, and plates bolted over her gun ports (gone in
+    # the second phase: the skiffs go after you, the guns run out)
     hg = Model("istra_hunt")
     for s in (1, -1):
         for y in (-0.9, 1.3):
-            hg.plank_line((s * 2.2, y, 2.4), (s * 3.6, y, 2.9), 0.12, 0.12, WOOD2)  # davits
-        hg.ball(1.0, (s * 3.8, 0.2, 2.3), WOOD, subdiv=1, scale=(0.42, 2.3, 0.32))  # a whaleboat
-        hg.box((0.36, 3.0, 0.1), (s * 3.8, 0.2, 2.48), WOOD2)
-        for y in (-0.6, 0.2, 1.0):
-            hg.box((0.7, 0.1, 0.08), (s * 3.8, y, 2.55), CLOTH)                    # thwarts
+            hg.plank_line((s * 2.2, y, 2.4), (s * 3.6, y, 2.9), 0.16, 0.16, STEEL)    # davits
+        hg.ball(1.0, (s * 3.8, 0.2, 2.3), FRAME, subdiv=1, scale=(0.48, 2.2, 0.34))   # a skiff
+        hg.box((0.4, 1.0, 0.12), (s * 3.8, -0.4, 2.62), "#3a9cc0", glow=True)          # its canopy
+        hg.box((0.5, 0.9, 0.1), (s * 3.8, 1.0, 2.58), BLUE3)
+        hg.cyl(0.12, 0.5, (s * 3.8, 2.5, 2.3), HOT, segs=6, rot=UPY, glow=True)         # its drive
+        hg.cyl(0.05, 1.0, (s * 3.8, -2.0, 2.4), METAL, segs=4, r_top=0.01, rot=FWD)     # its iron
         for y in (-1.8, 0.2, 2.2):
-            hg.box((0.12, 1.4, 1.1), (s * 3.3, y, 0.75), WOOD2, rot=(0.15, 0, 0))
+            hg.box((0.14, 1.4, 1.1), (s * 3.3, y, 0.75), PLATE, rot=(0.15, 0, 0))
+            for dz in (-0.35, 0.35):
+                hg.box((0.18, 0.14, 0.14), (s * 3.36, y + 0.55, 0.75 + dz), FRAME)
+                hg.box((0.18, 0.14, 0.14), (s * 3.36, y - 0.55, 0.75 + dz), FRAME)
     hg.build(whale, shed=1)
 
-    # her crew's rigging: a mast with a patched sail, the crow's nest and its flag, deck huts
+    # her crew's rigging: a lattice mast with a patched solar sail, a sensor dish and the black
+    # flag up top, cabins bolted to the deck
     rg = Model("istra_rigging")
-    rg.plank_line((0, -1.4, 2.0), (0, -1.4, 7.6), 0.3, 0.3, WOOD)
-    rg.box((6.0, 0.24, 0.24), (0, -1.4, 6.5), WOOD)
+    for sx in (1, -1):
+        rg.plank_line((sx * 0.22, -1.4, 2.0), (sx * 0.12, -1.4, 7.4), 0.16, 0.16, STEEL)
+    for k in range(5):
+        rg.box((0.5, 0.12, 0.1), (0, -1.4, 2.6 + k * 1.1), FRAME)
+    rg.box((6.0, 0.24, 0.24), (0, -1.4, 6.5), STEEL)
     rg.box((5.4, 2.4, 0.14), (0, -0.4, 5.3), CLOTH, rot=(-0.32, 0, 0))             # the sail, bellied
-    rg.box((1.5, 1.1, 0.16), (1.0, -0.3, 5.4), PINK, rot=(-0.32, 0, 0))            # a patch: the Court's rib-crown
-    rg.box((0.9, 0.8, 0.16), (-1.5, -0.7, 5.6), "#b8a888", rot=(-0.32, 0, 0))
-    rg.cyl(0.55, 0.5, (0, -1.4, 7.4), WOOD2, segs=6)                               # crow's nest
+    rg.box((5.6, 0.16, 0.18), (0, 0.72, 4.92), STEEL, rot=(-0.32, 0, 0))           # its boom
+    for x in (-1.8, 0.0, 1.8):
+        rg.box((0.08, 2.4, 0.16), (x, -0.4, 5.32), "#b8a888", rot=(-0.32, 0, 0))   # its battens
+    rg.box((1.5, 1.1, 0.16), (1.0, -0.3, 5.4), PINK, rot=(-0.32, 0, 0))            # a patch: the Court's vane-crown
+    rg.box((0.9, 0.8, 0.16), (-1.5, -0.7, 5.6), "#9a8c70", rot=(-0.32, 0, 0))
+    rg.cyl(0.6, 0.3, (0, -1.4, 7.3), FRAME, segs=8, r_top=0.75)                    # the sensor dish
+    rg.cyl(0.1, 0.4, (0, -1.4, 7.5), HOT, segs=6, glow=True)
     rg.box((1.2, 0.06, 0.7), (0.65, -1.4, 8.1), HAT)                               # black flag
     rg.box((0.4, 0.07, 0.3), (0.55, -1.42, 8.15), PINK)
     for sx in (1, -1):
-        rg.box((1.2, 1.4, 1.0), (sx * 1.1, -2.4, 2.5), WOOD2)                      # huts on the deck
-        rg.gable((1.4, 1.6, 0.5), (sx * 1.1, -2.4, 3.0), CLOTH, rot=(0, 0, math.pi / 2))
-        rg.plank_line((0, -1.4, 7.4), (sx * 2.6, 3.0, 3.6), 0.05, 0.05, "#2a1a1a")  # stays
+        rg.box((1.2, 1.4, 1.0), (sx * 1.1, -2.4, 2.5), BLUE3)                      # cabins on the deck
+        rg.box((1.3, 1.5, 0.14), (sx * 1.1, -2.4, 3.05), FRAME)
+        rg.box((0.5, 0.08, 0.3), (sx * 1.1, -3.12, 2.6), LAMP, glow=True)
+        rg.plank_line((0, -1.4, 7.2), (sx * 2.6, 3.0, 3.6), 0.05, 0.05, "#2a1a1a")  # stays
     rg.build(whale, shed=2)
 
     # Istra on her quarterdeck: long red coat, a black hat with a pink plume, a lantern in one hand
@@ -1072,9 +1187,9 @@ BEAT_VESH = 60 / 126  # her theme's beat (boss_vesh in src/audio.ts)
 def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
     """Her idle swim (and a heavier one alone, `p2`) and a pose for each of her moves
     (boss_vesh_<move>_<state>, see src/view/boss-pose.ts). Windups go into their pose and hold;
-    the rest loop. Rotations are offsets: the whale's and head's x is pitch (+ nose down), y is
-    roll; the jaw's x drops it (-); a flipper's y raises it (-s) or lowers it (+s), its z sweeps
-    it back (-s); the tail's and fluke's x lift them (-); a lid's y swings it out (+s); the queen's
+    the rest loop. Rotations are offsets: the shell's and bow's x is pitch (+ nose down), y is
+    roll; the jaw's (the intake's lower plates) x drops it (-); a vane's y raises it (-s) or lowers it (+s), its z sweeps
+    it back (-s); the tail's and vent's (fluke) x lift them (-); a lid's y swings it out (+s); the queen's
     z turns her, her arm's x raises it (+)."""
     R = "rotation_euler"
     L = "location"
@@ -1100,7 +1215,7 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
         return [(o, R, [(0, s * v, 0) for v in vs]) for s, o in ports]
 
     def swim(clip, period, roll=0.0, sink=0.0, beat=1.0):
-        # the tail drives, the body answers half a beat behind, the flippers row; the queen keeps
+        # the tail and vent drive, the body answers half a beat behind, the vanes row; the queen keeps
         # her feet, swaying with the deck
         cycle(clip, period, [
             (whale, L, [(0, 0, sink), (0, 0, sink + 0.3 * beat), (0, 0, sink), (0, 0, sink - 0.25 * beat)]),
@@ -1132,7 +1247,7 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
         (queen, R, [(0, 0, 0.3), (0, 0, 0.25), (0, 0, 0.3), (0, 0, 0.3)]),
     ])
 
-    # DEEP BREATH: the head lifts and the jaw drops wide, the flippers spread; then holding it open,
+    # DEEP BREATH: the bow lifts and the intake opens wide, the vanes spread; then holding it open,
     # the whole hulk heaving as it draws the air in
     hold("boss_vesh_breath_windup", [
         (head, R, (-0.55, 0, 0)), (jaw, R, (-0.9, 0, 0)), (whale, R, (0.12, 0, 0)),
@@ -1146,8 +1261,8 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
         (tail, R, [(-0.3, 0, 0), (-0.2, 0, 0)]),
     ] + each_flip(lambda s, o: [(o, R, [(0, -s * 0.5, s * 0.3), (0, -s * 0.6, s * 0.35)])]))
 
-    # BREACH: she sounds, nose down, tail and fluke thrown up; and comes up nose first, flippers
-    # wide, the fluke driving
+    # BREACH: she sounds, nose down, chambers flooding, tail and vent thrown up; and comes up
+    # nose first, vanes wide, the vent driving
     hold("boss_vesh_breach_windup", [
         (whale, R, (0.65, 0, 0)), (head, R, (0.25, 0, 0)), (tail, R, (-0.6, 0, 0)), (fluke, R, (-0.5, 0, 0)),
         (queen, R, (-0.2, 0, 0)), (arm, R, (0.6, 0, 0)),
@@ -1172,14 +1287,14 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
         (queen, R, [(0, 0, -0.6)] * 4),
     ] + lid_cycle([1.5, 1.2, 1.3, 1.4]))
 
-    # HER CAPTAINS: Istra waves them in, cutlass high; the whale lifts its head
+    # HER CAPTAINS: Istra waves them in, cutlass high; the shell lifts its bow
     cycle("boss_vesh_summon", 1.0, [
         (head, R, [(-0.2, 0, 0), (-0.12, 0, 0)]),
         (arm, R, [(2.2, 0, 0.4), (2.0, 0, -0.4)]),
         (queen, R, [(0, 0, 0.5), (0, 0, -0.2)]),
     ] + lid_cycle([1.0, 1.0]))
 
-    # open after a move: wallowing, rolled onto one side, jaw slack, flippers trailing; the lids
+    # open after a move: wallowing, rolled onto one side, intake slack, vanes trailing; the lids
     # hanging open (reloading); Istra hanging on to her rail
     cycle("boss_vesh_recover", 1.6, [
         (whale, L, [(0, 0, -0.3), (0, 0, -0.55)]),
@@ -1192,7 +1307,7 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
         (arm, R, [(0.3, 0, 0), (0.2, 0, 0)]),
     ] + each_flip(lambda s, o: [(o, R, [(0, s * 0.35, -s * 0.2), (0, s * 0.45, -s * 0.2)])]) + lid_cycle([0.7, 0.8]))
 
-    # staggered: rolling hard from side to side, jaw gaping, the queen thrown to her knees
+    # staggered: rolling hard from side to side, intake gaping, the queen thrown to her knees
     cycle("boss_vesh_stagger", 1.1, [
         (whale, L, [(0, 0, -0.6)] * 4),
         (whale, R, [(0.1, 0.4, 0), (0.12, 0, 0), (0.1, -0.4, 0), (0.12, 0, 0)]),

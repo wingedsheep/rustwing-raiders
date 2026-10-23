@@ -27,7 +27,7 @@ A sleeping core is the Reach's most useful machine: it learns a narrow job (a ha
 
 - **Tin.** Scrap is crossed metal, and it's the money because a lane accepts nothing else ([scrap](lanes-and-gates.md#scrap)). Ordinary people hold it as coins cut from wreck-plate, rings, cookpots and roofing, weighed at the dock. A family's savings is a box of metal that came from somewhere else.
 - **Scrip and credit.** Vantorr pays its tenants in scrip that's worthless off Cinder. Mama Ruzz lends at a tenth a jump. The Syndicate's Bounty Register is, underneath, a ledger of who owes for crossings.
-- **Jobs that keep the Reach going:** reactor tenders at the lanterns, salvagers following every battle, haulers, net-crews, salt-cutters, terrace tenants, rendering crews on the whale ships, core-diggers on Glacis paid by the weight of what they bring up, clerks, and a great many cooks.
+- **Jobs that keep the Reach going:** reactor tenders at the lanterns, salvagers following every battle, haulers, net-crews, salt-cutters, terrace tenants, rendering crews on the hunting ships, core-diggers on Glacis paid by the weight of what they bring up, clerks, and a great many cooks.
 - **Travel is rare.** A crossing costs tolls, leans a lane, and takes a ship most people can't afford. Pilots are a small class, rustwings a smaller one. A person born on Kessra mostly dies on Kessra.
 
 ## A day on each world
@@ -38,7 +38,7 @@ A sleeping core is the Reach's most useful machine: it learns a narrow job (a ha
 - **Mirefall.** The Rang farm the bloom and eat it. They're a little changed by it, slower to sicken, quick to heal, and they stress the last syllable of every word. At dusk the Choir hums from the Drowned Temple and the whole town stops to listen. Outsiders wear masks; the Rang think masks are rude.
 - **Glacis.** Mining towns in the shafts of Engine City, warm from the reactors and the thaw. Diggers bring up cores by the kilo and get paid by the Concession's scales. The thaw floods the lower shafts every year now, a little higher each time. The lights that came on by themselves in 395 L are a thing people pray about.
 - **Ashgrave.** Sankvi families on crawler-barges, rolling between wrecks; whole clans living inside a fallen titan, with kitchens in its ribs. The Chikta strip the war for parts at night and wear the best of it home on their backs. The Glass Law: a titan is nobody's, the glass is everybody's, and nobody walks the glassed plains alone.
-- **Vesh.** Eefee reef towns on stilts in the lagoon, listening. The Court's rendering ships offshore, smoking day and night in whaling season; umora oil lights half the lamps in the Reach. In a good season everyone's paid; in a bad one the Court's crews drink in the Eefee towns and nobody's polite.
+- **Vesh.** Eefee reef towns on stilts in the lagoon, listening. The Court's rendering ships offshore, smoking day and night in the hunting season; umora oil lights half the lamps in the Reach. In a good season everyone's paid; in a bad one the Court's crews drink in the Eefee towns and nobody's polite.
 - **Cinder Orchard.** Terrace tenants under company lamps, tending fruit for Vantorr. Scrip at the company store, a reset on the first of the month, and the Vaelo's yachts drifting overhead, owning nothing and collecting everything. Tenants who run, run on rustwing hulls.
 
 ## What people believe

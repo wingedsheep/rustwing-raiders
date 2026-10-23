@@ -95,7 +95,7 @@ The Vhossk of Kessra traded with the Tonkva for centuries and borrowed hundreds 
 | \*Mōr-āŋ | Mohrang | grow-house |
 | \*Āltʰa | Allta | hearth |
 | \*Tʰoŋ-tāl | Tongtall | the level-keeper |
-| \*Ūmōra | Uumohra | deep-swellers (the lane-whales) |
+| \*Ūmōra | Uumohra | deep-swellers (the lane-drifters) |
 | \*Kʷēl-tōr | Khvell-tohr | taker-back (a recovery unit) |
 | \*Tāl-tōr | Tall-tohr | hold-keeper (a gate's keeper) |
 
@@ -250,4 +250,4 @@ The epithets in the game are translations of the oldest names: *the Cradle* for 
 | **lean** | how far a lane is out of level | ark tongue |
 | **loud** | metal that has never crossed, worthless at a gate | Hoowae lane-readers' word, translated |
 | **the Quiet** | the centuries before the Kindling | ark tongue |
-| **umora** | lane-whales | Tonkvan \*Ūmōra, via Vhossk |
+| **umora** | lane-drifters | Tonkvan \*Ūmōra, via Vhossk |

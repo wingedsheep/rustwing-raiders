@@ -718,7 +718,7 @@ export class LevelView {
           else if (en?.boss?.move === 'calve') audio.play('ice_crack', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.7 });
           else if (en?.boss?.move === 'count') audio.play('toll', { pan: en.x / HALF_W, pitch: 0.5, vol: 0.8 });
           // Istra's: she calls HEAVE before her irons and her broadside (the crew answers as each
-          // goes), the Throne-Whale draws breath, sounds before a breach
+          // goes), the Throne-Shell draws breath, sounds before a breach
           else if (en?.boss?.move === 'irons' || en?.boss?.move === 'broadside') {
             if (en.boss.k === 0) audio.play('istra_call', { pan: en.x / HALF_W, pitch: en.boss.move === 'broadside' ? 0.9 : 1 });
           } else if (en?.boss?.move === 'breath' && lv.spec.planet.id === 'vesh') audio.play('whale_breath', { pan: en.x / HALF_W });
@@ -1123,7 +1123,7 @@ export class LevelView {
             audio.play('ice_crack', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.15 });
             this.shards(e.x, e.z, 10, 0xbfe8ff);
           } else if (e.move === 'frost') audio.play('frost_breath', { pan: e.x / HALF_W, vol: 0.6 });
-          // Istra's: the crew's HO on every iron, a gun on every beat of a broadside, the whale
+          // Istra's: the crew's HO on every iron, a gun on every beat of a broadside, the shell
           // breaking the surface, and the tide turning (all she's thrown, coming home)
           else if (e.move === 'irons') audio.play('crew_ho', { pan: e.x / HALF_W, pitch: 1 + e.k * 0.05 });
           else if (e.move === 'broadside') {
@@ -2476,7 +2476,7 @@ export class LevelView {
 
   /**
    * What a body leaves as it goes: a truck's dust, a boat's wake, an airship's smoke; and Istra
-   * drawing her breath, the air streaming in to her maw.
+   * drawing her breath, the air streaming in to her intake.
    */
   private trail(e: Enemy, groundZ: number) {
     // (a truck's dust is its rig's)

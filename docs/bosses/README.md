@@ -63,7 +63,7 @@ What every boss gets from `boss.ts` today:
 
 - **Glacis comes last.** The chart shuffles planets (`make` in `src/sim/chart.ts`), so the Waking Engine can be the first Warden you meet, before any other boss has felt the call. The run's arc (cores listening, then answering, then the Engine itself) only works in order: Glacis is never in the first sector, and when it's in a run it's the third sector's Warden.
 - **Who pulls you.** Pulling the player is Istra's (her irons, her breath) and the Court's. Others bind or slow instead (the Mother's pods), or reel something else (ARU-0's Lien takes scrap, never you).
-- **Who turns lattice.** The call shows in four last phases, and each is its own kind of lattice: the Mother's is unfinished (half rot, half glass, both tells), Khet's is a Compact war machine (disciplined, military), ARU-0's is the Engine's own voice (tolls, ledgers), the Engine is the call itself. Vask, Oko, the Sandking and Istra answer it without turning: a cage breaks, a ship takes the helm, legs walk, whales leave.
+- **Who turns lattice.** The call shows in four last phases, and each is its own kind of lattice: the Mother's is unfinished (half rot, half glass, both tells), Khet's is a Compact war machine (disciplined, military), ARU-0's is the Engine's own voice (tolls, ledgers), the Engine is the call itself. Vask, Oko, the Sandking and Istra answer it without turning: a cage breaks, a ship takes the helm, legs walk, the umora leave.
 - **Haggle and false tell are one each.** Khet has the false tell (a scrap flare against *Unbending*'s drawn light); the Sandking has the haggle. Neither borrows the other's.
 
 Across all, still to do:
@@ -72,7 +72,7 @@ Across all, still to do:
 - [ ] Only Vask, the Engine, Istra and ARU-0 have poses; the rest idle through everything (the view only crouches and flashes them on a tell).
 - [ ] A second signature for each boss's last phase (Vask's last phase changes how she fights instead; see below).
 - [ ] A boss rush or a rematch event to replay a fight you've learnt.
-- [ ] How each boss goes (none of them explodes): Vask flies free (her harness blows, she goes); the Engine goes back to sleep (iris shut, crown stopping); the Throne-Whale sinks with Istra saluting from the stern; *Patience* heels away with her lamps out; the Sandking's deck sinks to the salt; the Mother sinks into the temple and the rot grows back; *Unbending* sets Khet down in the glass; ARU-0 turns to Glacis and stops. Needs a per-boss end in `level.ts`.
+- [ ] How each boss goes (none of them explodes): Vask flies free (her harness blows, she goes); the Engine goes back to sleep (iris shut, crown stopping); the Throne-Shell sinks with Istra saluting from the stern; *Patience* heels away with her lamps out; the Sandking's deck sinks to the salt; the Mother sinks into the temple and the rot grows back; *Unbending* sets Khet down in the glass; ARU-0 turns to Glacis and stops. Needs a per-boss end in `level.ts`.
 - [ ] A line as each boss comes and as it goes (written on its page under *words*); today only its name and title show.
 - [ ] Read lines that change by phase: *Patience* for Oko, *Unbending*'s silence, the Choir losing its *we*, ARU-0's nineteen seconds.
 - [ ] Moves on the beat are timed by the sim, not the music, so they drift against the theme (Vask's screech, the Engine's count, Istra's irons and broadside, ARU-0's claw rows).

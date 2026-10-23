@@ -1,6 +1,6 @@
 # The Long Herd
 
-*Nomads who live in the wake of the lane-whales, cross without gates, and have known the Reach was alive for a thousand years, and said nothing.* A [galactic power](README.md#galactic-powers). The wider Spur: [lore](../lore/galaxy.md). How it's told: [tone](../lore/tone.md).
+*Nomads who live in the wake of the lane-drifters, cross without gates, and have known the Reach was alive for a thousand years, and said nothing.* A [galactic power](README.md#galactic-powers). The wider Spur: [lore](../lore/galaxy.md). How it's told: [tone](../lore/tone.md).
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ What it can't admit is that its answer only works for people willing to give up 
 
 ## History
 
-- **Before anyone counted. The First Following.** The Mo'ala tell it as one night: a world of theirs (they won't say which) where a pod of umora came down so low over the sea that the people could hear them, and a girl sounded back on her throat-sac, and the pod waited for her. They left their world in the pod's wake and never owned one again. Nobody outside the Herd knows if any of it happened.
+- **Before anyone counted. The First Following.** The Mo'ala tell it as one night: a world of theirs (they won't say which) where a pod of umora came down so low over the sea that the people could hear the shells ring, and a girl sounded back on her throat-sac, and the pod waited for her. They left their world in the pod's wake and never owned one again. Nobody outside the Herd knows if any of it happened.
 - **~2,000 BP. The Tonkva.** Mo'ala pod-riders met the Tonkva at Vesh, and taught them the word for the great slow ones; the Tonkva took it home and misheard it as *umora*. The Herd thought gates rude and harmless: they kept their lanes level, so the pods didn't mind them.
 - **~1,160 BP. The Hush.** Every gate in the Reach locked. Only the umora kept coming, and the Mo'ala with them. For a thousand years the riders saw the Reach alive: the Tonkva's outposts dwindling to Hoowae, the Vhossk keeping their markets, the bloom growing. The first law held. They said nothing.
 - **~1,050 BP. Wa'ilu's Telling.** The lane-surveyor Ileth Morrevane learnt from an old Mo'ala rider, **Wa'ilu**, that the umora's minds hold the roads open. She published, and the Spur's science of witness began ([mind and matter](../lore/consensus.md#how-it-was-found)). Wa'ilu broke no law: he spoke of the roads, not of a calving ground. But the Herd watched what the powers did with it (the Crowded Fleets, the Sundering), and made its second law: no rider speaks to a power; only a **Herd-Speaker** does, and a Herd-Speaker binds no one.
@@ -45,12 +45,12 @@ The umora's minds are what hold the lanes open ([mind and matter](../lore/consen
 ## Inside
 
 - **The Old Wake** (most of the herds): keep the first law. The pods will decide; they always have.
-- **The Loud Herds** (the young, and the herds that lost their bulls): break the law, tell the Spur what is happening at Vesh, and go in through the Throat to stop the whaling themselves. Their speaker is **Haa'loma**.
+- **The Loud Herds** (the young, and the herds that lost their bulls): break the law, tell the Spur what is happening at Vesh, and go in through the Throat to stop the hunt themselves. Their speaker is **Haa'loma**.
 
 ## People
 
-- **Ume'ilo Wa'anu, Herd-Speaker.** Very old, with no power to bind anyone and forty years of speaking to outsiders who never quite listen. Her own herd followed the bull **Ume'ayo**, the eldest umora any rider knew, into the Reach nineteen years ago. The pod came back without him. Her herd has been drifting ever since. She doesn't know that Ume'ayo is the Throne-Whale, and that Queen Istra rules from inside him ([the Lowtide Court](reef-pirates.md)).
-- **Lo'oma**, pod-rider. Young, quick, and the Mo'ala the Eefee of Vesh know: she rides a pod into the Reach each season and out again. She has watched the Court's whalers at work from a hundred yards off, and once, from closer, Istra herself. She knows the Throne-Whale is Ume'ayo (you don't mistake the eldest bull's scars) and hasn't told the Herd-Speaker, who is her great-aunt. She has broken the first law in small ways already: an Eefee friend, a rustwing who gave her a tow.
+- **Ume'ilo Wa'anu, Herd-Speaker.** Very old, with no power to bind anyone and forty years of speaking to outsiders who never quite listen. Her own herd followed the bull **Ume'ayo**, the eldest umora any rider knew, into the Reach nineteen years ago. The pod came back without him. Her herd has been drifting ever since. She doesn't know that Ume'ayo is the Throne-Shell, and that Queen Istra rules from inside his shell ([the Lowtide Court](reef-pirates.md)).
+- **Lo'oma**, pod-rider. Young, quick, and the Mo'ala the Eefee of Vesh know: she rides a pod into the Reach each season and out again. She has watched the Court's harpooners at work from a hundred yards off, and once, from closer, Istra herself. She knows the Throne-Shell is Ume'ayo (you don't mistake the eldest bull's scars) and hasn't told the Herd-Speaker, who is her great-aunt. She has broken the first law in small ways already: an Eefee friend, a rustwing who gave her a tow.
 - **Haa'loma of the Loud Herds.** Lo'oma's uncle, whose herd lost its bull twelve years ago. Fierce, grieving, and ready to break the oldest law there is.
 
 ## Their way of crossing
@@ -61,7 +61,7 @@ To the Spur's powers the Mo'ala are the only people who cross without gates, tol
 
 - **The umora calve at Vesh**, in the plankton haze over the lagoon, and come back there to die. For the Long Herd the Reach is the most sacred place in the Spur.
 - A few Mo'ala ride the pods into the Reach each season. The Eefee of Vesh know them; the [Lowtide Court](reef-pirates.md) doesn't.
-- **The umora aren't coming back.** The Gather knows why: the Court's whaling, and the Throne's market for its oil.
+- **The umora aren't coming back.** The Gather knows why: the Court's hunt, and the Throne's market for its oil.
 
 ## Friends and enemies
 

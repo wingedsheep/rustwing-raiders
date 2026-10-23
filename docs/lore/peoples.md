@@ -55,7 +55,7 @@ Rule from the style guide: humanoid enough to do business, plus **one unforgetta
 *Reef-listeners of Vesh.* Feature: **enormous ears**: webbed fans on fine spines, which open wide to listen and fold flat when they're scared.
 
 - Wet, blue-green skin, a long soft snout, gill-frills at the throat; amphibious. They can hear an umora's call through a hundred miles of sea and through a lane's mouth, and they can hear a whisper through a bulkhead.
-- The Lowtide Court arrived on Vesh to hunt the umora the Eefee had listened to forever. Some Eefee guide the whalers for pay, and the rest don't forgive them.
+- The Lowtide Court arrived on Vesh to hunt the umora the Eefee had listened to forever. Some Eefee guide the harpooners for pay, and the rest don't forgive them.
 - **Squit** is the pilots' name for one Eefee informant. He picked it because humans couldn't say the real one.
 
 ## The Vaelo
@@ -92,7 +92,7 @@ Minds that grew in Engine cores from the crews they lived with. A few hundred in
 
 ## Creatures
 
-- **Umora** (lane-whales). Vast, slow, gentle. They swim the lanes without gates, both ways, every season, and so keep the lanes they use level. They calve in the plankton haze over Vesh's lagoon (the sky-whales there are calves) and come back to Vesh to die: the Bone Archipelago.
+- **Umora** (lane-drifters). Vast, slow, gentle: long strings of glass-like shell chambers that drift between the stars on black vanes ([the umora](../npcs/the-umora.md)). They cross the lanes without gates, both ways, every season, and so keep the lanes they use level. They calve in the plankton haze over Vesh's lagoon (the drift-calves there are their young) and come back to Vesh to die: the Bone Archipelago.
 - **Hull leeches.** The pilots' name for lane-lice: flat, armoured, many-legged things, from hand-sized to dog-sized, that cling on with every leg and drink warmth. They used to live on the umora, and were rare. Forced gates run hot, and so do the ships that use them: since the Kindling there are a great many more leeches.
 - **The giants of Oru-Tal.** Sauropods, plesiosaurs, pterosaurs, thunderhides: seeded by the Tonkva from a dozen worlds into a preserve, wild for a thousand years. Great Mother Vask is the queen of the pterosaurs.
 - **Sowers.** Seeds the Tonkva grew to plant their worlds: a husk with a planting-spike and a crown of four vanes it spins on. A sower laid its shadow on the plot the ledger named and drove the seed in. With no ledger they bud more of themselves and sow whatever their shadow falls on, on Oru-Tal, Mirefall and wherever else the Tonkva planted.

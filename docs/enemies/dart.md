@@ -15,7 +15,7 @@
 | Mirefall | Hive Needle | grown, not built: a bloom-thing that copied the shape of ships |
 | Glacis | Frost Wisp | one of the Engine's small maintenance fliers, clearing the shafts |
 | Ashgrave | Scav Kite | a Sankvi kite of titan plate and a stolen engine |
-| Vesh | Reef Glider | a Court glider, spotting whales |
+| Vesh | Reef Glider | a Court glider, spotting umora |
 | Cinder Orchard | Security Drone | a Vantorr drone, wiped on the first of the month |
 
 **Now.** Formations on four paths: swoop, dive, cross, loop (`src/sim/enemies.ts:172`). Also the escort boarders' skin (`boarderSkin`, `src/sim/convoy.ts:413`).

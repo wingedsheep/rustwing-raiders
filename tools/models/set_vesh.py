@@ -889,7 +889,7 @@ def bone_spike(v):
     return r
 
 
-# --- the Sky-Whale Lagoon ----------------------------------------------------------------
+# --- the Calving Haze -------------------------------------------------------------------
 
 def leaf_mass(m, rng, at, rad, n=5, cols=MANG[0], flowers=3, squash=0.42):
     """A mangrove crown: a flat ragged mat of overlapping faceted clumps, the rim lobes dropping

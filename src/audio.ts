@@ -846,7 +846,7 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.7;
   }, 0.08, 4, { rev: 0.2 }),
 
-  // the Throne-Whale sounding: a slap of water, a long groan of a dead hulk, bubbles going down
+  // the Throne-Shell sounding: a slap of water, a long groan of a dead hulk, bubbles going down
   whale_dive: S((t, p, o) => {
     noise(o, t, 0.5, 'bandpass', 1300 * p, 380 * p, 1.1, 0.22, 0.01);
     const lp = filt(o, 'lowpass', 420);
@@ -874,7 +874,7 @@ const SFX: Record<Sfx, SfxDef> = {
     return 1.35;
   }, 0.4, 1, { rev: 0.45 }),
 
-  // the Throne-Whale drawing breath: a vast slow inhale through the ribs
+  // the Throne-Shell drawing breath: a vast slow inhale through its intake and chambers
   whale_breath: S((t, p, o) => {
     noise(o, t, 1.4, 'lowpass', 260 * p, 1500 * p, 1.4, 0.2, 0.9);
     noise(o, t + 0.2, 1.2, 'bandpass', 700 * p, 2400 * p, 1.2, 0.06, 0.8);
@@ -3608,7 +3608,7 @@ const TRACKS: Record<Track, TrackDef> = {
       },
     ],
   },
-  // Queen Istra, The Tidecall: a whalers' shanty in D dorian at 126 (her irons and her broadside
+  // Queen Istra, The Tidecall: a harpooners' shanty in D dorian at 126 (her irons and her broadside
   // land on its beat) over Vesh's dembow. The hunt: her steel drum calls over marimba and the
   // crew stamping two and four. Broadsides: the brass comes in, a distorted bass, low toms going
   // off like guns. The tide comes back: the crew's gone, the band thins to the kick, a slow wash

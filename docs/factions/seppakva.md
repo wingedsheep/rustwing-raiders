@@ -18,7 +18,7 @@ The first lantern was lit in 94 L with Pertua's reactors and a young Hoowae, **S
 ## Ears and deaf readers
 
 - **Ears** are Hoowae. Their antennae feel a lane's lean, a gate's strain, and whether metal has crossed ("sits right") or not ("loud"). There are never more than a few hundred.
-- **Deaf readers** are humans (and a few Vhossk and Eefee) who read with instruments: lean-gauges strung with umora gut, which shiver when a lane pulls. Grane built the first. A deaf reader is slower and less sure, and there are many more of them.
+- **Deaf readers** are humans (and a few Vhossk and Eefee) who read with instruments: lean-gauges strung with umora vane-thread, which shiver when a lane pulls. Grane built the first. A deaf reader is slower and less sure, and there are many more of them.
 - A reader trains for twelve years, in a tea house, mostly in silence.
 
 ## The tea houses

@@ -51,7 +51,7 @@ export const CAST = {
   wren: { name: 'THE WREN', role: 'A FREIGHTER THAT WOKE · NEMVA', kind: 'machine', color: '#a8d8ff', pace: 70, voice: 'wren' },
   // ---- creatures ----
   leeches: { name: 'HULL LEECHES', role: 'LANE PARASITES', kind: 'creature', color: '#ff8a5a', pace: 70, voice: 'leeches' },
-  calf: { name: 'AN UMORA CALF', role: 'A LANE-WHALE, LOST', kind: 'creature', color: '#9ad8ff', pace: 50, voice: 'umora' },
+  calf: { name: 'AN UMORA CALF', role: 'A LANE-DRIFTER, LOST', kind: 'creature', color: '#9ad8ff', pace: 50, voice: 'umora' },
 } satisfies Record<string, CastMember>;
 
 export type CastId = keyof typeof CAST;

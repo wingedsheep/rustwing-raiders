@@ -84,7 +84,7 @@ Each entry gives: **look** (one strong feature), **voice**, **sound**, the **mec
 
 8. **SAINT FERRULE, the droid hermit.** An old maintenance droid that has founded a small religion around keeping ships alive. It has scavenger-acolytes. **Voice:** solemn blessings ("Go oiled, pilot."). **Sound:** a bell made from a gas canister. **Mechanic:** a **blessing**. For a tithe, it upgrades one part's rarity, but only a part that has been with you since the first stop (rewarding attachment). Found at relays and shrines.
 
-9. **THE UMORA OF VESH** (a creature). A pod of lane-whales, huge and slow, that the Lowtide Court follows and hunts; Queen Istra lives inside a dead one. **Mechanic:** an **escort or hunt choice**. Protect a calf through a raid level, and the pod shows you a hidden shortcut node. Or help the pirates harvest it for rich scrap, at the cost of a darker run and a wild-faction grudge. Found on Vesh.
+9. **THE UMORA OF VESH** (a creature). A pod of lane-drifters, huge and slow, that the Lowtide Court follows and hunts; Queen Istra lives inside a dead one. **Mechanic:** an **escort or hunt choice**. Protect a calf through a raid level, and the pod shows you a hidden shortcut node. Or help the pirates harvest it for rich scrap, at the cost of a darker run and a wild-faction grudge. Found on Vesh.
 
 10. **TOBBO GRISK, junk dealer.** A long, stooped Bahwoh on a stool on top of his yard, glassy cicada wings folded like a coat, which buzz up when he's insulted. His moulted husks sit on the counter as his "partners". Cheats at odds. **Voice:** fast-talking, wheedling, insulted by low offers. **Sound:** a wing buzz plus a grumble. **Mechanic:** **haggling**. Every part has a hidden "real" price, and pushing too hard closes the shop for the visit. Sometimes he offers a bet instead of a sale (a race on par, double or nothing). Found on Kessra and Ashgrave.
 
@@ -103,7 +103,7 @@ These are the Star Wars-style situations that make stops interesting:
 - **The last ride.** An old pilot asks you to fly her ashes through the Stormwall, giving a sentimental reward (a named part with a story).
 
 ### Goods with character (flavour for `chart.ts` trades)
-Grounded but evocative, each with a home planet and a faction that pays dear: **storm cells** (Halcyon), **wyrm ivory** (Oru-Tal), **spore wine** (Mirefall), **cryo-cores from the Engine** (Glacis), **spice-salt** (Kessra), **titan alloy** (Ashgrave), **whale oil** (Vesh), **ember fruit** (Cinder Orchard). Keep one Gazillionaire wink per run at most (a crate of "retired umbrellas" that sells for a fortune on the rain planet).
+Grounded but evocative, each with a home planet and a faction that pays dear: **storm cells** (Halcyon), **wyrm ivory** (Oru-Tal), **spore wine** (Mirefall), **cryo-cores from the Engine** (Glacis), **spice-salt** (Kessra), **titan alloy** (Ashgrave), **umora oil** (Vesh), **ember fruit** (Cinder Orchard). Keep one Gazillionaire wink per run at most (a crate of "retired umbrellas" that sells for a fortune on the rain planet).
 
 ### Ships with character
 Neutral and NPC ships can carry more personality than combat foes: Big Nell's bulbous tanker, Lady Vey's chrome yacht, the Skree sail-barge, Lantern Mutual's flying lighthouse office. Combat foes stay strictly readable per faction, and the non-combat ships are where the flavour goes.

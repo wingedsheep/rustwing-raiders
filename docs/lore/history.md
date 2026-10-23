@@ -64,7 +64,7 @@ The Spur's history runs alongside: the Qaushen Throne's First Count (~1,920 BP) 
 ## The Lease (250 to 412 L)
 
 - **The Syndicate's peace.** Wardens hold the gates, the Port Authority stamps papers, the Sweep collects, kelters hunt. The Reach leans further every year, and the Free Ear say so, and nobody listens because the tolls come in.
-- **~280 L.** Whalers settle the drained reefs of Vesh, to sell umora oil to the Throne, where the umora come to calve and die. They crown a queen and become the [Lowtide Court](../factions/reef-pirates.md).
+- **~280 L.** Harpooners settle the drained reefs of Vesh, to sell umora oil to the Throne, where the umora come to calve and die. They crown a queen and become the [Lowtide Court](../factions/reef-pirates.md).
 - **288 L.** The Uukhvar builds the Sandking on the legs of three dead titans, so the Table never sits in one house's city again.
 - **312 L.** A late ark, the *Odile*, breaks up on arrival. Some pods are never found (Dr Varga's is one). The Compact opens the Odile Register.
 - **361 L. The Terrace Strike** on Cinder: Vantorr's tenants stop the orchards for forty days.

@@ -24,7 +24,7 @@ Under the politics: the Engine is the Tonkva's agreement, recorded, and a record
 |---|---|---|
 | [The Qaushen Throne](../factions/qaushen-throne.md) | the Engine, before it finishes waking | It has wanted one for fourteen centuries. And the Pan of Margins must hold it before its beacons tell the Spur what Margins has done. Its fleet is gathering behind the Throat. |
 | [The Aulin Communion](../factions/aulin.md) | (doesn't know yet) | When it learns, the Sutures come to close every lantern in the Reach. |
-| [The Long Herd](../factions/long-herd.md) | the whaling stopped | The Gather is debating breaking its oldest law to say so. |
+| [The Long Herd](../factions/long-herd.md) | the hunt stopped | The Gather is debating breaking its oldest law to say so. |
 | [The Ottexa](../factions/ottexa.md) | proof | With the Reach's true ledger it can declare the Throne's books false, and stop its trade with the whole Spur. |
 | [The Syndicate](../factions/syndicate.md) | to be the Engine's account-holder | It holds the paper on every lantern. If the Engine takes the Syndicate's books, the lean becomes everyone else's debt, owed to the Syndicate. The Sweep is collecting harder every year, to have the most in hand when the count comes. |
 | [The Halcyon Compact](../factions/halcyon-compact.md) | split | The Steward wants the Engine asleep (the Syndicate's toll fee is what the Compact lives on). The Return wants it woken (most crossed metal left Halcyon; levelling brings it home). Harbourmaster Oko wants the Quiet Yard's ships ready either way. |
@@ -32,7 +32,7 @@ Under the politics: the Engine is the Tonkva's agreement, recorded, and a record
 | [The Uukhvar](../factions/dune-cartel.md) | split, and the Chair is the tie | The Old Contract houses say the Tonkva ledger is a contract the Vhossk witnessed, and must be honoured. The New Table says a machine can't sign. |
 | [The Hesk](../factions/hesk-poachers.md) | Vask kept caged | Her harness core is listening to Glacis, and her cage is their whole claim to Oru-Tal. |
 | [The Sankvi](../factions/scav-clans.md) | titans that walk | Warlord Khet thinks he has re-wired a titan head. It is waking up on its own. |
-| [The Lowtide Court](../factions/reef-pirates.md) | the whales, before they go | The umora are leaving Vesh early, and Queen Istra is hunting harder. |
+| [The Lowtide Court](../factions/reef-pirates.md) | the umora, before they go | The umora are leaving Vesh early, and Queen Istra is hunting harder. |
 | [The Rang and the Choir](../factions/the-hive.md) | (it doesn't say) | It is getting instructions for the first time in a thousand years. |
 | [The Seppakva](../factions/seppakva.md) | the Free Ear: the Engine woken slowly; the Sworn: whatever the Syndicate says | The lean paid back over years, by agreement, not taken in a day. |
 | [Ottex Kehx](../factions/ledger-clan.md) | the true count | To be the only house whose books are right when the Reach has to settle. |

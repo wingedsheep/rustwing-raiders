@@ -243,7 +243,7 @@ A warm sea-world under a haze of plankton, where umora feed before they go to ca
 
 - **Name:** Mo'ala, "where the great slow ones came down". Pilots call it the **Haze**.
 - **History:** the people who followed the pod became the Long Herd. The ones who stayed behind are the **Stayers**, sea-people on raft-towns. The Herd has mourned them as dead for thousands of years, and they've lived anyway. The pods still come down over their sea every season, and the Stayers still sing back.
-- **How people live:** raft-towns of kelp and reed, fishing, plankton farms, almost no metal. The Lowtide Court's whalers have started coming.
+- **How people live:** raft-towns of kelp and reed, fishing, plankton farms, almost no metal. The Lowtide Court's harpooners have started coming.
 - **When the Engine wakes:** the umora leave the lanes the Engine will level. The **Loud Herds** break the Mo'ala's oldest law and come in through the open Throat, a hundred herd-ships following every pod that will still lead them. They make their stand here, the one place a Mo'ala would fight for.
 - **Biomes:** the Raft-Towns · the Low Sea · the Haze · the Wake (inside a pod's wake, where ships appear out of nowhere).
 
@@ -378,12 +378,12 @@ A ship built to tear a lane. Its name is Court Qaushen for "without balance".
 
 *Kin.* A people at war for the first time. Families: **wild** and **scrap** at once.
 
-- **Who:** **Haa'loma**, whose herd lost its umora twelve years ago and has drifted since. Fierce, grieving, and the first Mo'ala ever to lead ships into battle. He's here to stop the whaling. Anything with a gun in the Haze looks like a whaler to him, and that includes you.
+- **Who:** **Haa'loma**, whose herd lost its umora twelve years ago and has drifted since. Fierce, grieving, and the first Mo'ala ever to lead ships into battle. He's here to stop the hunt. Anything with a gun in the Haze looks like a harpooner to him, and that includes you.
 - **How it fights:** inside a war-pod's wake.
   - **Phase I, the Wake:** herd-ships come out of nowhere. The umora pass through the field like slow weather. Hit one and the Herd won't forgive you, for the rest of the run.
-  - **Phase II, the whalers:** the Lowtide Court's whalers arrive, and now you're fighting both him and them, with the umora in between.
+  - **Phase II, the harpooners:** the Lowtide Court's harpooners arrive, and now you're fighting both him and them, with the umora in between.
   - **Phase III, the Low Sea:** the pod comes down over the water, as it did in the First Following. When Haa'loma sings, the pod turns, and the whole field turns with it.
-- **Sad truth:** to stop the whalers, he broke the law that kept the calving ground secret. Now the whole Spur knows where it is.
+- **Sad truth:** to stop the harpooners, he broke the law that kept the calving ground secret. Now the whole Spur knows where it is.
 - **The better ending:** if you finish the level without hitting an umora and kept the Stayers' rafts afloat, the Stayers sing back in phase III. The pod waits, the way it waited for the girl. Haa'loma stops, and the Loud Herds go home with him.
 
 #### The Answer (Talang)

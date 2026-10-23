@@ -527,83 +527,74 @@ def crawler():
 # --- Vesh ------------------------------------------------------------------------------------
 
 def sky_whale():
-    """The showpiece: a huge gentle whale grazing the plankton haze at height 5. Deep blue back
-    mottled pale, rows of glowing spots, pink coral growing on its back, wing-long fins and a slow
-    beat of its flukes."""
+    """The showpiece: a drift-calf, an umora calf grazing the plankton haze at height 5
+    (docs/npcs/the-umora.md). Three gas bladders, pale and veined, carry its first two shell
+    chambers (glass-like, ringed with growth lines); an intake of grinding plates at the front, a
+    fringe of feeding fronds trailing under it, and the little black vanes it will one day climb to
+    orbit on, folded along its sides. It drifts, the bladders breathing and the fronds swaying."""
     K, clip, T = "sky_whale", "sky_whale_swim_idle", 6.0
-    BACK, MOTTLE, BELLY, PLEAT, FIN, GLOW, CORAL, CORAL2, BARN = (
-        "#3e6aa8", "#7aa8d8", "#f0e6d4", "#c8b8a8", "#5a88c0", "#8affff", "#ff7a9a", "#ffb0c0", "#e8dcc0")
-    RIDGE, MOSS = "#2a4880", "#5aa08a"
+    SHELL, CLEAR, RING, BLAD, BLAD2, VEIN = "#7aa4c4", "#c8e2ee", "#9cc0d8", "#d8c8e8", "#eee4f6", "#a07ab0"
+    VANE, SHEEN, GLOW, FROND, FROND2 = "#1a1e2c", "#3e3866", "#8affff", "#ff7a9a", "#ffb0c0"
     root = group(K, kind=K)
-    RX, RY, RZ = 1.9, 5.0, 1.55
     b = Model(f"{K}_body", seed=12)
-    b.ball(1.0, (0, 0, 0), BACK, subdiv=2, scale=(RX, RY, RZ))
-    b.ball(1.0, (0, 0.4, -0.45), BELLY, subdiv=2, scale=(RX * 0.96, RY * 0.92, RZ * 0.7))
-    for k in range(7):  # throat pleats
-        b.box((0.12, 3.2, 0.12), (-1.05 + k * 0.35, 2.4, -1.3 + abs(k - 3) * 0.06), PLEAT)
-    b.ball(1.0, (0, 3.8, 0.15), BACK, subdiv=1, scale=(RX * 0.85, 1.5, RZ * 0.85))                  # broad head
-    for s in (1, -1):
-        b.box((0.08, 2.0, 0.12), (s * 1.48, 3.7, -0.5), INK, rot=(0, 0, s * 0.12))                  # mouth line
-        b.ball(0.2, (s * 1.5, 3.6, 0.0), BELLY, subdiv=1)                                            # eye
-        b.box((0.16, 0.16, 0.16), (s * 1.66, 3.62, 0.02), INK)
+    # the first two chambers, slung under the bladders: the front one bigger, the second just begun
+    for y, rx, ry, rz in ((2.0, 1.25, 1.7, 0.95), (-0.3, 0.95, 1.1, 0.75)):
+        b.ball(1.0, (0, y, -0.4), SHELL, subdiv=2, scale=(rx, ry, rz))
+        b.ball(1.0, (0, y, -0.4 + rz * 0.8), RING, subdiv=1, scale=(rx * 0.68, ry * 0.7, 0.24))     # growth lines
+        b.ball(1.0, (0, y, -0.4 + rz * 0.9), CLEAR, subdiv=1, scale=(rx * 0.38, ry * 0.42, 0.2))
+    b.cyl(0.5, 0.5, (0, 0.8, -0.4), "#2a4a6a", segs=8, rot=(-math.pi / 2, 0, 0))   # the join
+    # the intake at the front: a small ring of grinding plates round a dark opening
+    b.cyl(0.62, 0.3, (0, 3.35, -0.4), SHELL, segs=8, r_top=0.7, rot=(-math.pi / 2, 0, 0))
+    b.cyl(0.44, 0.1, (0, 3.62, -0.4), INK, segs=8, rot=(-math.pi / 2, 0, 0))
+    for k in range(6):
+        a = TAU * k / 6
+        b.box((0.3, 0.22, 0.14), (math.cos(a) * 0.62, 3.6, -0.4 + math.sin(a) * 0.62), CLEAR, rot=(0, -a + math.pi / 2, 0))
+    # the vent at the back
+    b.cyl(0.3, 0.4, (0, -1.45, -0.45), SHELL, segs=6, r_top=0.4, rot=(math.pi / 2, 0, 0))
+    # the bladders: one big behind the chambers, two smaller behind it, veined, lit from inside here and there
     rng = b.rng
-    for k in range(18):  # pale mottling on the back
-        y = rng.uniform(-3.8, 4.0)
-        x = rng.uniform(-1, 1) * RX * 0.6 * math.sqrt(max(0, 1 - (y / RY) ** 2))
-        z = _top(y, RY, RZ) * math.sqrt(max(0.0, 1 - (x / RX) ** 2)) - 0.08
-        b.ball(rng.uniform(0.18, 0.32), (x, y, z), MOTTLE, subdiv=0, scale=(1.3, 1.3, 0.4))
-    for s in (1, -1):  # two rows of glowing spots
-        for k in range(8):
-            y = -3.3 + k * 0.9
-            c = math.sqrt(max(0.0, 1 - (y / RY) ** 2))
-            b.ball(0.15, (s * RX * c * 0.62, y, RZ * c * 0.78), GLOW, subdiv=0, glow=True)
-    for k in range(9):  # a ridge of dark knuckles down the spine
-        y = -3.6 + k * 0.8
-        b.box((0.36, 0.42, 0.3), (0, y, _top(y, RY, RZ) - 0.02), RIDGE, rot=(0.785, 0, 0))
-    for (x, y, big) in ((0.55, 1.5, 1), (-0.6, 0.2, 1), (0.45, -1.1, 0), (-0.4, 2.6, 0), (-0.35, -2.2, 0)):  # a reef on its back
-        z = _top(y, RY, RZ) * math.sqrt(max(0.0, 1 - (x / RX) ** 2)) - 0.05
-        b.ball(0.45 + 0.15 * big, (x, y, z), MOSS, subdiv=1, scale=(1.3, 1.3, 0.45), jitter=0.05)
-        for j in range(5 + 2 * big):
-            a = TAU * j / (5 + 2 * big) + rng.uniform(0, 0.6)
-            d = rng.uniform(0.2, 0.45 + 0.2 * big)
-            h = rng.uniform(0.45, 0.8 + 0.3 * big)
-            tip = (x + math.cos(a) * d, y + math.sin(a) * d, z + h)
-            limb(b, (x + math.cos(a) * d * 0.4, y + math.sin(a) * d * 0.4, z), tip, 0.13, 0.08, CORAL if j % 2 else CORAL2, segs=4)
-            b.ball(0.16, tip, CORAL2 if j % 2 else CORAL, subdiv=0)
-        b.ball(0.16, (x, y, z + 0.3), GLOW, subdiv=0, glow=True)                                   # a glowing anemone
-    for k in range(10):  # barnacles round the head
-        a = rng.uniform(-1, 1)
-        y = 3.2 + rng.uniform(0, 1.6)
-        b.ball(0.13, (a * 1.0, y, _top(y, RY, RZ) * 0.9 + 0.05), BARN, subdiv=0)
+    for x, y, z, r, sc in ((0, -2.3, 0.6, 1.0, (1.45, 1.7, 1.25)), (1.35, -3.7, 0.3, 1.0, (0.9, 1.1, 0.85)),
+                           (-1.35, -3.7, 0.3, 1.0, (0.9, 1.1, 0.85))):
+        b.ball(r, (x, y, z), BLAD, subdiv=2, scale=sc)
+        b.ball(r, (x, y, z + sc[2] * 0.3), BLAD2, subdiv=1, scale=(sc[0] * 0.7, sc[1] * 0.75, sc[2] * 0.75))
+        for k in range(4):                                                           # veins
+            a = TAU * k / 4 + 0.4
+            limb(b, (x, y, z + sc[2] * 0.98), (x + math.cos(a) * sc[0] * 0.85, y + math.sin(a) * sc[1] * 0.85, z + sc[2] * 0.4),
+                 0.06, 0.04, VEIN, segs=4)
+        for k in range(3):
+            a = rng.uniform(0, TAU)
+            b.ball(0.12, (x + math.cos(a) * sc[0] * 0.75, y + math.sin(a) * sc[1] * 0.75, z + sc[2] * 0.55), GLOW, subdiv=0, glow=True)
+    for s in (1, -1):                                                                # tethers, bladder to shell
+        limb(b, (s * 0.5, -0.6, -0.1), (s * 1.1, -3.2, 0.2), 0.1, 0.08, VEIN, segs=4)
     body = b.build(root, loc=(0, 0, 5.0))
+    # the fronds, in two fringes that sway out of step
+    fringes = []
+    for side, y0 in ((0, 2.4), (1, 0.4)):
+        f = Model(f"{K}_fronds_{side}")
+        for k in range(7):
+            a = TAU * (k + side * 0.5) / 7
+            x, y = math.cos(a) * 0.9, math.sin(a) * 0.6
+            tip = (x * 1.4, y - 0.9, -2.0 - 0.3 * (k % 3))
+            chain(f, [(x, y, 0), (x * 1.2, y - 0.4, -1.0), tip], [0.12, 0.09, 0.05], FROND if k % 2 else FROND2, segs=4)
+            f.ball(0.12, tip, GLOW, subdiv=0, glow=True)
+        fringes.append(f.build(body, loc=(0, y0, -1.0)))
+    # the first vanes, still stubs, folded tight along the shell: black membrane on a pale spine
     fins = []
     for s in (1, -1):
         f = Model(f"{K}_fin_{'l' if s < 0 else 'r'}")
-        flat(f, [(0, 0.7), (0, -0.7), (s * 2.6, -0.4), (s * 4.4, -0.9), (s * 4.7, -0.55), (s * 2.8, 0.55)][:: s], 0, 0.22, FIN)
-        flat(f, [(s * 0.6, 0.62), (s * 0.6, 0.35), (s * 2.8, 0.3), (s * 4.5, -0.6), (s * 4.6, -0.5), (s * 2.8, 0.55)][:: s],
-             0.1, 0.1, BELLY)
-        for k in range(3):
-            f.ball(0.12, (s * (1.4 + k * 1.0), -0.1 - k * 0.1, 0.12), GLOW, subdiv=0, glow=True)
-        fin = f.build(body, loc=(s * 1.6, 1.6, -0.55), rot_z=s * -0.15)
+        flat(f, [(0, 0.4), (0, -0.4), (s * 0.35, -2.4), (s * 0.7, -2.0), (s * 0.55, -0.2)][:: s], 0, 0.1, VANE)
+        flat(f, [(s * 0.2, -0.6), (s * 0.4, -1.8), (s * 0.55, -1.5)][:: s], 0.06, 0.04, SHEEN)
+        limb(f, (0, 0.3, 0.05), (s * 0.35, -2.4, 0.05), 0.11, 0.05, CLEAR, segs=4)
+        f.ball(0.13, (0, 0.3, 0.05), CLEAR, subdiv=0)
+        fin = f.build(body, loc=(s * 1.2, 2.2, -0.45))
         fins.append((fin, s))
-    t1 = Model(f"{K}_tail")
-    chain(t1, [(0, 0, 0), (0, -1.6, 0.1), (0, -3.0, 0.25)], [1.25, 0.8, 0.42], BACK, segs=8)
-    for k in range(3):
-        t1.ball(0.1, (0, -0.8 - k * 0.8, 1.1 - k * 0.3), GLOW, subdiv=0, glow=True)
-    tail = t1.build(body, loc=(0, -3.9, 0.15))
-    t2 = Model(f"{K}_flukes")
-    for s in (1, -1):
-        flat(t2, [(0, 0.3), (0, -0.4), (s * 1.4, -1.5), (s * 2.5, -1.4), (s * 2.0, -0.6)][:: s], 0, 0.2, BACK)
-        flat(t2, [(s * 1.4, -1.45), (s * 2.5, -1.35), (s * 2.3, -1.15), (s * 1.6, -1.2)][:: s], 0.1, 0.1, MOTTLE)
-    t2.ball(0.42, (0, 0, 0), BACK, subdiv=1)
-    flukes = t2.build(tail, loc=(0, -3.0, 0.25))
 
-    osc(body, clip, "location", T, (2, 0.25, 1, 0.0))
-    osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.25), (1, 0.02, 1, 0.0))
-    osc(tail, clip, "rotation_euler", T, (0, 0.18, 1, 0.0))
-    osc(flukes, clip, "rotation_euler", T, (0, 0.3, 1, -0.12))
+    osc(body, clip, "location", T, (2, 0.3, 1, 0.0), (1, 0.1, 1, 0.25))
+    osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.25), (1, 0.03, 1, 0.0))
+    for k, fr in enumerate(fringes):
+        osc(fr, clip, "rotation_euler", T, (0, 0.22, 1, 0.5 * k), (1, 0.08, 2, 0.25 * k))
     for fin, s in fins:
-        osc(fin, clip, "rotation_euler", T, (1, s * 0.22, 1, 0.1), (0, 0.06, 1, 0.35))
+        osc(fin, clip, "rotation_euler", T, (1, s * 0.12, 1, 0.1), (2, s * 0.08, 1, 0.35))
 
 
 def build():

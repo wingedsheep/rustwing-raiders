@@ -9,5 +9,5 @@ Plated; untouchable while under.
 
 **Now.** Under the ground and untouchable, it swims after you, its back plates breaking the surface along a furrow of dust; then the ground boils and it erupts with a slam and a ring wave, rearing up to the flight line in a hook out of its crater, mandibles flung wide; it writhes there exposed, then pours itself back down the hole (still shootable on the way) and goes again (`src/sim/foes.ts`). Drawn by a procedural rig, not clips: head, jaws and twelve ring segments laid along an arch from the hole (`src/view/worm-rig.ts`).
 **Tell → window.** Circle tell 0.8 s at the eruption. Out 2.4 s, then 0.45 s going under.
-**Weak.** Its sounds are borrowed (the whale's breach and dive, a low shriek, the heavy thump).
+**Weak.** Its sounds are borrowed (the Throne-Shell's breach and dive, a low shriek, the heavy thump).
 - [ ] Its own rumble, roar and gulp.

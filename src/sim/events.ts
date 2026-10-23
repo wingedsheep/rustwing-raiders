@@ -1018,7 +1018,7 @@ export const EVENTS: RunEvent[] = [
       const story = run.has('brask', 'robbed')
         ? 'a pilot who robbed a refugee convoy, folks, I kid you not'
         : run.has('calf', 'saved')
-          ? 'a rustwing who stood between a whaler and a calf'
+          ? 'a rustwing who stood between a harpooner and a calf'
           : run.has('holly', 'sold')
             ? 'a toll droid sold to Vantorr for parts'
             : run.bounty
@@ -1800,20 +1800,20 @@ export const EVENTS: RunEvent[] = [
     weight: 5,
     where: 'space',
     open: false,
-    rumour: 'An umora calf, lost from its pod. A whaler is following it.',
+    rumour: 'An umora calf, lost from its pod. A harpooner is following it.',
     text: () =>
-      'A calf, no bigger than a freighter, singing to a lane that doesn\'t answer. It has lost its pod. Behind it, closing, the lights of a Lowtide whaler, and a hail on the open channel: "Stand off, rustwing. That calf\'s spoken for. Stand aside and we\'ll cut you in."',
+      'A calf, no bigger than a freighter, singing to a lane that doesn\'t answer. It has lost its pod. Behind it, closing, the lights of a Lowtide harpooner, and a hail on the open channel: "Stand off, rustwing. That calf\'s spoken for. Stand aside and we\'ll cut you in."',
     choices: [
       {
         label: 'STAND BETWEEN THEM',
-        chips: () => [c.fight('THE WHALERS'), c.sweep(2), c.reveal(99), c.rep('Reef Pirates', -1)],
-        note: () => 'WIN, AND THE POD COMES BACK FOR IT. THE LANES THEY SWIM ARE ALWAYS OPEN',
+        chips: () => [c.fight('THE HARPOONERS'), c.sweep(2), c.reveal(99), c.rep('Reef Pirates', -1)],
+        note: () => 'WIN, AND THE POD COMES BACK FOR IT. THE LANES THEY CROSS ARE ALWAYS OPEN',
         outcome: (run) => {
           run.holdSweep(2);
           run.chart.reveal(99);
           run.mood('Reef Pirates', -1);
           run.did('calf', 'saved');
-          return { text: 'You put your ship across the whaler\'s bow. The calf stops singing, as if it understands, and the harpoons come out.', fight: 'hunt', harder: 0.1, mood: 'pleased' };
+          return { text: 'You put your ship across the harpooner\'s bow. The calf stops singing, as if it understands, and the harpoons come out.', fight: 'hunt', harder: 0.1, mood: 'pleased' };
         },
       },
       {
@@ -1823,15 +1823,15 @@ export const EVENTS: RunEvent[] = [
         chips: () => [c.sweep(2), c.reveal(99), c.risk('GET IT WRONG AND THEY TAKE IT')],
         note: () => 'FIND ITS POD\'S CALL IN THE STATIC AND PLAY IT BACK',
         outcome: (run, p) => {
-          if (tier(p.score) <= 1) return { text: 'Your song is close, and close is not enough. The calf turns towards you, confused, and the whaler\'s harpoon finds it while it\'s turning. You hear all of it on the open channel.', mood: 'annoyed' };
+          if (tier(p.score) <= 1) return { text: 'Your song is close, and close is not enough. The calf turns towards you, confused, and the harpooner\'s iron finds it while it\'s turning. You hear all of it on the open channel.', mood: 'annoyed' };
           run.holdSweep(2);
           run.chart.reveal(99);
           run.did('calf', 'saved');
-          return { text: 'The calf hears its mother in your static, and turns, and dives into a lane that wasn\'t there a moment ago. The whaler follows it in and comes out somewhere it didn\'t mean to. Where the pod has been, the lanes run smooth.', mood: 'pleased' };
+          return { text: 'The calf hears its mother in your static, and turns, and dives into a lane that wasn\'t there a moment ago. The harpooner follows it in and comes out somewhere it didn\'t mean to. Where the pod has been, the lanes run smooth.', mood: 'pleased' };
         },
       },
       {
-        label: "TAKE THE WHALERS' CUT",
+        label: "TAKE THE HUNTERS' CUT",
         chips: () => [c.scrap(110), c.rep('Reef Pirates', 1), c.sweep(-1)],
         note: () => 'THE UMORA HOLD THE LANES. EVERY ONE KILLED LEAVES THEM THINNER',
         outcome: (run) => {

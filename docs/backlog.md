@@ -27,7 +27,7 @@ Already under way on the forge's bench (`src/game/lab-parts.ts`, `src/sim/arsena
 ### 3. Biomes: places worth seeing
 Every biome should feel like discovering somewhere new: its own look, its own life, its own light. Hollow Knight and Silksong are the bar.
 - A pass per planet, all four biomes together, so each one is unmistakably itself (Fernwood Basin to Tailings Lake). Start with the planets whose Warden is being rebuilt, so a sector is finished whole.
-- **Scripted moments**: one or two rare set pieces per biome that make it memorable. A titan walking past in the Titan Graveyard, a sky-whale pod breaching over the Lagoon, the Stormwall lighting up, Engine City's lamps waking, a temple bell under the Drowned Temple's water.
+- **Scripted moments**: one or two rare set pieces per biome that make it memorable. A titan walking past in the Titan Graveyard, drift-calves letting their gas go and climbing out of the Calving Haze, the Stormwall lighting up, Engine City's lamps waking, a temple bell under the Drowned Temple's water.
 - Each planet a theme of its own voice (only Oru-Tal's boss has one).
 
 ### 4. What every boss still lacks

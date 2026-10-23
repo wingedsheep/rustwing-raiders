@@ -23,7 +23,7 @@ Not for us: `eleven_v4_turbo` and `eleven_v3_conversational` are the real-time m
 ## 2. Two kinds of sound
 
 1. **People who talk** (the Vhossk Twins, Tobbo Grisk, 7-Holly, ...). A **designed voice** speaks **gibberish written in that species' sound-set** (§5), with audio tags for the acting. Sent to `eleven_v4`.
-2. **Creatures that don't** (hull leeches, the umora, faction beasts). A **sound-effect prompt** to `eleven_text_to_sound_v3`. Voice design is built for voices that speak, so it can't make a whale song or a wet chitter.
+2. **Creatures that don't** (hull leeches, the umora, faction beasts). A **sound-effect prompt** to `eleven_text_to_sound_v3`. Voice design is built for voices that speak, so it can't make a radio song or a wet chitter.
 
 When in doubt, pick (1) when it haggles and (2) when it bites.
 
@@ -149,7 +149,7 @@ Voice descriptions for the first eleven, ready to paste into §4. The bark-speci
 | **Squit** | voice | A twitchy, small alien informant. Thin, nasal, high voice, whispering fast, nervous, always about to run. Unplaceable non-human accent. | 0.3 | pitch +2 |
 | **Lady Vey** | voice | An aristocratic alien noblewoman. Smooth, low-mid, languid and bored, drawn-out vowels, delighted only by rare things. Rich, close-mic'd. | 0.45 | — |
 | **Hull leeches** | sfx | `many small hard legs skittering across a metal hull, clicking, teeth chewing on cable, sparks` (3 s) | — | — |
-| **Umora of Vesh** | sfx | `huge whale song in deep space, slow low moan rising to a warm hum, distant and vast` (6 s) | — | long verb |
+| **Umora of Vesh** | sfx | `vast slow radio song from deep space, a low moan rising to a warm hum under soft static, distant and vast` (6 s) | — | long verb |
 
 For the **Choir**, render each bark once and layer three copies in the browser, each pitch-shifted by a few cents. One voice talking as "we" sounds right that way.
 

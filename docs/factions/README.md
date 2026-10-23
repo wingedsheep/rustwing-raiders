@@ -41,7 +41,7 @@ The law they all keep, the **Accord of Level**, makes forcing a gate the gravest
 |---|---|---|---|---|---|
 | [**The Hesk**](hesk-poachers.md) | netter lodges that hunt Oru-Tal's giants | the Casting | Khess Marrow Tane | **Hesk Poachers**, on Oru-Tal | scrap |
 | [**The Sankvi**](scav-clans.md) | the war's orphans, living in its titans | Ashgrave (they say Sankven) | Warlord Khet | **Scav Clans**, on Ashgrave | scrap |
-| [**The Lowtide Court**](reef-pirates.md) | whalers who crowned a queen | the Throne-Whale, Vesh | Queen Istra | **Reef Pirates**, on Vesh | scrap |
+| [**The Lowtide Court**](reef-pirates.md) | harpooners who crowned a queen | the Throne-Shell, Vesh | Queen Istra | **Reef Pirates**, on Vesh | scrap |
 | [**The Hive and the Rang**](the-hive.md) | the bloom, and the people who stayed with it | Mirefall (they say Morang) | the Choir | **the Hive**, on Mirefall | bloom |
 | [**The Seppakva**](seppakva.md) | the order of lane-readers | tea houses | Old Mother Seffa (of the Free Ear) | NPCs only | — |
 | [**Ottex Kehx**](ledger-clan.md) | the Ledger Clan: the Reach's oldest bank | the Count, under the Salt Pans | Ottex Tekkeh the Ninth | the Collector (secretly) | — |
@@ -73,7 +73,7 @@ The fault lines that matter now, largest first.
 - **The Throne and the Spur.** The Throne wrote the Accord and breaks it in the Reach. If the Aulin, the Long Herd or the Ottexa learn the whole truth, the Throne faces the Spur alone.
 - **Inside the Throne: the Pan of Margins and the Pan of Lanes.** Margins runs the Reach as its secret; Lanes would take everything if it came out.
 - **The Compact and the Uukhvar** fought the Toll War (231–246 L), and neither has forgiven it. The Compact is secretly rebuilding its navy.
-- **The Long Herd and the Lowtide Court.** The Court's whaling is killing the Herd's umora, and the Court doesn't know the Herd exists.
+- **The Long Herd and the Lowtide Court.** The Court's hunt is killing the Herd's umora, and the Court doesn't know the Herd exists.
 - **The Seppakva and the Hesk.** Oru-Tal is the Tonkva's kept seed; to the Hoowae the Hesk are poaching in a temple.
 - **Vantorr and the Compact** both dig cores out of Engine City, and sabotage each other's shafts.
 - **Ottex Kehx and the Syndicate.** The Kehx were thrown out at Nine Wells for keeping honest books. With their cousins in the Ottexa, they are rebuilding the true count.

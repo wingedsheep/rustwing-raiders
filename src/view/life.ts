@@ -142,7 +142,7 @@ export class Life {
     }
   }
 
-  /** Every half a minute or so where there's life, a pod of sky whales glides across, low and slow. */
+  /** Every half a minute or so where there's life, a herd of drift-calves floats across, low and slow. */
   private wonders(dt: number, lv: Level, b: Biome, halfW: number) {
     this.giantT -= dt;
     if (this.giantT <= 0 && birdy(b) && !this.giants.length) {

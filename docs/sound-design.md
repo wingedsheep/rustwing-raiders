@@ -142,7 +142,7 @@ ui sounds ─ uiBus ────────────────────
 | Oru-Tal | Fernwood | humid air, leaves, birds, insects, far beast calls |
 | | Basalt | lava rumble and hiss, deep bubbling, steam vents, fire |
 | | Prism | wind whistling through crystal, a glass hum, chimes |
-| | Jade | warm surf, long-neck calls, a whale-deep moan, birds |
+| | Jade | warm surf, long-neck calls, a deep slow moan, birds |
 | Halcyon | Kelp | surf, bubbles, a warm drone, jellies chiming |
 | | Stiltport | neon hum, foghorns, cranes clanking, buzzing signs |
 | | Colony Bones | wind through wrecks, groaning metal, drips |
@@ -164,8 +164,8 @@ ui sounds ─ uiBus ────────────────────
 | | Scav Camp | campfires, clanking, a horn |
 | | Whitewood | dead forest wind, creaks, crows |
 | Vesh | Coral Flats | low surf, dripping reef, birds |
-| | Whale Lagoon | surf and whales |
-| | Bone Arch | wind in the ribs, creaks, gulls, surf |
+| | Calving Haze | surf and the calves' slow song |
+| | Bone Arch | wind in the empty shells, creaks, gulls, surf |
 | | Tide Caves | surf in a cave, drips, rumble |
 | Cinder | Orchards | machine hum, clanks, chimes off metal fruit |
 | | Refinery | rumble, flare-stack hiss, vents, presses, horns |

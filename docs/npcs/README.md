@@ -41,7 +41,7 @@ Humans, aliens, woken machines and creatures, all from `events.ts`; who they are
 | [The Choir of Mirefall](choir-of-mirefall.md) | woken core, fungal | THE TAMSIN LOWE | growing parts | no | `choir` |
 | [The Wren](the-wren.md), runaway freighter | woken core | ABSCONDED ASSET | a passenger, or a writ | no | `runaway` |
 | [Hull Leeches](hull-leeches.md) | creature | HULL LEECHES | fuel drain (the shake game) | comes to you | `leeches` |
-| [The umora](the-umora.md), lane-whales | creature | A LOST CALF | escort or hunt | no | `calf` |
+| [The umora](the-umora.md), lane-drifters | creature | A LOST CALF | escort or hunt | no | `calf` |
 | [The Collector](the-collector.md) | unseen | STRANGE SIGNAL | selling secrets | unseen | `signal` |
 
 Named but never met: **Lana Vey**, a racer shot down last season (CRASH SITE), and **the Margarethe**, a ghost freighter whose crew still says "Welcome aboard" (GHOST FREIGHTER). Dock gossip also mentions **a trader comet** going round the wrong way: "She buys anything, and pays a little over."

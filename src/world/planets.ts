@@ -753,7 +753,7 @@ export const PLANETS: Planet[] = [
     id: 'vesh',
     name: 'VESH',
     epithet: 'the Low Tide',
-    blurb: 'A reef world, half drained. Pink coral flats, a lagoon where sky-whales feed, islands made of old bones, and caves the tide hollowed out.',
+    blurb: 'A reef world, half drained. Pink coral flats, a lagoon where drift-calves feed, islands made of old bones, and caves the tide hollowed out.',
     orbit: [0xff8aa0, 0x3ad0e0, 0xf0e8d0, 0x2a6a8a],
     faction: 'Reef Pirates',
     biomes: [
@@ -784,7 +784,7 @@ export const PLANETS: Planet[] = [
       },
       {
         id: 'whalelagoon',
-        name: 'Sky-Whale Lagoon',
+        name: 'Calving Haze',
         line: 'They feed on the plankton haze. They are flying under you.',
         shape: 'islands',
         relief: 3,
@@ -810,7 +810,7 @@ export const PLANETS: Planet[] = [
       {
         id: 'bonearch',
         name: 'Bone Archipelago',
-        line: 'Islands of rib and skull. Something very big died here, many times.',
+        line: 'Islands of pale shell. Something very big died here, many times.',
         shape: 'islands',
         relief: 3,
         water: 1.8,
@@ -867,7 +867,7 @@ export const PLANETS: Planet[] = [
       { archetype: 'turret', name: 'Clam Battery', kind: 'beast', colors: [0xd88a98, 0xf0e8d0, 0x4affff] },
       { archetype: 'brute', name: 'Crab Dreadnought', kind: 'beast', colors: [0xd04a3a, 0xf0c0a0, 0xffe04a] },
     ],
-    boss: { name: 'QUEEN ISTRA', title: 'pirate queen in a hollowed lane-whale', kind: 'beast', colors: [0x5a8ab0, 0xf0e8d8, 0xff4a6a] },
+    boss: { name: 'QUEEN ISTRA', title: 'pirate queen in a dead umora\'s shell', kind: 'beast', colors: [0x5a8ab0, 0xf0e8d8, 0xff4a6a] },
   },
   {
     id: 'cinder',

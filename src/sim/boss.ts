@@ -196,9 +196,9 @@ const READ_OWN: Record<string, Partial<Record<Read, string>>> = {
   // Istra plays to her Court: everything you do is part of the show
   vesh: {
     back: 'CALLS YOU IN, LITTLE FISH',
-    still: 'SAYS: A SITTING WHALE',
+    still: 'SAYS: A SITTING SHELL',
     side: 'SAYS: HUGGING THE REEF',
-    boost: 'THERE SHE BLOWS!',
+    boost: 'THERE SHE VENTS!',
     close: 'SAYS: BOLD. SHE LIKES BOLD',
     dash: 'SAYS: SHOW-OFF',
   },
@@ -341,7 +341,7 @@ const OWN: Record<string, BossMove[][]> = {
   // The Engine: half asleep, it scans, crosses and sheds its ice; stirring, it starts to count and
   // calls its menders; awake, the ice is gone (no calving), its arms are free and it grasps
   glacis: [['scan', 'calve'], ['scan', 'count', 'summon', 'calve'], ['scan', 'count', 'grasp']],
-  // Istra hunts you as she'd hunt a whale: irons, her breath, a breach; drawing blood makes it a
+  // Istra hunts you as she'd hunt an umora: irons, her breath, a breach; drawing blood makes it a
   // sea fight (broadsides, her captains called in); with her crew gone, everything comes back
   vesh: [['irons', 'breach'], ['irons', 'broadside', 'summon', 'breach'], ['irons', 'broadside', 'breach']],
   // ARU-0 by the contract: it repossesses, reels in the scrap as a lien and sends its collectors;
@@ -469,7 +469,7 @@ export const bossHull = (planet: string) => HULL[planet] ?? 1;
 const HELP: Record<string, [Foe, number]> = {
   orutal: ['swooper', 2],
   ashgrave: ['ramjack', 2],
-  // Istra's captains: whalers, with irons of their own
+  // Istra's captains: harpooners, with irons of their own
   vesh: ['hookjaw', 2],
   halcyon: ['warden', 2],
   glacis: ['prism', 2],
@@ -2195,7 +2195,7 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       break;
     }
     case 'breath': {
-      // in: everything near is drawn to her maw (boost against it; a dash is free of it)
+      // in: everything near is drawn to her intake (boost against it; a dash is free of it)
       for (const q of lv.players) {
         if (q.down || q.dashT > 0) continue;
         const dx = e.x - q.x;
@@ -2255,7 +2255,7 @@ function reel(lv: Level, e: Enemy, b: BossState) {
 }
 
 /**
- * Istra's tide: what she has thrown stalls, turns and comes home to her (bubbles to her maw, irons
+ * Istra's tide: what she has thrown stalls, turns and comes home to her (bubbles to her intake, irons
  * reeled in). It comes back the way it went, so don't step back onto its line until it's home.
  */
 function ebb(lv: Level, e: Enemy, b: BossState) {

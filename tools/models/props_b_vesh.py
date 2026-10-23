@@ -165,7 +165,7 @@ def coral_tube(v):
     return r
 
 
-# --- the Sky-Whale Lagoon ------------------------------------------------------------------
+# --- the Calving Haze ---------------------------------------------------------------------
 
 MANG = (["#173a30", "#1f5440", "#2d7050", "#4f9460"],            # old growth, deep and blue-green
         ["#163e42", "#1e5a56", "#2c7a6a", "#58a88a"],            # sea-green, salt on the leaves
