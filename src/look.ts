@@ -4,12 +4,15 @@ import type * as THREE from 'three';
  * ?look=15: a still for `just look` (tools/look.ts). The autopilot flies 15 s of the level in fixed
  * steps, the view stepped with it, then everything holds; no HUD. Math.random is seeded from &seed
  * (this module is imported first, before anything rolls), so the same seed and moment give the same
- * pixels. The tool reads `window.__look` to know when it's ready, and sets `mode` for the grey frame:
- * 'keep' drops the shadows of what must read, 'bare' hides it, and the difference is its mask.
+ * pixels. The tool reads `window.__look` to know when it's ready (and `air`, the ambient count then),
+ * and sets `mode` for the frames it measures: 'keep' drops the shadows of what must read, 'bare'
+ * hides it (the difference is the grey frame's mask), 'nofire' hides only the enemy fire.
  */
 const q = new URLSearchParams(location.search);
 
-export const look = q.has('look') ? { at: Number(q.get('look')) || 15, ready: false, mode: 'still' as 'still' | 'keep' | 'bare' } : null;
+export const look = q.has('look')
+  ? { at: Number(q.get('look')) || 15, ready: false, mode: 'still' as 'still' | 'keep' | 'bare' | 'nofire', air: { ambient: 0, clouds: 0 } }
+  : null;
 
 if (look) {
   // mulberry32
@@ -24,14 +27,14 @@ if (look) {
   Object.assign(window, { __look: look });
 }
 
-/** Draws with the look's mode applied to what must read, then puts it back. */
-export function posed(readers: () => THREE.Object3D[], draw: () => void) {
+/** Draws with the look's mode applied to what must read (or the enemy fire), then puts it back. */
+export function posed(readers: () => THREE.Object3D[], fire: () => THREE.Object3D, draw: () => void) {
   if (!look || look.mode === 'still') return draw();
   const was: [THREE.Object3D, boolean, boolean][] = [];
-  for (const r of readers()) r.traverse((o) => void was.push([o, o.visible, o.castShadow]));
+  for (const r of look.mode === 'nofire' ? [fire()] : readers()) r.traverse((o) => void was.push([o, o.visible, o.castShadow]));
   for (const [o] of was) {
-    o.castShadow = false;
-    if (look.mode === 'bare') o.visible = false;
+    if (look.mode !== 'nofire') o.castShadow = false;
+    if (look.mode !== 'keep') o.visible = false;
   }
   draw();
   for (const [o, visible, cast] of was) {

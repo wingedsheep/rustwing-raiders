@@ -8,7 +8,6 @@ Done work is deleted from here; git and the design docs keep the record.
 
 ### 1. Readability: what can hurt you, what you can take
 The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix, and the look of the paintings in [`art-direction/planets/`](art-direction/planets/), come in small pushes, each finished and checked on its own before the next: [readability](readability.md).
-- **Tools** (2): `just look` is in (a still beside its painting, the grey frame, `--all`); next `--stats`, the numbers that check crowding and contrast.
 - **The four layers, game-wide** (3–6): threats above the grade, the colour contract, pickups by shape, nothing ambient like a bullet.
 - **Red Mesa Run, piece by piece** (7–11): the camera, walls, colliders, composed props, then the biome like its painting.
 - **More biomes, the foes, then a planet at a time** (12 on).

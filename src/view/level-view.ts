@@ -284,6 +284,7 @@ export class LevelView {
   private multiT = 0;
   private banks: number[] = [0, 0];
   private ambientT = 0;
+  private air: number[] = [];
   private biomeIdx = -1;
   /** For the HUD: the biome that just came in and how long ago. */
   biomeBanner: { name: string; line: string; t: number } | null = null;
@@ -2046,14 +2047,24 @@ export class LevelView {
    * the ships, the foes, their fire and tells, the hazards, the pickups, and the wall lips (anything
    * tagged `userData.lip`).
    */
+  /** Enemy fire (for `just look --stats`: the frame without it, and so each bullet's ground). */
+  fire(): THREE.Object3D {
+    return this.bullets.group;
+  }
+
   readers(): THREE.Object3D[] {
-    const out: THREE.Object3D[] = [this.bullets.group, this.threats.group, this.hazards.group, ...this.laserMeshes, ...this.plates];
+    const out: THREE.Object3D[] = [this.fire(), this.threats.group, this.hazards.group, ...this.laserMeshes, ...this.plates, this.shots, this.shotArt.group];
     for (const s of this.ships) if (s) out.push(s.root);
     for (const b of this.balls) out.push(b.ball, ...b.links);
     for (const e of this.enemies.values()) out.push(e.obj, ...(e.ring ? [e.ring] : []), ...(e.tow ? [e.tow] : []));
     for (const p of this.pickups.values()) out.push(p.obj, ...(p.beacon ? [p.beacon] : []));
     this.scene.traverse((o) => void (o.userData.lip && out.push(o)));
     return out;
+  }
+
+  /** How many of the place's ambient specks (ash, spores, rain…) are up, and its low clouds. */
+  airCount() {
+    return { ambient: this.air.length, clouds: this.clouds.length };
   }
 
   update(dt: number) {
@@ -3241,7 +3252,10 @@ export class LevelView {
     const lv = this.lv;
     const b = lv.terrain.biome(lv.scroll);
     const kind = b.particles;
+    // (each one's end, so `airCount` knows how many are up)
+    this.air = this.air.filter((t) => t > this.time);
     if (kind === 'none') return;
+    const add = (o: Parameters<Fx['add']>[0]) => void this.air.push(this.time + this.fx.add(o).life);
     this.ambientT += dt * (kind === 'rain' ? 60 : kind === 'snow' || kind === 'ash' ? 22 : 12);
     while (this.ambientT > 1) {
       this.ambientT--;
@@ -3250,31 +3264,31 @@ export class LevelView {
       const y = 2 + Math.random() * 14;
       switch (kind) {
         case 'ash':
-          this.fx.add({ x, y: y + 6, z, vx: 1.5, vy: -2, vz: 1, size: 0.18, life: 3, glow: false, color: ASH });
+          add({ x, y: y + 6, z, vx: 1.5, vy: -2, vz: 1, size: 0.18, life: 3, glow: false, color: ASH });
           break;
         case 'snow':
-          this.fx.add({ x, y: y + 6, z, vx: 2, vy: -3, vz: 1, size: 0.2, life: 3, glow: false, color: SNOW });
+          add({ x, y: y + 6, z, vx: 2, vy: -3, vz: 1, size: 0.2, life: 3, glow: false, color: SNOW });
           break;
         case 'embers':
-          this.fx.add({ x, y: Math.random() * 4, z, vx: (Math.random() - 0.5) * 2, vy: 4, size: 0.16, life: 2.2, color: EMBER, to: EMBER_END });
+          add({ x, y: Math.random() * 4, z, vx: (Math.random() - 0.5) * 2, vy: 4, size: 0.16, life: 2.2, color: EMBER, to: EMBER_END });
           break;
         case 'spores':
-          this.fx.add({ x, y, z, vx: Math.sin(z) * 0.8, vy: 0.6, size: 0.18, life: 3, color: Math.random() < 0.5 ? SPORE : SPORE2 });
+          add({ x, y, z, vx: Math.sin(z) * 0.8, vy: 0.6, size: 0.18, life: 3, color: Math.random() < 0.5 ? SPORE : SPORE2 });
           break;
         case 'pollen':
-          this.fx.add({ x, y, z, vx: 1.2, vy: 0.3, size: 0.14, life: 3, color: POLLEN });
+          add({ x, y, z, vx: 1.2, vy: 0.3, size: 0.14, life: 3, color: POLLEN });
           break;
         case 'motes':
-          this.fx.add({ x, y, z, vy: 0.4, size: 0.16, grow: 0.2, life: 2.5, color: new THREE.Color(b.light) });
+          add({ x, y, z, vy: 0.4, size: 0.16, grow: 0.2, life: 2.5, color: new THREE.Color(b.light) });
           break;
         case 'sand':
-          this.fx.add({ x: x - 10, y: Math.random() * 6, z, vx: 18, vz: 2, size: 0.15, life: 1.4, glow: false, color: new THREE.Color(b.ground[2]) });
+          add({ x: x - 10, y: Math.random() * 6, z, vx: 18, vz: 2, size: 0.15, life: 1.4, glow: false, color: new THREE.Color(b.ground[2]) });
           break;
         case 'rain':
-          this.fx.add({ x, y: 18, z: z - 4, vx: 3, vy: -40, vz: 6, size: 0.14, life: 0.45, glow: false, color: RAIN });
+          add({ x, y: 18, z: z - 4, vx: 3, vy: -40, vz: 6, size: 0.14, life: 0.45, glow: false, color: RAIN });
           break;
         case 'steam':
-          if (Math.random() < 0.4) this.fx.add({ x, y: Math.max(lv.terrain.height(x, z), lv.terrain.water(z)), z, vy: 2.5, size: 1.4, grow: 2.5, life: 2, glow: false, color: STEAM, to: new THREE.Color(b.sky) });
+          if (Math.random() < 0.4) add({ x, y: Math.max(lv.terrain.height(x, z), lv.terrain.water(z)), z, vy: 2.5, size: 1.4, grow: 2.5, life: 2, glow: false, color: STEAM, to: new THREE.Color(b.sky) });
           break;
       }
     }

@@ -6,7 +6,7 @@ Each push is small enough to finish and check on its own, and is checked before 
 
 ## The checks
 
-Pushes 1 and 2 build these. Each later push names the ones it needs.
+`just look` builds these (see Tools). Each later push names the ones it needs.
 
 **Stills**
 - **Look**: `just look <planet> <biome>` saves the painting and the game side by side, at a fixed seed with the sim paused at a set moment. `--all` makes a contact sheet of every biome.
@@ -30,17 +30,25 @@ Pushes 1 and 2 build these. Each later push names the ones it needs.
 - **Hand**: a fight flown by hand.
 - **Bench**: the autopilot bench before and after. Wall and prop hits must not go up (laser gate hits are pilot error: ignore them).
 
-The thresholds below are starting values. Push 2 measures the paintings and today's game, and sets the real ones from what separates the two.
-
 ## Tools
 
-`just look <planet> <biome>` and `just look --all` are built (`tools/look.ts`; `--at` and `--seed` move the moment, `--twice` checks that two runs give the same pixels). The grey frame keeps `readers()` in `src/view/level-view.ts`: the ships, foes, their fire and tells, hazards, pickups, and anything tagged `userData.lip`. The *before* for every later push is [`readability/before.jpg`](readability/before.jpg): seed 1, 15 s into a raid.
+`just look <planet> <biome>` and `just look --all` (`tools/look.ts`): the painting beside the game at a fixed seed and moment, and the grey frame, which keeps `readers()` in `src/view/level-view.ts` (the ships and their shots, foes, their fire and tells, hazards, pickups, and anything tagged `userData.lip`). The *before* for every later push is [`readability/before.jpg`](readability/before.jpg): seed 1, 15 s into a raid.
 
-### Push 2: `just look --stats`
-The numbers above, plus the Value, Seeds, Strip and Squint sheets.
+`--stats` adds the numbers (20 s in, when every biome's foes are firing) and the Value, Squint and Strip sheets, with a `-found.png` showing each bullet and look-alike it measured. `--seeds` makes the Seeds sheet. The measures are in `tools/look-stats.ts`. Bullet contrast is the OKLab distance (lightness and colour), because the Salt Pans painting's orange shots on white salt read by colour. The painting's numbers come from the bullets the look-alike finder finds in it.
 
-- **Pass:** the numbers agree with the eye. Run on all ten paintings and on today's ten biomes: the paintings should pass and today's game should fail where it looks wrong (a busy lane, flat bullets, scatter).
-- **Keep:** both sets of numbers, written into this doc as the thresholds.
+The lines are rough, from one run. They only need to point at what looks chaotic:
+
+| | paintings | today's game | line |
+|---|---|---|---|
+| Detail (edges over lane) | 1.05–2.2 | 0.75–1.23 | ≥ 1.0 |
+| Bullet ΔE (worst) | 0.12–0.34 | 0.03–0.18 | ≥ 0.2 |
+| Bullet chroma (median) | 0.12–0.23 | 0.05–0.13 | ≥ 0.15 |
+| Look-alikes | (their own bullets) | 0–139 | ≤ 5 |
+| Clumping | – | 0.76–0.97 | ≤ 0.7 |
+| Open lane (ship widths) | – | 4.2–13.6 | ≥ 3 |
+| Most on a screen (scenery / colliders / landmarks) | – | up to 162 / 9 / 2 | 60 / 8 / 1 |
+
+Today's game fails detail, bullet contrast and colour, and clumping everywhere. Glowcap, Spore Vents, Glass Craters and Engine City are full of look-alikes, and every biome puts two landmarks on a screen. The lane is open everywhere.
 
 ## The four layers, game-wide
 
@@ -49,7 +57,7 @@ No new biome art. After these four pushes, every biome shows the [four layers](a
 ### Push 3: threats above the grade
 Enemy bullets go into the overlay pass, so bloom, split tone and the black lift stop flattening them. (The comment at `level-view.ts:132` says they are drawn there already; they aren't.) Tone down the ground under the lane: less bloom and saturation there, the richest colour at the edges.
 
-- **Pass, bullet contrast:** the worst bullet in every biome clears the threshold (start at ΔL ≥ 0.3).
+- **Pass, bullet contrast:** the worst bullet in every biome clears the threshold (ΔE ≥ 0.2).
 - **Pass, saturation rule:** holds in all biomes.
 - **Pass, value:** bullets still stand out in the greyscale frame.
 - **Pass, squint:** each biome's thumbnail still reads as its own place next to the *before* sheet. Toning down the ground mustn't wash the biomes out.

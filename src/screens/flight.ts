@@ -183,7 +183,10 @@ export class Flight implements Screen {
       this.lv.events.length = 0;
       this.view.update(DT);
       this.acc += DT;
-      if (this.acc >= look!.at - 1e-9) look!.ready = true;
+      if (this.acc >= look!.at - 1e-9) {
+        look!.air = this.view.airCount();
+        look!.ready = true;
+      }
     }
   }
 
@@ -217,7 +220,7 @@ export class Flight implements Screen {
       g.renderer.setRenderTarget(null);
       g.renderer.setViewport(0, 0, g.dw, g.dh);
       g.renderer.render(this.view.scene, this.view.eye);
-    } else posed(() => this.view.readers(), () => g.pixel.render(this.view.scene, this.view.eye, 0, 0, g.dw, g.dh, g.px, this.view.overlay));
+    } else posed(() => this.view.readers(), () => this.view.fire(), () => g.pixel.render(this.view.scene, this.view.eye, 0, 0, g.dw, g.dh, g.px, this.view.overlay));
     if (look) return;
     const names = g.devices.map((d) => input.padName(d));
     this.hud.dw = g.dw;
