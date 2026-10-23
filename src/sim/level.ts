@@ -481,7 +481,8 @@ export type LevelEvent =
   | { type: 'seeker'; x: number; z: number; color: number; how: 'halt' | 'go' | 'shot' | 'hit'; n: number }
   /** `shield`: the shield took all of it; `dmg` and `tier`: what got through to the hull; `soak`: what the shield took. */
   | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier; soak?: number }
-  | { type: 'crash'; id: number; x: number; z: number }
+  /** A ship into the land or an obstacle: (x, z) where it struck, (nx, nz) the way it was thrown off. */
+  | { type: 'crash'; id: number; x: number; z: number; nx: number; nz: number }
   /** A player's shot meeting the land: stopped there, or (`bounce`) glancing off it. */
   | { type: 'shotLand'; x: number; z: number; bounce: boolean; heavy: boolean; src?: string }
   | { type: 'down'; id: number; x: number; z: number }
@@ -3292,7 +3293,7 @@ export class Level {
     p.z += push.z * 0.5;
     if (p.inv <= 0) {
       p.crashes++;
-      this.emit({ type: 'crash', id: p.id, x: p.x, z: p.z });
+      this.emit({ type: 'crash', id: p.id, x: p.x - push.x * 0.9, z: p.z - push.z * 0.9, nx: push.x, nz: push.z });
       // a crash costs momentum: some Burn
       p.burn = Math.max(0, p.burn - BURN_CRASH);
     }

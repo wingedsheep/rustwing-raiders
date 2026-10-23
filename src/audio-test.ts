@@ -7,7 +7,7 @@ const SFX: Sfx[] = [
   'player_hit', 'player_down', 'shield_break', 'shield_up', 'dash', 'graze', 'overheat',
   'pickup_scrap', 'pickup_part', 'heal',
   'special_bomb', 'special_phase', 'special_emp', 'special_overdrive', 'special_ready',
-  'laser_charge', 'laser_fire', 'lightning', 'geyser', 'crash', 'warp', 'boss_warning', 'level_clear',
+  'laser_charge', 'laser_fire', 'lightning', 'geyser', 'crash', 'hull_crash', 'warp', 'boss_warning', 'level_clear',
   'ui_move', 'ui_select', 'ui_back', 'ui_error', 'ui_place', 'ui_buy',
   // boarding
   'foot_shot', 'foot_blast', 'foot_shell', 'foot_dry', 'step', 'slide', 'takedown', 'punch', 'body_fall', 'swing',

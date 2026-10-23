@@ -175,6 +175,9 @@ export class LevelView {
   private jumps: JumpView;
   /** Each ship's engines catching after a jumpstart (1, burning down). */
   private relight = [0, 0];
+  /** Just crashed (1, dying away), and the way it was thrown off: the hull shudders and bleeds sparks. */
+  private crashT = [0, 0];
+  private crashN = [[0, 1], [0, 1]];
   private shields: Shields;
   private guards: Guards;
   /** An escort's haulers. */
@@ -627,9 +630,45 @@ export class LevelView {
           break;
         }
         case 'crash': {
+          // metal on rock: white-hot sparks sprayed off the face it struck and ground along it,
+          // bits of hull and stone flung clear, dust, a flare of light, and the screen thrown
           const p = lv.players[e.id];
-          this.fx.sparks(p.x, FLIGHT_Y, p.z, 20, 0xffd080, 14, 0.5, 0.28);
-          audio.play('crash');
+          const y = FLIGHT_Y + 0.4;
+          const a0 = Math.atan2(e.nz, e.nx);
+          for (let k = 0; k < 64; k++) {
+            const grind = k % 3 === 0;
+            const a = grind ? a0 + (k % 2 ? 1 : -1) * (Math.PI / 2 - 0.25 + Math.random() * 0.4) : a0 + (Math.random() - 0.5) * 2.4;
+            const v = (grind ? 18 : 22) + Math.random() * 26;
+            this.fx.add({ x: e.x, y, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 3 + Math.random() * 9, gravity: 26, drag: 1.8, size: 0.2 + Math.random() * 0.2, grow: 0.3, life: 0.45 + Math.random() * 0.6, color: HOT, to: EMBER_END, carried: true });
+          }
+          this.fx.sparks(e.x, y, e.z, 14, 0xffffff, 34, 0.14, 0.2);
+          this.strokes.burst(e.x, e.z, 14, SPARK, 10, 0.2, 0.4, a0);
+          this.strokes.star(e.x, e.z, 3.2, 0xffffff, 0.16);
+          // the white of the blow, and the light it throws on the rock
+          this.fx.add({ x: e.x, y: y + 0.4, z: e.z, size: 3.4, grow: 1.4, life: 0.08, color: HOT, carried: true });
+          this.fx.ring(e.x, y, e.z, 4.5, 0.26, true, 0xffd8a0);
+          this.blast(e.x, FLIGHT_Y, e.z, 2.2);
+          // chunks: its own plating, and chips of what it hit
+          const skin = LIVERY[e.id];
+          for (let k = 0; k < 12; k++) {
+            const a = a0 + (Math.random() - 0.5) * 2.2;
+            const v = 8 + Math.random() * 12;
+            const hull = k < 6;
+            this.fx.add({ x: e.x, y, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 5 + Math.random() * 8, size: hull ? 0.2 + Math.random() * 0.22 : 0.16 + Math.random() * 0.3, life: 2 + Math.random() * 1.5, color: hull ? this.c.setHex(skin[k % 2]).multiplyScalar(0.75) : DEBRIS_ROCK, solid: true, gravity: 24, spin: 10 + Math.random() * 14 });
+          }
+          for (let k = 0; k < 7; k++) {
+            const a = a0 + (Math.random() - 0.5) * 2;
+            const v = 2 + Math.random() * 5;
+            this.fx.add({ x: e.x + (Math.random() - 0.5), y, z: e.z + (Math.random() - 0.5), vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 1 + Math.random() * 2, size: 0.9 + Math.random() * 0.6, grow: 2.6, life: 0.6 + Math.random() * 0.5, drag: 3, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+          }
+          this.trauma = Math.min(1, this.trauma + 0.75);
+          this.shove(e.nx, e.nz, 1.5);
+          this.flash = Math.max(this.flash, 0.32);
+          this.flashColor.set(0xffb070);
+          this.hurt = Math.max(this.hurt, 0.8);
+          this.crashT[e.id] = 1;
+          this.crashN[e.id] = [e.nx, e.nz];
+          audio.play('hull_crash', { pan: p.x / HALF_W });
           break;
         }
         case 'down':
@@ -1974,6 +2013,12 @@ export class LevelView {
         }
         break;
       }
+      case 'crash':
+        // into the rock: a longer frame than a shot, the colours torn, the view slammed in
+        this.impact(0xffc890, 0.09);
+        this.aberr = 1;
+        this.punch(1);
+        break;
       case 'down':
         this.impact(0xff9a80, 0.1);
         this.aberr = 1;
@@ -2137,6 +2182,7 @@ export class LevelView {
     this.core.update(dt);
     this.jumps.update(dt);
     for (let k = 0; k < 2; k++) this.relight[k] = Math.max(0, this.relight[k] - dt * 1.4);
+    for (let k = 0; k < 2; k++) this.crashT[k] = Math.max(0, this.crashT[k] - dt * 1.6);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.guards.update(dt, lv, (id) => LIVERY[id][2]);
@@ -2386,8 +2432,20 @@ export class LevelView {
       r.scale.set(1 + st * (0.4 * ax - 0.15 * az), 1 - st * 0.12, 1 + st * (0.4 * az - 0.15 * ax));
       // lean into turns, nose down when pushing forward
       this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
-      ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0);
-      ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0);
+      // a crash knocks it about: it rocks hard, twists off the rock, jitters as the frame rings
+      const cr = this.crashT[i] * this.crashT[i];
+      const [cnx, cnz] = this.crashN[i];
+      ship.body.rotation.z = this.banks[i] + (p.down ? Math.sin(this.time * 3) * 0.3 + 0.5 : 0) + Math.sin(this.time * 38) * 0.55 * cr - cnx * 0.5 * cr;
+      ship.body.rotation.x = clamp(-p.vz / 60, -0.25, 0.25) + (p.down ? 0.2 : 0) + cnz * 0.35 * cr;
+      ship.body.rotation.y = (cnx >= 0 ? 1 : -1) * 0.7 * cr;
+      ship.body.position.x = (Math.random() - 0.5) * 0.35 * cr;
+      if (this.crashT[i] > 0.15 && !p.down) {
+        // the hull bleeding sparks and smoke for a moment after
+        if (Math.random() < dt * 40 * this.crashT[i])
+          this.fx.add({ x: p.x + (Math.random() - 0.5) * 1.2, y: FLIGHT_Y + 0.4, z: p.z + (Math.random() - 0.5) * 1.2, vx: (Math.random() - 0.5) * 12, vz: 6 + Math.random() * 10, vy: 2 + Math.random() * 5, gravity: 26, drag: 2, size: 0.14 + Math.random() * 0.1, grow: 0.3, life: 0.25 + Math.random() * 0.25, color: SPARK, to: EMBER_END, carried: true });
+        if (Math.random() < dt * 18 * this.crashT[i])
+          this.fx.add({ x: p.x + (Math.random() - 0.5) * 0.8, y: FLIGHT_Y + 0.6, z: p.z + 0.6, vx: (Math.random() - 0.5) * 2, vz: 5 + Math.random() * 4, vy: 1.5, size: 0.5, grow: 2.6, life: 0.55, drag: 2, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+      }
       ship.body.position.y = Math.sin(this.time * 2.3 + i) * 0.12;
       ship.body.position.z = this.recoil[i] ?? 0;
       // engines burn hotter going forward
@@ -3547,6 +3605,7 @@ function cloudMaterial(col: THREE.Color, opacity: number) {
 
 export type { Player };
 const SCORCH = new THREE.Color(0x2e2620);
+const DEBRIS_ROCK = new THREE.Color(0x6a5e52);
 const WHITE = new THREE.Color(0xffffff);
 /** What a foe under something shows as: its colour, gone hot. */
 const FOE_XRAY = new THREE.Color(0xff4a3a);

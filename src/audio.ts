@@ -25,7 +25,7 @@ export type Sfx =
   | 'player_hit' | 'player_down' | 'shield_break' | 'shield_up' | 'dash' | 'graze' | 'overheat'
   | 'pickup_scrap' | 'pickup_part' | 'heal'
   | 'special_bomb' | 'special_phase' | 'special_emp' | 'special_overdrive' | 'special_ready'
-  | 'laser_charge' | 'laser_fire' | 'lightning' | 'geyser' | 'crash' | 'warp' | 'boss_warning' | 'level_clear'
+  | 'laser_charge' | 'laser_fire' | 'lightning' | 'geyser' | 'crash' | 'hull_crash' | 'warp' | 'boss_warning' | 'level_clear'
   | 'ui_move' | 'ui_select' | 'ui_back' | 'ui_error' | 'ui_place' | 'ui_buy'
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
@@ -1426,6 +1426,20 @@ const SFX: Record<Sfx, SfxDef> = {
     crackle(o, t, 0.3, 10, 0.14);
     return 0.5;
   }, 0.1, 3),
+
+  // your hull into rock: the thud of it through the frame, the plating ringing like a struck
+  // drum, a grinding scrape as it's thrown off, and bits of both raining down
+  hull_crash: S((t, p, o) => {
+    boom(o, t, p * 0.7, 1.1, 0.5);
+    tone(o, t, 'sine', 70 * p, 26 * p, 0.5, 0.42, 0.002, 0.3);
+    const d = drive(o, 0.9);
+    noise(d, t, 0.12, 'bandpass', 1400 * p, 600 * p, 1.4, 0.4, 0.001);
+    metal(o, t + 0.005, 212 * p, 0.09, 0.9);
+    metal(o, t + 0.02, 347 * p, 0.05, 0.6);
+    noise(o, t + 0.03, 0.42, 'bandpass', 3200 * p, 1100 * p, 3, 0.16, 0.01);
+    crackle(o, t + 0.04, 0.55, 22, 0.22);
+    return 1;
+  }, 0.12, 2, { rev: 0.25, duck: [0.25, 0.5], shock: 0.2 }),
 
   warp: S((t, p, o) => {
     const lp = filt(o, 'lowpass', 3000);
