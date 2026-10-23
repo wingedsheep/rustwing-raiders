@@ -12,16 +12,17 @@ from props_a_lib import (arc, bend, collider, frond, lump, pulse, recolor, ribbo
 
 # the ground is dusk violet and moss (#3a4a3a, #4a3a5a): stems go pale, caps go rich, the light glows
 STEM = ["#d8d0e8", "#c4bcd8", "#e4dcf0"]
-CAPS = {                                            # (the old names, kept for the set pieces) the Hive's colours
-    "violet": ("#5a2e8a", "#7a4ab0", "#9aff5a"),    # cap, crown, glow
-    "teal": ("#3a3a8a", "#5a56b4", "#6affc0"),
-    "magenta": ("#8a2a78", "#b04a98", "#ff7aff"),
-    "amber": ("#9a7ac8", "#c4a8e8", "#b8ff4a"),
+CAPS = {                                            # (the old names, kept for the set pieces) the Hive's colours; the light's pale and
+    # cool, never lime or hot pink: those are the brood sacs' and the Hive's fire
+    "violet": ("#5a2e8a", "#7a4ab0", "#cfc4f4"),    # cap, crown, glow
+    "teal": ("#3a3a8a", "#5a56b4", "#b0dcf0"),
+    "magenta": ("#8a2a78", "#b04a98", "#f0cdf0"),
+    "amber": ("#9a7ac8", "#c4a8e8", "#cce4f2"),
 }
-CORAL = [("#c04aa0", "#ff8aff"), ("#6a4ab0", "#b8ff4a"), ("#a88ad0", "#9aff5a")]
+CORAL = [("#c04aa0", "#ff8aff"), ("#6a4ab0", "#a8e8ff"), ("#a88ad0", "#b8a4ff")]
 REED = ["#7a8a3a", "#94a04a", "#6a7a3a", "#a89a5a"]
 RUSH = "#4a2a3a"
-SPORE = "#8aff8a"
+SPORE = "#9ab0ff"
 WOOD = ["#5a5048", "#6a6058", "#4e4640"]
 WOOD_TOP = "#8a8078"
 HOLLOW = "#1a161c"
@@ -61,7 +62,7 @@ def _cap(m, x, y, z, R, H, pal, shape="dome", spots=6, rng=None):
         m.cyl(R * 1.03, 0.14, (x, y, z), glow, segs=11, glow=True)
         top = z + H
     if rng:
-        for k in range(spots):                                             # glowing spots on top
+        for k in range(spots):                                             # pale spots on top, dull: lit specks are danger
             a = rng.uniform(0, math.tau)
             d = rng.uniform(0.2, 0.75) * R
             if shape == "dome":
@@ -70,17 +71,17 @@ def _cap(m, x, y, z, R, H, pal, shape="dome", spots=6, rng=None):
                 hz = z + H * (1 - d / R) * 0.95
             else:
                 hz = z + H
-            m.ball(rng.uniform(0.18, 0.3) * max(1, R / 2.5), (x + math.cos(a) * d, y + math.sin(a) * d, hz - 0.05),
-                   glow, subdiv=0, scale=(1, 1, 0.5), glow=True)
+            m.ball(rng.uniform(0.24, 0.38) * max(1, R / 2.5), (x + math.cos(a) * d, y + math.sin(a) * d, hz - 0.05),
+                   rim, subdiv=0, scale=(1, 1, 0.5))
     return top
 
 
 # the Hive's bloom: violet and acid green, with an orchid and a pale lilac for contrast between neighbours
 BLOOM = {
-    "violet": ("#7a48b8", "#a87ade", "#d8c0f4", "#9aff5a"),     # cap, crown (the lit top), wart, glow
-    "orchid": ("#b04a9e", "#e284cc", "#f8d0ee", "#ff7aff"),
-    "indigo": ("#5a5ac0", "#8a8ae4", "#c8c8f8", "#6affc0"),
-    "lilac": ("#b49ae2", "#e4d4ff", "#ffffff", "#b8ff4a"),
+    "violet": ("#7a48b8", "#a87ade", "#d8c0f4", "#cfc4f4"),     # cap, crown (the lit top), wart, glow
+    "orchid": ("#8e48a8", "#c07cd6", "#dcc4ee", "#f0cdf0"),     # (plum, off pink: the shots are pink)
+    "indigo": ("#5a5ac0", "#8a8ae4", "#c8c8f8", "#b0dcf0"),
+    "lilac": ("#b49ae2", "#e4d4ff", "#d4c8f0", "#cce4f2"),
 }
 
 
@@ -123,7 +124,7 @@ def _shell(m, x, y, z, profile, segs, lobes=0, wob=0.0, under=None, under_z=0.0,
 
 def _bloomcap(m, rng, x, y, z, R, H, pal, style="dome", warts=6, lobes=9):
     """A cap seated at (x, y, z): a scalloped dome (or a frilled bell), a lighter crown, pale warts and
-    a few lit ones, and glowing gills underneath (seen when it leans, or as you pass)."""
+    glowing gills underneath (seen when it leans, or as you pass)."""
     cap, crown, wart, glow = BLOOM[pal]
     segs = lobes * 2
     if style == "bell":
@@ -142,9 +143,9 @@ def _bloomcap(m, rng, x, y, z, R, H, pal, style="dome", warts=6, lobes=9):
         a = rng.uniform(0, math.tau)
         d = rng.uniform(0.3, 0.75) * R
         hz = z + H * math.sqrt(max(0.0, 1 - (d / R) ** 2)) * 0.97
-        lit = k % 2 == 0
-        m.ball(rng.uniform(0.2, 0.3) * max(1.0, R / 2.2), (x + math.cos(a) * d, y + math.sin(a) * d, hz),
-               glow if lit else wart, subdiv=0, scale=(1, 1, 0.5), glow=lit)
+        # (none lit: small lit specks are danger's; the cap's light is its gills and its glow)
+        m.ball(rng.uniform(0.22, 0.32) * max(1.0, R / 2.2), (x + math.cos(a) * d, y + math.sin(a) * d, hz),
+               wart, subdiv=0, scale=(1, 1, 0.5))
     return z + H
 
 

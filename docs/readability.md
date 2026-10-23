@@ -94,7 +94,7 @@ A first guess at the families, to be changed as the rows get written:
 | 13 | Open flats | saltpans (laid out: `src/sim/layouts/saltpans.ts`, its own props in `tools/models/set_kessra.py`), tundra, coralflats, oasis |
 | 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
-| 16 | Fields and forests | glowcap, fernwood, whitewood, orchards, jade |
+| 16 | Fields and forests | glowcap (laid out: `src/sim/layouts/glowcap.ts`; its caps' light moved off lime and their warts unlit in `tools/models/props_a_mirefall.py`; the moss a dim grey teal so the violet caps stand off it by hue; the *Tamsin Lowe* modelled as `mirefall_tamsin_lowe` in `tools/models/set_mirefall.py`), fernwood, whitewood, orchards, jade |
 | 17 | Rises, bowls and craters | glass, sporevents, springs, prism |
 | 18 | Monuments and giants | titans, monoliths, temple, arkbones |
 | 19 | Sky and ice | stormwall, shelf |

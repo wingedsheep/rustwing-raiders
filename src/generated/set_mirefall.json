@@ -153,7 +153,7 @@
   "kind": "mirefall_cap_gate",
   "max": [
    20.902,
-   27.97,
+   28.065,
    8.766
   ],
   "min": [
@@ -474,7 +474,7 @@
   "kind": "mirefall_drowned_trunk",
   "max": [
    3.721,
-   3.005,
+   3.015,
    3.677
   ],
   "min": [
@@ -516,7 +516,7 @@
   ],
   "kind": "mirefall_fallen_stalk",
   "max": [
-   49.677,
+   49.665,
    20.753,
    9.0
   ],
@@ -548,8 +548,8 @@
   ],
   "kind": "mirefall_fallen_stalk",
   "max": [
-   49.677,
-   20.603,
+   49.704,
+   21.189,
    9.0
   ],
   "min": [
@@ -1308,6 +1308,54 @@
    -4.05,
    -0.157,
    -4.054
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_tamsin_lowe#0": {
+  "colliders": [],
+  "kind": "mirefall_tamsin_lowe",
+  "max": [
+   35.544,
+   7.446,
+   5.707
+  ],
+  "min": [
+   -11.278,
+   -0.452,
+   -20.341
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_tamsin_lowe#1": {
+  "colliders": [],
+  "kind": "mirefall_tamsin_lowe",
+  "max": [
+   35.532,
+   7.446,
+   20.558
+  ],
+  "min": [
+   -11.272,
+   -0.458,
+   -8.447
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_tamsin_lowe#2": {
+  "colliders": [],
+  "kind": "mirefall_tamsin_lowe",
+  "max": [
+   2.749,
+   0.989,
+   1.52
+  ],
+  "min": [
+   -1.846,
+   -0.319,
+   -2.326
   ],
   "mounts": [],
   "variant": 2

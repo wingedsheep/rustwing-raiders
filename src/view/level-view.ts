@@ -3586,7 +3586,8 @@ const ASH = new THREE.Color(0xb8b0b0);
 const SNOW = new THREE.Color(0xf4f8ff);
 const EMBER = new THREE.Color(0xffc040);
 const EMBER_END = new THREE.Color(0xa02a10);
-const SPORE = new THREE.Color(0x9aff9a);
+// (pale and cool, not lime: lime is the Hive's fire)
+const SPORE = new THREE.Color(0xb4d8e8);
 const SPORE2 = new THREE.Color(0xd0a0ff);
 const POLLEN = new THREE.Color(0xfff0a0);
 const RAIN = new THREE.Color(0x9ab8e8);

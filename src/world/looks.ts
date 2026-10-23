@@ -188,7 +188,8 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0x9a7ad0, glow: true, alpha: 0.35 },
-    pattern: { kind: 'veins', color: 0x9aff6a, scale: 8, amount: 0.28, glow: 0.35, patchy: 0.55 },
+    // (barely there, lilac: lines on the moss read as paths, and lime is the Hive's fire)
+    pattern: { kind: 'veins', color: 0x5e5888, scale: 8, amount: 0.05, glow: 0, patchy: 0.6 },
   },
   peat: {
     sets: [

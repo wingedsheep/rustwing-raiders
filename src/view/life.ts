@@ -155,6 +155,14 @@ export class Life {
           this.fx.add({ x: e.x, y: h + 0.3, z: e.z, vx: wind.x * 3, vy: 0.3, vz: wind.y * 3, size: 1, grow: 2.4, life: 1.5, glow: false, color: tone(b.ground[3], 0.95), to: tone(b.ground[2]) });
           break;
         }
+        case 'spores': {
+          // a cap letting its spores go: a soft lilac haze lifting off it, drifting with the wind
+          // (big and dim: nothing here may look like a shot)
+          if (!roll(0.8)) break;
+          const y = t.height(e.x, e.z) + 4 + Math.random() * 2;
+          this.fx.add({ x: e.x + (Math.random() - 0.5) * 2, y, z: e.z + (Math.random() - 0.5) * 2, vx: wind.x * 0.9, vy: 0.5, vz: wind.y * 0.9, size: 1.1, grow: 3, life: 3, glow: false, color: SPORE, to: tone(b.ground[2]) });
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -336,3 +344,4 @@ const SMOKE_END = new THREE.Color(0x8a7a70);
 const FOAM = new THREE.Color(0xa8c8d0);
 const BREATH = new THREE.Color(0xf4e8d8);
 const FLAKE = new THREE.Color(0xf6f2ea);
+const SPORE = new THREE.Color(0xb4a4dc);

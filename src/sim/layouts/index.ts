@@ -4,7 +4,8 @@
  */
 
 import type { Layout } from '../layout';
+import { glowcap } from './glowcap';
 import { mesarun } from './mesarun';
 import { saltpans } from './saltpans';
 
-export const LAYOUTS: Record<string, Layout> = { mesarun, saltpans };
+export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, saltpans };

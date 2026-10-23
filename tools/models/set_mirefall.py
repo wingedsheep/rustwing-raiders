@@ -192,7 +192,7 @@ def cap_gate(variants):
                     a2 = rng.uniform(0, math.tau)
                     R = rng.uniform(1.8, 3.0) if z > 10 else rng.uniform(1.0, 1.6)
                     cx, cy = x + math.cos(a2) * (sr + R * 0.5), y + math.sin(a2) * (sr + R * 0.5)
-                    col, tip = (("#a88ad0", "#b8ff4a"), ("#6a4ab0", "#9aff5a"), ("#c04aa0", "#ff8aff"))[(k + int(z)) % 3]
+                    col, tip = (("#a88ad0", "#a8e8ff"), ("#6a4ab0", "#b8a4ff"), ("#c04aa0", "#ff8aff"))[(k + int(z)) % 3]
                     m.cyl(R, 0.45, (cx, cy, z), col, segs=10, r_top=R * 0.8)
                     m.cyl(R * 1.05, 0.14, (cx, cy, z), tip, segs=10, glow=True)
             for a, b in ((0, 1), (1, 2)):                                 # a web of glowing threads between
@@ -229,13 +229,12 @@ def fallen_stalk(variants):
             m.cyl(rad[k] * 1.04, 0.5, (p.x - 0.25, p.y, p.z), pal[2], segs=9, rot=(0, math.pi / 2, 0), glow=True)
         p = pts[2]
         m.cyl(rad[2] * 1.9, 0.5, (p.x, p.y, p.z), STEM[2], segs=10, r_top=rad[2] * 1.1, rot=(0, math.pi / 2, 0))
+        # (split and bruised along the top in soft lumps, not planks: from above it must read as a
+        # stalk, never a deck)
         for k in range(1, n):
             p = pts[k]
-            m.box((84 / n * 0.8, rad[k] * 0.8, 0.3), (p.x, p.y, p.z + rad[k] * 0.9), ("#8a7aa0", "#6a5a88")[k % 2],
-                  rot=(0, 0, rng.uniform(-0.1, 0.1)))
-            if k % 2:
-                m.box((84 / n * 0.4, 0.35, 0.2), (p.x + rng.uniform(-1, 1), p.y + rng.uniform(-0.4, 0.4), p.z + rad[k] * 0.98), pal[2],
-                      glow=True)
+            lump(m, rng, (p.x + rng.uniform(-2, 2), p.y + rng.uniform(-0.5, 0.5), p.z + rad[k] * 0.75), (2.2, rad[k] * 0.55, 0.6),
+                 ("#9a8ab4", "#7a6a98")[k % 2], n=7, flat=0.5)
         for k in range(14):
             p = pts[rng.randrange(1, n)]
             a = rng.uniform(0.3, math.pi - 0.3)
@@ -253,7 +252,7 @@ def fallen_stalk(variants):
             p = pts[rng.randrange(1, n)]
             sy = rng.choice((-1, 1))
             R = rng.uniform(1.0, 1.8)
-            col, tip = (("#a88ad0", "#b8ff4a"), ("#c04aa0", "#ff8aff"), ("#6a4ab0", "#9aff5a"))[k % 3]
+            col, tip = (("#a88ad0", "#a8e8ff"), ("#c04aa0", "#ff8aff"), ("#6a4ab0", "#b8a4ff"))[k % 3]
             x = p.x + rng.uniform(-2.5, 2.5)
             z = p.z + rng.uniform(-0.2, 1.4)
             m.cyl(R, 0.35, (x, p.y + sy * (rad[0] - 0.3), z), col, segs=8, r_top=R * 0.8)
@@ -1655,6 +1654,222 @@ def vent_mound(variants):
     obj = g.build(r, loc=(0, 0, 2.25))
     pulse(obj, "mirefall_vent_mound_0_breathe_idle", amp=0.08, period=3.4)
 
+# --- the Tamsin Lowe ----------------------------------------------------------------------------
+
+# a Compact supply freighter, down since 233 L: old cream plating, its seams and bolts showing, one
+# faded blue band and the Hulls' sign; the bloom has her now, lit from inside
+PLATE = ["#c4baa2", "#b2a890", "#d0c6ae"]
+SEAM = "#6e665a"
+STAIN = "#857c6c"
+BAND = "#4a5c86"
+INSIDE = "#1a1620"
+TORN = "#6a5e54"
+THREAD = "#d8d0f4"
+BLOOMLIT = "#cfc4f4"
+VMOSS_DARK = ["#3a2e4a", "#44365a", "#2e2840"]
+
+
+def _sprout(m, rng, x, y, z, h, R, pal):
+    """A cap grown out of her at (x, y, z): a pale stem h up, leaning a little, the cap on it."""
+    lean = (rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4))
+    pts = bend((x, y, z - 0.2), (x + lean[0], y + lean[1], z + h), (lean[0] * 0.5, lean[1] * 0.5), n=4)
+    tube(m, pts, [0.2 + R * 0.12, 0.16 + R * 0.1, 0.15 + R * 0.09, 0.15 + R * 0.09, 0.16 + R * 0.09], STEM[rng.randrange(3)], segs=6)
+    _bloomcap(m, rng, pts[-1].x, pts[-1].y, pts[-1].z, R, R * 0.5, pal, warts=4, lobes=9)
+
+
+def _section(m, rng, x0, x1, w, h):
+    """A length of hull from x0 to x1: plated box, its deck a little narrower, seams across it."""
+    L = x1 - x0
+    cx = (x0 + x1) / 2
+    m.box((L, w, h), (cx, 0, h / 2), PLATE[0], taper=0.86)
+    m.box((L, w * 0.82, 0.3), (cx, 0, h + 0.12), PLATE[2])
+    x = x0 + rng.uniform(0.8, 1.4)
+    while x < x1 - 0.6:                                                  # plate seams across the deck
+        m.box((0.1, w * 0.8, 0.05), (x, 0, h + 0.28), SEAM)
+        x += rng.uniform(1.8, 2.6)
+    m.box((L - 0.4, 0.1, 0.05), (cx, 0, h + 0.28), SEAM)                 # and the keel seam down it
+    for k in range(2):                                                   # cracks the bloom's light comes out of
+        m.box((rng.uniform(1.5, 3.0), 0.14, 0.06), (rng.uniform(x0 + 1.5, x1 - 1.5), rng.uniform(-w * 0.3, w * 0.3), h + 0.3), BLOOMLIT,
+              rot=(0, 0, rng.uniform(-0.5, 0.5)), glow=True)
+    for k in range(int(L / 2)):                                          # rain streaks down her sides
+        sx = rng.uniform(x0 + 0.5, x1 - 0.5)
+        for sd in (-1, 1):
+            if rng.random() < 0.5:
+                m.box((rng.uniform(0.3, 0.7), 0.06, h * rng.uniform(0.4, 0.8)), (sx, sd * w * 0.47, h * 0.55), STAIN, rot=(sd * 0.07, 0, 0))
+    for k in range(int(L / 2.5)):                                        # patched plates, some a shade off
+        m.box((rng.uniform(1.4, 2.4), rng.uniform(1.6, 2.8), 0.04), (rng.uniform(x0 + 1, x1 - 1), rng.uniform(-w * 0.25, w * 0.25), h + 0.28),
+              (PLATE[1], STAIN, PLATE[1])[k % 3])
+    for sd in (-1, 1):                                                   # she's sunk in the moss: it's grown up her sides
+        x = x0 + rng.uniform(0, 0.8)
+        while x < x1:
+            sz = rng.uniform(0.9, 1.6)
+            lump(m, rng, (x, sd * (w * 0.5 + rng.uniform(-0.1, 0.4)), 0.2), (sz, sz * 0.8, rng.uniform(0.5, 1.1)), VMOSS_DARK[rng.randrange(3)], n=8, flat=0.4)
+            x += rng.uniform(1.2, 2.0)
+    for k in range(int(L / 3)):                                          # dark moss in the seams on her back
+        lump(m, rng, (rng.uniform(x0 + 0.6, x1 - 0.6), rng.uniform(-w * 0.35, w * 0.35), h + 0.25), (rng.uniform(0.5, 1.0), rng.uniform(0.4, 0.8), 0.18),
+             VMOSS_DARK[k % 3], n=8, flat=0.5)
+
+
+def _band(m, x, w, h, width=1.5):
+    m.box((width, w + 0.06, h + 0.02), (x, 0, h / 2), BAND, taper=0.86)
+    m.box((width, w * 0.82 + 0.06, 0.32), (x, 0, h + 0.13), BAND)
+
+
+def _torn(m, rng, x, w, h, out):
+    """Where she broke at x, opening towards `out` (+1 or -1): dark inside, the bloom's light in
+    it, torn plates bent outwards round the edge, threads hanging."""
+    m.box((0.3, w * 0.9, h * 0.9), (x - out * 0.1, 0, h * 0.5), INSIDE)
+    m.cyl(w * 0.42, 0.04, (x + out * 2.0, 0, 0.06), "#8a7ac8", segs=12, glow=True)   # her light spilling on the moss
+    m.box((0.12, w * 0.6, h * 0.55), (x + out * 0.08, 0, h * 0.5), BLOOMLIT, glow=True)
+    for k in range(10):                                                  # torn plates round the rim
+        t = k / 10
+        if t < 0.5:                                                      # the deck edge
+            py, pz = (t * 2 - 0.5) * w * 0.85, h + 0.1
+            rot = (rng.uniform(-0.3, 0.3), out * rng.uniform(-0.7, -0.2), 0)
+        else:                                                            # down a side
+            sd = -1 if t < 0.75 else 1
+            py, pz = sd * w * 0.47, rng.uniform(0.6, h)
+            rot = (0, 0, out * sd * rng.uniform(0.2, 0.7))
+        m.box((rng.uniform(1.0, 2.0), 0.16 if t >= 0.5 else rng.uniform(0.9, 1.6), 0.16 if t < 0.5 else rng.uniform(0.8, 1.6)),
+              (x + out * 0.6, py, pz), TORN if k % 3 else PLATE[1], rot=rot)
+    for k in range(3):                                                   # the mould's felt spilling out of the break
+        lump(m, rng, (x + out * rng.uniform(0.4, 1.4), rng.uniform(-w * 0.35, w * 0.35), 0.3), (rng.uniform(0.8, 1.3), rng.uniform(0.7, 1.1), 0.5),
+             "#b8b0d4", n=8, flat=0.4)
+    for k in range(4):                                                   # young caps crowding at its foot
+        _sprout(m, rng, x + out * rng.uniform(0.8, 2.6), rng.uniform(-w * 0.5, w * 0.5), 0.0, rng.uniform(0.5, 1.2), rng.uniform(0.5, 0.85),
+                ("violet", "lilac", "indigo", "orchid")[k])
+
+
+def _threads(m, rng, x0, x1, w, h, n):
+    """The mycelium webbing her plating: pale threads over her back and down her sides into the moss."""
+    for k in range(n):
+        x = rng.uniform(x0 + 0.5, x1 - 0.5)
+        sd = rng.choice((-1, 1))
+        dx = rng.uniform(-1.2, 1.2)
+        # (lying on her: over the deck, round its edge, down her side into the moss)
+        pts = [Vector((x, sd * rng.uniform(0, w * 0.3), h + 0.32)), Vector((x + dx * 0.4, sd * w * 0.42, h + 0.3)),
+               Vector((x + dx * 0.7, sd * (w * 0.5 + 0.12), h * 0.55)), Vector((x + dx, sd * (w * 0.5 + 0.9), 0.1))]
+        tube(m, pts, [0.06, 0.07, 0.07, 0.1], THREAD, segs=4)
+
+
+def _crates(m, rng, x, y, n, spread):
+    for k in range(n):
+        s = rng.uniform(0.8, 1.3)
+        cx, cy = x + rng.uniform(-spread, spread), y + rng.uniform(-spread, spread)
+        m.box((s * 1.3, s, s), (cx, cy, s * 0.4), (PLATE[1], STAIN, "#7a7a86")[k % 3], rot=(rng.uniform(-0.2, 0.2), 0, rng.uniform(0, 3)))
+        m.box((s * 1.32, 0.12, s * 1.02), (cx, cy, s * 0.4), SEAM, rot=(0, 0, 0))
+
+
+def tamsin_lowe(variants):
+    """Giant: the Tamsin Lowe, the Compact freighter the bloom grew through, broken in three where she
+    stopped: her aft section with its three dead engines, the cargo bay twisted off with the
+    intercom mast the Choir speaks through, the bow tipped beyond, each slewed further than the last
+    (one way in the first, the other in the second: one landmark, whichever way she went); and a
+    plate she shed, as scenery. She lies along x, her engines at -x. Lower than you fly: a giant
+    under you, not a wall."""
+    W, H = 8.0, 4.0
+    for i in range(3):
+        r = root("mirefall_tamsin_lowe", i)
+        if i < 2:
+            turn = 1 if i == 0 else -1
+            a1 = turn * 0.4
+            a2 = a1 + turn * 0.45
+            bay_x, bay_y = 8 + math.cos(a1) * 8, math.sin(a1) * 8
+            bow_x, bow_y = bay_x + math.cos(a1) * 7.5 + math.cos(a2) * 7, bay_y + math.sin(a1) * 7.5 + math.sin(a2) * 7
+            for part, (loc, rz) in enumerate((((0, 0, 0), 0.0), ((bay_x, bay_y, 0), a1), ((bow_x, bow_y, 0), a2))):
+                rng = random.Random(4800 + i * 10 + part)
+                m = Model(f"mirefall_tamsin_lowe_{i}_{('aft', 'bay', 'bow')[part]}", 4800 + i * 10 + part)
+                if part == 0:
+                    # the aft: a long plated hull, the band and the Hulls' sign on her back, three engine
+                    # bells facing back down the furrow, broken off at the front
+                    _section(m, rng, -7.5, 7.0, W, H)
+                    _band(m, 2.4, W, H)
+                    for (dx, dy) in ((0, 0.75), (-0.65, -0.38), (0.65, -0.38)):    # three hull-plates, overlapping
+                        m.cyl(0.85, 0.06, (-3.2 + dx, dy, H + 0.29), BAND, segs=6)
+                        m.cyl(0.95, 0.04, (-3.2 + dx, dy, H + 0.28), PLATE[2], segs=6)
+                    m.box((1.2, W * 0.92, H * 0.9), (-8.0, 0, H * 0.45), PLATE[1], taper=0.9)   # the engine block
+                    for y in (-2.5, 0, 2.5):
+                        m.cyl(1.05, 2.4, (-8.5, y, 1.75), "#8a8478", segs=10, r_top=1.4, rot=(0, -math.pi / 2, 0))
+                        m.cyl(1.25, 0.1, (-10.88, y, 1.75), INSIDE, segs=10, rot=(0, -math.pi / 2, 0))
+                        m.cyl(1.42, 0.25, (-10.8, y, 1.75), TORN, segs=10, r_top=1.42, rot=(0, -math.pi / 2, 0))
+                        lump(m, rng, (-10.6, y, 0.5), (0.9, 0.9, 0.5), VMOSS_DARK[0], n=8, flat=0.4)   # moss in the bell
+                    _torn(m, rng, 7.0, W, H, 1)
+                    for k in range(2):                                           # her seams lit near the break, the bloom in her
+                        m.box((0.12, W * 0.62, 0.06), (4.4 + k * 1.2, 0, H + 0.3), BLOOMLIT, glow=True)
+                    m.box((1.4, 1.4, 0.1), (-0.5, 1.6, H + 0.3), SEAM)              # a hatch, a cap out of it
+                    _sprout(m, rng, -0.5, 1.6, H + 0.3, 1.6, 1.3, "violet")
+                    _sprout(m, rng, 5.6, -1.8, H + 0.3, 1.2, 1.5, "orchid")
+                    _sprout(m, rng, 6.4, 1.6, H + 0.3, 0.8, 1.1, "lilac")
+                    _sprout(m, rng, 0.6, 2.4, H + 0.3, 0.9, 0.9, "orchid")
+                    _sprout(m, rng, -1.4, 0.6, H + 0.3, 0.7, 0.8, "indigo")
+                    _sprout(m, rng, -5.6, -2.2, H + 0.3, 1.1, 1.2, "lilac")
+                    _sprout(m, rng, 8.4, 0.6, 0.0, 2.2, 1.6, "indigo")            # out of the break
+                    _threads(m, rng, -7.5, 7.0, W, H, 7)
+                elif part == 1:
+                    # the midsection, twisted off: her cargo bay open to the sky, crates spilling out of it,
+                    # the caps grown up through it; the intercom mast on the deck still standing
+                    L0, L1 = -5.5, 5.5
+                    m.box((L1 - L0, W, 0.5), (0, 0, 0.25), PLATE[1])               # the bay floor
+                    m.box((L1 - L0 - 0.4, W * 0.8, 0.06), (0, 0, 0.52), INSIDE)
+                    for sd in (-1, 1):                                            # its walls
+                        m.box((L1 - L0, 0.5, H), (0, sd * (W / 2 - 0.25), H / 2), PLATE[0])
+                        m.box((L1 - L0, 0.9, 0.3), (0, sd * (W / 2 - 0.45), H + 0.12), PLATE[2])
+                    _section(m, rng, L0, -2.4, W, H)                              # the deck over the fore end of the bay
+                    _band(m, 1.6, W, H, width=1.2)
+                    for k in range(4):                                            # a deck beam left over the bay
+                        if k % 2:
+                            m.box((0.35, W * 0.9, 0.35), (-0.8 + k * 1.6, 0, H), SEAM)
+                    _crates(m, rng, 1.5, 0.4, 5, 2.0)
+                    _crates(m, rng, 2.5, W / 2 + 2.2, 5, 1.8)                     # spilled out over her side
+                    m.box((3.0, 4.0, 0.08), (0.8, 0, 0.6), BLOOMLIT, glow=True)   # the bloom's light on the bay floor
+                    _sprout(m, rng, 0.3, -1.2, 0.5, 3.2, 1.8, "violet")
+                    _sprout(m, rng, 3.2, 1.4, 0.5, 2.4, 1.4, "orchid")
+                    _sprout(m, rng, -1.2, 1.8, 0.5, 1.6, 1.0, "lilac")
+                    # the mast: a grey pole, a crossbar, three loudspeaker horns facing three ways, threads up it
+                    mx = -4.0
+                    m.cyl(0.24, 2.4, (mx, 0, H + 0.3), "#8e887c", segs=6)
+                    m.box((0.2, 1.8, 0.2), (mx, 0, H + 2.0), "#8e887c")
+                    for k in range(3):
+                        a = k * math.tau / 3 + 0.4
+                        m.cyl(0.14, 1.0, (mx + math.cos(a) * 0.2, math.sin(a) * 0.2, H + 2.6), "#a49c8c", segs=7, r_top=0.5,
+                              rot=(-math.sin(a) * 1.25, math.cos(a) * 1.25, 0))
+                    for k in range(3):
+                        _strand(m, (mx, 0, H + 2.4 - k * 0.6), (mx + rng.uniform(-2, 2), rng.uniform(-2.5, 2.5), H + 0.3), 0.2, THREAD, r=0.06)
+                    m.ball(0.22, (mx, 0, H + 2.65), BLOOMLIT, subdiv=1, glow=True)
+                    _torn(m, rng, L0, W, H, -1)
+                    _torn(m, rng, L1, W, H, 1)
+                    _threads(m, rng, L0, -2.4, W, H, 3)
+                else:
+                    # the bow, broken off ahead and tipped: a short hull narrowing to her nose, the bridge
+                    # windows dark, a cap on her brow
+                    _section(m, rng, -4.0, 2.0, W, H)
+                    pts = []
+                    for (x, y, z) in ((2.0, 1, 0), (2.0, 1, 1), (6.5, 0.32, 0.2), (6.5, 0.32, 0.55), (7.4, 0.14, 0.5)):
+                        for sd in (-1, 1):
+                            pts.append((x, sd * y * W * 0.5 * (0.86 if z == 1 and x == 2.0 else 1), z * H if x == 2.0 else z * H))
+                    hull(m, pts, PLATE[1])
+                    for k in range(5):                                            # the bridge windows, dark
+                        m.box((0.5, 0.7, 0.12), (3.0 + k * 0.05, -2.0 + k * 1.0, H * 0.88 - 0.1), INSIDE, rot=(0, 0.28, 0))
+                    m.box((0.6, 4.6, 0.1), (3.0, 0, H * 0.92), BAND, rot=(0, 0.28, 0))
+                    _band(m, -1.2, W, H, width=1.2)
+                    _torn(m, rng, -4.0, W, H, -1)
+                    _sprout(m, rng, 0.6, 1.2, H + 0.3, 1.0, 1.2, "indigo")
+                    _sprout(m, rng, -2.5, -1.6, H + 0.3, 1.4, 1.5, "violet")
+                    _sprout(m, rng, -1.4, 2.2, H + 0.3, 0.8, 0.9, "orchid")
+                    _threads(m, rng, -4.0, 2.0, W, H, 4)
+                m.build(r, loc=loc, rot_z=rz)
+        else:
+            rng = random.Random(4830)
+            m = Model(f"mirefall_tamsin_lowe_{i}", 4830)
+            # a plate she shed on the way, half buried, a crate or two by it
+            m.box((3.4, 2.4, 0.25), (0, 0, 0.3), PLATE[0], rot=(0.25, 0.12, 0))
+            m.box((0.8, 2.42, 0.27), (0.6, 0, 0.32), BAND, rot=(0.25, 0.12, 0))
+            m.box((3.4, 0.2, 0.6), (0, -1.1, 0.4), TORN, rot=(0.6, 0, 0.1))
+            _crates(m, rng, 1.8, 1.6, 2, 0.6)
+            lump(m, rng, (-1.2, 0.6, 0.5), (0.8, 0.6, 0.3), VMOSS_DARK[1], n=8, flat=0.4)
+            m.build(r)
+
+
 def build():
     cap_gate(2)
     fallen_stalk(2)
@@ -1686,3 +1901,4 @@ def build():
     idol_head(2)
     great_vent(2)
     vent_mound(1)
+    tamsin_lowe(3)

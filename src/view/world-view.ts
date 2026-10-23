@@ -417,6 +417,7 @@ export class WorldView {
     u.uShallow.value.copy(c).multiplyScalar(glow > 0 ? 1 : 1.15);
     u.uDeep.value.copy(c).multiplyScalar(glow > 0 ? 0.55 : 0.42);
     u.uGlow.value = glow;
+    u.uStill.value = THREE.MathUtils.lerp(a.still ? 1 : 0, b.still ? 1 : 0, t);
   }
 
   dispose() {
@@ -853,6 +854,7 @@ function waterMaterial() {
       uShallow: { value: new THREE.Color(0x3f8f7a) },
       uDeep: { value: new THREE.Color(0x1f4f4a) },
       uGlow: { value: 0 },
+      uStill: { value: 0 },
       uSun: { value: new THREE.Vector3(-0.45, 0.8, 0.4).normalize() },
     },
     vertexShader: /* glsl */ `
@@ -899,6 +901,7 @@ function waterMaterial() {
       uniform vec3 uShallow;
       uniform vec3 uDeep;
       uniform float uGlow;
+      uniform float uStill;
       uniform vec3 uSun;
       uniform float uCloud;
       uniform float uCloudDark;
@@ -953,6 +956,8 @@ function waterMaterial() {
         float surf = (1.0 - smoothstep(0.1, 0.3, abs(shore - roll * 3.5))) * (1.0 - roll) * step(0.0, vDepth);
         float streak = smoothstep(0.8, 0.86, aFbm(p * vec2(0.5, 0.18) + flow * 0.4)) * (0.35 + uWind) * 0.55;
         foam = max(foam * 0.95, max(surf * 0.75, streak * smoothstep(0.5, 1.5, vDepth)));
+        // (still water, a mire: no surf, only a faint line where it meets the bank)
+        foam = mix(foam, (1.0 - smoothstep(0.0, 0.3, shore)) * 0.3, uStill);
         // broken up a little, in soft patches rather than speckle
         foam *= smoothstep(0.25, 0.55, aNoise(p * 1.6 + flow * 0.3));
         // under a ship: whipped up in a ring of spray rippling out from it

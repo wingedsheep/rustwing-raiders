@@ -33,6 +33,8 @@ export interface Biome {
   waterColor: number;
   /** The liquid glows (lava, chemicals, bioluminescence). */
   waterGlow?: number;
+  /** The water lies still (a mire): no surf or streaks on it, only a faint line at the bank. */
+  still?: boolean;
   /** Ground from low to high: shore, low, mid, high. */
   ground: [number, number, number, number];
   /** Steep faces. */
@@ -442,18 +444,22 @@ export const PLANETS: Planet[] = [
         shape: 'rolling',
         relief: 3,
         water: 0.5,
-        waterColor: 0x2a3a5a,
-        ground: [0x2c2a3c, 0x2e3a30, 0x382a4a, 0x443658],
+        // (deep violet water, the giant down in it: darker than the moss, so the caps on its
+        // margins and the rings standing out of it carry the light)
+        waterColor: 0x2e2454,
+        still: true,
+        // (a dim, greyed teal moss: the caps' violet stands off it by hue, not by the moss going black)
+        ground: [0x44544f, 0x4c5c54, 0x46505a, 0x52605b],
         cliff: 0x2a2030,
         props: [['glowcap', 6], ['mirefall_moss_bed', 3], ['mirefall_inkcap', 2], ['mirefall_lattice', 1], ['fungus_coral', 1], ['glowcap_tall', 2]],
         density: 3.4,
         creatures: [['beetle', 1], ['moth_swarm', 1]],
         particles: 'spores',
-        sun: 0xd0a0ff,
-        sky: 0x6a5aa0,
-        bounce: 0x1a3a2a,
+        sun: 0xc8b4f0,
+        sky: 0x6e6a8a,
+        bounce: 0x22342e,
         clouds: null,
-        shade: 0x3a2a8a,
+        shade: 0x3a3854,
         light: 0xe0c0ff,
         hazards: [],
       },
