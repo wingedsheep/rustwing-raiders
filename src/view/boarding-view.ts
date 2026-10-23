@@ -9,7 +9,7 @@ import { BoardJuice } from './board-juice';
 import { Rig, POSE, type Pose } from './rig';
 import { LIVERY } from './ship-model';
 import { audio, type Sfx } from '../audio';
-import { Cell, type Prop, type RoomKind } from '../sim/deck';
+import { Cell, WALL_MOUNT, type Prop, type RoomKind } from '../sim/deck';
 import { FOES, GATE, HERO, SIGHT_CONE, VENT, WORK, type Boarding, type BoardEvent, type Foe, type FoeKind, type Hero } from '../sim/boarding';
 import { clamp, damp, lerp } from '../util';
 
@@ -2055,8 +2055,6 @@ export class BoardingView {
   }
 }
 
-/** How far each kind on a wall sits back from the middle of its cell (towards the wall). */
-const WALL_MOUNT: Partial<Record<Prop['kind'], number>> = { alarm: 0.38, medkit: 0.4, sconce: 0.42, pipes: 0.15, locker: 0.15, console: 0.1, bunk: 0.05, rupture: 0.45 };
 /** Kinds that move or change, so stay their own meshes. */
 const ANIMATED = new Set<Prop['kind']>(['crate', 'strongbox', 'core', 'turret', 'canister', 'alarm', 'medkit', 'cage', 'rupture']);
 

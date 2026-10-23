@@ -12,6 +12,7 @@
  */
 
 import { irange, pick, rng, shuffle, type Rng } from '../util';
+import models from '../generated/boarding.json';
 
 export const enum Cell {
   Space = 0,
@@ -135,13 +136,63 @@ export interface DeckSpec {
 
 const HALF_CORRIDOR = 1;
 
+/** How far each kind on a wall sits back from the middle of its cell (towards the wall). */
+export const WALL_MOUNT: Partial<Record<PropKind, number>> = { alarm: 0.38, medkit: 0.4, sconce: 0.42, pipes: 0.15, locker: 0.15, console: 0.1, bunk: 0.05, rupture: 0.45 };
+
+/** A box on the floor: x0..x1, z0..z1. */
+export interface Box {
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+}
+
+/** The models' bounds (kind or kind#variant), for what a prop really takes up on the floor. */
+const BOUNDS = models as Record<string, { min: number[]; max: number[] }>;
+
+/**
+ * What a solid prop takes up where it stands: its model's bounds, turned and set back against its
+ * wall as the view draws it (its footprint if there's no model).
+ */
+function propBox(p: Prop): Box {
+  const kind = `deck_${p.kind}`;
+  const count = BOUNDS[kind] ? 1 : Object.keys(BOUNDS).filter((k) => k.startsWith(`${kind}#`)).length;
+  const m = BOUNDS[kind] ?? BOUNDS[`${kind}#${p.variant % Math.max(1, count)}`];
+  const turned = Math.abs(Math.sin(p.rot)) > 0.5;
+  if (!m) {
+    const ex = (turned ? p.hd : p.hw) * 0.9;
+    const ez = (turned ? p.hw : p.hd) * 0.9;
+    return { x0: p.x - ex, z0: p.z - ez, x1: p.x + ex, z1: p.z + ez };
+  }
+  // as the view turns it: a turn of rot + PI about y
+  const a = p.rot + Math.PI;
+  const c = Math.cos(a);
+  const sn = Math.sin(a);
+  const back = WALL_MOUNT[p.kind] ?? 0;
+  const ox = p.x - Math.sin(p.rot) * back;
+  const oz = p.z - Math.cos(p.rot) * back;
+  const box = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity };
+  for (const lx of [m.min[0], m.max[0]])
+    for (const lz of [m.min[2], m.max[2]]) {
+      const x = ox + lx * c + lz * sn;
+      const z = oz - lx * sn + lz * c;
+      box.x0 = Math.min(box.x0, x);
+      box.x1 = Math.max(box.x1, x);
+      box.z0 = Math.min(box.z0, z);
+      box.z1 = Math.max(box.z1, z);
+    }
+  return box;
+}
+
 export class Deck {
   readonly w: number;
   readonly h: number;
   readonly cells: Uint8Array;
-  /** Blocks a body (walls, shut doors, solid props) / a round (walls, shut doors, cover). */
+  /** Blocks a path (walls, shut doors, the cells solid props cover) / a round (walls, shut doors, cover). */
   readonly solid: Uint8Array;
   readonly cover: Uint8Array;
+  /** Blocks a body whole (walls, shut doors): props stop it at their own edges instead. */
+  readonly wall: Uint8Array;
   /** Which room each floor cell is in (-1 none). */
   readonly roomOf: Int16Array;
   readonly rooms: Room[] = [];
@@ -160,6 +211,8 @@ export class Deck {
   rupture: Prop | null = null;
   /** Door cells: which door is in each (-1 none). */
   private doorAt: Int16Array;
+  /** The solid props' boxes, by every cell they touch. */
+  private boxesAt = new Map<number, Box[]>();
   private r: Rng;
 
   constructor(readonly spec: DeckSpec) {
@@ -176,6 +229,7 @@ export class Deck {
     this.cells = new Uint8Array(W * H);
     this.solid = new Uint8Array(W * H);
     this.cover = new Uint8Array(W * H);
+    this.wall = new Uint8Array(W * H);
     this.roomOf = new Int16Array(W * H).fill(-1);
     this.doorAt = new Int16Array(W * H).fill(-1);
     this.mid = Math.floor(H / 2);
@@ -198,9 +252,19 @@ export class Deck {
     return this.inside(x, z) ? (this.cells[this.idx(x, z)] as Cell) : Cell.Space;
   }
 
-  /** Does a body stop here (a whole cell's worth)? */
+  /** Does a path stop here (a wall, a shut door, a prop over the cell's middle)? */
   blocked(x: number, z: number) {
     return !this.inside(x, z) || this.solid[this.idx(x, z)] === 1;
+  }
+
+  /** Does a body stop at this cell's edges (a wall, a shut door)? */
+  walled(x: number, z: number) {
+    return !this.inside(x, z) || this.wall[this.idx(x, z)] === 1;
+  }
+
+  /** The solid props in a cell, by their own boxes (a body can walk up to their edges). */
+  boxesIn(x: number, z: number): Box[] | undefined {
+    return this.inside(x, z) ? this.boxesAt.get(this.idx(x, z)) : undefined;
   }
 
   /** Does a round stop here? */
@@ -328,7 +392,11 @@ export class Deck {
 
   private occupied = new Set<number>();
 
-  private free(x0: number, z0: number, x1: number, z1: number) {
+  private free(x0: number, z0: number, x1: number, z1: number, apart = false) {
+    // apart: a clear cell all round from anything solid, so a body walks between, not squeezes
+    if (apart)
+      for (let z = z0 - 1; z <= z1 + 1; z++)
+        for (let x = x0 - 1; x <= x1 + 1; x++) if (this.inside(x, z) && this.occupied.has(this.idx(x, z))) return false;
     for (let z = z0; z <= z1; z++)
       for (let x = x0; x <= x1; x++) {
         if (this.cell(x, z) !== Cell.Floor || this.occupied.has(this.idx(x, z)) || this.doorIn(x, z)) return false;
@@ -339,7 +407,7 @@ export class Deck {
   }
 
   /** Puts a prop down if there's room (cells it covers, rounded out). */
-  private place(kind: PropKind, room: Room, x: number, z: number, rot: number, hw: number, hd: number, opts: { solid?: boolean; cover?: boolean; variant?: number; force?: boolean } = {}): Prop | null {
+  private place(kind: PropKind, room: Room, x: number, z: number, rot: number, hw: number, hd: number, opts: { solid?: boolean; cover?: boolean; variant?: number; force?: boolean; apart?: boolean } = {}): Prop | null {
     const turned = Math.abs(Math.sin(rot)) > 0.5;
     const ex = turned ? hd : hw;
     const ez = turned ? hw : hd;
@@ -347,7 +415,7 @@ export class Deck {
     const x1 = Math.ceil(x + ex - 0.01) - 1;
     const z0 = Math.floor(z - ez + 0.01);
     const z1 = Math.ceil(z + ez - 0.01) - 1;
-    if (!opts.force && !this.free(x0, z0, x1, z1)) return null;
+    if (!opts.force && !this.free(x0, z0, x1, z1, opts.apart)) return null;
     const solid = opts.solid ?? true;
     if (solid) for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) this.occupied.add(this.idx(cx, cz));
     const p: Prop = { id: this.props.length, kind, x, z, rot, room: room.id, variant: opts.variant ?? 0, hw, hd, solid, cover: opts.cover ?? false };
@@ -355,7 +423,7 @@ export class Deck {
     return p;
   }
 
-  /** Tries a few random spots in a room. */
+  /** Tries a few random spots in a room, a cell clear of the rest if it can. */
   private scatter(kind: PropKind, room: Room, hw: number, hd: number, tries = 30, opts: Parameters<Deck['place']>[7] = {}) {
     const r = this.r;
     for (let i = 0; i < tries; i++) {
@@ -366,7 +434,8 @@ export class Deck {
       // whole-cell aligned (a footprint of odd width centres on a cell)
       const cx = room.x0 + ex + Math.floor(r() * Math.max(1, room.x1 - room.x0 + 2 - ex * 2));
       const cz = room.z0 + ez + Math.floor(r() * Math.max(1, room.z1 - room.z0 + 2 - ez * 2));
-      const p = this.place(kind, room, Math.round(cx * 2) / 2, Math.round(cz * 2) / 2, rot, hw, hd, opts);
+      // spaced out from the rest first; packed in only if the room's too full for that
+      const p = this.place(kind, room, Math.round(cx * 2) / 2, Math.round(cz * 2) / 2, rot, hw, hd, { apart: i < tries * 0.75, ...opts });
       if (p) return p;
     }
     return null;
@@ -589,9 +658,28 @@ export class Deck {
       const wall = this.cells[i] !== Cell.Floor;
       this.solid[i] = wall ? 1 : 0;
       this.cover[i] = wall ? 1 : 0;
+      this.wall[i] = wall ? 1 : 0;
     }
+    this.boxesAt.clear();
     for (const p of this.props) {
       if (!p.solid && !p.cover) continue;
+      if (p.solid) {
+        // bodies stop at its box; a path goes round the cells whose middles it covers (the one
+        // under its middle at least), so the paths and the bodies agree on where you can stand
+        const b = propBox(p);
+        for (let z = Math.floor(b.z0); z <= Math.floor(b.z1); z++)
+          for (let x = Math.floor(b.x0); x <= Math.floor(b.x1); x++) {
+            if (!this.inside(x, z)) continue;
+            const i = z * W + x;
+            const list = this.boxesAt.get(i);
+            if (list) list.push(b);
+            else this.boxesAt.set(i, [b]);
+            if (x + 0.5 > b.x0 && x + 0.5 < b.x1 && z + 0.5 > b.z0 && z + 0.5 < b.z1) this.solid[i] = 1;
+          }
+        const mx = Math.floor((b.x0 + b.x1) / 2);
+        const mz = Math.floor((b.z0 + b.z1) / 2);
+        if (this.inside(mx, mz)) this.solid[mz * W + mx] = 1;
+      }
       const turned = Math.abs(Math.sin(p.rot)) > 0.5;
       const ex = turned ? p.hd : p.hw;
       const ez = turned ? p.hw : p.hd;
@@ -599,7 +687,6 @@ export class Deck {
         for (let x = Math.floor(p.x - ex + 0.01); x <= Math.ceil(p.x + ex - 0.01) - 1; x++) {
           if (!this.inside(x, z)) continue;
           const i = z * W + x;
-          if (p.solid) this.solid[i] = 1;
           if (p.cover) this.cover[i] = 1;
         }
     }
@@ -614,6 +701,7 @@ export class Deck {
         const i = this.idx(x, z);
         this.solid[i] = shut;
         this.cover[i] = shut;
+        this.wall[i] = shut;
       }
     }
   }

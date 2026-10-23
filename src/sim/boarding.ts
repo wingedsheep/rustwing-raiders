@@ -2542,7 +2542,7 @@ export class Boarding {
     }
   }
 
-  /** Pushes a circle out of any blocking cell it overlaps. */
+  /** Pushes a circle out of any wall cell or solid prop it overlaps (a prop at its own edges). */
   private push(b: { x: number; z: number }, r: number) {
     const d = this.deck;
     const x0 = Math.floor(b.x - r);
@@ -2551,28 +2551,9 @@ export class Boarding {
     const z1 = Math.floor(b.z + r);
     for (let cz = z0; cz <= z1; cz++)
       for (let cx = x0; cx <= x1; cx++) {
-        if (!d.blocked(cx, cz)) continue;
-        const nx = clamp(b.x, cx, cx + 1);
-        const nz = clamp(b.z, cz, cz + 1);
-        const ex = b.x - nx;
-        const ez = b.z - nz;
-        const dd = Math.hypot(ex, ez);
-        if (dd >= r) continue;
-        if (dd > 1e-5) {
-          b.x = nx + (ex / dd) * r;
-          b.z = nz + (ez / dd) * r;
-        } else {
-          // the centre's inside the cell: out the nearest side
-          const l = b.x - cx;
-          const rr = cx + 1 - b.x;
-          const t = b.z - cz;
-          const bt = cz + 1 - b.z;
-          const m = Math.min(l, rr, t, bt);
-          if (m === l) b.x = cx - r;
-          else if (m === rr) b.x = cx + 1 + r;
-          else if (m === t) b.z = cz - r;
-          else b.z = cz + 1 + r;
-        }
+        if (d.walled(cx, cz)) pushOut(b, r, cx, cz, cx + 1, cz + 1);
+        const boxes = d.boxesIn(cx, cz);
+        if (boxes) for (const q of boxes) pushOut(b, r, q.x0, q.z0, q.x1, q.z1);
       }
   }
 
@@ -3239,6 +3220,31 @@ export const SIGHT_CONE = 1.1;
 const NO_INTENT: Intent = { x: 0, y: 0, fire: false, heavy: false, boost: 0, dash: false, special: false, aux: false, focus: false };
 
 /** The shortest signed turn from a to b. */
+/** Pushes a circle out of a box, the shortest way. */
+function pushOut(b: { x: number; z: number }, r: number, x0: number, z0: number, x1: number, z1: number) {
+  const nx = clamp(b.x, x0, x1);
+  const nz = clamp(b.z, z0, z1);
+  const ex = b.x - nx;
+  const ez = b.z - nz;
+  const dd = Math.hypot(ex, ez);
+  if (dd >= r) return;
+  if (dd > 1e-5) {
+    b.x = nx + (ex / dd) * r;
+    b.z = nz + (ez / dd) * r;
+    return;
+  }
+  // the centre's inside the box: out the nearest side
+  const l = b.x - x0;
+  const rr = x1 - b.x;
+  const t = b.z - z0;
+  const bt = z1 - b.z;
+  const m = Math.min(l, rr, t, bt);
+  if (m === l) b.x = x0 - r;
+  else if (m === rr) b.x = x1 + r;
+  else if (m === t) b.z = z0 - r;
+  else b.z = z1 + r;
+}
+
 export function angleDiff(a: number, b: number) {
   let d = (a - b) % (Math.PI * 2);
   if (d > Math.PI) d -= Math.PI * 2;
