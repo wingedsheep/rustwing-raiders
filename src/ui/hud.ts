@@ -5,7 +5,7 @@ import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
 import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
 import { coreBadge, disc, ring } from './core-icon';
-import { BRASS, BRASS_LO, brassPlate, chevron, cutEdge, cutRect, rivet, slantBar, slantKey, slantOf, slantSpan, type Cuts } from './trim';
+import { BRASS, BRASS_LO, brassPlate, cutEdge, cutRect, rivet, slantBar, slantKey, slantOf, slantSpan, type Cuts } from './trim';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { tierOf } from '../game/loot';
@@ -23,6 +23,7 @@ import type { DeviceId } from '../input';
 import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
 import { SoundPanel, SOUND_H, SOUND_W } from './sound';
 import { Quit } from './accord';
+import { KitTray, TRAY } from './kit-tray';
 
 /** The runs whose pilots have been told, big, to fly to a down partner (after that it's said small). */
 const TOLD_DOWN = new WeakSet<object>();
@@ -223,6 +224,10 @@ export class Hud {
   private wasDown: boolean[] = [];
   private downAt: number[] = [];
   private downBig: boolean[] = [];
+  /** The kit tray, in a bottom corner (P2's in the other). */
+  private tray = new KitTray();
+  /** How far each tray has faded for a ship flying over it. */
+  private trayFade: number[] = [];
 
   draw(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView, devices: string[], paused: boolean) {
     this.time += 1 / 60;
@@ -419,7 +424,7 @@ export class Hud {
 
   /**
    * The Weld at the ship: a bar over it filling as the weld goes (pale while it's only held, then
-   * green and committed); full with the hull short, a quiet WELD READY under it now and then.
+   * green and committed). When it's ready to go, the tray's Weld says so.
    */
   private welding(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
     if (p.weldT > 0) {
@@ -430,8 +435,6 @@ export class Hud {
       ctx.fillStyle = p.weldT < WELDING.hold ? '#4a8a68' : WELD;
       ctx.fillRect(Math.round(x - gw / 2), Math.round(y - 19), Math.max(1, Math.round(gw * (p.weldT < WELDING.hold ? p.weldT / WELDING.hold : k))), 3);
       if (p.weldT >= WELDING.hold) drawText(ctx, 'WELDING', x, y - 30, WELD, { align: 'center' });
-    } else if (p.weld >= 1 && p.hp < p.stats.hp && this.time % 4 < 1.2) {
-      drawText(ctx, 'WELD READY: GUNS OFF, HOLD FOCUS', x, y + 30, WELD, { align: 'center' });
     }
   }
 
@@ -470,9 +473,9 @@ export class Hud {
   /**
    * A player's plate, at one end of the top: a riveted brass plate, its outer end in the
    * pilot's livery. The ship's core sits in a brass socket at the end, like a dial; beside it the
-   * slanted gauges (hull and shield, the Burn and the special under them); past a seam, the
-   * Weld, the dashes as chevrons, the aux. At the right end, all of it mirrored. The tag only in
-   * co-op: alone, it's plainly you.
+   * slanted gauges (hull and shield, the Burn under them). What the buttons do is in the kit
+   * tray, in the bottom corner. At the right end, all of it mirrored. The tag only in co-op:
+   * alone, it's plainly you.
    */
   private player(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, side: 'left' | 'right') {
     const s = p.stats;
@@ -483,11 +486,8 @@ export class Hud {
     const ph = 25;
     const hw = Math.round(clamp(s.hp * 0.6, 36, 80));
     const sw = s.shield > 0 ? Math.round(clamp(s.shield * 0.5, 12, 44)) : 0;
-    const spare = p.ch.knacks.has('sparetank');
     const gauges = hw + (sw ? sw + 2 : 0) + slantOf(7);
-    const kit = 8 + (spare ? 5 : 0) + 3 + s.dashes * 6 + (s.aux ? 13 : 0);
-    const seam = 28 + gauges + 5;
-    const pw = seam + 6 + kit + 9;
+    const pw = 28 + gauges + 9;
     const x0 = side === 'left' ? x : x - pw;
     // an element `off` in from the plate's outer end, `w` wide (mirrored at the right)
     const at = (off: number, w: number) => (dir > 0 ? x0 + off : x0 + pw - off - w);
@@ -516,62 +516,9 @@ export class Hud {
       slantBar(ctx, sx, gy, sw, 7, p.shield / s.shield, CYAN, { dir });
       slantBar(ctx, sx, gy + 9, sw, 1, Math.min(1, p.shieldStore / (s.shield * SHIELD_STORE)), '#4ab0a0', { dir, keyline: false });
     }
-    // under the hull: the Burn (bright as it's spent), and the special charging under that
+    // under the hull: the Burn, bright as it's spent (the kit is in the tray, bottom corner)
     const burnCol = p.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : p.burn < 0.15 ? '#a04a3a' : '#ff8a3a';
     slantBar(ctx, at(28, hw + 1), gy + 10, hw - 2, 3, p.burn, burnCol, { dir });
-    if (s.special) {
-      const ready = p.charge >= 1;
-      slantBar(ctx, at(28, hw - 1), gy + 15, hw - 4, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', { dir });
-    }
-    // the seam
-    ctx.fillStyle = BRASS_LO;
-    ctx.fillRect(at(seam, 1), top + 4, 1, ph - 8);
-    ctx.fillStyle = 'rgba(255,226,160,0.25)';
-    ctx.fillRect(at(seam + 1, 1), top + 4, 1, ph - 8);
-    // the kit, centred down the plate
-    const ky = top + 9;
-    let k = seam + 6;
-    const cell = (off: number, w: number, h: number, f: number, c: string, yy = ky) => {
-      const cx0 = at(off, w);
-      ctx.fillStyle = '#0a0610';
-      ctx.fillRect(cx0 - 1, yy - 1, w + 2, h + 2);
-      ctx.fillStyle = '#2a2036';
-      ctx.fillRect(cx0, yy, w, h);
-      const fh = Math.round(h * clamp(f, 0, 1));
-      ctx.fillStyle = c;
-      ctx.fillRect(cx0, yy + h - fh, w, fh);
-      if (fh > 1) {
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.fillRect(cx0, yy + h - fh, w, 1);
-      }
-      return cx0;
-    };
-    // the Weld: a cross filling as you hit things (what it would mend shows on the hull)
-    this.weldCross(ctx, p, at(k, 9), ky - 1);
-    k += 10;
-    // SPARE TANK: a second, thinner cell beside it
-    if (spare) {
-      cell(k, 3, 7, p.ch.weld2, p.ch.weld2 >= 1 ? WELD : '#4a8a68');
-      k += 5;
-    }
-    k += 3;
-    // dashes: chevrons, the next one filling (red, a moment, when one was pressed with none left)
-    const dry = (this.view?.dryT[p.id] ?? 9) < 0.35 && Math.floor(this.time * 16) % 2 === 0;
-    for (let i = 0; i < s.dashes; i++) {
-      const f = i < p.dashes ? 1 : i === p.dashes ? 1 - p.dashCd / s.dashCooldown : 0;
-      chevron(ctx, at(k, 6), ky, 7, dry ? 1 : f, dry ? RED : i < p.dashes ? col : '#6a5a80', '#2a2036', dir);
-      k += 6;
-    }
-    // the aux: a letter for what it is, filling back up after use
-    if (s.aux) {
-      k += 4;
-      const ready = p.auxCd <= 0;
-      const f = ready ? 1 : 1 - p.auxCd / Math.max(0.01, p.auxMax);
-      // a guard let fall on nothing refills red: the long wait a whiff costs
-      const whiffed = !ready && s.aux === 'parry' && (this.view?.whiffT[p.id] ?? 9) < p.auxMax + 0.1;
-      const ax = cell(k, 9, 9, f, ready ? (p.auxT > 0 || p.riposte > 0 ? '#ffffff' : '#ffc860') : whiffed ? '#a04a3a' : '#806838', ky - 1);
-      drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S', bulwark: 'W', beacon: 'B' }[s.aux], ax + 2, ky, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
-    }
     // co-op: the pilot's tag on a tab hanging under the outer end
     if (coop) {
       const tx = at(4, 17);
@@ -652,38 +599,18 @@ export class Hud {
   }
 
   /**
-   * The Weld's charge: a plus, keylined, filling from the bottom as you hit things. Ready with the
-   * hull short, it lights and sparkles; held, it burns white as the weld goes.
+   * Each pilot's kit tray, in a bottom corner (P1's at the left, P2's at the right), fading back
+   * while a ship flies over it so it never hides one.
    */
-  private weldCross(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
-    const shape = (dx: number, dy: number) => (dx >= 3 && dx <= 5) || (dy >= 3 && dy <= 5);
-    const ready = p.weld >= 1;
-    const want = ready && p.hp < p.stats.hp;
-    const welding = p.weldT >= WELDING.hold;
-    const lit = 9 - Math.round(9 * clamp(p.weld, 0, 1));
-    // the keyline: the plus, a texel bigger all round
-    ctx.fillStyle = '#0a0610';
-    ctx.fillRect(x + 2, y - 1, 5, 11);
-    ctx.fillRect(x - 1, y + 2, 11, 5);
-    const col = welding ? (Math.floor(this.time * 20) % 2 ? '#ffffff' : WELD) : want ? WELD : ready ? '#6ac090' : '#3f8a60';
-    for (let dy = 0; dy < 9; dy++)
-      for (let dx = 0; dx < 9; dx++) {
-        if (!shape(dx, dy)) continue;
-        // filled below the line, its surface lit
-        ctx.fillStyle = dy < lit ? '#2a2036' : dy === lit ? (want ? '#ffffff' : '#a8e8c0') : col;
-        ctx.fillRect(x + dx, y + dy, 1, 1);
-      }
-    if (want && !welding) {
-      // a spark off it, now and then
-      const t = (this.time * 1.6) % 1;
-      if (t < 0.4) {
-        const k = Math.floor(this.time * 1.6) % 4;
-        const sx = x + [9, -1, 9, -1][k] + (k % 2 ? -1 : 1) * Math.round(t * 5);
-        const sy = y + [0, 2, 7, 6][k] - Math.round(t * 4);
-        ctx.fillStyle = t < 0.2 ? '#ffffff' : WELD;
-        ctx.fillRect(sx, sy, 1, 1);
-      }
-    }
+  private trays(ctx: CanvasRenderingContext2D, lv: Level, view: LevelView) {
+    const ships = lv.players.filter((q) => !q.out).map((q) => this.toScreen(view, q.x, FLIGHT_Y, q.z));
+    lv.players.forEach((p, i) => {
+      const cx = i === 0 ? 12 + TRAY.l : VIEW.w - 12 - TRAY.r;
+      const cy = VIEW.h - 10 - TRAY.d;
+      const over = ships.some((s) => s.x > cx - TRAY.l - 18 && s.x < cx + TRAY.r + 18 && s.y > cy - TRAY.u - 18 && s.y < cy + TRAY.d + 18);
+      const f = (this.trayFade[i] = clamp((this.trayFade[i] ?? 0) + (over ? 0.1 : -0.06), 0, 1));
+      this.tray.draw(ctx, p, this.devs[i] ?? 'keys', cx, cy, this.time, 1 - f * 0.7, this.view?.dryT[p.id] ?? 9, this.view?.whiffT[p.id] ?? 9);
+    });
   }
 
   /**
@@ -1043,6 +970,7 @@ export class Hud {
       }
     }
     this.jumpstarts(ctx, lv, view);
+    this.trays(ctx, lv, view);
     // an escort's or a heist's orders, as it starts (in place of the biome's name)
     const mb = view.missionBanner;
     if (mb && mb.t < 5 && lv.heist) {
