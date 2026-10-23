@@ -156,7 +156,8 @@ export const LOOKS: Record<string, Look> = {
     ],
     setChance: 0.2,
     haze: { color: 0xe0a888, alpha: 0.4 },
-    pattern: { kind: 'ripples', color: 0x7a2a1a, scale: 2.2, amount: 0.35 },
+    // (faint, in patches: the floor's the calm stage)
+    pattern: { kind: 'ripples', color: 0x8a3a24, scale: 2.6, amount: 0.16, patchy: 0.6, below: 3 },
   },
   monoliths: {
     sets: [

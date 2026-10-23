@@ -10,6 +10,8 @@ import { lookOf, type SetRole } from '../world/looks';
 import { FLIGHT_Y, HALF_W } from './types';
 import { fbm, noise2, ridged, rng, smooth, smoothstep, weighted, clamp, lerp, type Rng } from '../util';
 import { metaOf, variants, height as metaHeight } from './meta';
+import { Kit, type Bones, type Plan, type Post, type Route } from './layout';
+import { LAYOUTS } from './layouts';
 
 export const CHUNK = 16;
 /** Props are scattered this far either side (the tilted camera on a wide screen sees ~±46, and a margin). */
@@ -44,6 +46,8 @@ export interface Placed {
   role?: SetRole;
   /** How far round it the ground is its own (a set piece or a landmark: see `occupied`). */
   foot?: number;
+  /** Stands on a wall's top, over the flight line: drawn with depth like the rock, never thinned. */
+  rim?: boolean;
 }
 
 export interface Wildlife {
@@ -166,6 +170,9 @@ export class Terrain {
   readonly end: number;
   private chunks = new Map<number, Chunk>();
   private pillarCache = new Map<number, Pillar | null>();
+  /** Each segment's bones and plan, if its biome has a layout (see sim/layout.ts); worked out when first asked. */
+  private boneCache = new Map<number, Bones | null>();
+  private planCache = new Map<number, Plan | null>();
 
   constructor(
     readonly seed: number,
@@ -231,13 +238,87 @@ export class Terrain {
 
   /** Middle of a canyon's winding path at z. */
   pathX(z: number) {
-    const k = this.seed % 1000;
-    return 11 * Math.sin(z * 0.015 + k) + 5 * Math.sin(z * 0.037 + k * 1.7);
+    const w = this.bonesAt(z)?.walls?.(z);
+    return w ? (w[0] + w[1]) / 2 : this.basePathX(z);
   }
 
   /** Half-width of the canyon's floor at z: room to fight in, narrowing now and then. */
   pathHalf(z: number) {
+    const w = this.bonesAt(z)?.walls?.(z);
+    return w ? (w[1] - w[0]) / 2 : this.baseHalf(z);
+  }
+
+  private basePathX(z: number) {
+    const k = this.seed % 1000;
+    return 11 * Math.sin(z * 0.015 + k) + 5 * Math.sin(z * 0.037 + k * 1.7);
+  }
+
+  private baseHalf(z: number) {
     return 22 + 6 * Math.sin(z * 0.027 + this.seed * 0.37);
+  }
+
+  /** The segment z is in (the first or last past the ends). */
+  private segmentAt(z: number) {
+    const i = this.segments.findIndex((s) => z <= s.z0 && z > s.z1);
+    return i >= 0 ? i : z > this.segments[0].z0 ? 0 : this.segments.length - 1;
+  }
+
+  /** A segment's bones, if its biome has a layout. */
+  bones(i: number): Bones | null {
+    let b = this.boneCache.get(i);
+    if (b === undefined) {
+      const s = this.segments[i];
+      const layout = LAYOUTS[s.biome.id];
+      b = layout ? layout.bones(this.seed + i * 101, s.z0, s.z1, { x: (z) => this.basePathX(z), half: (z) => this.baseHalf(z) }) : null;
+      this.boneCache.set(i, b);
+    }
+    return b;
+  }
+
+  private bonesAt(z: number) {
+    return this.bones(this.segmentAt(z));
+  }
+
+  /** A segment's plan, if its biome has a layout: worked out whole, the first time it's asked for. */
+  plan(i: number): Plan | null {
+    let p = this.planCache.get(i);
+    if (p === undefined) {
+      const s = this.segments[i];
+      const layout = LAYOUTS[s.biome.id];
+      const bones = this.bones(i);
+      p = null;
+      if (layout && bones) {
+        const kit = new Kit(this, s.z0, s.z1, i, rng(this.seed * 3301 + i * 7717), bones.beats ?? []);
+        // (set aside first, so the plan's own puts see the ground without it)
+        this.planCache.set(i, null);
+        layout.plan(kit, bones);
+        kit.props.sort((a, b) => b.z - a.z);
+        p = { beats: kit.beats, props: kit.props, posts: kit.posts, routes: [...(bones.routes ?? []), ...kit.routes] };
+      }
+      this.planCache.set(i, p);
+    }
+    return p;
+  }
+
+  /** How much (x, z) is a dry bed or a worn track, 0..1 (for the ground's colour). */
+  wash(x: number, z: number) {
+    return this.bonesAt(z)?.wash?.(x, z) ?? 0;
+  }
+
+  /** The spots worth guarding between z0 and z1 (z1 < z0), from the plans. */
+  posts(z0: number, z1: number): Post[] {
+    const out: Post[] = [];
+    for (let i = 0; i < this.segments.length; i++) {
+      const s = this.segments[i];
+      if (s.z1 > z0 || s.z0 < z1) continue;
+      for (const p of this.plan(i)?.posts ?? []) if (p.z <= z0 && p.z > z1) out.push(p);
+    }
+    return out;
+  }
+
+  /** The routes through z, from the plans. */
+  routes(z: number): Route[] {
+    return this.plan(this.segmentAt(z))?.routes ?? [];
   }
 
   /**
@@ -247,6 +328,8 @@ export class Terrain {
    * lineX, swings round it).
    */
   pillars(z: number): Pillar[] {
+    const planned = this.bonesAt(z)?.pillars;
+    if (planned) return planned.filter((p) => Math.abs(p.z - z) < PILLAR_STEP * 1.5);
     const out: Pillar[] = [];
     const c0 = Math.floor(-z / PILLAR_STEP);
     for (let c = c0 - 1; c <= c0 + 1; c++) {
@@ -383,6 +466,8 @@ export class Terrain {
   }
 
   private biomeHeight(i: number, x: number, z: number) {
+    const own = this.bones(i)?.height;
+    if (own) return own(x, z);
     const b = this.segments[i].biome;
     return this.shape(b.shape, b.relief, b.water, x, z);
   }
@@ -467,6 +552,14 @@ export class Terrain {
     const biome = this.segments[bi].biome;
     const start = zNear > -40; // keep the start clear
     const spread = SPREAD;
+
+    // a laid-out biome: the chunk's share of its plan (and of any laid-out neighbour reaching in)
+    for (let i = 0; i < this.segments.length; i++) {
+      const s = this.segments[i];
+      if (s.z1 > zNear || s.z0 <= zNear - CHUNK) continue;
+      for (const p of this.plan(i)?.props ?? []) if (p.z <= zNear && p.z > zNear - CHUNK) props.push(p);
+    }
+    if (LAYOUTS[biome.id]) return { index, props, wildlife };
 
     // a landmark now and then: something big for the place, under the flight line, with room round it
     const field = FIELDS[biome.id];
@@ -709,7 +802,7 @@ export class Terrain {
     return null;
   }
 
-  private place(kind: string, x: number, z: number, r: Rng, biome: number, obstacle = false): Placed | null {
+  place(kind: string, x: number, z: number, r: Rng, biome: number, obstacle = false): Placed | null {
     const ground = this.height(x, z);
     const water = this.water(z);
     const wet = ground < water - 0.1;

@@ -12,7 +12,8 @@ import { lerp, pick, rng, type Rng, weighted } from '../util';
 import { BOUNTIES, FOES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
 import { CHAIN } from './combat';
-import { afloat } from './foes';
+import { afloat, road } from './foes';
+import { routeX } from './layout';
 import { boarderSkin } from './convoy';
 
 /** How much of a wave roll goes to the planet's old roster (the rest to the factions' foes). */
@@ -317,6 +318,18 @@ export class Director {
       }
       case 'technical': {
         const n = elite ? 1 : 2 + (r() < 0.3 + d * 0.3 ? 1 : 0);
+        // in a laid-out place, down its road (the wash, a track) in a convoy
+        const zr = lv.top - 6;
+        const rt = road(lv, 0, zr);
+        if (rt) {
+          for (let k = 0; k < n; k++) {
+            const zg = zr - k * 8;
+            const x = routeX(rt, zg);
+            const y = lv.terrain.height(x, zg);
+            lv.spawn(foe, skin, x, toFlight(zg, y), { ride: 1, tz: zg }, { ...opts, y, heading: 0 });
+          }
+          break;
+        }
         const dir = r() < 0.5 ? -1 : 1;
         for (let k = 0; k < n; k++) {
           const zg = lv.top - 6 - k * 7 - r() * 4;
@@ -363,10 +376,28 @@ export class Director {
     }
   }
 
+  /**
+   * Guns on the posts just ahead, if the place is laid out (true: it is, whether or not a post was
+   * free; a laid-out place has no guns but at its posts).
+   */
+  private posted(foe: Foe | 'turret', skin: EnemySkin, opts: Partial<Enemy>, most = 4) {
+    const lv = this.lv;
+    if (!lv.terrain.plan(lv.terrain.biomeIndex(lv.top - 20))) return false;
+    let placed = 0;
+    for (const p of lv.terrain.posts(lv.top - 8, lv.top - 70)) {
+      if (p.used || placed >= most) continue;
+      p.used = true;
+      lv.spawn(foe as Foe, skin, p.x, toFlight(p.z, p.y), {}, { ...opts, y: p.y });
+      placed++;
+    }
+    return true;
+  }
+
   /** Ground foes on solid, dry land just ahead. */
   private ground(foe: Foe, skin: EnemySkin, count: number, opts: Partial<Enemy>) {
     const lv = this.lv;
     const r = this.r;
+    if (this.posted(foe, skin, opts, count)) return;
     let placed = 0;
     for (let tries = 0; tries < 30 && placed < count; tries++) {
       const x = lerp(-HALF_W + 4, HALF_W - 4, r());
@@ -459,7 +490,9 @@ export class Director {
         break;
       }
       case 'turret': {
-        // on the ground ahead, somewhere solid and dry
+        // in a laid-out place, dug in where there's something to guard (its posts, see sim/layout.ts)
+        if (this.posted('turret', skin, opts)) break;
+        // else on the ground ahead, somewhere solid and dry
         const count = 3 + Math.floor(r() * 4);
         let placed = 0;
         for (let tries = 0; tries < 30 && placed < count; tries++) {

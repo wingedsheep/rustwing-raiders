@@ -55,6 +55,8 @@ export interface EnemyData {
   passed?: number;
   tx?: number;
   tz?: number;
+  /** Drives a road (a wash, a track: see sim/layout.ts) rather than across. */
+  ride?: number;
   ts?: number;
   a?: number;
   x0d?: number;

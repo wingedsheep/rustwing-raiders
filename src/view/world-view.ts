@@ -20,7 +20,9 @@ import { FLIGHT_Y } from '../sim/types';
 
 /** Across: wide enough for a wide screen and the tilted camera. */
 const SPAN = 62;
-const STEP = 0.8;
+const COARSE = 0.8;
+/** A canyon's grid. */
+const FINE = 0.5;
 const WATER_STEP = 1;
 /** Grass blades per square unit of grassy ground. */
 const GRASS = 3.2;
@@ -66,12 +68,15 @@ const patterns = {
   uPatCol: { value: Array.from({ length: SEGS }, () => new THREE.Color()) },
   /** patchiness, the height it keeps under */
   uPat2: { value: Array.from({ length: SEGS }, () => new THREE.Vector4(0, 999, 0, 0)) },
+  /** each segment's rock (its cliff colour), for a canyon's faces */
+  uCliff: { value: Array.from({ length: SEGS }, () => new THREE.Color()) },
 };
 
 const PATTERN_GLSL = /* glsl */ `
   uniform vec4 uPat[${SEGS}];
   uniform vec3 uPatCol[${SEGS}];
   uniform vec4 uPat2[${SEGS}];
+  uniform vec3 uCliff[${SEGS}];
   uniform float uTime;
   varying vec4 vLook;
   // nearest and second-nearest of a scatter of points, and the nearest's own random number
@@ -157,8 +162,10 @@ const PATTERN_GLSL = /* glsl */ `
   }
 `;
 
+/** The lit lip along a canyon's tops. */
+const LIP = 0xffe2b0;
 /** How far round (in cells) a canyon's ground looks for the edge of its rock. */
-const REACH = 5;
+const REACH = 8;
 /** Where the rock turns solid: the flight line, less the ship's margin (see Terrain.solid). */
 const SOLID = FLIGHT_Y - 0.6;
 
@@ -166,18 +173,27 @@ const SOLID = FLIGHT_Y - 0.6;
  * A canyon's rock, per pixel (vLook.z: how much canyon; w: how far to the rock, see toRock). Where
  * it turns solid is drawn on the floor as a hard edge of light hugging the walls and pillars, so the
  * way through reads at a glance; near a ship it runs hot and pulses, and spills its light out over
- * the floor and up the rock. Over the flight line the rock falls back into a cool shade, deeper the
- * higher it goes: the floor is the lit stage, the walls' tops out of play.
+ * the floor and up the rock. The walls' faces are the rock's own colour in columns, deeper towards
+ * their feet; over the flight line they fall back into a cool shade, deeper the higher they go,
+ * while the tops stay lit, a little hazed: the floor is the lit stage, the walls frame it.
  */
 const CANYON_GLSL = /* glsl */ `
   if (vLook.z > 0.0) {
     float y = vAliveW.y;
     float sd = vLook.w;
+    // (the face's own slope, from the pixel's neighbours: 1 flat, 0 sheer)
+    vec3 fn = normalize(cross(dFdx(vAliveW), dFdy(vAliveW)));
+    float flatness = smoothstep(0.5, 0.8, abs(fn.y));
+    float face = (1.0 - flatness) * smoothstep(1.5, 4.0, y);
+    // columns down the face, each its own shade, darker into the cleft at the foot
+    float colm = aHash(vec2(floor((vAliveW.x + vAliveW.z) * 0.62), 3.0));
+    vec3 rock = uCliff[int(vLook.x + 0.5)] * (1.0 + 0.3 * colm) * mix(0.8, 1.3, smoothstep(2.0, 22.0, y));
+    diffuseColor.rgb = mix(diffuseColor.rgb, rock, face * vLook.z);
     float over = smoothstep(${SOLID.toFixed(2)}, ${(SOLID + 2.5).toFixed(2)}, y);
     float high = smoothstep(${(SOLID + 1).toFixed(2)}, ${(SOLID + 24).toFixed(2)}, y);
     vec3 shade = diffuseColor.rgb * vec3(0.42, 0.44, 0.58);
     shade = mix(shade, vec3(dot(shade, vec3(0.3, 0.55, 0.15))), 0.35);
-    diffuseColor.rgb = mix(diffuseColor.rgb, shade, clamp(0.35 * over + 0.65 * high, 0.0, 1.0) * vLook.z);
+    diffuseColor.rgb = mix(diffuseColor.rgb, shade, clamp(0.35 * over + 0.65 * high, 0.0, 1.0) * mix(1.0, 0.28, flatness) * vLook.z);
     // how near a ship (uSee's strength 1 is a ship, a foe's less)
     float near = 0.0;
     for (int i = 0; i < ${SEE}; i++) {
@@ -255,6 +271,7 @@ export class WorldView {
       patterns.uPat2.value[i].set(pat.patchy ?? 0, pat.below ?? 999, 0, 0);
       patterns.uPatCol.value[i].setHex(pat.color);
     });
+    patterns.uCliff.value.forEach((c, i) => c.setHex(terrain.segments[i]?.biome.cliff ?? 0x6a5a5a));
   }
 
   /** The sun's direction (towards it), for the water's glints. */
@@ -325,7 +342,7 @@ export class WorldView {
       if (p.role === 'span' || p.role === 'gate') obj.scale.y *= LIFT[p.role];
       // whatever reaches over the flight line thins away round a ship under it; but a span or a
       // gate stays solid, high over you, and you show through it as a silhouette (see xray.ts)
-      if (p.role === 'span' || p.role === 'gate') seeThrough(obj, false);
+      if (p.role === 'span' || p.role === 'gate' || p.rim) seeThrough(obj, false);
       else if (p.obstacle || p.role || p.y + metaTop(p) > FLIGHT_Y + 1) seeThrough(obj);
       if (!p.obstacle && !p.role) {
         // no two alike: a lean, and a shade of their patch's colour (neighbours share a cast, as
@@ -550,10 +567,15 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
   if (h < water + 0.5) out.setHex(g[0]).multiplyScalar(h < water + 0.15 ? 0.85 : 1);
   // steep faces are rock
   if (steep > 0.4) out.lerp(tmpC.setHex(b.cliff), clamp((steep - 0.4) / 0.2, 0, 1));
-  // the canyon's walls: layered strata
-  if (b.shape === 'canyon' && steep > 0.3) {
-    const layer = Math.floor(h * 0.9 + noise2(x * 0.05, z * 0.05) * 2) % 3;
-    out.lerp(tmpC.setHex(layer === 0 ? b.cliff : g[Math.min(3, 1 + layer)]), 0.7);
+  // a canyon: the floor, a ledge a shade lighter, the tops lit (the faces are painted per pixel)
+  if (b.shape === 'canyon') {
+    const k = h > SOLID ? 3 : h > 3 ? 1 : 0;
+    out.setHex(g[k]);
+    // (ledges and shelves a step up: a shade lighter than the floor, not yet the tops)
+    if (k === 1) out.lerp(tmpC.setHex(g[3]), 0.25);
+    // the floor in big soft patches of dust and darker grit, like a painter's underlayer
+    if (k === 0) out.multiplyScalar(0.9 + noise2(x * 0.035, z * 0.035, 23) * 0.2);
+    if (k === 3) out.lerp(tmpC.setHex(g[2]), clamp((h - 18) / 8, 0, 1) * 0.6);
   }
   switch (b.id) {
     case 'fernwood':
@@ -599,17 +621,19 @@ function grassy(c: THREE.Color) {
 function groundGeometry(t: Terrain, z0: number) {
   const X1 = SPAN;
   const X0 = -X1;
+  // heights with a border all round, for the normals (and down a canyon, how far to its rock);
+  // a canyon's on a finer grid, so its faces stand as faces
+  const canyon = Math.max(t.canyonAt(z0), t.canyonAt(z0 - CHUNK)) > 0;
+  const STEP = canyon ? FINE : COARSE;
   const nx = Math.round((X1 - X0) / STEP);
   const nz = Math.ceil(CHUNK / STEP);
-  // heights with a border all round, for the normals (and down a canyon, how far to its rock)
-  const canyon = Math.max(t.canyonAt(z0), t.canyonAt(z0 - CHUNK)) > 0;
   const B = canyon ? REACH : 1;
   const W = nx + 1 + 2 * B;
   const Hh = new Float32Array(W * (nz + 1 + 2 * B));
   for (let j = -B; j <= nz + B; j++)
     for (let i = -B; i <= nx + B; i++) Hh[(j + B) * W + i + B] = t.height(X0 + i * STEP, z0 - j * STEP);
   const at = (i: number, j: number) => Hh[(j + B) * W + i + B];
-  const rock = canyon ? toRock(at, nx, nz) : null;
+  const rock = canyon ? toRock(at, nx, nz, STEP) : null;
   const verts = (nx + 1) * (nz + 1);
   const pos = new Float32Array(verts * 3);
   const nor = new Float32Array(verts * 3);
@@ -634,10 +658,19 @@ function groundGeometry(t: Terrain, z0: number) {
       const w = t.water(z);
       const water = w === -Infinity ? -99 : w;
       groundColor(t.segments[bl.a].biome, h, steep, x, z, water, c);
+      // a canyon's tops lit along their edges, a lip you can follow down the gorge
+      if (canyon && h > 2.5) {
+        const nb = [at(i - 1, j), at(i + 1, j), at(i, j - 1), at(i, j + 1)];
+        // (only the top-most row of the edge, so it's a line, not a band)
+        if (h - Math.min(...nb) > 1.2 && h > Math.max(...nb) - 0.25) c.lerp(tmp.setHex(LIP), h > SOLID ? 0.75 : 0.45);
+      }
       if (bl.a !== bl.b && bl.t > 0) {
         groundColor(t.segments[bl.b].biome, h, steep, x, z, water, tmp);
         c.lerp(tmp, bl.t);
       }
+      // a dry wash or a worn track: its bed a shade deeper and cooler, its banks a little paler
+      const bed = t.wash(x, z);
+      if (bed > 0) c.multiplyScalar(1 - 0.14 * bed + 0.08 * bed * (1 - bed) * 4).lerp(tmp.setHex(0x8a5048), 0.22 * bed);
       pos[k] = x;
       pos[k + 1] = h;
       pos[k + 2] = z;
@@ -697,7 +730,7 @@ function groundGeometry(t: Terrain, z0: number) {
  * the line between two neighbouring cells (to a fraction of a cell); each cell takes the nearest of
  * those, looked for only in the rows round it.
  */
-function toRock(at: (i: number, j: number) => number, nx: number, nz: number) {
+function toRock(at: (i: number, j: number) => number, nx: number, nz: number, STEP: number) {
   const rows: number[][] = Array.from({ length: nz + 1 + 2 * REACH }, () => []);
   const add = (i: number, j: number) => rows[Math.round(j) + REACH]?.push(i, j);
   for (let j = -REACH; j <= nz + REACH; j++)

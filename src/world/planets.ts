@@ -346,7 +346,8 @@ export const PLANETS: Planet[] = [
         relief: 15,
         water: null,
         waterColor: 0,
-        ground: [0xb05a3a, 0xc0683a, 0xd07a48, 0xe09a6a],
+        // (the floor dusty, the ledges and shelves warmer, the tops sun-lit)
+        ground: [0xa4644c, 0xbc6c44, 0xd07a48, 0xe4a46e],
         cliff: 0x8a3a2a,
         props: [
           ['mesa', 2], ['arch', 2], ['kessra_hoodoo', 3], ['kessra_ironscrub', 3], ['boulder', 1],

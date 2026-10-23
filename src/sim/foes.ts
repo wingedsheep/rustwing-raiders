@@ -9,6 +9,7 @@ import { DT, FLIGHT_Y, HALF_H, HALF_W, fromFlight, toFlight } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
+import { routeX, type Route } from './layout';
 
 export const sz = (lv: Level, e: Enemy) => e.z - lv.scroll;
 
@@ -169,6 +170,21 @@ function drive(lv: Level, e: Enemy, x: number, zg: number, boat = false) {
 function column(lv: Level, x: number, zg: number, pad: number) {
   for (const c of lv.terrain.colliders(x, zg, pad + 2)) if ((c.x - x) ** 2 + (c.z - zg) ** 2 < (c.r + pad) ** 2) return c;
   return null;
+}
+
+/** The road through ground z nearest x (a dry wash, a track: what a laid-out place drives along), if any. */
+export function road(lv: Level, x: number, zg: number): Route | null {
+  let best: Route | null = null;
+  let far = Infinity;
+  for (const rt of lv.terrain.routes(zg)) {
+    if (rt.kind === 'water' || zg > rt.pts[0].z || zg < rt.pts[rt.pts.length - 1].z) continue;
+    const d = Math.abs(routeX(rt, zg) - x);
+    if (d < far) {
+      far = d;
+      best = rt;
+    }
+  }
+  return best;
 }
 
 /** Is there water to float on at (x, ground z)? */
@@ -912,7 +928,15 @@ export function updateFoe(lv: Level, e: Enemy): void {
       // in the bed at you (a line that locks), and tears off again
       const dir = d.dir ?? 1;
       const zg = d.tz ?? fromFlight(e.z, e.y);
-      if (e.state === 'idle' || e.state === 'recover') {
+      const rt = d.ride ? road(lv, e.x, zg) : null;
+      if (rt && (e.state === 'idle' || e.state === 'recover')) {
+        // on a road: down it towards you, turning where it turns
+        const sp = (e.state === 'recover' ? 5 : 8) * slow;
+        d.tz = zg + sp * DT;
+        const x = routeX(rt, d.tz);
+        drive(lv, e, x, d.tz);
+        e.heading = lerpAngle(e.heading, Math.atan2((routeX(rt, d.tz + 2) - x) / 2, 1), 0.15);
+      } else if (e.state === 'idle' || e.state === 'recover') {
         const sp = (e.state === 'recover' ? 7 : 15) * slow;
         d.tz = zg + 3.5 * DT;
         // round a pillar in the road, not through it
@@ -926,7 +950,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         drive(lv, e, e.x + dir * Math.max(0, 9 - e.stateT * 30) * DT, zg);
       }
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
-      if (Math.abs(e.x) > HALF_W + 8) {
+      if (Math.abs(e.x) > HALF_W + 8 || (d.ride && sz(lv, e) > HALF_H + 6)) {
         lv.escape(e);
         break;
       }

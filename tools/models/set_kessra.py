@@ -658,8 +658,8 @@ def race_gantry(variants):
 
 
 HOODOO_BANDS = ["#e8c49a", "#b8502e", "#d8925a", "#8a3424", "#f0d8b0", "#c06a3a"]
-CAPROCK = ["#4a3430", "#5a4038", "#3e2c2a"]
-CAP_TOP = "#8a6a5c"
+CAPROCK = ["#8a4a34", "#9a5a3e", "#7a3e2e"]
+CAP_TOP = "#e8b07a"
 SCRUB_IRON = ["#5a2a24", "#4a2420", "#6a3a2a"]
 SCRUB_LEAF = ["#7a7a3a", "#5e6a34", "#8a6a3a"]
 
@@ -802,6 +802,226 @@ def race_debris(variants):
             m.box((2.6, 0.6, 0.08), (1.3, -1.2, 0.03), "#e8dcc0", rot=(0, 0, 0.3))      # a fallen banner
             m.box((0.8, 0.62, 0.09), (0.6, -1.4, 0.04), "#c83a2a", rot=(0, 0, 0.3))
         m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+# --- red mesa run: the ground's own pieces -----------------------------------------------------
+
+SCREE = ["#9a4430", "#b85a36", "#a84a30", "#c0683a"]
+SCREE_TOP = ["#e8a874", "#dc9866"]
+SCREE_SHADE = "#6a2a24"
+SAGE = ["#7a8450", "#6a7444", "#86905a"]
+SAGE_TOP = ["#b4bc7c", "#a8b070"]
+SAGE_DARK = "#3e4430"
+BLOOM = ["#f0c040", "#e87a3a"]
+DEADWOOD = ["#a8968a", "#988478"]
+DEADWOOD_DARK = "#7a6458"
+
+
+def _block(m, rng, x, y, z, w, d, h, tilt=0.0, turn=0.0):
+    """A squared block of the red rock: flat top lit, banded sides, the sides away from the sun deep."""
+    c, s = math.cos(turn), math.sin(turn)
+    pts = []
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        for sz, k in ((0, 1.0), (1, 0.88)):
+            px = sx * w / 2 * k * rng.uniform(0.9, 1.08)
+            py = sy * d / 2 * k * rng.uniform(0.9, 1.08)
+            # (no two corners the same height: a split rock, not a crate)
+            pz = z + sz * h * rng.uniform(0.75, 1.1) + px * tilt
+            pts.append((x + px * c - py * s, y + px * s + py * c, pz))
+    fs = hull(m, pts, SCREE[rng.randrange(len(SCREE))])
+    _paint(m, fs, SCREE_TOP[rng.randrange(2)], SCREE_SHADE, dot=0.72)
+    return fs
+
+
+def scree(variants):
+    """Scenery: the red rock fallen from the cliffs, squared off the way it splits: one big block
+    with its spalls, a heap, a slab leaning on its fellows, a spill of chips. Flat lit tops (what's
+    seen from up there), deep sides."""
+    for i in range(4):
+        r = root("kessra_scree", i)
+        rng = random.Random(3400 + i)
+        m = Model(f"kessra_scree_{i}", 3400 + i)
+        if i == 0:
+            _block(m, rng, 0, 0, -0.2, 2.8, 2.2, 1.2, tilt=0.12, turn=0.2)
+            _block(m, rng, 1.9, -1.0, -0.2, 1.1, 0.9, 0.7, turn=0.9)
+            _block(m, rng, -1.6, 1.2, -0.2, 0.8, 0.9, 0.5, turn=-0.4)
+        elif i == 1:
+            for x, y, w, h, t in ((0, 0, 2.0, 1.2, 0.1), (1.6, 0.6, 1.4, 0.9, 0.8), (-1.3, 0.8, 1.5, 0.8, -0.5),
+                                  (0.3, -1.4, 1.2, 0.7, 1.3), (0.4, 0.4, 1.1, 0.7, 0.4)):
+                _block(m, rng, x, y, -0.2 if (x, y) != (0.4, 0.4) else 1.0, w, w * 0.8, h, turn=t)
+        elif i == 2:
+            _block(m, rng, -0.8, 0, -0.2, 1.6, 1.4, 1.2, turn=0.3)
+            _block(m, rng, 0.9, 0.2, -0.2, 1.2, 1.3, 0.9, turn=-0.2)
+            _block(m, rng, 0.2, -0.2, 0.6, 3.2, 1.0, 0.45, tilt=0.35, turn=0.1)      # the slab leaning across
+        else:
+            for k in range(8):
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.2, 2.0)
+                sz = rng.uniform(0.35, 0.7)
+                _block(m, rng, math.cos(a) * d, math.sin(a) * d, -0.15, sz * 1.3, sz, sz * 0.6, turn=rng.uniform(0, 3))
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def _bush(m, rng, x, y, R, h):
+    """One clump of desert brush: a cushion of faceted lobes, lit on top, dark at its foot."""
+    fs = []
+    for k in range(5):
+        a = k * math.tau / 5 + rng.uniform(-0.4, 0.4)
+        d = R * (0.45 if k else 0.0)
+        rr = R * rng.uniform(0.55, 0.7)
+        fs += m.ball(rr, (x + math.cos(a) * d, y + math.sin(a) * d, h * 0.45), SAGE[k % 3], subdiv=1,
+                     scale=(1, 1, h / rr * 0.55), jitter=0.06)
+    fs += m.ball(R * 0.95, (x, y, 0.12), SAGE_DARK, subdiv=0, scale=(1, 1, 0.25))
+    _paint(m, fs, SAGE_TOP[rng.randrange(2)], None, dot=0.6)
+    return fs
+
+
+def brush(variants):
+    """Ground cover: desert brush, dusty sage cushions that hold the wash's banks and the ledges:
+    one round clump, three together, a low spread starred with yellow bloom."""
+    for i in range(3):
+        r = root("kessra_brush", i)
+        rng = random.Random(3420 + i)
+        m = Model(f"kessra_brush_{i}", 3420 + i)
+        if i == 0:
+            _bush(m, rng, 0, 0, 1.0, 1.0)
+        elif i == 1:
+            _bush(m, rng, 0, 0, 1.0, 1.05)
+            _bush(m, rng, 1.5, 0.5, 0.7, 0.75)
+            _bush(m, rng, -0.6, 1.3, 0.55, 0.6)
+        else:
+            for x, y, R in ((0, 0, 0.8), (1.1, -0.4, 0.6), (-0.9, 0.5, 0.65), (0.3, 1.0, 0.5)):
+                _bush(m, rng, x, y, R, 0.45)
+            for k in range(9):
+                a = rng.uniform(0, math.tau)
+                d = rng.uniform(0.2, 1.3)
+                m.ball(0.13, (math.cos(a) * d, math.sin(a) * d, 0.5), BLOOM[k % 2], subdiv=0)
+        for k in range(3):                                                 # a few dry twigs poking out
+            a = rng.uniform(0, math.tau)
+            pts = arc((0, 0, 0.3), a, rng.uniform(0.9, 1.4), 0.7, 0.4, n=3)
+            tube(m, pts, [0.06, 0.05, 0.035, 0.02], DEADWOOD_DARK, segs=3)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def deadwood(variants):
+    """Scenery: a dead tree bleached pale, twisted, its limbs thrown out wide (what's seen from up
+    there): on the ledges and the tops, now and then by the wash."""
+    for i in range(2):
+        r = root("kessra_deadwood", i)
+        rng = random.Random(3440 + i)
+        m = Model(f"kessra_deadwood_{i}", 3440 + i)
+        H = 2.4 if i == 0 else 1.6
+        trunk = bend((0, 0, 0), (0.3, 0.2, H), (0.5, -0.3), n=4)
+        tube(m, trunk, [0.4, 0.32, 0.26, 0.2, 0.15], DEADWOOD[0], segs=5)
+        top = trunk[-1]
+        for k in range(4 if i == 0 else 3):
+            a = k * math.tau / (4 if i == 0 else 3) + rng.uniform(-0.4, 0.4)
+            L = rng.uniform(1.6, 2.4) * (1 if i == 0 else 0.8)
+            base = trunk[2 + k % 2]
+            pts = arc((base.x, base.y, base.z), a, L, 0.6, 0.5, n=4, tip_curl=0.3)
+            tube(m, pts, [0.2, 0.16, 0.12, 0.08, 0.05], DEADWOOD[k % 2], segs=4)
+            tip = pts[-2]
+            twig = arc((tip.x, tip.y, tip.z), a + 0.9, 0.7, 0.3, 0.1, n=2)
+            tube(m, twig, [0.05, 0.03, 0.02], DEADWOOD[1], segs=3)
+        lump(m, rng, (0, 0, 0), (0.7, 0.6, 0.2), DEADWOOD_DARK, n=8, flat=0.5)   # its roots in the sand
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def spire(variants):
+    """Obstacles: pinnacles of the soft red rock, taller than you fly, banded, a dark caprock
+    keeping the rain off: a lone needle, a pair grown from one foot, a broken one. They stand in
+    the hoodoo fields and at the gorge's mouths; weave between them. Colliders on each column."""
+    for i in range(3):
+        H = (17.0, 15.5, 14.0)[i]
+        r = root("kessra_spire", i, height=H + 1, obstacle=1)
+        rng = random.Random(3480 + i)
+        m = Model(f"kessra_spire_{i}", 3480 + i)
+        cols = [(0, 0, 1.6, H)] if i != 1 else [(-1.3, 0, 1.4, H), (1.5, 0.4, 1.2, H * 0.82)]
+        if i == 2:
+            cols = [(0, 0, 1.8, H)]
+        for x, y, R, h in cols:
+            # drums of the rock, each its own width, stepped (not a smooth taper), leaning a little
+            fs = []
+            z0 = -0.3
+            cx, cy = x, y
+            n = 7
+            lean = (rng.uniform(-0.12, 0.12), rng.uniform(-0.12, 0.12))
+            for k in range(n):
+                z1 = z0 + (h + 0.3) / n
+                rk = R * (1.5 - 0.55 * k / n) * rng.uniform(0.85, 1.12)
+                f, (cx, cy) = _stack(m, rng, cx, cy, [(z0, z1, rk, rk * rng.uniform(0.86, 0.98))], sides=6, jit=0.2,
+                                     drift=lean, colors=[MESA[(k * 3 + i) % 5]])
+                fs += f
+                z0 = z1
+            top = (cx, cy)
+            _paint(m, fs, MESA_TOP, None, dot=0.7)
+            if i == 2:
+                # its top broken off: a jagged stump, the piece lying at its foot
+                for k in range(4):
+                    a = k * math.tau / 4 + rng.uniform(-0.3, 0.3)
+                    t = lump(m, rng, (top[0] + math.cos(a) * R * 0.5, top[1] + math.sin(a) * R * 0.5, h + rng.uniform(0.2, 1.0)),
+                             (0.6, 0.5, 0.9), MESA[k % 5], n=8)
+                    _paint(m, t, MESA_TOP, CAPROCK[2])
+                _block(m, rng, x + 3.4, y - 1.0, -0.2, 3.2, 1.6, 1.4, turn=0.6)
+            else:
+                cap = _block(m, rng, top[0], top[1], h - 0.1, R * 2.4, R * 2.0, 0.9, turn=rng.uniform(0, 3))
+                _paint(m, cap, CAP_TOP, CAPROCK[2], dot=0.7)
+            collider(r, x, y, R * 1.2)
+        for k in range(6):                                                 # spalls at the foot
+            a = rng.uniform(0, math.tau)
+            d = rng.uniform(2.6, 3.8)
+            _block(m, rng, math.cos(a) * d, math.sin(a) * d, -0.15, rng.uniform(0.5, 1.0), rng.uniform(0.4, 0.8), 0.45,
+                   turn=rng.uniform(0, 3))
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def depot(variants):
+    """Scenery: a raiders' depot at the back of a bay in the gorge: a sun-sheet strung off the rock
+    over crates and drums, a fuel bladder, a racer under a tarp, a work lamp still lit. Its back
+    (+y) goes to the wall. Under the flight line."""
+    for i in range(2):
+        r = root("kessra_depot", i)
+        rng = random.Random(3460 + i)
+        m = Model(f"kessra_depot_{i}", 3460 + i)
+        # the sun-sheet: poles out front, its back edge up on the rock
+        for x in (-3.6, 0.2, 3.8):
+            m.cyl(0.12, 3.2, (x, 0.4, 0), WOOD[2], segs=5)
+        _sheet(m, (-4.2, 0.2, 3.1), (4.4, 0.2, 3.0), (-4.4, 3.2, 4.2), (4.6, 3.2, 4.1), 0.3,
+                       [CLOTH[i][0], CLOTH[(i + 3) % 4][1]], nu=6, nv=3, tatter=[0.2, 0.45, 0.1, 0.3])
+        # crates, stacked, against the back
+        for x, y, z, w in ((-2.8, -0.4, 0, 1.3), (-1.4, -0.6, 0, 1.2), (-2.2, -0.5, 1.25, 1.1), (2.6, -0.8, 0, 1.4),
+                           (3.6, -2.0, 0, 1.0), (2.7, -0.8, 1.4, 1.0)):
+            m.box((w, w, w), (x, y, z + w / 2), WOOD[rng.randrange(3)], rot=(0, 0, rng.uniform(-0.2, 0.2)))
+            m.box((w * 1.02, 0.12, w * 1.02), (x, y - w / 2, z + w / 2), "#4a3424")
+        # drums: rust and teal, one on its side
+        for k, (x, y) in enumerate(((0.0, -0.6), (0.9, -0.8), (0.4, -1.6), (-0.6, -2.6), (1.6, -2.8))):
+            col = ("#a83a2a", "#2a8a8a", "#c8a050")[k % 3]
+            if k == 3:
+                m.cyl(0.45, 1.2, (x, y, 0.45), col, segs=8, rot=(math.pi / 2, 0, 0.8))
+            else:
+                m.cyl(0.45, 1.2, (x, y, 0), col, segs=8)
+                m.cyl(0.47, 0.12, (x, y, 0.55), "#3a2a24", segs=8)
+        # the fuel bladder, slumped
+        m.ball(1.3, (-2.6, -2.4, 0.45), "#3a3a34", subdiv=1, scale=(1.3, 0.9, 0.42))
+        m.ball(0.2, (-2.6, -2.4, 1.0), "#c8a050", subdiv=0)
+        if i == 0:
+            # a racer under a tarp, its nose out
+            m.ball(1.1, (0.6, 1.6, 0.5), "#8a8070", subdiv=1, scale=(2.0, 0.95, 0.5))
+            m.box((0.9, 0.8, 0.5), (2.6, 1.6, 0.35), "#c8a060", rot=(0, 0, 0.1))
+            m.box((0.4, 0.4, 0.06), (2.7, 1.6, 0.62), CHECK[1])
+        else:
+            # a workbench and a cable spool
+            m.box((2.4, 0.9, 0.12), (1.0, -0.6, 1.0), WOOD[1])
+            for x in (0.0, 2.0):
+                m.box((0.12, 0.8, 1.0), (x, -0.6, 0.5), WOOD[2])
+            m.cyl(0.7, 0.6, (-0.4, -2.0, 0), "#6a4a30", segs=8)
+        # a work lamp on a pole, lit
+        m.cyl(0.06, 2.6, (-4.0, -2.0, 0), IRON[0], segs=4)
+        m.ball(0.28, (-4.0, -2.0, 2.7), LAMP, subdiv=1, glow=True)
+        for k in range(5):                                                 # spill, tracks, footprints
+            m.box((rng.uniform(0.6, 1.4), 0.3, 0.04), (rng.uniform(-3, 3), rng.uniform(-3.4, -2.6), 0.02), "#7a3a24",
+                  rot=(0, 0, rng.uniform(-0.4, 0.4)))
+        m.build(r)
 
 
 # --- the monolith field -----------------------------------------------------------------------
@@ -1837,6 +2057,11 @@ def build():
     hoodoo(4)
     ironscrub(3)
     race_debris(3)
+    scree(4)
+    brush(3)
+    deadwood(2)
+    spire(3)
+    depot(2)
     colossus(2)
     henge(2)
     obelisk_span(2)
