@@ -12,6 +12,7 @@ const SFX: Sfx[] = [
   // boarding
   'foot_shot', 'foot_blast', 'foot_shell', 'foot_dry', 'step', 'slide', 'takedown', 'punch', 'body_fall', 'swing',
   'foot_hurt', 'crew_hit', 'plate_hit', 'plate_break', 'aim_tell', 'crew_shot', 'ricochet', 'door', 'alarm', 'lockdown',
+  'foot_mark', 'crew_kill',
   'breach', 'kelter_clamp', 'hook_fire', 'hook_snap', 'crack_tick', 'crate_open', 'strongbox_open', 'core_pull', 'airlock',
   'clock_tick', 'turret_up', 'charge', 'slam', 'canister', 'pickup_tin', 'heal_foot', 'alert', 'revive',
   // bosses

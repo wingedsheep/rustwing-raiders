@@ -2,8 +2,8 @@
 
 Reef Glider (a flying-fish sailplane), Reef Eel (a banded moray), Shrimp Kite (a shrimp under a
 two-tone kite), Pirate Junk (a junk with fan sails splayed like wings), Clam Battery (a giant clam
-on a reef rock, a glowing mantle and a pearl cannon) and Crab Dreadnought (a barnacled war crab with
-one huge crusher claw).
+on a reef rock, a glowing mantle and a pearl cannon) and Crab Dreadnought (a gunship that walks the
+air on eight legs, a crusher grab on one arm and a rotary saw on the other).
 """
 from __future__ import annotations
 
@@ -302,90 +302,148 @@ def clam_battery():
     marker(head, kind, "muzzle", (0, 1.15, 0.5))
 
 
-# --- Crab Dreadnought: brute, beast, ~6 --------------------------------------------------------------
+# --- Crab Dreadnought: brute, mech, ~6 ---------------------------------------------------------------
 
 def crab_dreadnought():
-    """A war crab grown into a battleship: a broad spiked carapace mottled pale, barnacle cones on
-    its back that spit fire, glowing eyes on stalks, one enormous crusher claw and one cutter."""
-    kind, clip, root = named("crab_dreadnought", "brute", "beast", "scuttle", preview=("#d04a3a", "#f0c0a0", "#ffe04a"))
+    """The Court's reef-walker gunship, built the way a crab is: a broad riveted hull plated in carved
+    shell, a glass bridge between two lamp masts, two twin-gun turrets on the back, eight piston
+    struts that walk it through the air (each pad presses on a glowing lift-field: the legs carry it,
+    not engines), a hydraulic crusher grab on one arm and a rotary saw on the other, and a harpoon
+    winch astern."""
+    kind, clip, root = named("crab_dreadnought", "brute", "mech", "scuttle", preview=("#d04a3a", "#f0c0a0", "#ffe04a"))
     T = 2.0
     b = Model(f"{kind}_body", seed=7080)
-    b.ball(1.0, (0, -0.05, -0.25), A.shade(0.45), subdiv=1, scale=(1.85, 1.35, 0.45))           # dark underside
     shell = _ccw([(0, 1.45), (-0.75, 1.42), (-1.35, 1.15), (-1.95, 0.45), (-1.9, -0.35), (-1.4, -1.15), (-0.6, -1.5),
                   (0.6, -1.5), (1.4, -1.15), (1.9, -0.35), (1.95, 0.45), (1.35, 1.15), (0.75, 1.42)])
-    hull(b, shell, -0.3, 0.4, A.shade(0.78), inset=0.82)
-    b.ball(1.0, (0, -0.02, 0.32), A, subdiv=2, scale=(1.55, 1.18, 0.42))                       # the domed back
-    for (x, y, sc) in ((0, 0.55, (0.55, 0.45, 0.2)), (0.85, -0.1, (0.5, 0.6, 0.18)), (-0.85, -0.1, (0.5, 0.6, 0.18)),
-                       (0, -0.55, (0.5, 0.4, 0.18))):  # raised regions of the shell
-        b.ball(1.0, (x, y, 0.62), A.shade(1.15), subdiv=1, scale=sc)
-    for (x, y, r) in ((0.35, 0.95, 0.2), (-0.5, 0.85, 0.16), (1.25, 0.45, 0.22), (-1.3, 0.3, 0.2), (1.2, -0.65, 0.17),
-                      (-1.05, -0.75, 0.22), (0.2, -1.05, 0.18), (-0.3, 0.1, 0.15)):  # pale mottling
-        b.ball(r, (x, y, 0.52 + 0.2 * (1 - (x * x / 3.6 + y * y / 2.0))), B, subdiv=0, scale=(1.2, 1.0, 0.35))
-    for s in (1, -1):  # spikes round the rim
-        for (x, y, dx, dy) in ((1.35, 1.15, 0.35, 0.3), (1.9, 0.45, 0.45, 0.1), (1.9, -0.35, 0.4, -0.15), (1.4, -1.15, 0.3, -0.3)):
-            limb(b, (s * x, y, 0.15), (s * (x + dx), y + dy, 0.25), 0.17, 0.0, B.shade(0.95), segs=4)
-    for x in (-0.45, -0.15, 0.15, 0.45):  # front teeth between the eyes
-        limb(b, (x, 1.35, 0.25), (x * 1.1, 1.65, 0.22), 0.1, 0.0, B, segs=4)
-    for s in (1, -1):  # eyes on stalks, glowing yellow
-        limb(b, (s * 0.55, 1.25, 0.35), (s * 0.68, 1.6, 0.75), 0.11, 0.08, A.shade(0.8), segs=5)
-        b.ball(0.2, (s * 0.68, 1.62, 0.82), C, subdiv=1, glow=True)
-        b.box((0.08, 0.1, 0.22), (s * 0.68, 1.8, 0.86), DARK)
-    # barnacle batteries on the back: pale cones with glowing mouths
-    for (x, y, r) in ((0.72, -0.35, 0.36), (-0.72, -0.35, 0.36), (0.0, -0.95, 0.28), (0.25, 0.3, 0.22)):
-        z = 0.62
-        b.cyl(r, r * 1.2, (x, y, z), B, segs=7, r_top=r * 0.62)
-        b.cyl(r * 0.55, 0.05, (x, y, z + r * 1.2), C, segs=7, glow=True)
-        for j in range(3):
-            a = TAU * j / 3 + x
-            b.cyl(r * 0.32, r * 0.5, (x + math.cos(a) * r * 1.05, y + math.sin(a) * r * 1.05, z - 0.05), B.shade(0.85),
-                  segs=5, r_top=r * 0.18)
+    hull(b, [(x * 1.04, y * 1.04) for x, y in shell], -0.55, -0.15, DARK, inset=0.9)               # the keel pan
+    hull(b, shell, -0.2, 0.45, A.shade(0.8), inset=0.84)
+    deck = _ccw([(0, 1.1), (-0.6, 1.05), (-1.15, 0.75), (-1.5, 0.2), (-1.4, -0.5), (-0.95, -1.05), (0, -1.2),
+                 (0.95, -1.05), (1.4, -0.5), (1.5, 0.2), (1.15, 0.75), (0.6, 1.05)])
+    hull(b, deck, 0.4, 0.62, A, inset=0.9)                                                          # upper deck
+    # an armour skirt round the rim, shell-pale and dark plates in turn, angled out like a carapace edge
+    n = 16
+    for k in range(n):
+        a = TAU * (k + 0.5) / n
+        x, y = math.sin(a) * 1.72, math.cos(a) * 1.18 - 0.05
+        if y > 0.9 and abs(x) < 1.0:
+            continue                                                                                # the bridge and arms
+        b.box((0.7, 0.34, 0.3), (x, y, 0.42), B.shade(0.9) if k % 2 else A.shade(0.6), rot=(0.4, 0, -a))
+    # the spine: a carved shell keel-plate from the bridge to the stern, a hatch, a dark seam each side
+    b.slab(_ccw([(-0.35, 0.75), (0.35, 0.75), (0.42, -0.2), (0.3, -1.05), (-0.3, -1.05), (-0.42, -0.2)]), 0.6, 0.78, B,
+           top=_ccw([(-0.25, 0.7), (0.25, 0.7), (0.3, -0.2), (0.2, -0.95), (-0.2, -0.95), (-0.3, -0.2)]))
+    for y in (0.4, -0.05, -0.5):                                                                    # carved ribs
+        b.box((0.5, 0.08, 0.05), (0, y, 0.8), B.shade(0.7))
+    b.cyl(0.2, 0.08, (0, -0.75, 0.8), DARK, segs=6)                                                 # hatch
+    for s in (1, -1):
+        b.box((0.08, 1.5, 0.06), (s * 0.45, -0.15, 0.66), DARK)
+    for s in (1, -1):                                                                               # rim spikes: ram horns
+        for (x, y, dx, dy) in ((1.95, 0.45, 0.45, 0.1), (1.9, -0.35, 0.4, -0.15)):
+            b.cyl(0.17, 0.55, (s * x, y, 0.2), DARK, segs=4, r_top=0.0, rot=(0, s * 1.3, math.atan2(dy, dx) * s))
+    # the bridge: a raised wedge with a wide sloped windscreen, and a lamp mast each side (where the eyes were)
+    b.slab(_ccw([(-0.7, 0.7), (0.7, 0.7), (0.6, 1.45), (-0.6, 1.45)]), 0.45, 0.95, A.shade(0.75),
+           top=_ccw([(-0.55, 0.75), (0.55, 0.75), (0.45, 1.05), (-0.45, 1.05)]))
+    b.box((0.95, 0.5, 0.06), (0, 1.29, 0.74), GLASS, rot=(-0.9, 0, 0))                             # windscreen
+    b.box((0.95, 0.08, 0.1), (0, 1.0, 0.97), DARK)                                                  # its frame
+    b.box((0.9, 0.3, 0.1), (0, 0.85, 1.0), B)                                                       # shell roof
+    for s in (1, -1):
+        b.cyl(0.09, 0.7, (s * 0.72, 1.25, 0.45), DARK, segs=5)
+        b.box((0.34, 0.3, 0.26), (s * 0.72, 1.28, 1.18), DARK)
+        b.box((0.26, 0.08, 0.18), (s * 0.72, 1.44, 1.18), C, glow=True)                            # searchlight
+    # stern: a harpoon winch, a drum of cable between two cheeks, the harpoon racked over it
+    for s in (1, -1):
+        b.box((0.22, 0.6, 0.55), (s * 0.55, -1.35, 0.35), A.shade(0.6))
+    b.cyl(0.26, 0.88, (-0.44, -1.35, 0.42), B.shade(0.8), segs=7, rot=(0, math.pi / 2, 0))        # the drum
+    for x in (-0.25, 0.0, 0.25):
+        b.cyl(0.28, 0.06, (x, -1.35, 0.42), DARK, segs=7, rot=(0, math.pi / 2, 0))                # cable turns
+    tube(b, 0.07, -0.95, -1.95, 0.0, 0.75, DARK, segs=5)                                           # the harpoon
+    b.cyl(0.13, 0.3, (0, -0.95, 0.75), B, segs=4, r_top=0.0, rot=(-math.pi / 2, 0, 0))            # its head
     body = b.build(root)
-
-    # legs: four a side, scuttling in an alternating rhythm
+    # turrets on the back, twin guns, slewing a little
+    for k, (x, y) in enumerate(((0.72, -0.35), (-0.72, -0.35))):
+        t = Model(f"{kind}_turret_{k}", seed=7085 + k)
+        t.cyl(0.38, 0.22, (0, 0, 0), A.shade(0.65), segs=7)
+        t.cyl(0.3, 0.16, (0, 0, 0.22), B, segs=7, r_top=0.22)
+        for d in (-0.1, 0.1):
+            tube(t, 0.07, 0.2, 0.85, d, 0.2, DARK, segs=5)
+        t.box((0.32, 0.06, 0.08), (0, 0.86, 0.2), C, glow=True)
+        to = t.build(body, loc=(x, y, 0.62))
+        osc(to, clip, "rotation_euler", T, (2, 0.18 * (1 if k else -1), 1, 0.2 * k))
+        marker(to, kind, "muzzle", (0, 0.9, 0.2), 2 + k)
+    # legs: four piston struts a side with pad feet, stepping in an alternating rhythm
     for s in (1, -1):
         for k, (y, dy) in enumerate(((0.75, 0.35), (0.15, 0.05), (-0.45, -0.25), (-1.0, -0.55))):
             g = Model(f"{kind}_leg_{'r' if s > 0 else 'l'}{k}", seed=7081 + k + (0 if s > 0 else 4))
-            pts = [(0, 0, 0), (s * 0.85, dy * 0.6, 0.45), (s * 1.55, dy, -0.45)]
-            chain(g, pts, [0.21, 0.17, 0.05], A.shade(0.85), segs=6)
-            g.ball(0.19, pts[1], B, subdiv=1)                                                   # pale knee
-            limb(g, pts[1], (s * 1.2, dy * 0.8, 0.0), 0.15, 0.12, A, segs=5)
-            obj = g.build(body, loc=(s * 1.55, y, -0.05))
+            knee, foot = (s * 0.8, dy * 0.6, 0.45), (s * 1.45, dy, -0.5)
+            limb(g, (0, 0, 0), knee, 0.22, 0.18, A.shade(0.6), segs=5)                              # upper strut
+            g.box((0.32, 0.32, 0.32), knee, DARK)                                                   # knee joint
+            limb(g, knee, foot, 0.13, 0.13, B.shade(0.85), segs=5)                                    # piston rod
+            limb(g, knee, (s * 1.1, dy * 0.8, 0.0), 0.19, 0.19, A.shade(0.6), segs=5)              # cylinder
+            g.cyl(0.24, 0.12, (foot[0], foot[1], foot[2] - 0.06), DARK, segs=6)                    # pad foot
+            g.cyl(0.36, 0.05, (foot[0], foot[1], foot[2] - 0.14), C, segs=6, glow=True)            # its lift-field
+            obj = g.build(body, loc=(s * 1.6, y, -0.05))
             ph = (k % 2) * 0.5 + (0.25 if s < 0 else 0)
             osc(obj, clip, "rotation_euler", T, (2, 0.14, 2, ph), (1, -s * 0.1, 2, ph + 0.25))
-
-    # claws: the arm sways, the moving finger snaps
-    claws = (("crusher", 1, (1.25, 1.15, 0.05), 1.1, 0.0), ("cutter", -1, (1.15, 1.2, 0.05), 0.72, 0.35))
-    for k, (name, s, at, sz, ph) in enumerate(claws):
+    # the arms: a crane boom each, swaying; a crusher grab (the outer jaw snaps shut) right, a rotary saw left
+    for k, (name, s, at, ph) in enumerate((("crusher", 1, (1.25, 1.1, 0.2), 0.0), ("cutter", -1, (1.15, 1.15, 0.2), 0.35))):
+        sz = 1.1 if k == 0 else 0.85
         c = Model(f"{kind}_{name}", seed=7090 + k)
-        chain(c, [(0, 0, 0), (s * 0.55 * sz, 0.55 * sz, 0.15), (s * 0.7 * sz, 1.05 * sz, 0.12)],
-              [0.28 * sz + 0.04, 0.24 * sz + 0.03, 0.26 * sz], A.shade(0.85), segs=6)
-        palm = (s * 0.75 * sz, 1.65 * sz, 0.12)
-        c.ball(1.0, palm, A, subdiv=2, scale=(0.62 * sz, 0.75 * sz, 0.42 * sz))
-        c.ball(1.0, (palm[0] - s * 0.1 * sz, palm[1] + 0.05, palm[2] + 0.2 * sz), A.shade(1.18), subdiv=1,
-               scale=(0.36 * sz, 0.5 * sz, 0.25 * sz))
-        for (dx, dy) in ((0.2, -0.3), (-0.25, 0.2)):
-            c.ball(0.14 * sz + 0.04, (palm[0] + s * dx * sz, palm[1] + dy * sz, palm[2] + 0.3 * sz), B, subdiv=0,
-                   scale=(1.2, 1, 0.4))
-        # fixed finger (inner side), pale-tipped, with a glowing seam
-        f0 = (palm[0] - s * 0.22 * sz, palm[1] + 0.55 * sz, palm[2])
-        chain(c, [f0, (f0[0] - s * 0.1 * sz, f0[1] + 0.6 * sz, f0[2]), (f0[0] + s * 0.1 * sz, f0[1] + 1.15 * sz, f0[2])],
-              [0.27 * sz, 0.2 * sz, 0.03], A.shade(0.9), segs=5)
-        limb(c, (f0[0] - s * 0.1 * sz, f0[1] + 0.6 * sz, f0[2]), (f0[0] + s * 0.1 * sz, f0[1] + 1.15 * sz, f0[2]), 0.2 * sz, 0.03, B, segs=5)
-        c.ball(0.2 * sz, (palm[0] + s * 0.05 * sz, palm[1] + 0.55 * sz, palm[2] + 0.05), C, subdiv=1, glow=True)  # glow in the gape
+        elbow = (s * 0.6 * sz, 0.5 * sz, 0.2)
+        wrist = (s * 0.75 * sz, 1.15 * sz, 0.2)
+        c.box((0.5, 0.5, 0.45), (0, 0, 0.05), DARK)                                                # shoulder mount
+        limb(c, (0, 0, 0.1), elbow, 0.27 * sz, 0.24 * sz, A.shade(0.75), segs=6)
+        c.cyl(0.26 * sz, 0.5 * sz, (elbow[0], elbow[1], elbow[2] - 0.25 * sz), DARK, segs=7)       # elbow drum
+        limb(c, elbow, wrist, 0.22 * sz, 0.22 * sz, A.shade(0.75), segs=6)
+        limb(c, (s * 0.1, 0.0, 0.42), (elbow[0] * 0.85, elbow[1] * 0.85, 0.55), 0.09, 0.09, B, segs=5)  # hydraulic ram
+        c.box((0.7 * sz, 0.55 * sz, 0.5 * sz), wrist, A)                                          # the head block
+        c.box((0.55 * sz, 0.3 * sz, 0.1), (wrist[0], wrist[1], wrist[2] + 0.28 * sz), B)          # shell cap
+        if k == 0:
+            # the fixed (inner) jaw: a broad steel hook curling outwards, shell teeth along its bite
+            j0 = (wrist[0] - s * 0.06 * sz, wrist[1] + 0.25 * sz)
+            jaw = [(-0.45, 0), (0, 0), (0.05, 0.6), (0.22, 1.25), (-0.12, 1.12), (-0.45, 0.4)]
+            c.slab(_side([(j0[0] * s + x * sz, j0[1] + y * sz) for x, y in jaw], s), wrist[2] - 0.18 * sz,
+                   wrist[2] + 0.18 * sz, DARK)
+            for j in range(3):
+                c.box((0.16, 0.18, 0.2), (j0[0] + s * 0.02, j0[1] + (0.35 + j * 0.25) * sz, wrist[2] + 0.06), B)
+            c.box((0.2, 0.2, 0.1), (j0[0] - s * 0.22 * sz, j0[1] + 0.3 * sz, wrist[2] + 0.2 * sz), C, glow=True)  # heat vent
         arm = c.build(body, loc=(s * at[0], at[1], at[2]))
-        osc(arm, clip, "rotation_euler", T, (2, -s * 0.07, 1, ph), (0, 0.04, 1, ph + 0.25))
-        d = Model(f"{kind}_{name}_finger", seed=7092 + k)
-        chain(d, [(0, 0, 0), (s * 0.15 * sz, 0.65 * sz, 0.02), (-s * 0.1 * sz, 1.25 * sz, 0.0)],
-              [0.28 * sz, 0.21 * sz, 0.03], A, segs=5)
-        limb(d, (s * 0.15 * sz, 0.65 * sz, 0.02), (-s * 0.1 * sz, 1.25 * sz, 0.0), 0.21 * sz, 0.03, B, segs=5)
-        d.ball(0.1 * sz + 0.03, (s * 0.1 * sz, 0.6 * sz, 0.2 * sz), B, subdiv=0)
-        hinge = (palm[0] + s * 0.28 * sz, palm[1] + 0.5 * sz, palm[2] + 0.02)
-        fing = d.build(arm, loc=hinge)
-
-        sample(fing, clip, "rotation_euler", T, lambda t, s=s, ph=ph: (0, 0, s * (0.5 - 0.52 * math.exp(-(((t + ph) % 1.0 - 0.5) / 0.07) ** 2))), step=1)
-        marker(body, kind, "muzzle", (s * at[0] + palm[0] - s * 0.05, at[1] + palm[1] + 1.4 * sz, at[2] + palm[2]), k)
-    for k, (x, y, r) in enumerate(((0.72, -0.35, 0.36), (-0.72, -0.35, 0.36))):
-        marker(body, kind, "muzzle", (x, y, 0.62 + r * 1.25), 2 + k)
+        osc(arm, clip, "rotation_euler", T, (2, -s * 0.08, 1, ph), (0, 0.04, 1, ph + 0.25))
+        if k == 0:
+            d = Model(f"{kind}_{name}_finger", seed=7092)
+            # the moving (outer) jaw, its mirror: hooks inwards over the bite
+            jaw = [(0, 0), (0.45, 0), (0.45, 0.4), (0.12, 1.12), (-0.22, 1.25), (-0.05, 0.6)]
+            d.slab(_side([(x * sz, y * sz) for x, y in jaw], s), -0.18 * sz, 0.18 * sz, A.shade(0.7))
+            for j in range(3):
+                d.box((0.16, 0.18, 0.2), (-s * 0.02, (0.35 + j * 0.25) * sz, 0.06), B)
+            d.cyl(0.2, 0.46 * sz, (s * 0.2 * sz, 0.12, -0.23 * sz), DARK, segs=6)                     # hinge pin
+            fing = d.build(arm, loc=(wrist[0] + s * 0.06 * sz, wrist[1] + 0.25 * sz, wrist[2]))
+            # it hangs open, snaps shut once a loop, holds the bite, then winches slowly open again
+            def jaw_open(u, ph=ph):
+                u = (u + ph) % 1.0
+                if u < 0.42:
+                    return 1.0
+                if u < 0.47:
+                    return 1.0 - (u - 0.42) / 0.05
+                if u < 0.6:
+                    return 0.0
+                return min(1.0, (u - 0.6) / 0.3) ** 2 * (3 - 2 * min(1.0, (u - 0.6) / 0.3))
+            sample(fing, clip, "rotation_euler", T, lambda u, s=s: (0, 0, -s * 0.5 * jaw_open(u)), step=1)
+            tip = (wrist[0], wrist[1] + 1.5 * sz, wrist[2])
+        else:
+            w = Model(f"{kind}_saw", seed=7093)
+            w.cyl(0.68, 0.08, (0, 0, -0.04), B.shade(0.85), segs=8)
+            for j in range(8):                                                                      # teeth
+                a = TAU * j / 8
+                w.box((0.18, 0.18, 0.1), (math.cos(a) * 0.7, math.sin(a) * 0.7, 0), DARK, rot=(0, 0, a + 0.785))
+            for j in range(3):                                                                      # spokes
+                w.box((1.0, 0.1, 0.04), (0, 0, 0.04), B.shade(0.6), rot=(0, 0, TAU * j / 6))
+            w.cyl(0.2, 0.14, (0, 0, -0.02), C, segs=6, glow=True)
+            so = w.build(arm, loc=(wrist[0], wrist[1] + 0.62, wrist[2] + 0.12))
+            spin(so, clip, T, 4)
+            c2 = Model(f"{kind}_saw_guard", seed=7094)                                              # half guard behind it
+            c2.box((1.0, 0.2, 0.3), (0, 0, 0), DARK)
+            c2.build(arm, loc=(wrist[0], wrist[1] + 0.25, wrist[2] + 0.12))
+            tip = (wrist[0], wrist[1] + 1.35, wrist[2])
+        marker(body, kind, "muzzle", (s * at[0] + tip[0], at[1] + tip[1], at[2] + tip[2]), k)
     osc(body, clip, "location", T, (2, 0.06, 2, 0), (0, 0.05, 1, 0))
     osc(body, clip, "rotation_euler", T, (1, 0.025, 1, 0.25))
 

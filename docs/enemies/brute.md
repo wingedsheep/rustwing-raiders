@@ -11,11 +11,11 @@ Elite chain 2.
 
 | Planet | Name | What it is |
 |---|---|---|
-| Oru-Tal | Armoured Thunderhide | a giant the Hesk have plated and harnessed, like Vask |
+| Oru-Tal | Armoured Thunderhide | a Hesk war crawler shaped like a thunderhide: a domed hull of hex plates, a beaked ram, four thruster pods that row like flippers |
 | Mirefall | Bog Shellback | a marsh beast that the bloom lives in |
 | Glacis | Tusked Bull | a tundra bull stampeding from the Engine's noise |
 | Ashgrave | Revived Titan Torso | a titan's chest on tracks, Khet's pride |
-| Vesh | Crab Dreadnought | a reef crab the size of a boat |
+| Vesh | Crab Dreadnought | a Court gunship built like a crab, walking the air on eight legs with a crusher grab and a rotary saw |
 
 **Now.** Armoured (×0.5) between charges, spirals of shots, then a charge down a locked line ending in a slam and a ring wave (`src/sim/enemies.ts:347`). Parryable.
 **Tell → window.** Line 1.2 s, locks at 0.6 s. Recover 1.6 s at ×1.5.

@@ -44,6 +44,7 @@ export type Sfx =
   // boarding: on foot aboard a freighter
   | 'foot_shot' | 'foot_blast' | 'foot_shell' | 'foot_dry' | 'step' | 'slide' | 'takedown' | 'punch' | 'body_fall' | 'swing'
   | 'foot_hurt' | 'crew_hit' | 'plate_hit' | 'plate_break' | 'aim_tell' | 'crew_shot' | 'ricochet' | 'door' | 'alarm' | 'lockdown'
+  | 'foot_mark' | 'crew_kill'
   | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
   | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive'
   // the forge's guns, each its own voice (see view/gun-looks.ts), and the combos' cash-ins
@@ -1649,15 +1650,22 @@ const SFX: Record<Sfx, SfxDef> = {
 
   // boarding: on foot aboard a freighter --------------------------------------------------------
 
-  // the rivet pistol: a tight snap, a knock of weight, a short tick of ringing steel (~6/s, keep it lean)
+  // the rivet pistol: a hard crack, a punch in the chest, the slide clacking home, and the room
+  // answering (~7/s: every layer short, the weight in the first 60 ms)
   foot_shot: S((t, p, o) => {
-    noise(o, t, 0.018, 'highpass', 3200, 3200, 0.7, 0.1);
-    tone(filt(o, 'lowpass', 3200), t, 'square', 950 * p, 280 * p, 0.055, 0.055, 0.001);
-    tone(o, t, 'triangle', 440 * p, 120 * p, 0.07, 0.13, 0.001);
-    tone(o, t, 'sine', 170 * p, 60 * p, 0.06, 0.13, 0.001);
-    tone(filt(o, 'bandpass', 3100 * p, 8), t + 0.004, 'square', 2080 * p, 2050 * p, 0.11, 0.05, 0.001);
-    return 0.13;
-  }, 0.04, 4, { low: true, rev: 0.06 }),
+    // transient: a dry crack, driven so it bites
+    noise(drive(filt(o, 'highpass', 1800), 0.5), t, 0.022, 'highpass', 2600, 2600, 0.7, 0.4);
+    // body: a bark of mid noise falling away
+    noise(o, t, 0.06, 'bandpass', 1500 * p, 520 * p, 1.1, 0.26);
+    tone(filt(o, 'lowpass', 2600), t, 'square', 820 * p, 210 * p, 0.05, 0.08, 0.001);
+    // sub: the kick against your hand
+    tone(o, t, 'sine', 190 * p, 48 * p, 0.09, 0.22, 0.001, 0.06);
+    // mechanical: the slide back and home
+    tone(filt(o, 'bandpass', 2900 * p, 6), t + 0.028, 'square', 2400 * p, 2300 * p, 0.012, 0.09, 0.001);
+    noise(o, t + 0.03, 0.012, 'bandpass', 4200 * p, 4200 * p, 2, 0.08);
+    tone(filt(o, 'bandpass', 3100 * p, 8), t + 0.004, 'square', 2080 * p, 2050 * p, 0.09, 0.04, 0.001);
+    return 0.14;
+  }, 0.04, 4, { low: true, rev: 0.12 }),
 
   // the breacher: a chest-deep boom with a crack on top, and a short ring of the barrel after it
   foot_blast: S((t, p, o) => {
@@ -1768,14 +1776,44 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.28;
   }, 0.1, 2, { duck: [0.2, 0.7], shock: 0.25 }),
 
-  // a crewman hit: a padded thwack, a tick of cloth and armour
+  // a crewman hit: a rivet going into padding and the body behind it, a meaty thwack with a crunch
   crew_hit: S((t, p, o) => {
-    noise(o, t, 0.05, 'bandpass', 900 * p, 400 * p, 1.4, 0.13);
-    tone(o, t, 'sine', 220 * p, 90 * p, 0.06, 0.11, 0.001);
-    noise(o, t, 0.012, 'highpass', 4000, 4000, 0.7, 0.07);
-    tone(o, t + 0.005, 'square', 2600 * p, 2500 * p, 0.015, 0.02, 0.001);
-    return 0.07;
-  }, 0.03, 4, { low: true }),
+    // the smack: a slap of noise through a little drive
+    noise(drive(filt(o, 'lowpass', 4200), 0.45), t, 0.045, 'bandpass', 1700 * p, 600 * p, 1.2, 0.4);
+    // the weight: a thud that drops
+    tone(o, t, 'sine', 210 * p, 58 * p, 0.09, 0.22, 0.001, 0.07);
+    tone(filt(o, 'lowpass', 1400), t, 'triangle', 340 * p, 110 * p, 0.05, 0.12, 0.001);
+    // their kit: a tick of buckle and plate
+    noise(o, t, 0.01, 'highpass', 5000, 5000, 0.7, 0.12);
+    crackle(o, t + 0.006, 0.05, 4, 0.08);
+    return 0.11;
+  }, 0.025, 4, { low: true, rev: 0.05 }),
+
+  // the hit confirmed: a bright, short tick that climbs the nearer they are to going down (pitch
+  // carries it), sitting above the guns so it always cuts through
+  foot_mark: S((t, p, o) => {
+    const f = 1760 * p;
+    tone(o, t, 'triangle', f, f, 0.035, 0.22, 0.001);
+    tone(o, t, 'sine', f * 2, f * 2, 0.02, 0.09, 0.001);
+    return 0.05;
+  }, 0.03, 3, { tuned: true }),
+
+  // a crewman going down: a bone-deep crunch, a slam you feel, their kit clanking loose, and a
+  // two-note sting that rises with each one dropped in a row (pitch carries the streak)
+  crew_kill: S((t, p, o) => {
+    const v = 0.95 + Math.random() * 0.1;
+    tone(o, t, 'sine', 160 * v, 38 * v, 0.3, 0.5, 0.001, 0.18);
+    noise(o, t, 0.16, 'lowpass', 2400 * v, 160, 0.8, 0.36, 0.001);
+    noise(drive(filt(o, 'lowpass', 3600), 0.6), t, 0.08, 'bandpass', 1300, 420, 1.2, 0.9);
+    noise(o, t, 0.02, 'highpass', 3500, 3500, 0.7, 0.3);
+    crackle(o, t + 0.01, 0.14, 10, 0.16);
+    metal(o, t + 0.02, 920 + Math.random() * 160, 0.05, 0.4);
+    const sting = filt(o, 'lowpass', 5000);
+    tone(sting, t + 0.015, 'square', 1046 * p, 1046 * p, 0.05, 0.05, 0.001);
+    tone(sting, t + 0.065, 'square', 1568 * p, 1568 * p, 0.12, 0.05, 0.001);
+    tone(o, t + 0.065, 'sine', 3136 * p, 3136 * p, 0.16, 0.035, 0.001);
+    return 0.45;
+  }, 0.05, 3, { tuned: true, rev: 0.22, duck: [0.18, 0.75] }),
 
   // a round glancing off plate: tink, and the whine of it going away
   plate_hit: S((t, p, o) => {

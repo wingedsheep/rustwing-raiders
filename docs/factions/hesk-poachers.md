@@ -37,7 +37,7 @@ Hesk wear their hauls: tusk beads, hide coats, brass rings for every giant broug
 ## Inside
 
 - **The old lodges** hunt for the haul and the season, and fear what Tane has started.
-- **Lodge Corve and its allies** want to hold Oru-Tal: tame giants as war beasts and sell *them*. The **Armoured Thunderhide** is their first.
+- **Lodge Corve and its allies** want to hold Oru-Tal: tame giants as war beasts and sell *them*. Until one takes a harness, they fight in the **Armoured Thunderhide**, a war crawler built in the shape of the giant it hunts.
 
 ## Friends and enemies
 
@@ -45,7 +45,7 @@ The [Uukhvar](dune-cartel.md) buys everything they haul. The [Seppakva](seppakva
 
 ## Forces (scrap)
 
-**Hesk Skiff** (dart), **Hesk Trawler** (gunship, trailing nets), **Tusk Battery** (turret, guns on a tusk mount), and the giants they've harnessed: **Armoured Thunderhide** (brute), plus the planet's own **Pterosaurs** and **Jade Wyrms** fighting everyone.
+**Hesk Skiff** (dart), **Hesk Trawler** (gunship, trailing nets), **Tusk Battery** (turret, guns on a tusk mount), the **Armoured Thunderhide** (brute, a turtle-backed war crawler), plus the planet's own **Pterosaurs** and **Jade Wyrms** fighting everyone.
 
 ## The Waking
 

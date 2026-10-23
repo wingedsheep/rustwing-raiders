@@ -950,53 +950,94 @@ def spindle_mech():
 
 
 def manta_beast():
-    """A huge sky ray: broad undulating wings, glowing spots, a long whip tail. ~7.5 span."""
+    """A Tonkva gardener-wing gone feral, ~7.5 span: grown, not built, from their mould, to carry the
+    preserve's seed across water, and still flying its rounds a thousand years on with no one aboard.
+    A pale lens of a hull grown over with moss, a spine of glowing seed hoppers (the burrs it sows),
+    harvester prongs round an intake, swept feather-vanes like its makers' antennae, ribbed wings that
+    ripple, and a sower boom trailing behind."""
     kind, clip, root = _root("manta", "beast", "glide")
     T = 2.0
     b = Model(f"{kind}_body", seed=132)
-    b.ball(1.0, (0, 0.1, 0), A, subdiv=2, scale=(1.15, 2.2, 0.32))
-    b.ball(1.0, (0, -0.1, 0.06), B, subdiv=1, scale=(0.6, 1.6, 0.31))                     # dark saddle down the back
-    b.slab([(-0.9, 1.6), (-1.2, -0.6), (-0.6, -1.9), (0.6, -1.9), (1.2, -0.6), (0.9, 1.6)], -0.1, 0.1, A)
-    for (x, y, r) in ((0, 0.8, 0.17), (0.32, 0.2, 0.13), (-0.32, 0.2, 0.13), (0, -0.4, 0.15), (0.25, -1.0, 0.11),
-                      (-0.25, -1.0, 0.11), (0, -1.5, 0.1)):
-        b.ball(r, (x, y, 0.38 - abs(y + 0.1) * 0.08), C, subdiv=0, glow=True, scale=(1, 1.2, 0.6))
-    b.box((1.1, 0.25, 0.1), (0, 2.25, -0.02), DARK)                                         # the wide mouth
-    eyes(b, 0.88, 1.85, 0.12, 0.13, pupil=False)
-    for s in (1, -1):  # cephalic fins, curling forward like horns
-        chain(b, [(s * 0.7, 1.95, 0.0), (s * 0.85, 2.5, 0.05), (s * 0.62, 2.95, 0.12)], [0.2, 0.15, 0.05], B, segs=5)
-        flat(b, [(s * 0.25, -1.65), (s * 0.85, -1.75), (s * 0.4, -2.3), (s * 0.15, -2.0)][:: s], 0.0, 0.06, B)  # pelvic fins
+    b.ball(1.0, (0, 0.1, -0.05), B.shade(0.7), subdiv=1, scale=(1.2, 2.25, 0.3))                  # underside
+    b.ball(1.0, (0, 0.1, 0.02), B, subdiv=2, scale=(1.1, 2.15, 0.34))                             # the lens hull
+    b.slab([(-0.9, 1.6), (-1.2, -0.6), (-0.6, -1.9), (0.6, -1.9), (1.2, -0.6), (0.9, 1.6)], -0.1, 0.12, B.shade(0.85))
+    for (x, y, sx, sy) in ((0.45, 1.05, 0.5, 0.6), (-0.55, 0.55, 0.45, 0.7), (0.5, -0.75, 0.4, 0.55),
+                           (-0.35, -1.25, 0.35, 0.4)):                                            # moss grown over it
+        b.ball(1.0, (x, y, 0.22), A, subdiv=1, scale=(sx, sy, 0.16), jitter=0.05)
+    # the spine: a raised ridge with five seed hoppers sunk in it, each a glowing burr in a cup
+    b.ball(1.0, (0, -0.2, 0.25), B.shade(1.1), subdiv=1, scale=(0.38, 1.65, 0.2))
+    hoppers = ((0, 0.75, 0.2), (0, 0.15, 0.22), (0, -0.45, 0.22), (0, -1.0, 0.2), (0, -1.45, 0.16))
+    for (x, y, r) in hoppers:
+        b.cyl(r * 1.35, 0.18, (x, y, 0.33), B.shade(0.6), segs=6)
+        b.ball(r, (x, y, 0.45), C, subdiv=1, glow=True)
+        for j in range(4):                                                                         # the burr's hooks
+            a = TAU * j / 4 + 0.4
+            b.box((0.06, r * 1.1, 0.06), (x + math.cos(a) * r * 0.9, y + math.sin(a) * r * 0.9, 0.5), C,
+                  rot=(0, 0, a + math.pi / 2), glow=True)
+    # the nose: a dark intake between two harvester prongs, two sensor lenses above it
+    b.box((1.1, 0.3, 0.14), (0, 2.25, -0.02), DARK)
+    for s in (1, -1):
+        chain(b, [(s * 0.7, 1.95, 0.0), (s * 0.85, 2.55, 0.02), (s * 0.6, 3.05, 0.05)], [0.2, 0.15, 0.06], B.shade(0.9), segs=5)
+        b.ball(0.09, (s * 0.6, 3.05, 0.06), C, subdiv=0, glow=True)                               # prong tips
+        b.ball(0.16, (s * 0.42, 1.9, 0.22), GLASS, subdiv=1, scale=(1.2, 1, 0.6))                  # lenses
+        b.ball(0.07, (s * 0.42, 1.98, 0.3), C, subdiv=0, glow=True)
+        flat(b, [(s * 0.25, -1.65), (s * 0.85, -1.75), (s * 0.4, -2.3), (s * 0.15, -2.0)][:: s], 0.0, 0.06, B.shade(0.8))
     body = b.build(root)
-    # wings: an inner and an outer panel per side, the outer lagging, so the flap rolls out like a wave
+    # feather-vanes: two broad swept antennae, quivering
+    for s in (1, -1):
+        v = Model(f"{kind}_vane_{'r' if s > 0 else 'l'}")
+        pts = [(0, 0), (0.12, 0.05), (0.75, -0.55), (1.05, -1.25), (0.85, -1.35), (0.45, -0.9)]
+        flat(v, pts if s > 0 else mirror(pts), 0, 0.05, A.shade(1.15))
+        limb(v, (0, 0, 0.03), (s * 0.95, -1.28, 0.03), 0.07, 0.03, B.shade(0.75), segs=4)          # the shaft
+        for k in range(3):                                                                         # barbs
+            t = 0.3 + k * 0.22
+            v.box((0.4, 0.06, 0.04), (s * (0.95 * t + 0.12), -1.28 * t + 0.08, 0.05), B.shade(0.75),
+                  rot=(0, 0, s * -0.4))
+        vo = v.build(body, loc=(s * 0.3, 2.05, 0.3))
+        osc(vo, clip, "rotation_euler", T, (2, s * 0.08, 2, 0.1 * (s > 0)), (1, s * 0.06, 1, 0.3))
+    # wings: an inner and an outer panel per side, the outer lagging, so the flap rolls out like a wave;
+    # grown ribs fan through each, a glowing node where each rib ends, moss on the inner panel
     inner = [(0, 1.6), (0, -1.55), (1.35, -0.85), (1.35, 0.95)]
     outer = [(0, 0.95), (0, -0.85), (0.8, -0.75), (1.6, -1.0), (0.85, 0.3)]
-    for k, s in enumerate((1, -1)):
+    for s in (1, -1):
         wi = Model(f"{kind}_wing_{'r' if s > 0 else 'l'}")
-        hull(wi, inner if s > 0 else mirror(inner), -0.06, 0.08, A, inset=0.92)
-        band = [(0.1, 1.45), (0.1, 1.0), (1.35, 0.45), (1.35, 0.9)]                       # dark leading edge
-        flat(wi, band if s > 0 else mirror(band), 0.09, 0.03, B)
-        for (x, y) in ((0.45, 0.3), (0.95, -0.05), (0.5, -0.6), (1.1, -0.55)):
-            wi.ball(0.13, (s * x, y, 0.12), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
+        hull(wi, inner if s > 0 else mirror(inner), -0.06, 0.08, B.shade(0.95), inset=0.92)
+        band = [(0.1, 1.45), (0.1, 1.0), (1.35, 0.45), (1.35, 0.9)]                               # moss on the leading edge
+        flat(wi, band if s > 0 else mirror(band), 0.09, 0.04, A)
+        for (y0, x1, y1) in ((0.6, 1.3, 0.55), (0.0, 1.3, -0.1), (-0.7, 1.3, -0.75)):
+            limb(wi, (0, y0, 0.1), (s * x1, y1, 0.1), 0.09, 0.05, B.shade(0.65), segs=4)          # ribs
+            wi.ball(0.12, (s * x1, y1, 0.12), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
         w_in = wi.build(body, loc=(s * 0.85, 0.15, 0.0))
         osc(w_in, clip, "rotation_euler", T, (1, -s * 0.22, 1, 0.0))
         wo = Model(f"{kind}_wingtip_{'r' if s > 0 else 'l'}")
-        hull(wo, outer if s > 0 else mirror(outer), -0.05, 0.06, A, inset=0.9)
+        hull(wo, outer if s > 0 else mirror(outer), -0.05, 0.06, B.shade(0.95), inset=0.9)
         band = [(0.0, 0.9), (0.0, 0.45), (1.5, -0.9), (0.85, 0.25)]
-        flat(wo, band if s > 0 else mirror(band), 0.07, 0.03, B)
-        wo.ball(0.12, (s * 0.55, -0.4, 0.1), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
+        flat(wo, band if s > 0 else mirror(band), 0.07, 0.04, A)
+        for (y0, x1, y1) in ((0.2, 1.1, -0.45), (-0.5, 1.5, -0.95)):
+            limb(wo, (0, y0, 0.08), (s * x1, y1, 0.08), 0.07, 0.04, B.shade(0.65), segs=4)
+        wo.ball(0.12, (s * 1.5, -0.95, 0.1), C, subdiv=0, glow=True, scale=(1, 1, 0.5))
         w_out = wo.build(w_in, loc=(s * 1.33, 0.0, 0.0))
         osc(w_out, clip, "rotation_euler", T, (1, -s * 0.35, 1, -0.12))
-    # the whip tail: three segments, each swaying a little after the one before
+    # the sower boom: three grown segments, each swaying a little after the one before, a burr at its tip
     parent, y0 = body, -2.0
-    for k, (L, r0, r1) in enumerate(((1.1, 0.24, 0.16), (1.0, 0.16, 0.1), (1.0, 0.1, 0.04))):
+    for k, (L, r0, r1) in enumerate(((1.1, 0.24, 0.17), (1.0, 0.17, 0.12), (1.0, 0.12, 0.07))):
         t = Model(f"{kind}_tail_{k}")
-        limb(t, (0, 0, 0), (0, -L, 0), r0, r1, B, segs=5)
-        if k == 1:
-            t.box((0.3, 0.3, 0.06), (0, -0.2, 0.08), C, glow=True, rot=(0, 0, 0.785))
+        limb(t, (0, 0, 0), (0, -L, 0), r0, r1, B.shade(0.85), segs=6)
+        t.cyl(r0 * 1.3, 0.14, (0, -0.05, 0), A.shade(0.8), segs=6, rot=(math.pi / 2, 0, 0))       # the joint collar
         if k == 2:
-            t.ball(0.14, (0, -L, 0), C, subdiv=0, glow=True, scale=(1, 1.8, 0.6))
+            t.ball(0.2, (0, -L - 0.1, 0), C, subdiv=1, glow=True)                                  # a burr, about to drop
+            for j in range(4):
+                a = TAU * j / 4
+                t.box((0.06, 0.24, 0.06), (math.cos(a) * 0.2, -L - 0.1 + math.sin(a) * 0.2, 0), C, rot=(0, 0, a + math.pi / 2),
+                      glow=True)
         obj = t.build(parent, loc=(0, y0, 0.02))
         osc(obj, clip, "rotation_euler", T, (2, 0.22 + k * 0.08, 1, 0.15 + k * 0.12), (0, 0.06, 1, 0.1 + k * 0.1))
         parent, y0 = obj, -L
+    for k, (x, y, r) in enumerate(hoppers[:3]):                                                     # the hoppers breathe
+        h = Model(f"{kind}_hopper_glow_{k}")
+        h.ball(r * 0.7, (0, 0, 0), "#ffd0e0", subdiv=0, glow=True)
+        ho = h.build(body, loc=(x, y, 0.5))
+        pulse(ho, clip, T, 0.3, harm=2, phase=k * 0.33)
     mount(body, kind, "muzzle", (0, 2.4, 0.0))
     osc(body, clip, "location", T, (2, 0.14, 1, 0.0))
     osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.5))

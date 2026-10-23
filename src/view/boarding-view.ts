@@ -50,6 +50,9 @@ interface Lamp {
   always: boolean;
 }
 
+/** The kill sting's steps, in semitones: a streak climbs a pentatonic scale. */
+const PENTA_STEP = [0, 2, 4, 7, 9, 12, 14, 16];
+
 /** A light that's there for a moment: a muzzle flash, a blast. */
 interface Flash {
   x: number;
@@ -186,6 +189,9 @@ export class BoardingView {
   private tickSfx = 0;
   private ricochetT = 0;
   private tinCombo = 0;
+  /** Crew dropped in a quick run (the kill's sting climbs with it), and the seconds left to add one. */
+  private killStreak = 0;
+  private killT = 0;
   private tinT = 0;
   private aspect = 16 / 9;
   private m4 = new THREE.Matrix4();
@@ -647,10 +653,11 @@ export class BoardingView {
           break;
         case 'shot': {
           const rig = this.heroRigs[e.hero];
-          rig?.kick(1);
-          this.muzzle(e.x, 1.25, e.z, e.a, 0xffc070, 1);
-          this.kick.x -= Math.cos(e.a) * 0.05;
-          this.kick.y -= Math.sin(e.a) * 0.05;
+          rig?.kick(1.4);
+          this.muzzle(e.x, 1.25, e.z, e.a, 0xffc070, 1.3);
+          this.kick.x -= Math.cos(e.a) * 0.1;
+          this.kick.y -= Math.sin(e.a) * 0.1;
+          this.trauma = Math.min(1, this.trauma + 0.035);
           this.casing(e.x, e.z, e.a, false);
           this.play('foot_shot', e.x, 0.55, 0.92 + Math.random() * 0.16);
           break;
@@ -682,23 +689,40 @@ export class BoardingView {
           const at = rig ? rig.muzzle : this.v.set(e.x + Math.cos(e.a) * 0.6, 1.1, e.z + Math.sin(e.a) * 0.6);
           rig?.kick(1);
           this.muzzle(at.x, at.y, at.z, e.a, 0xff5a6a, 0.8);
-          this.play('crew_shot', e.x, 0.5, 0.95 + Math.random() * 0.1);
+          this.play('crew_shot', e.x, 0.72, 0.95 + Math.random() * 0.1);
           break;
         }
         case 'hit': {
           const rig = this.foeRigs.get(e.id);
-          rig?.hit(e.a, e.heavy ? 1.2 : 0.45);
+          const f = b.foes.find((x) => x.id === e.id);
+          rig?.hit(e.a, e.heavy ? 1.4 : 0.8);
+          // where the round went in: a white pop, a blink of light, the camera nudged the way it went
+          const hx = e.x - Math.cos(e.a) * 0.35;
+          const hz = e.z - Math.sin(e.a) * 0.35;
+          this.fx.add({ x: hx, y: 1.15, z: hz, life: 0.06, size: e.heavy ? 1.3 : 0.9, grow: 1.2, color: new THREE.Color(0xffffff) });
+          this.flashes.push({ x: hx, y: 1.2, z: hz, color: new THREE.Color(e.plate ? 0xfff0c0 : 0xffd0a0), power: e.heavy ? 7 : 4, t: 0, life: 0.07, dist: 4 });
+          this.kick.x += Math.cos(e.a) * 0.03;
+          this.kick.y += Math.sin(e.a) * 0.03;
+          this.trauma = Math.min(1, this.trauma + (e.heavy ? 0.06 : 0.025));
+          // the tick that says it landed, climbing as they get nearer to going down
+          if (f && !f.dead) this.play('foot_mark', e.x, 0.5, 1 + clamp(1 - f.hp / Math.max(1, f.max), 0, 1) * 0.5);
           if (e.plate) {
             this.fx.sparks(e.x - Math.cos(e.a) * 0.3, 1.1, e.z - Math.sin(e.a) * 0.3, e.heavy ? 6 : 3, 0xfff0c0, 10, 0.18, 0.12, false);
             this.play('plate_hit', e.x, 0.4, 0.9 + Math.random() * 0.25);
           } else {
-            // a puff of whatever they're wearing, and a spark off their kit
-            for (let i = 0; i < (e.heavy ? 3 : 2); i++) {
-              const a = e.a + (Math.random() - 0.5) * 1.2;
-              this.fx.add({ x: e.x, y: 1.1, z: e.z, vx: Math.cos(a) * 4, vz: Math.sin(a) * 4, vy: 1 + Math.random() * 2, life: 0.35, size: 0.2, grow: 1.6, color: new THREE.Color(this.skin[1]).multiplyScalar(0.8), drag: 5, glow: false });
+            // a puff of whatever they're wearing blown out the far side, bits of their kit, sparks
+            for (let i = 0; i < (e.heavy ? 4 : 3); i++) {
+              const a = e.a + (Math.random() - 0.5) * 1.0;
+              this.fx.add({ x: e.x, y: 1.1, z: e.z, vx: Math.cos(a) * 6, vz: Math.sin(a) * 6, vy: 1 + Math.random() * 2, life: 0.4, size: 0.24, grow: 1.8, color: new THREE.Color(this.skin[1]).multiplyScalar(0.8), drag: 6, glow: false });
             }
-            this.fx.sparks(e.x, 1.1, e.z, 2, 0xffe0a0, 8, 0.12, 0.1, false);
-            this.play('crew_hit', e.x, 0.45, 0.9 + Math.random() * 0.25);
+            for (let i = 0; i < (e.heavy ? 3 : 2); i++) {
+              const a = e.a + (Math.random() - 0.5) * 1.3;
+              const v = 3 + Math.random() * 4;
+              this.fx.add({ x: e.x, y: 1.1, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2 + Math.random() * 3, life: 0.9, size: 0.07 + Math.random() * 0.06, color: new THREE.Color(this.skin[i % 3]), solid: true, gravity: 20, spin: 12, glow: false });
+            }
+            this.fx.sparks(e.x, 1.1, e.z, e.heavy ? 8 : 5, 0xffe0a0, 11, 0.14, 0.11, false);
+            if (Math.random() < 0.3) this.decal(e.x + Math.cos(e.a) * 0.7, 0.03, e.z + Math.sin(e.a) * 0.7, 0, 0.25 + Math.random() * 0.2, true);
+            this.play('crew_hit', e.x, 0.6, 0.9 + Math.random() * 0.25);
           }
           break;
         }
@@ -724,7 +748,18 @@ export class BoardingView {
         }
         case 'kill': {
           const f = b.foes.find((x) => x.id === e.id);
-          this.fx.sparks(e.x, 1, e.z, 6, 0xffe0a0, 10, 0.25, 0.14, false);
+          // dropped: a burst of white where they stood, light thrown round the room, the camera
+          // shoved the way they went, and a sting that climbs with each one dropped in a row
+          this.killStreak = this.killT > 0 ? this.killStreak + 1 : 0;
+          this.killT = 1.4;
+          const heavyFoe = !!f && FOES[f.kind].role === 'heavy';
+          this.fx.add({ x: e.x, y: 1.1, z: e.z, life: 0.09, size: heavyFoe ? 3.2 : 2.4, grow: 1.6, color: new THREE.Color(0xffffff) });
+          this.fx.sparks(e.x, 1, e.z, 16, 0xffe0a0, 14, 0.3, 0.14, false);
+          this.fx.ring(e.x, 0.15, e.z, heavyFoe ? 3 : 2.2, 0.22, false, 0xfff0d0);
+          this.flashes.push({ x: e.x, y: 1.4, z: e.z, color: new THREE.Color(0xffe0b0), power: 16, t: 0, life: 0.16, dist: 9 });
+          this.kick.x += Math.cos(e.a) * 0.18;
+          this.kick.y += Math.sin(e.a) * 0.18;
+          this.play('crew_kill', e.x, e.takedown ? 0.6 : 0.85, Math.pow(2, PENTA_STEP[Math.min(this.killStreak, PENTA_STEP.length - 1)] / 12));
           if (e.takedown) {
             this.trauma = Math.min(1, this.trauma + 0.5);
             this.punch = 1;
@@ -737,7 +772,11 @@ export class BoardingView {
             }
             this.pop('TAKEDOWN', e.x, 2.6, e.z, '#fff0d0', true);
             this.play('takedown', e.x, 1);
-          } else this.trauma = Math.min(1, this.trauma + 0.12);
+          } else {
+            this.trauma = Math.min(1, this.trauma + (heavyFoe ? 0.4 : 0.26) + Math.min(3, this.killStreak) * 0.05);
+            this.flashColor.set(1, 0.95, 0.85);
+            this.flash = Math.max(this.flash, 0.1);
+          }
           // the body hits the deck a beat later
           const x = e.x;
           window.setTimeout(() => this.play('body_fall', x, f?.kind === 'bruiser' ? 0.8 : 0.5, f?.kind === 'bruiser' ? 0.8 : 1), 300);
@@ -1132,6 +1171,7 @@ export class BoardingView {
     this.ricochetT -= dt;
     this.tickSfx -= dt;
     this.tinT -= dt;
+    this.killT -= dt;
     this.flash = Math.max(0, this.flash - dt * 3);
     this.hurt = Math.max(0, this.hurt - dt * 1.6);
     this.trauma = Math.max(0, this.trauma - dt * 1.5);

@@ -1,6 +1,6 @@
 """ORU-TAL's enemies, each its own model: the Hesk Poachers' scrap craft (a skiff, a trawler, a
-battery behind a giant's skull) and the native beasts they hunt (pterosaurs, the jade wyrm, the
-armoured thunderhide). Seeds 1000-1999.
+battery behind a giant's skull, the turtle-backed thunderhide crawler) and the native beasts they
+hunt (pterosaurs, the jade wyrm). Seeds 1000-1999.
 
 Hesk hulls are gold-tan (a) with dark trim (b) so they stand off the jungle greens, hazard
 striped and bolted on, with trophy tusks; the beasts carry the planet's own glow.
@@ -384,95 +384,110 @@ def jade_wyrm():
     osc(tail, clip, "rotation_euler", T, (2, 0.1, 1, 0.25))
 
 
-# --- Armoured Thunderhide: brute, ~6 -------------------------------------------------------------
+# --- Armoured Thunderhide: brute, ~6.5 ------------------------------------------------------------
 
 def armoured_thunderhide():
-    """One of Oru-Tal's grazing giants, taken by the Hesk and armoured for war: a domed back of pale
-    scutes over a dark hide, iron plates bolted to its brow and flanks, chains, a spiked tail club,
-    two glowing thunder-sacs on its shoulders that drum, and four broad flippers rowing the air."""
-    kind, clip, root = named("armoured_thunderhide", "brute", "beast", "row", preview=("#6a5a4a", "#a89070", "#ff8a2a"))
+    """Lodge Corve's war crawler, built in the shape of the giant it hunts: a low domed hull plated
+    in bolted hex scutes, an armour skirt round the rim, a wedge cab for a head with a beaked ram and
+    trophy tusks, two caged thunder-coils on the shoulders that drum (the guns), and four thruster
+    pods on paddle pylons that row the air like flippers."""
+    kind, clip, root = named("armoured_thunderhide", "brute", "mech", "row", preview=("#6a5a4a", "#a89070", "#ff8a2a"))
     T = 2.0
     b = Model(f"{kind}_body", seed=1050)
-    RX, RY, RZ = 1.45, 1.95, 0.85
-    b.ball(1.0, (0, -0.1, -0.15), A.shade(0.7), subdiv=2, scale=(RX * 1.05, RY * 1.02, RZ * 0.8))  # dark underside
-    b.ball(1.0, (0, -0.1, 0.0), A.shade(0.85), subdiv=2, scale=(RX, RY, RZ))                         # hide dome
-    for y in (0.78, 0.0, -0.8):                                                                     # glowing seams
-        b.box((0.22, 0.3, 0.1), (0, y, RZ * math.sqrt(max(0.0, 1 - ((y + 0.1) / RY) ** 2)) + 0.02), C, glow=True)
-    # pale scutes in rows over the dome, a spike nub on each
-    rows = ((1.15, (-0.55, 0.0, 0.55)), (0.4, (-0.9, -0.3, 0.3, 0.9)), (-0.4, (-0.95, -0.32, 0.32, 0.95)),
-            (-1.2, (-0.6, 0.0, 0.6)))
-    for y, xs in rows:
-        for x in xs:
-            u = max(0.0, 1 - (x / RX) ** 2 - ((y + 0.1) / RY) ** 2)
-            z = RZ * math.sqrt(u)
-            tilt_x = math.atan2(x, RX * 1.6)
-            tilt_y = -math.atan2(y + 0.1, RY * 1.6)
-            b.cyl(0.33, 0.18, (x, y, z - 0.06), B.shade(1.15), segs=6, r_top=0.26, rot=(tilt_y, tilt_x, 0))
-            if abs(x) < 0.5:
-                b.cyl(0.12, 0.25, (x, y, z + 0.08), B.shade(1.2), segs=4, r_top=0.0)
-    # iron plates bolted to the flanks, chains over the back
+    RX, RY, RZ = 1.5, 1.9, 0.95
+    # the belly pan and the dome over it
+    hull(b, [(-0.9, 1.9), (-1.5, 1.2), (-1.6, -0.9), (-1.1, -1.9), (1.1, -1.9), (1.6, -0.9), (1.5, 1.2), (0.9, 1.9)],
+         -0.6, -0.05, B.shade(0.55), inset=0.85)
+    b.ball(1.0, (0, -0.1, -0.05), A.shade(0.8), subdiv=1, scale=(RX, RY, RZ))
+
+    def dome(x, y):  # the dome's height over (x, y) and the tilt that sits a plate flat on it
+        u = max(0.0, 1 - (x / RX) ** 2 - ((y + 0.1) / RY) ** 2)
+        return RZ * math.sqrt(u) - 0.05, (-math.atan2(y + 0.1, RY * 1.4), math.atan2(x, RX * 1.4), 0)
+
+    # the armour skirt: marginal plates round the rim, angled out, alternating light and dark
+    n = 14
+    for k in range(n):
+        a = TAU * (k + 0.5) / n
+        x, y = math.sin(a) * RX * 1.02, math.cos(a) * RY * 1.0 - 0.1
+        if y > 1.3 and abs(x) < 0.8:
+            continue                                                                                # the cab sits here
+        b.box((0.75, 0.32, 0.34), (x, y, 0.05), B.shade(0.95) if k % 2 else A.shade(0.65), rot=(0.35, 0, -a))
+    # hex scutes, bolted down: a spine of three, four a side, each with a darker rim
+    scutes = [(0, 0.85, 0.42), (0, 0.0, 0.46), (0, -0.85, 0.42),
+              (-0.82, 0.5, 0.36), (0.82, 0.5, 0.36), (-0.82, -0.45, 0.36), (0.82, -0.45, 0.36),
+              (-0.55, -1.35, 0.3), (0.55, -1.35, 0.3)]
+    for k, (x, y, r) in enumerate(scutes):
+        z, rot = dome(x, y)
+        b.cyl(r, 0.14, (x, y, z), A.shade(0.6), segs=6, rot=rot)
+        b.cyl(r * 0.84, 0.2, (x, y, z + 0.02), B.shade(1.1) if x == 0 else B, segs=6, r_top=r * 0.7, rot=rot)
+        if x == 0:
+            b.box((0.12, 0.12, 0.08), (x, y, z + 0.24), DARK)                                     # rivet
+    for y in (0.42, -0.42):                                                                         # hazard bands
+        z, _ = dome(0, y)
+        _hazard(b, -0.22, 0.22, y, z + 0.06, 0.16, 3)
+    # the cab: a low wedge with a visor slit, a hazard brow, a beaked ram and trophy tusks
+    b.slab([(-0.75, 1.45), (0.75, 1.45), (0.62, 2.4), (0, 2.65), (-0.62, 2.4)], -0.45, 0.35, A.shade(0.7),
+           top=[(-0.6, 1.55), (0.6, 1.55), (0.45, 2.25), (0, 2.42), (-0.45, 2.25)])
+    b.slab([(-0.52, 1.6), (0.52, 1.6), (0.4, 2.15), (-0.4, 2.15)], 0.3, 0.55, B,
+           top=[(-0.42, 1.65), (0.42, 1.65), (0.32, 2.05), (-0.32, 2.05)])                          # roof plate
+    b.box((0.8, 0.14, 0.12), (0, 2.18, 0.4), DARK)                                                  # visor slit
+    for x in (-0.26, 0.0, 0.26):
+        b.box((0.16, 0.08, 0.08), (x, 2.24, 0.42), C, glow=True)
+    _hazard(b, -0.42, 0.42, 1.7, 0.58, 0.14, 5)
+    b.prism([(0, 0), (0.75, -0.45), (0.0, -0.75)], 0.9, (0, 2.45, -0.05), IRON, rot=(0, 0, 0))     # the beak: a ram wedge
+    b.slab([(-0.45, 2.45), (0.45, 2.45), (0, 3.25)], -0.55, -0.15, IRON,
+           top=[(-0.3, 2.5), (0.3, 2.5), (0, 3.05)])
     for s in (1, -1):
-        b.box((0.32, 1.25, 0.6), (s * 1.38, 0.1, 0.0), IRON, rot=(0, s * 0.45, 0))
-        for y in (-0.3, 0.1, 0.5):
-            b.box((0.1, 0.1, 0.1), (s * 1.5, y, 0.2), HAZARD)
-        _hazard(b, -0.25, 0.25, 0.1, 0.0, 0.18, 3, rot=(0, s * 1.1, 0))
-    for y in (0.78, -0.82):
-        b.plank_line((-1.35, y, 0.25), (0, y, RZ * 0.98 + 0.05), 0.1, 0.1, IRON)
-        b.plank_line((0, y, RZ * 0.98 + 0.05), (1.35, y, 0.25), 0.1, 0.1, IRON)
-    # the thunder-sacs: big glowing bladders on the shoulders (they pulse, see below)
-    # head: broad and beaked, an iron brow plate, small horns, glowing eyes
-    b.ball(0.7, (0, 2.0, -0.1), A, subdiv=1, scale=(1.2, 1.0, 0.72))
-    b.ball(0.45, (0, 2.55, -0.18), A.shade(0.85), subdiv=1, scale=(1.0, 0.8, 0.6))               # muzzle
-    limb(b, (0, 2.7, -0.2), (0, 3.0, -0.3), 0.3, 0.05, B.shade(0.8), segs=5)                       # beak
-    b.slab([(-0.6, 1.75), (0.6, 1.75), (0.5, 2.45), (0, 2.6), (-0.5, 2.45)], 0.2, 0.34, IRON,
-           top=[(-0.5, 1.8), (0.5, 1.8), (0.42, 2.38), (0, 2.5), (-0.42, 2.38)])                    # iron brow plate
-    _hazard(b, -0.36, 0.36, 2.2, 0.36, 0.14, 5)
+        _tusk(b, (s * 0.4, 2.75, -0.35), (s * 0.7, 1.0), 0.7, 0.13, up=0.25, curl=-s * 0.2)
+        b.box((0.22, 0.22, 0.22), (s * 0.4, 2.72, -0.35), IRON)                                     # tusk collar
+    b.cyl(0.12, 0.5, (0, 2.95, -0.42), DARK, segs=5, rot=(-math.pi / 2, 0, 0))                      # chin gun
+    # stern: a twin-nozzle engine block where the tail would be
+    b.slab([(-0.75, -1.65), (0.75, -1.65), (0.6, -2.35), (-0.6, -2.35)], -0.45, 0.2, B.shade(0.7),
+           top=[(-0.6, -1.7), (0.6, -1.7), (0.48, -2.25), (-0.48, -2.25)])
     for s in (1, -1):
-        b.ball(0.14, (s * 0.5, 2.35, 0.12), C, subdiv=1, glow=True)                                # eyes
-        b.box((0.1, 0.06, 0.18), (s * 0.5, 2.47, 0.12), DARK)
-        _tusk(b, (s * 0.45, 1.85, 0.25), (s * 0.6, -1.0), 0.6, 0.15, up=0.6, curl=s * 0.1, color=B.shade(1.15))
-        b.ball(0.08, (s * 0.2, 2.98, -0.24), DARK, subdiv=0)
-    # tail and spiked club
-    chain(b, [(0, -1.8, -0.1), (0, -2.25, -0.05), (0, -2.6, 0.0)], [0.55, 0.4, 0.3], A.shade(0.85), segs=7)
-    for y in (-2.05, -2.4):
-        b.cyl(0.16, 0.2, (0, y, 0.3 - (y + 2.1) * 0.25), B, segs=6, r_top=0.03)
+        tube(b, 0.26, -2.2, -2.6, s * 0.36, -0.15, DARK, segs=7)
+        b.cyl(0.2, 0.05, (s * 0.36, -2.61, -0.15), C, segs=7, rot=(math.pi / 2, 0, 0), glow=True)
     body = b.build(root)
-    club = Model(f"{kind}_club", seed=1051)
-    club.ball(0.48, (0, -0.25, 0), B, subdiv=1, scale=(1.25, 1.0, 0.75), jitter=0.04)
-    club.ball(0.32, (0, -0.25, 0.1), IRON, subdiv=0, scale=(1.2, 1.0, 0.8))                        # iron cap
     for s in (1, -1):
-        limb(club, (s * 0.45, -0.25, 0.0), (s * 0.85, -0.35, 0.05), 0.17, 0.0, BONE, segs=4)
-    limb(club, (0, -0.6, 0.05), (0, -0.95, 0.1), 0.15, 0.0, BONE, segs=4)
-    club_obj = club.build(body, loc=(0, -2.62, 0.0))
-    osc(club_obj, clip, "rotation_euler", T, (2, 0.3, 1, 0.1))
-    for k, s in enumerate((1, -1)):                                                                 # thunder-sacs
-        sac = Model(f"{kind}_sac_{k}", seed=1052 + k)
-        sac.ball(0.42, (0, 0, 0), C, subdiv=1, glow=True, scale=(1.0, 1.15, 0.7))
-        sac.ball(0.2, (s * 0.12, 0.15, 0.22), "#ffd8a0", subdiv=0, glow=True)                       # hot core
-        for j in range(3):                                                                          # iron cage bands
-            sac.box((0.95, 0.09, 0.09), (0, -0.3 + j * 0.3, 0.2), IRON, rot=(0, 0, 0.0))
-        so = sac.build(body, loc=(s * 0.8, 1.35, 0.55))
-        pulse(so, clip, T, 0.14, harm=2, phase=k * 0.5)
-    for k, (y, span, chord, ph) in enumerate(((0.9, 1.85, 1.1, 0.0), (-1.1, 1.35, 0.8, 0.3))):
+        flame(body, f"{kind}_flame_{'r' if s > 0 else 'l'}", (s * 0.36, -2.64, -0.15), 0.18, 0.6, clip, T,
+              phase=0.3 * (s > 0), k=6)
+    # the thunder-coils: glowing drums in iron cages on the shoulders, a stubby barrel out front
+    n = 0
+    for k, s in enumerate((1, -1)):
+        coil = Model(f"{kind}_coil_{k}", seed=1052 + k)
+        coil.cyl(0.36, 0.5, (0, 0, -0.25), C, segs=8, glow=True, rot=(-math.pi / 2, 0, 0))
+        coil.ball(0.16, (0, 0.05, 0.22), "#ffd8a0", subdiv=0, glow=True)                            # hot core
+        for j in range(3):                                                                          # cage bands
+            coil.cyl(0.4, 0.08, (0, -0.22 + j * 0.2, 0), IRON, segs=8, rot=(-math.pi / 2, 0, 0))
+        so = coil.build(body, loc=(s * 0.82, 1.1, 0.7))
+        pulse(so, clip, T, 0.12, harm=2, phase=k * 0.5, axes=(0, 2))
+    for s in (1, -1):
+        g = Model(f"{kind}_gun_{'r' if s > 0 else 'l'}")
+        g.box((0.4, 0.35, 0.3), (0, 0, 0), IRON)
+        tube(g, 0.11, 0.15, 0.85, 0, 0.02, DARK, segs=6)
+        g.box((0.28, 0.08, 0.1), (0, 0.86, 0.02), C, glow=True)
+        g.build(body, loc=(s * 0.82, 1.55, 0.72))
+        marker(body, kind, "muzzle", (s * 0.82, 2.45, 0.74), n)
+        n += 1
+    marker(body, kind, "muzzle", (0, 3.25, -0.42), n)
+    # thruster pods on paddle pylons: the flippers, rowing
+    for k, (y, span, chord, ph) in enumerate(((0.75, 1.55, 0.95, 0.0), (-1.0, 1.15, 0.7, 0.3))):
         for s in (1, -1):
             w = Model(f"{kind}_flipper_{k}_{'r' if s > 0 else 'l'}", seed=1060 + k * 2 + (s > 0))
-            pts = [(0, chord * 0.45), (0, -chord * 0.45), (span * 0.55, -chord * 0.6), (span, -chord * 0.35),
-                   (span * 0.95, chord * 0.05), (span * 0.5, chord * 0.5)]
-            flat(w, pts if s > 0 else mirror(pts), 0, 0.12, A.shade(0.6))
-            w.ball(0.13, (s * span * 0.62, -chord * 0.2, 0.06), C, subdiv=0, glow=True, scale=(1.3, 1, 0.5))  # glow spot
-            limb(w, (0, chord * 0.3, 0.06), (s * span * 0.95, chord * 0.0, 0.06), 0.13, 0.05, B, segs=5)   # lead bone
-            limb(w, (0, -chord * 0.1, 0.05), (s * span * 0.6, -chord * 0.5, 0.05), 0.08, 0.03, B.shade(0.9), segs=4)
-            if k == 0:
-                w.box((0.4, 0.5, 0.08), (s * 0.55, 0.0, 0.1), IRON)                                 # strapped plate
-            obj = w.build(body, loc=(s * (RX - 0.15), y, -0.1))
-            osc(obj, clip, "rotation_euler", T, (1, s * 0.32, 1, ph), (2, -s * 0.12, 1, ph + 0.25))
-    n = 0
-    for s in (1, -1):
-        marker(body, kind, "muzzle", (s * 0.8, 1.8, 0.6), n)
-        n += 1
-    marker(body, kind, "muzzle", (0, 3.05, -0.25), n)
-    osc(body, clip, "location", T, (2, 0.12, 1, 0.6))
-    osc(body, clip, "rotation_euler", T, (1, 0.025, 1, 0.0), (0, 0.02, 1, 0.35))
+            pts = [(0, chord * 0.4), (0, -chord * 0.4), (span * 0.7, -chord * 0.5), (span * 0.95, -chord * 0.2),
+                   (span * 0.9, chord * 0.25), (span * 0.5, chord * 0.45)]
+            flat(w, pts if s > 0 else mirror(pts), 0, 0.14, IRON)
+            flat(w, [(p[0] * 0.8 + 0.08, p[1] * 0.6) for p in (pts if s > 0 else mirror(pts))], 0.09, 0.05,
+                 B.shade(0.9))                                                                      # tan face plate
+            x = s * span * 0.82
+            tube(w, chord * 0.32, chord * 0.45, -chord * 0.55, x, 0.05, A.shade(0.6), segs=7)       # the pod
+            tube(w, chord * 0.22, -chord * 0.55, -chord * 0.7, x, 0.05, DARK, segs=7)
+            w.cyl(chord * 0.17, 0.04, (x, -chord * 0.71, 0.05), C, segs=7, rot=(math.pi / 2, 0, 0), glow=True)
+            w.box((0.12, 0.12, 0.08), (x, chord * 0.3, 0.05 + chord * 0.32), HAZARD)
+            obj = w.build(body, loc=(s * (RX - 0.2), y, -0.1))
+            osc(obj, clip, "rotation_euler", T, (1, s * 0.3, 1, ph), (2, -s * 0.14, 1, ph + 0.25))
+    osc(body, clip, "location", T, (2, 0.1, 1, 0.6))
+    osc(body, clip, "rotation_euler", T, (1, 0.02, 1, 0.0), (0, 0.018, 1, 0.35))
 
 
 def build():
