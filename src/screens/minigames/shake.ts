@@ -220,7 +220,7 @@ export class Shake implements Minigame {
   /** How long the stick's been held one way: the reticle speeds up the longer it is. */
   private held = 0;
   private lastDir: [number, number] = [0, 0];
-  /** Over something worth shooting (1), a lantern (2), or nothing. */
+  /** Over something worth shooting (1), a lantern (2), a shut shell (3), or nothing. */
   private over = 0;
   private heat = 0;
   private vent = 0;
@@ -352,7 +352,6 @@ export class Shake implements Minigame {
   }
 
   update(dt: number, pad: Pad) {
-    if (typeof location !== 'undefined' && location.search.includes('shakebot') && this.result === null) pad = this.tempBot(); // TEMPBOT
     this.fx.frozen(dt);
     this.promptT -= dt;
     this.blind = Math.max(0, this.blind - dt);
@@ -386,19 +385,6 @@ export class Shake implements Minigame {
     this.hum(dt);
   }
 
-  private tempCd = 0; // TEMPBOT
-  private tempBot(): Pad { // TEMPBOT
-    const live = this.live.filter((b) => b.z < 13).sort((a, b) => a.z - b.z); // TEMPBOT
-    const c = this.crawlers[0]; // TEMPBOT
-    const tg = c ? [c.x, c.y] : live[0] ? this.proj(live[0].x, live[0].y, live[0].z) : null; // TEMPBOT
-    if (!tg) return { x: 0, y: 0, hold: false, press: false }; // TEMPBOT
-    const dx = tg[0] - this.ax, dy = tg[1] - this.ay; // TEMPBOT
-    const d = Math.hypot(dx, dy) || 1; // TEMPBOT
-    this.tempCd -= 1 / 60; // TEMPBOT
-    const press = this.over === 1 && this.tempCd <= 0; // TEMPBOT
-    if (press) this.tempCd = 0.15; // TEMPBOT
-    return { x: d > 3 ? dx / d : 0, y: d > 3 ? dy / d : 0, hold: false, press }; // TEMPBOT
-  } // TEMPBOT
 
   /** The lane coming past: stars, lanterns, rocks; faster as you boost away at the end. */
   private fly(dt: number) {
@@ -547,10 +533,11 @@ export class Shake implements Minigame {
     this.ax = clamp(this.ax + this.avx * dt, 12, 468);
     this.ay = clamp(this.ay + this.avy * dt, 12, 204);
     this.over = 0;
-    for (const c of this.crawlers) if (Math.hypot(c.x - this.ax, c.y - this.ay) < GLASS[c.kind]) this.over = 1;
+    const under = (kind: Kind, phase: number) => (this.over = kind === 'shell' && this.shellShut(phase) ? this.over || 3 : 1);
+    for (const c of this.crawlers) if (Math.hypot(c.x - this.ax, c.y - this.ay) < GLASS[c.kind]) under(c.kind, c.phase);
     for (const b of this.live) {
       const [x, y, s] = this.proj(b.x, b.y, b.z);
-      if (Math.hypot(x - this.ax, y - this.ay) < Math.max(4, SIZE[b.kind] * s + 2)) this.over = 1;
+      if (Math.hypot(x - this.ax, y - this.ay) < Math.max(4, SIZE[b.kind] * s + 2)) under(b.kind, b.phase);
     }
     if (!this.over)
       for (const l of this.lanterns) {
@@ -766,7 +753,7 @@ export class Shake implements Minigame {
       audio.play('mini_shake_refund', { vol: 0.8 });
     } else {
       this.downed++;
-      if (!burst) this.fx.word(this.streak > 1 ? `×${this.streak}` : 'HIT', x, y - 10 - SIZE[g.kind] * s, this.streak >= HOT ? '#ffd04a' : '#f4ecd8', 1, { pop: this.streak >= 3 });
+      if (!burst && this.streak > 1) this.fx.word(`×${this.streak}`, x, y - 10 - SIZE[g.kind] * s, this.streak >= HOT ? '#ffd04a' : '#f4ecd8', 1, { pop: this.streak >= 3 });
     }
     this.killSound(g.kind, burst ? 0.5 : 1);
     if (g.kind === 'shell') this.burst(g);
@@ -1554,7 +1541,7 @@ export class Shake implements Minigame {
       ctx.fillStyle = '#9a92b0';
       ctx.fillRect(0, -5, len, 1);
       ctx.fillStyle = DARK;
-      for (let r = 14; r < len - 8; r += 6) ctx.fillRect(r, -6, 2, 12);
+      for (const r of [10, 15, 20]) ctx.fillRect(r, -6, 2, 12);
       // the muzzle brake
       ctx.fillStyle = DARK;
       ctx.fillRect(len - 8, -8, 10, 16);
@@ -1608,7 +1595,7 @@ export class Shake implements Minigame {
     const y = Math.round(this.ay);
     const lock = this.over === 1;
     const hot = this.streak >= HOT;
-    const col = this.vent > 0 ? '#6a5e7a' : lock ? '#ff5a4a' : this.over === 2 ? '#fff0c0' : hot ? '#ffd04a' : '#f4ecd8';
+    const col = this.vent > 0 ? '#6a5e7a' : lock ? '#ff5a4a' : this.over === 2 ? '#fff0c0' : this.over === 3 ? '#8a86a0' : hot ? '#ffd04a' : '#f4ecd8';
     const s = lock ? 6 : 9 + Math.round(Math.sin(t * 6) * 0.6);
     if (lock) glow(ctx, x, y, 14, '#ff5a4a', 0.3);
     if (hot) glow(ctx, x, y, 18, '#ffd04a', 0.25 + 0.1 * Math.sin(t * 12));

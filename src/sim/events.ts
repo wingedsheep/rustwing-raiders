@@ -2071,10 +2071,10 @@ export const EVENTS: RunEvent[] = [
     text: () => 'Thump. Thump-thump. Then legs, a great many legs, skittering over the canopy, and a sound like teeth on cable. Hull leeches: they followed the heat of the last lantern in, and they are very hungry, and your fuel lines are right there.',
     choices: [
       {
-        label: 'SHAKE THEM OFF',
+        label: 'SHOOT THEM OFF',
         game: 'shake',
         chips: (_, bold) => (bold ? [c.scrap(30), c.fuel(-2), c.hull(-1)] : [c.fuel(-1), c.hull(-1)]),
-        note: (_, bold) => (bold ? 'ROLL HARD AND ZAP THE STRAGGLERS. THEIR EGGS SELL' : 'EVERY ONE LEFT ON YOU AT THE END DRINKS'),
+        note: (_, bold) => (bold ? 'SHOOT THEM IN THE DARK, BEFORE THEY LAND. THEIR EGGS SELL' : 'EVERY ONE LEFT ON THE GLASS AT THE END DRINKS'),
         outcome: (run, p) => {
           const t = tier(p.score);
           if (t === 0) {
@@ -2087,7 +2087,7 @@ export const EVENTS: RunEvent[] = [
             return { text: 'Most of them go. A couple of the big ones hang on long enough to drink a cell of fuel apiece, then let go, satisfied.', mood: 'annoyed' };
           }
           if (p.bold) run.scrap += 30;
-          return { text: p.bold ? 'You shake them loose and zap the stragglers, and scrape a clutch of eggs off the canopy on the way. Any dock pays for those; they make a soup.' : 'You roll until the stars spin, and they peel off one by one into the dark.', mood: 'annoyed' };
+          return { text: p.bold ? 'The guns run hot and the dark pops with them, and you scrape a clutch of eggs off the canopy after. Any dock pays for those; they make a soup.' : 'You shoot them off the glass one by one, and the rest think better of it.', mood: 'annoyed' };
         },
       },
       {
