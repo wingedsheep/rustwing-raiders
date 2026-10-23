@@ -196,6 +196,8 @@ export class LevelView {
   private laserMeshes: THREE.Mesh[] = [];
   private balls: { ball: THREE.Group; links: THREE.Mesh[] }[] = [];
   /** ARU-0's ballast: plates of its company hull, thrown flat and spinning. */
+  /** Each laser as last heard: charging, or burning (its sound plays as it changes). */
+  private laserHeard = new WeakMap<object, 'warn' | 'on'>();
   private plates: THREE.Group[] = [];
   private bolts: { mesh: THREE.Mesh; t: number }[] = [];
   private clouds: { obj: THREE.Group; x: number; z: number; drift: number }[] = [];
@@ -1088,7 +1090,8 @@ export class LevelView {
           audio.play('flak_burst', { pan: e.x / HALF_W, vol: 0.5 });
           break;
         case 'telegraph':
-          audio.play('laser_charge', { pan: e.x / HALF_W, vol: 0.6 });
+          // (a line comes with its laser, and that charges with its own sound)
+          if (e.x2 === e.x && e.z2 === e.z) audio.play('laser_charge', { pan: e.x / HALF_W, vol: 0.6 });
           break;
         case 'bossWarning':
           this.bossBanner = { name: e.name, title: e.title, t: 0 };
@@ -3108,6 +3111,16 @@ export class LevelView {
       const mat = m.material as THREE.MeshBasicMaterial;
       m.children[0].visible = l.warn <= 0 && !l.tow;
       if (l.warn > 0) {
+      // its sound: a rising whine as it charges, the crack and roar as it fires (not a tow line,
+      // and not a lane only drawn for a blink)
+      const now = l.warn > 0 ? 'warn' : 'on';
+      const heard = this.laserHeard.get(l);
+      if (heard !== now && !l.tow) {
+        this.laserHeard.set(l, now);
+        const pan = Math.max(-1, Math.min(1, l.x / HALF_W));
+        if (now === 'warn') audio.play('laser_charge', { pan, vol: 0.45 });
+        else if (l.on > 0.05) audio.play('laser_fire', { pan, vol: 0.55 });
+      }
         // the warning: a thin flickering line, faster as it's about to fire
         const on = Math.floor(this.time * (8 + (1 - l.warn) * 30)) % 2 === 0;
         m.visible = on;
