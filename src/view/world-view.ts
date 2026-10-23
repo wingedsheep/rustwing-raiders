@@ -405,11 +405,12 @@ export class WorldView {
       }
   }
 
-  lerpWater(a: Biome, b: Biome, t: number) {
+  /** The water's colour between two biomes (`wet`: whether each has water, its own or its layout's). */
+  lerpWater(a: Biome, b: Biome, t: number, wet: [boolean, boolean] = [a.water !== null, b.water !== null]) {
     const ca = new THREE.Color(a.waterColor);
     const cb = new THREE.Color(b.waterColor);
-    if (a.water === null) ca.copy(cb);
-    if (b.water === null) cb.copy(ca);
+    if (!wet[0]) ca.copy(cb);
+    if (!wet[1]) cb.copy(ca);
     const c = ca.lerp(cb, t);
     const glow = THREE.MathUtils.lerp(a.water === null ? (b.waterGlow ?? 0) : (a.waterGlow ?? 0), b.water === null ? (a.waterGlow ?? 0) : (b.waterGlow ?? 0), t);
     const u = this.water.uniforms;
@@ -673,6 +674,9 @@ function groundGeometry(t: Terrain, z0: number) {
       // a dry wash or a worn track: its bed a shade deeper and cooler, its banks a little paler
       const bed = t.wash(x, z);
       if (bed > 0) c.multiplyScalar(1 - 0.14 * bed + 0.08 * bed * (1 - bed) * 4).lerp(tmp.setHex(0x8a5048), 0.22 * bed);
+      // a stain of the place's own: a pond's spice-salt, the sand along a shore
+      const st = t.stain(x, z);
+      if (st) c.lerp(tmp.setHex(st[0]), st[1]);
       pos[k] = x;
       pos[k + 1] = h;
       pos[k + 2] = z;

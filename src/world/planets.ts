@@ -319,8 +319,9 @@ export const PLANETS: Planet[] = [
         line: 'White to the horizon. Salt pillars, cracked in hexes.',
         shape: 'flats',
         relief: 1,
+        // (the brine in its eyes and ponds is the layout's: sim/layouts/saltpans.ts)
         water: null,
-        waterColor: 0,
+        waterColor: 0x3ec4c0,
         ground: [0xe8e0d0, 0xf0ece0, 0xe0d8c8, 0xd8ccb8],
         cliff: 0xb8a890,
         props: [

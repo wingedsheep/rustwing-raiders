@@ -330,6 +330,22 @@
   "mounts": [],
   "variant": 2
  },
+ "kessra_brine_pump#0": {
+  "colliders": [],
+  "kind": "kessra_brine_pump",
+  "max": [
+   3.92,
+   8.469,
+   5.117
+  ],
+  "min": [
+   -3.808,
+   -0.082,
+   -2.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "kessra_brine_reed#0": {
   "colliders": [],
   "kind": "kessra_brine_reed",
@@ -430,17 +446,65 @@
   "colliders": [],
   "kind": "kessra_brush",
   "max": [
-   2.454,
+   2.442,
    0.757,
    1.709
   ],
   "min": [
-   -1.37,
+   -1.336,
    -0.129,
-   -2.001
+   -1.959
   ],
   "mounts": [],
   "variant": 3
+ },
+ "kessra_caravan_wreck#0": {
+  "colliders": [],
+  "kind": "kessra_caravan_wreck",
+  "max": [
+   3.623,
+   2.109,
+   2.443
+  ],
+  "min": [
+   -2.56,
+   -0.214,
+   -2.977
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_caravan_wreck#1": {
+  "colliders": [],
+  "kind": "kessra_caravan_wreck",
+  "max": [
+   3.623,
+   2.109,
+   2.443
+  ],
+  "min": [
+   -2.56,
+   -0.146,
+   -2.988
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_caravan_wreck#2": {
+  "colliders": [],
+  "kind": "kessra_caravan_wreck",
+  "max": [
+   3.623,
+   3.733,
+   2.617
+  ],
+  "min": [
+   -2.56,
+   -1.533,
+   -2.703
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "kessra_cistern_rosette#0": {
   "colliders": [],
@@ -843,6 +907,54 @@
    -0.872,
    -0.15,
    -1.66
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "kessra_kehx_vent#0": {
+  "colliders": [],
+  "kind": "kessra_kehx_vent",
+  "max": [
+   1.225,
+   1.07,
+   1.225
+  ],
+  "min": [
+   -1.225,
+   -0.105,
+   -1.225
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_kehx_vent#1": {
+  "colliders": [],
+  "kind": "kessra_kehx_vent",
+  "max": [
+   1.225,
+   1.07,
+   1.225
+  ],
+  "min": [
+   -1.225,
+   -0.105,
+   -1.225
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_kehx_vent#2": {
+  "colliders": [],
+  "kind": "kessra_kehx_vent",
+  "max": [
+   1.225,
+   0.763,
+   1.225
+  ],
+  "min": [
+   -1.225,
+   -0.105,
+   -1.225
   ],
   "mounts": [],
   "variant": 2
@@ -1335,6 +1447,54 @@
   "mounts": [],
   "variant": 1
  },
+ "kessra_salt_blocks#0": {
+  "colliders": [],
+  "kind": "kessra_salt_blocks",
+  "max": [
+   1.198,
+   1.54,
+   1.587
+  ],
+  "min": [
+   -1.19,
+   0.0,
+   -1.592
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_salt_blocks#1": {
+  "colliders": [],
+  "kind": "kessra_salt_blocks",
+  "max": [
+   2.196,
+   2.4,
+   1.723
+  ],
+  "min": [
+   -1.636,
+   0.0,
+   -2.477
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_salt_blocks#2": {
+  "colliders": [],
+  "kind": "kessra_salt_blocks",
+  "max": [
+   1.568,
+   0.61,
+   1.765
+  ],
+  "min": [
+   -2.097,
+   -0.21,
+   -1.757
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "kessra_salt_cache#0": {
   "colliders": [],
   "kind": "kessra_salt_cache",
@@ -1366,6 +1526,54 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "kessra_salt_cone#0": {
+  "colliders": [],
+  "kind": "kessra_salt_cone",
+  "max": [
+   1.343,
+   1.9,
+   1.345
+  ],
+  "min": [
+   -1.306,
+   -0.05,
+   -1.3
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_salt_cone#1": {
+  "colliders": [],
+  "kind": "kessra_salt_cone",
+  "max": [
+   1.304,
+   1.4,
+   1.309
+  ],
+  "min": [
+   -1.275,
+   -0.05,
+   -1.258
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_salt_cone#2": {
+  "colliders": [],
+  "kind": "kessra_salt_cone",
+  "max": [
+   1.5,
+   1.6,
+   1.496
+  ],
+  "min": [
+   -1.448,
+   -0.05,
+   -1.457
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "kessra_salt_crystal#0": {
   "colliders": [],
@@ -1459,6 +1667,168 @@
    -1.296,
    -0.323,
    -1.621
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "kessra_salt_stack#0": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   3.081,
+   6.253,
+   2.764
+  ],
+  "min": [
+   -2.78,
+   -0.245,
+   -2.972
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_salt_stack#1": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   2.331,
+   4.546,
+   2.68
+  ],
+  "min": [
+   -2.573,
+   -0.356,
+   -2.615
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_salt_stack#2": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   2.618,
+   7.334,
+   2.775
+  ],
+  "min": [
+   -2.951,
+   -0.249,
+   -3.294
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "kessra_salt_stack#3": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   4.114,
+   6.728,
+   4.608
+  ],
+  "min": [
+   -4.227,
+   -0.257,
+   -3.873
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "kessra_salt_stack#4": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   4.139,
+   6.605,
+   3.965
+  ],
+  "min": [
+   -3.656,
+   -0.236,
+   -3.805
+  ],
+  "mounts": [],
+  "variant": 4
+ },
+ "kessra_salt_stack#5": {
+  "colliders": [],
+  "kind": "kessra_salt_stack",
+  "max": [
+   4.275,
+   7.228,
+   4.411
+  ],
+  "min": [
+   -3.891,
+   -0.451,
+   -3.72
+  ],
+  "mounts": [],
+  "variant": 5
+ },
+ "kessra_salt_tower#0": {
+  "colliders": [
+   {
+    "r": 2.232,
+    "x": 0.024,
+    "z": 0.156
+   }
+  ],
+  "kind": "kessra_salt_tower",
+  "max": [
+   4.26,
+   17.413,
+   4.457
+  ],
+  "min": [
+   -4.069,
+   -0.225,
+   -4.128
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_salt_tower#1": {
+  "colliders": [
+   {
+    "r": 1.984,
+    "x": -0.08,
+    "z": -0.1
+   }
+  ],
+  "kind": "kessra_salt_tower",
+  "max": [
+   4.46,
+   16.193,
+   4.358
+  ],
+  "min": [
+   -4.886,
+   -0.285,
+   -4.843
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_salt_tower#2": {
+  "colliders": [
+   {
+    "r": 2.48,
+    "x": -0.202,
+    "z": -0.095
+   }
+  ],
+  "kind": "kessra_salt_tower",
+  "max": [
+   5.369,
+   19.068,
+   4.98
+  ],
+  "min": [
+   -5.262,
+   -0.689,
+   -5.609
   ],
   "mounts": [],
   "variant": 2
@@ -1587,6 +1957,38 @@
    -7.455,
    -0.202,
    -7.33
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_sluice#0": {
+  "colliders": [],
+  "kind": "kessra_sluice",
+  "max": [
+   1.389,
+   1.325,
+   0.493
+  ],
+  "min": [
+   -1.403,
+   -0.1,
+   -0.498
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_sluice#1": {
+  "colliders": [],
+  "kind": "kessra_sluice",
+  "max": [
+   1.395,
+   1.325,
+   0.537
+  ],
+  "min": [
+   -1.406,
+   -0.1,
+   -0.538
   ],
   "mounts": [],
   "variant": 1
@@ -1805,6 +2207,22 @@
   "mounts": [],
   "variant": 1
  },
+ "kessra_toll_hut#0": {
+  "colliders": [],
+  "kind": "kessra_toll_hut",
+  "max": [
+   2.35,
+   4.946,
+   1.55
+  ],
+  "min": [
+   -1.75,
+   0.0,
+   -1.1
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "kessra_turn_board#0": {
   "colliders": [],
   "kind": "kessra_turn_board",
@@ -1865,6 +2283,38 @@
    -4.881,
    -0.619,
    -0.717
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "kessra_works_shed#0": {
+  "colliders": [],
+  "kind": "kessra_works_shed",
+  "max": [
+   5.828,
+   3.222,
+   4.35
+  ],
+  "min": [
+   -4.05,
+   0.0,
+   -2.29
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "kessra_works_shed#1": {
+  "colliders": [],
+  "kind": "kessra_works_shed",
+  "max": [
+   5.078,
+   3.222,
+   4.35
+  ],
+  "min": [
+   -3.3,
+   0.0,
+   -2.29
   ],
   "mounts": [],
   "variant": 1

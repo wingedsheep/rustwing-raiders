@@ -2313,7 +2313,7 @@ export class LevelView {
     this.sun.color.copy(mix(a.sun, b.sun));
     this.hemi.color.copy(mix(a.sky, b.sky));
     this.hemi.groundColor.copy(mix(a.bounce, b.bounce));
-    this.world.lerpWater(a, b, k);
+    this.world.lerpWater(a, b, k, [t.waterLevel(bl.a) !== null, t.waterLevel(bl.b) !== null]);
     this.world.setSun(this.sun.position.clone().sub(this.sun.target.position));
     // the weather: windier where there's sand, snow or rain blowing; cloudier where there are clouds
     const windy = (bi: Biome) => (bi.particles === 'sand' || bi.particles === 'snow' || bi.particles === 'rain' ? 0.85 : bi.particles === 'ash' ? 0.55 : 0.35);

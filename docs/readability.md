@@ -91,7 +91,7 @@ A first guess at the families, to be changed as the rows get written:
 | Push | Family | Biomes |
 |---|---|---|
 | 12 | Gorges and walls | mesarun, tidecaves, bonearch, basalt |
-| 13 | Open flats | saltpans (from the sketch in `src/sim/layouts/saltpans.ts`), tundra, coralflats, oasis |
+| 13 | Open flats | saltpans (laid out: `src/sim/layouts/saltpans.ts`, its own props in `tools/models/set_kessra.py`), tundra, coralflats, oasis |
 | 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap, fernwood, whitewood, orchards, jade |

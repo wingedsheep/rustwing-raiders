@@ -47,7 +47,7 @@ export interface Route {
  * out in the open, smoke over a camp. `side` is which way it leans (a rim's dust blows off it).
  */
 export interface Emitter {
-  kind: 'dust' | 'devil' | 'smoke' | 'trickle';
+  kind: 'dust' | 'devil' | 'smoke' | 'trickle' | 'bubble' | 'breath' | 'flakes';
   x: number;
   z: number;
   /** How far it runs along z (a rim's length), 0 for a point. */
@@ -65,6 +65,10 @@ export interface Bones {
   height?(x: number, z: number): number;
   /** How much (x, z) is a dry bed or a worn track (0..1), for the ground's colour. */
   wash?(x: number, z: number): number;
+  /** A colour the ground at (x, z) is stained with, and how much (0..1): a pond's spice-salt, a shore's sand. */
+  stain?(x: number, z: number): [number, number] | null;
+  /** The water's level, where the biome has none of its own: brine standing in a pan's hollows. */
+  water?: number;
   routes?: Route[];
   /** Other lines the ground is shaped by (cracks, faults): things group along them, nothing drives them. */
   lines?: Route[];

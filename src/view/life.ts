@@ -129,6 +129,32 @@ export class Life {
           this.fx.add({ x: e.x + (Math.random() - 0.5) * 0.6, y, z: e.z, vx: wind.x * 0.8, vy: 2.2, vz: wind.y * 0.8, size: 0.7, grow: 3.4, life: 2.6, glow: false, color: SMOKE, to: SMOKE_END });
           break;
         }
+        case 'bubble': {
+          // brine welling up in an eye: a ring spreading slowly on it, now and then
+          if (!roll(0.7)) break;
+          const w = t.water(e.z);
+          this.fx.ring(e.x + (Math.random() - 0.5) * 1.5, w + 0.04, e.z + (Math.random() - 0.5) * 1.5, 1.2 + Math.random(), 1.4, false, 0xd8f4f0);
+          break;
+        }
+        case 'breath': {
+          // a Kehx vent breathing out: a pale warm haze, rising slow and gone
+          if (!roll(1.2)) break;
+          const y = t.height(e.x, e.z) + 0.6;
+          this.fx.add({ x: e.x + (Math.random() - 0.5) * 0.6, y, z: e.z + (Math.random() - 0.5) * 0.6, vx: wind.x * 0.5, vy: 1.4, vz: wind.y * 0.5, size: 0.8, grow: 2.6, life: 2.2, glow: false, color: BREATH, to: tone(b.ground[1]) });
+          break;
+        }
+        case 'flakes': {
+          // a gust off a ridge of the salt: flakes skittering low over the crust with the wind,
+          // tumbling, a pale haze lifted with them
+          if (!roll(0.45)) break;
+          const h = t.height(e.x, e.z);
+          for (let k = 0; k < 6 + Math.floor(Math.random() * 5); k++) {
+            const v = 3 + Math.random() * 2.5;
+            this.fx.add({ x: e.x + (Math.random() - 0.5) * 3, y: h + 0.15 + Math.random() * 0.3, z: e.z + (Math.random() - 0.5) * 3, vx: wind.x * v, vy: 0.5 + Math.random() * 0.6, vz: wind.y * v, gravity: 2.5, size: 0.12 + Math.random() * 0.12, life: 1.2 + Math.random() * 0.8, solid: true, spin: 8, color: FLAKE });
+          }
+          this.fx.add({ x: e.x, y: h + 0.3, z: e.z, vx: wind.x * 3, vy: 0.3, vz: wind.y * 3, size: 1, grow: 2.4, life: 1.5, glow: false, color: tone(b.ground[3], 0.95), to: tone(b.ground[2]) });
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -308,3 +334,5 @@ const tone = (hex: number, k = 1) => {
 const SMOKE = new THREE.Color(0x4a3a34);
 const SMOKE_END = new THREE.Color(0x8a7a70);
 const FOAM = new THREE.Color(0xa8c8d0);
+const BREATH = new THREE.Color(0xf4e8d8);
+const FLAKE = new THREE.Color(0xf6f2ea);

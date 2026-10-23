@@ -305,6 +305,11 @@ export class Terrain {
     return this.bonesAt(z)?.wash?.(x, z) ?? 0;
   }
 
+  /** A colour the ground at (x, z) is stained with, and how much (a pond's spice-salt), if any. */
+  stain(x: number, z: number): [number, number] | null {
+    return this.bonesAt(z)?.stain?.(x, z) ?? null;
+  }
+
   /** The spots worth guarding between z0 and z1 (z1 < z0), from the plans. */
   posts(z0: number, z1: number): Post[] {
     const out: Post[] = [];
@@ -489,11 +494,16 @@ export class Terrain {
     return a === b || t === 0 ? this.biomeHeight(a, x, z) : lerp(this.biomeHeight(a, x, z), this.biomeHeight(b, x, z), t);
   }
 
+  /** A segment's water level: its biome's, or its layout's (brine in a salt pan's eyes), or null. */
+  waterLevel(i: number): number | null {
+    return this.segments[i].biome.water ?? this.bones(i)?.water ?? null;
+  }
+
   /** Height of the water at z, or -Infinity. */
   water(z: number): number {
     const { a, b, t } = this.blend(z);
-    const wa = this.segments[a].biome.water;
-    const wb = this.segments[b].biome.water;
+    const wa = this.waterLevel(a);
+    const wb = this.waterLevel(b);
     if (wa === null && wb === null) return -Infinity;
     if (wa === null) return t > 0.5 ? wb! : -Infinity;
     if (wb === null) return t < 0.5 ? wa : -Infinity;

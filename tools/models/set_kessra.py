@@ -360,8 +360,8 @@ def salt_crystal(variants):
         _paint(m, fs, None, SALT_SHADE)
         _salt_drift(m, rng, 0, 0, 1.2, n=4, size=(0.8, 0.6, 0.3))
         if i == 2:
-            # grown at the lip of a little brine pool
-            deep, shallow = BRINE[0]
+            # grown at the lip of a little brine pool (the eyes' blue: a pink disc reads as a marker)
+            deep, shallow = BRINE[1]
             m.cyl(2.6, 0.8, (3.0, 0.4, -0.4), SALT[1], segs=9, r_top=2.3)
             m.cyl(2.0, 0.12, (3.0, 0.4, 0.36), shallow, segs=9)
             m.cyl(1.2, 0.1, (3.0, 0.4, 0.42), deep, segs=8)
@@ -479,6 +479,424 @@ def land_yacht(variants):
             m.prism([(0, 0), (3.6, 0), (0.2, 2.6)], 0.08, (0.5, -2.0, 0.08), "#3ab0c0", rot=(math.pi / 2, 0, -0.2))
         _salt_drift(m, rng, 0, 0, 2.8, n=5, size=(1.2, 0.9, 0.45))
         m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+# --- the salt pans, laid out (sim/layouts/saltpans.ts) ----------------------------------------
+
+SALT_COOL = "#c8c4dc"
+SALT_FOOT = "#d8d0c4"
+SALT_STAIN = "#e0b8a8"
+
+
+def _salt_block(m, rng, cx, cy, z0, w, d, h, turn, jit=0.12):
+    """One block of grown salt: a squared lump, its corners knocked about, a little skewed."""
+    c, s = math.cos(turn), math.sin(turn)
+    pts = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for sz, k in ((0, 1.0), (1, rng.uniform(0.82, 0.96))):
+                x = sx * w / 2 * k + rng.uniform(-jit, jit) * w
+                y = sy * d / 2 * k + rng.uniform(-jit, jit) * d
+                pts.append((cx + x * c - y * s, cy + x * s + y * c, z0 + sz * h + rng.uniform(-0.08, 0.08) * h))
+    # (a knob on the top now and then, so the tops aren't all flat)
+    if rng.random() < 0.5:
+        pts.append((cx + rng.uniform(-0.2, 0.2) * w, cy + rng.uniform(-0.2, 0.2) * d, z0 + h * rng.uniform(1.05, 1.15)))
+    return hull(m, pts, SALT[rng.randrange(3)])
+
+
+def _salt_column(m, rng, x, y, H, W, lean=(0.0, 0.0)):
+    """Blocks of salt piled up from the brine: wide and crusted at the foot, narrowing, each tier
+    shifted off the last; chunks stuck on the sides. Returns its faces and its top."""
+    fs = []
+    z = -0.15
+    cx, cy = x, y
+    w = W
+    turn = rng.uniform(0, math.tau)
+    while z < H - 0.3:
+        h = min(rng.uniform(0.9, 1.6) * (W / 2.2) ** 0.4, H - z)
+        dw = rng.uniform(0.82, 1.08)
+        fs += _salt_block(m, rng, cx, cy, z, w, w * rng.uniform(0.75, 1.0), h + 0.1, turn)
+        # a chunk grown on its side, now and then
+        if rng.random() < 0.45 and w > 1.0:
+            a = rng.uniform(0, math.tau)
+            cw = w * rng.uniform(0.35, 0.55)
+            fs += _salt_block(m, rng, cx + math.cos(a) * w * 0.45, cy + math.sin(a) * w * 0.45, z + rng.uniform(-0.3, 0.2) * h, cw, cw, h * rng.uniform(0.6, 1.0), turn + rng.uniform(-0.5, 0.5))
+        z += h
+        w = max(0.6, w * dw * rng.uniform(0.86, 0.98))
+        cx += lean[0] * h + rng.uniform(-0.12, 0.12) * w
+        cy += lean[1] * h + rng.uniform(-0.12, 0.12) * w
+        turn += rng.uniform(-0.35, 0.35)
+    return fs, (cx, cy, z)
+
+
+def _salt_skirt(m, rng, R, n=7):
+    """The crust heaped round a stack's foot, a lip of it, broken blocks fallen off."""
+    fs = []
+    for k in range(n):
+        a = k * math.tau / n + rng.uniform(-0.3, 0.3)
+        d = R * rng.uniform(0.75, 1.05)
+        fs += lump(m, rng, (math.cos(a) * d, math.sin(a) * d, 0.0), (R * 0.45, R * 0.35, 0.35), SALT_FOOT, n=8, flat=0.6)
+    for k in range(rng.randrange(0, 2)):
+        a = rng.uniform(0, math.tau)
+        d = R * rng.uniform(1.0, 1.3)
+        b = rng.uniform(0.3, 0.6)
+        fs += _salt_block(m, rng, math.cos(a) * d, math.sin(a) * d, -0.05, b, b * 0.8, b * 0.7, rng.uniform(0, 3))
+    return fs
+
+
+def salt_stack(variants):
+    """Scenery: salt grown up in stacks where the brine wells through the crust, blocky, white on
+    top, cornflower in the shade; one alone, a pair, a stand of three. All under the flight line."""
+    for i in range(variants):
+        r = root("kessra_salt_stack", i)
+        rng = random.Random(5300 + i)
+        m = Model(f"kessra_salt_stack_{i}", 5300 + i)
+        fs = []
+        if i < 3:
+            H, W = ((6.0, 2.4), (4.4, 2.0), (7.2, 2.7))[i]
+            f, _ = _salt_column(m, rng, 0, 0, H, W, (rng.uniform(-0.05, 0.05), rng.uniform(-0.05, 0.05)))
+            fs += f
+            fs += _salt_skirt(m, rng, W * 0.75)
+        else:
+            # a stand: the tall one and its smaller ones grown against it
+            n = (2, 3, 3)[i - 3]
+            for k in range(n):
+                a = k * math.tau / n + rng.uniform(-0.4, 0.4)
+                d = 0 if k == 0 else rng.uniform(1.7, 2.3)
+                H = (6.5 if k == 0 else rng.uniform(2.6, 4.4)) * (1.1 if i == 5 else 1)
+                W = 2.3 if k == 0 else rng.uniform(1.3, 1.8)
+                f, _ = _salt_column(m, rng, math.cos(a) * d, math.sin(a) * d, H, W)
+                fs += f
+            fs += _salt_skirt(m, rng, 2.4, n=9)
+        _paint(m, fs, SALT_TOP, SALT_COOL, low=SALT_FOOT, low_z=0.25, dot=0.6, shade_dot=-0.1)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def salt_tower(variants):
+    """An obstacle: salt grown taller than you fly, where the crust's shoved up most; a column of
+    blocks leaning a little, crusted heavy at the foot, a crown of crystals. Fly round it."""
+    for i in range(variants):
+        r = root("kessra_salt_tower", i)
+        rng = random.Random(5320 + i)
+        m = Model(f"kessra_salt_tower_{i}", 5320 + i)
+        H = (16.5, 15.0, 18.0)[i % 3]
+        W = (3.6, 3.2, 4.0)[i % 3]
+        lean = (rng.uniform(-0.04, 0.04), rng.uniform(-0.04, 0.04))
+        fs, top = _salt_column(m, rng, 0, 0, H, W, lean)
+        # a shorter one grown against it
+        a = rng.uniform(0, math.tau)
+        f2, _ = _salt_column(m, rng, math.cos(a) * W * 0.75, math.sin(a) * W * 0.75, H * rng.uniform(0.35, 0.55), W * 0.7)
+        fs += f2
+        # (a band of rose where the spice came up with the brine)
+        for f in fs:
+            f.normal_update()
+        band = rng.uniform(0.3, 0.55) * H
+        recolor(m, fs, lambda f: SALT_STAIN if abs(f.calc_center_median().z - band) < 0.7 and f.normal.z < 0.5 else None)
+        # crystals on its crown
+        for k in range(3):
+            b = rng.uniform(0, math.tau)
+            fs += m.cyl(0.35, rng.uniform(0.8, 1.5), (top[0] + math.cos(b) * 0.5, top[1] + math.sin(b) * 0.5, top[2] - 0.2), SALT_TOP, segs=5, r_top=0.0,
+                        rot=(rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4), 0))
+        fs += _salt_skirt(m, rng, W * 0.85, n=9)
+        _paint(m, fs, SALT_TOP, SALT_COOL, low=SALT_FOOT, low_z=0.25, dot=0.6, shade_dot=-0.1)
+        collider(r, lean[0] * H * 0.3, lean[1] * H * 0.3, W * 0.62)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def salt_cone(variants):
+    """Scenery: salt raked up into a cone on a harvested pond to drain, in rows; one fresh and
+    sharp, one slumped, one half shovelled away."""
+    for i in range(variants):
+        r = root("kessra_salt_cone", i)
+        rng = random.Random(5340 + i)
+        m = Model(f"kessra_salt_cone_{i}", 5340 + i)
+        R = rng.uniform(0.85, 1.0)
+        Hc = (1.9, 1.4, 1.6)[i % 3]
+        pts = [(0, 0, Hc)]
+        n = 9
+        for k in range(n):
+            a = k * math.tau / n + rng.uniform(-0.1, 0.1)
+            rr = R * rng.uniform(0.92, 1.08)
+            pts.append((math.cos(a) * rr, math.sin(a) * rr, -0.05))
+            pts.append((math.cos(a) * rr * 0.55, math.sin(a) * rr * 0.55, Hc * rng.uniform(0.5, 0.58)))
+        if i == 2:
+            # (a bite out of it, where it's been shovelled into a cart)
+            pts = [p for p in pts if not (p[0] > 0.2 and p[2] > 0.3)] + [(0.3, 0, 0.35), (0.3, 0.5, 0.3), (0.3, -0.5, 0.3)]
+        fs = hull(m, pts, SALT_TOP)
+        _paint(m, fs, SALT_TOP, SALT_COOL, dot=0.3, shade_dot=-0.3)
+        # (its wet foot, a ring a shade darker where it drains)
+        m.cyl(R * 1.12, 0.04, (0, 0, -0.03), "#e4dcd0", segs=9)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def salt_blocks(variants):
+    """Scenery: salt cut from the crust in blocks, stacked for the caravans; a neat stack, a
+    stack with a tarp and a pole, blocks spilt."""
+    for i in range(variants):
+        r = root("kessra_salt_blocks", i)
+        rng = random.Random(5360 + i)
+        m = Model(f"kessra_salt_blocks_{i}", 5360 + i)
+        fs = []
+        if i < 2:
+            for lz in range(3):
+                for lx in range(3 - lz):
+                    for ly in range(2):
+                        fs += list(m.box((0.9, 0.7, 0.5), (lx * 0.95 - 0.95 + lz * 0.47, ly * 0.75 - 0.37, 0.25 + lz * 0.52), SALT[(lx + ly + lz) % 3],
+                                         rot=(0, 0, rng.uniform(-0.06, 0.06))))
+            if i == 1:
+                m.box((1.9, 1.8, 0.07), (-0.3, 0, 1.12), "#b0342a", rot=(0.06, -0.08, 0.1))
+                m.box((0.12, 0.12, 2.4), (1.5, 0.9, 1.2), WOOD[2])
+                m.prism([(0, 0), (0.8, -0.15), (0, -0.45)], 0.05, (1.55, 0.9, 2.3), "#3ab0c0")
+        else:
+            for k in range(7):
+                fs += list(m.box((0.9, 0.7, 0.5), (rng.uniform(-1.6, 1.6), rng.uniform(-1.2, 1.2), 0.2), SALT[k % 3],
+                                 rot=(rng.uniform(-0.25, 0.25), rng.uniform(-0.25, 0.25), rng.uniform(0, 3))))
+        _paint(m, fs, SALT_TOP, SALT_COOL)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+KEHX = ["#6e8a80", "#7e968a", "#627a72"]
+KEHX_RIM = "#b08a5a"
+KEHX_DARK = "#3a4440"
+RUST = ["#8a4a30", "#a85a36", "#6e3a28"]
+TIN = ["#9a8a7a", "#b0a090", "#7a6a60"]
+CHAR = ["#2a2224", "#3a2c28", "#4a3630"]
+
+
+def kehx_vent(variants):
+    """Scenery: a vent of a Kehx counting-house under the salt, in ranks over the hall: a square
+    plinth of dressed stone set in the crust, a bronze grille over it in the ledger's cross, a
+    capped chimney in verdigris at its middle; one with its grille gone to salt, one broken in."""
+    STONE_KX = ["#d8c4a4", "#ccb898", "#e2d0b2"]
+    for i in range(variants):
+        r = root("kessra_kehx_vent", i)
+        rng = random.Random(5380 + i)
+        m = Model(f"kessra_kehx_vent_{i}", 5380 + i)
+        fs = list(m.box((2.4, 2.4, 0.45), (0, 0, 0.12), STONE_KX[0], taper=0.9))
+        # the corner stones, a step up
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                fs += list(m.box((0.55, 0.55, 0.3), (sx * 0.95, sy * 0.95, 0.48), STONE_KX[2]))
+        _paint(m, fs, None, "#b8a488")
+        if i < 2:
+            # the grille: bars in a cross and a frame, bronze, worn bright on top
+            for k in (-1, 0, 1):
+                m.box((1.7, 0.16, 0.12), (0, k * 0.55, 0.42), KEHX_RIM)
+                m.box((0.16, 1.7, 0.12), (k * 0.55, 0, 0.42), KEHX_RIM)
+            m.cyl(0.42, 0.55, (0, 0, 0.4), KEHX[0], segs=6, r_top=0.32)
+            m.cyl(0.55, 0.12, (0, 0, 0.95), KEHX[1], segs=6, r_top=0.2)
+            if i == 1:
+                # (salt grown over half of it)
+                f = hull(m, [(x, y, 0.3) for x in (-1.1, 0.2) for y in (-1.1, 1.1)] + [(-0.6, 0.0, 0.75), (-0.2, 0.6, 0.6)], SALT[2])
+                _paint(m, f, SALT_TOP, SALT_COOL, dot=0.5)
+        else:
+            # broken in: stones tipped, salt drifted over the gap
+            for k in range(3):
+                a = rng.uniform(0, math.tau)
+                m.box((0.7, 0.5, 0.3), (math.cos(a) * 0.5, math.sin(a) * 0.5, 0.45), STONE_KX[k % 3], rot=(rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5), a))
+            f = hull(m, [(math.cos(a) * 0.9, math.sin(a) * 0.9, 0.35) for a in [k * 1.05 for k in range(6)]] + [(0, 0, 0.6)], SALT[1])
+            _paint(m, f, SALT_TOP, SALT_COOL, dot=0.5)
+            m.box((1.0, 0.14, 0.1), (0.6, -0.7, 0.4), KEHX_RIM, rot=(0, 0.3, 0.7))
+        m.build(r, rot_z=0.0)
+
+
+def brine_pump(variants):
+    """A set of the works: a wind-pump on a lattice tower lifting brine from the pan into the
+    first ponds, its rusted tank on legs, a tarp over a platform, the pipe out to the pond."""
+    for i in range(variants):
+        r = root("kessra_brine_pump", i)
+        rng = random.Random(5400 + i)
+        m = Model(f"kessra_brine_pump_{i}", 5400 + i)
+        # the tower: four legs leaning in, cross-braced
+        H = 6.6
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                _beam(m, (sx * 1.0, sy * 1.0, 0), (sx * 0.3, sy * 0.3, H), 0.16, 0.16, IRON[0])
+        for z in (1.8, 3.6, 5.2):
+            k = 1.0 - (z / H) * 0.7
+            for a, b in (((-k, -k), (k, -k)), ((k, -k), (k, k)), ((k, k), (-k, k)), ((-k, k), (-k, -k))):
+                _beam(m, (a[0], a[1], z), (b[0], b[1], z), 0.1, 0.1, IRON[1])
+        # its wheel: blades in a ring, turned to the wind, and its tail vane
+        m.cyl(0.3, 0.5, (0, -0.3, H), IRON[2], segs=6, rot=(math.pi / 2, 0, 0))
+        for k in range(10):
+            a = k * math.tau / 10
+            m.box((0.32, 0.05, 1.3), (math.cos(a) * 1.0, -0.55, H + 0.25 + math.sin(a) * 1.0), TIN[k % 2], rot=(0, -a + math.pi / 2, 0))
+        m.box((0.06, 1.8, 0.9), (0, 1.1, H + 0.3), RUST[0])
+        # the tank, on its stand, banded
+        tx, ty = 2.6, 0.4
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                m.box((0.16, 0.16, 1.6), (tx + sx * 0.9, ty + sy * 0.9, 0.8), IRON[0])
+        m.cyl(1.3, 2.0, (tx, ty, 1.6), RUST[1], segs=9)
+        for z in (2.0, 2.9, 3.5):
+            m.cyl(1.34, 0.12, (tx, ty, z), RUST[2], segs=9)
+        m.cyl(1.3, 0.35, (tx, ty, 3.6), RUST[0], segs=9, r_top=0.4)
+        # the platform and its tarp
+        m.box((2.4, 2.2, 0.15), (-2.4, -0.6, 1.2), WOOD[1])
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                m.box((0.12, 0.12, 2.8), (-2.4 + sx * 1.1, -0.6 + sy * 1.0, 1.4), WOOD[2])
+        m.box((2.8, 2.6, 0.08), (-2.4, -0.6, 2.85), "#b0342a", rot=(0.12, 0.05, 0))
+        m.box((0.7, 0.7, 0.7), (-2.0, -0.2, 1.6), WOOD[0])
+        m.cyl(0.35, 0.8, (-2.9, -1.1, 1.3), RUST[1], segs=7)
+        # the pipe out to the pond, on blocks
+        _beam(m, (tx - 0.2, ty - 1.2, 0.8), (tx - 0.2, ty - 5.5, 0.3), 0.3, 0.3, IRON[2])
+        for k in range(2):
+            fs = _salt_block(m, rng, tx - 0.2, ty - 2.5 - k * 1.8, -0.05, 0.6, 0.5, 0.45, 0)
+            _paint(m, fs, SALT_TOP, SALT_COOL)
+        m.build(r, rot_z=0.0)
+
+
+def sluice(variants):
+    """Scenery: a sluice in a dyke of the works, letting the brine on to the next pond: two posts,
+    a gate of rusted tin between them, its wheel on top; one shut, one lifted, the brine running."""
+    for i in range(variants):
+        r = root("kessra_sluice", i)
+        rng = random.Random(5410 + i)
+        m = Model(f"kessra_sluice_{i}", 5410 + i)
+        for sx in (-1, 1):
+            m.box((0.22, 0.22, 1.2), (sx * 0.6, 0, 0.5), WOOD[1])
+        m.box((1.5, 0.18, 0.16), (0, 0, 1.1), WOOD[1])
+        lift = 0.45 if i == 1 else 0.0
+        m.box((1.0, 0.08, 0.6), (0, 0, 0.3 + lift), RUST[1])
+        m.box((1.0, 0.1, 0.08), (0, 0, 0.6 + lift), RUST[2])
+        m.cyl(0.26, 0.06, (0, 0, 1.25), RUST[1], segs=8)
+        m.box((0.5, 0.05, 0.05), (0, 0, 1.3), TIN[1], rot=(0, 0, 0.6))
+        # the dyke's salt heaped against it
+        for sx in (-1, 1):
+            f = _salt_block(m, rng, sx * 1.05, 0, -0.05, 0.6, 0.9, 0.5, 0)
+            _paint(m, f, SALT_TOP, SALT_COOL, dot=0.5)
+        m.build(r, rot_z=0.0)
+
+
+def works_shed(variants):
+    """A set of the works: the cutters' shed by the causeway, long and low, its walls laid in
+    courses of cut salt, its roof corrugated tin rusted red and patched; a lean-to at one end,
+    cut blocks stacked by the door, barrels, a cart of salt."""
+    for i in range(variants):
+        r = root("kessra_works_shed", i)
+        rng = random.Random(5420 + i)
+        m = Model(f"kessra_works_shed_{i}", 5420 + i)
+        L = 7.5 if i == 0 else 6.0
+        W, Hw = 3.4, 2.0
+        # the walls: courses of blocks, each a shade off the next, a doorway dark in the front
+        fs = []
+        for c in range(4):
+            z = c * 0.5
+            x = -L / 2 + (0.5 if c % 2 else 0)
+            fs += list(m.box((L, W, 0.5), (0, 0, z + 0.25), SALT[c % 3]))
+            while x < L / 2 - 0.3:
+                w = rng.uniform(0.9, 1.4)
+                fs += list(m.box((min(w, L / 2 - x) - 0.06, 0.05, 0.44), (x + min(w, L / 2 - x) / 2, -W / 2 - 0.02, z + 0.25), SALT[rng.randrange(3)]))
+                x += w
+        _paint(m, fs, None, SALT_COOL, low=SALT_FOOT, low_z=0.3)
+        m.box((1.1, 0.1, 1.5), (L * 0.15, -W / 2 - 0.06, 0.75), CHAR[0])
+        m.box((0.5, 0.1, 0.4), (-L * 0.3, -W / 2 - 0.06, 1.3), CHAR[1])
+        # the roof: corrugated, rusted red, its ribs down the slope, patched with bare tin
+        H = 1.0
+        angle = math.atan2(H, W / 2 + 0.3)
+        ROOF = ["#d4703e", "#e08450", "#bc5c34"]
+        m.gable((L + 0.6, W + 0.6, H), (0, 0, Hw), ROOF[1], overhang=0.25)
+        run = (W + 0.6) / 2 + 0.25
+        for side in (-1, 1):
+            n = int((L + 0.6) / 0.42)
+            for k in range(n):
+                x = -(L + 0.6) / 2 + (k + 0.5) * (L + 0.6) / n
+                m.box((0.12, run / math.cos(angle), 0.05), (x, side * run / 2, Hw + H - run / 2 * math.tan(angle) + 0.2), ROOF[k % 3] if rng.random() < 0.8 else RUST[1],
+                      rot=(-side * angle, 0, 0))
+            for k in range(rng.randrange(2, 4)):
+                w = rng.uniform(0.9, 1.6)
+                d = rng.uniform(0.8, 1.3)
+                x = rng.uniform(-L / 2 + 1, L / 2 - 1)
+                y = side * rng.uniform(0.5, run - d / 2 - 0.1)
+                m.box((w, d, 0.06), (x, y, Hw + H - abs(y) * math.tan(angle) + 0.26), ("#c8bcae", "#a89888", "#eca070")[k % 3], rot=(-side * angle, 0, rng.uniform(-0.06, 0.06)))
+        # the lean-to at one end: posts, a slope of tin, crates under it
+        lx = L / 2 + 1.1
+        m.box((2.0, W + 0.4, 0.07), (lx, 0, 1.75), TIN[1], rot=(0, 0.25, 0))
+        for sy in (-1, 1):
+            m.box((0.12, 0.12, 1.5), (lx + 0.8, sy * (W / 2 + 0.05), 0.75), WOOD[2])
+        for k in range(3):
+            m.box((0.6, 0.6, 0.6), (lx + rng.uniform(-0.4, 0.4), rng.uniform(-1.2, 1.2), 0.3), WOOD[k % 3], rot=(0, 0, rng.uniform(0, 1)))
+        # cut blocks stacked by the door, barrels, a cart of salt
+        bx = -L * 0.15
+        for lz in range(2):
+            for lx2 in range(3 - lz):
+                for ly in range(2):
+                    f = list(m.box((0.7, 0.55, 0.42), (bx + lx2 * 0.75 - 0.75 + lz * 0.37, -W / 2 - 1.0 - ly * 0.6, 0.21 + lz * 0.44), SALT[(lx2 + ly + lz) % 3], rot=(0, 0, rng.uniform(-0.08, 0.08))))
+                    _paint(m, f, SALT_TOP, SALT_COOL)
+        for k in range(3):
+            m.cyl(0.3, 0.8, (L * 0.38 + k * 0.62, -W / 2 - 0.6 - (k % 2) * 0.4, 0.4), RUST[k % 3] if k != 1 else "#3a8a9a", segs=7)
+        cx = L * 0.15 + 0.2
+        m.box((1.5, 0.9, 0.45), (cx, -W / 2 - 2.2, 0.55), WOOD[1])
+        f = hull(m, [(cx + x, -W / 2 - 2.2 + y, 0.75) for x in (-0.65, 0.65) for y in (-0.35, 0.35)] + [(cx, -W / 2 - 2.2, 1.25)], SALT[0])
+        _paint(m, f, SALT_TOP, SALT_COOL, dot=0.5)
+        for sx in (-1, 1):
+            m.cyl(0.28, 0.12, (cx + sx * 0.45, -W / 2 - 1.7, 0.28), IRON[0], segs=6, rot=(math.pi / 2, 0, 0))
+        m.build(r, rot_z=0.0)
+
+
+def caravan_wreck(variants):
+    """Scenery: a wagon of a free salt-caravan the cartel caught on the track: its bed burnt to the
+    irons, its canopy in rags, its load of cut salt spilt and blackened; one on its side."""
+    for i in range(variants):
+        r = root("kessra_caravan_wreck", i)
+        rng = random.Random(5440 + i)
+        m = Model(f"kessra_caravan_wreck_{i}", 5440 + i)
+        tip = i == 2
+        rot = (0.0, 1.2 if tip else 0.0, 0.0)
+        oz = 0.9 if tip else 0.0
+        # (the burn on the salt under it)
+        m.cyl(2.6, 0.04, (0, 0, -0.02), "#6a5a54", segs=9)
+        m.cyl(1.7, 0.05, (0.2, 0.1, -0.01), CHAR[1], segs=8)
+        # the bed and runners
+        m.box((4.2, 1.9, 0.25), (0, 0, 0.55 + oz), CHAR[1], rot=rot)
+        for sy in (-1, 1):
+            m.box((4.8, 0.18, 0.2), (0, sy * 0.85, 0.2 + oz * (1 + sy * 0.4)), IRON[0], rot=rot)
+        # ribs of the canopy, its rags
+        for k in range(4):
+            x = -1.5 + k * 1.0
+            if not tip:
+                m.box((0.12, 2.0, 0.12), (x, 0, 1.9), IRON[0], rot=(0, 0, 0))
+                for sy in (-1, 1):
+                    m.box((0.12, 0.12, 1.3), (x, sy * 0.95, 1.25), IRON[0] if k % 2 else CHAR[0], rot=(sy * 0.1, 0, 0))
+        if not tip:
+            m.box((1.4, 1.2, 0.06), (-1.0, 0.4, 1.95), "#2a8a8a", rot=(0.1, 0.1, 0.2))
+        else:
+            m.box((1.8, 1.2, 0.06), (-0.4, 1.8, 0.05), "#2a8a8a", rot=(0, 0, 0.4))
+        # the load: blocks, blackened, spilt off the side
+        for k in range(6 if i != 1 else 4):
+            on = k < 3 and not tip
+            fs = list(m.box((0.85, 0.65, 0.5), ((-1.2 + k * 0.9) if on else rng.uniform(-2.0, 2.2), 0 if on else rng.uniform(1.4, 2.6) * (1 if k % 2 else -1),
+                                                 0.95 if on else 0.2), SALT[k % 3] if k % 3 else CHAR[2],
+                            rot=(0, 0, rng.uniform(-0.2, 0.2)) if on else (rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), rng.uniform(0, 3))))
+            _paint(m, fs, SALT_TOP if k % 3 else None, SALT_COOL if k % 3 else None)
+        # a wheel off it, the hitch
+        m.cyl(0.65, 0.18, (2.8, -1.6, 0.1), CHAR[0], segs=8)
+        _beam(m, (2.1, 0, 0.4), (3.6, 0.3, 0.2), 0.14, 0.14, CHAR[2])
+        m.build(r, rot_z=0.0)
+
+
+def toll_hut(variants):
+    """A set of the buckle: the cartel's toll on the track, a tin booth on blocks, its arm up for
+    whoever's paid, a red flag on a pole, drums of whatever they took."""
+    for i in range(variants):
+        r = root("kessra_toll_hut", i)
+        rng = random.Random(5460 + i)
+        m = Model(f"kessra_toll_hut_{i}", 5460 + i)
+        m.box((2.6, 2.2, 0.3), (0, 0, 0.15), SALT[1])
+        m.box((2.2, 1.8, 2.2), (0, 0, 1.4), TIN[1])
+        m.box((2.6, 2.3, 0.15), (0, -0.1, 2.6), RUST[1], rot=(0.08, 0, 0))
+        m.box((1.4, 0.1, 0.7), (0, -0.92, 1.7), CHAR[0])
+        # the arm, up
+        m.box((0.3, 0.3, 1.1), (-1.6, -1.4, 0.55), IRON[0])
+        for k in range(5):
+            m.box((0.85, 0.16, 0.16), (-1.6 + math.cos(1.1) * (0.45 + k * 0.85), -1.4, 1.1 + math.sin(1.1) * (0.45 + k * 0.85)), "#e83a2a" if k % 2 else "#f0e8d8", rot=(0, -1.1, 0))
+        # the flag
+        m.box((0.1, 0.1, 4.2), (1.1, 1.0, 2.1), WOOD[2])
+        m.prism([(0, 0), (1.2, -0.2), (0, -0.6)], 0.05, (1.15, 1.0, 4.1), "#c83a2a")
+        for k in range(3):
+            m.cyl(0.32, 0.8, (1.4 + rng.uniform(-0.3, 0.3), -0.8 + k * 0.6, 0.0), RUST[k % 3], segs=7)
+        m.build(r, rot_z=0.0)
 
 
 # --- the mesa run -----------------------------------------------------------------------------
@@ -2304,3 +2722,13 @@ def build():
     seep(2)
     oasis_grove(1)
     market_stall(3)
+    salt_stack(6)
+    salt_tower(3)
+    salt_cone(3)
+    salt_blocks(3)
+    kehx_vent(3)
+    brine_pump(1)
+    sluice(2)
+    works_shed(2)
+    caravan_wreck(3)
+    toll_hut(1)

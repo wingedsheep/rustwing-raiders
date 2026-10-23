@@ -146,7 +146,8 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'kessra_salt_arch', role: 'span', w: 2 },
     ],
     setChance: 0.2,
-    pattern: { kind: 'cells', color: 0xa89aa0, scale: 4.5, amount: 0.55 },
+    // (fine, faint: the crust's own grain inside the plates; the big net is the layout's)
+    pattern: { kind: 'cracks', color: 0xa89aa0, scale: 2.2, amount: 0.22, patchy: 0.5 },
   },
   mesarun: {
     sets: [
