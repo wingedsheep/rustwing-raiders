@@ -43,7 +43,6 @@ export type Foe =
   // bounties: worth chasing down before they get away
   | 'runner'
   | 'vault'
-  | 'cache'
   // a strongbox's pair of haulers: never sent on their own
   | 'tug';
 
@@ -90,7 +89,6 @@ export const FOES: Record<Foe, FoeDef> = {
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
   runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 6, model: 'bomber', beast: false, scale: 0.8 },
   vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55, tip: 'TWO TUGS HAUL IT AWAY: SHOOT THEM DOWN AND IT DROPS AND BURSTS OPEN' },
-  cache: { name: 'Iron Crate', faction: 'scrap', hp: 80, r: 1.9, score: 700, scrap: 2, model: 'bomber', beast: false, scale: 0.7 },
   tug: { name: 'Tug', faction: 'lattice', hp: 16, r: 1.1, score: 150, scrap: 1, model: 'swarm', beast: false, scale: 0.9, tip: 'HAULING A STRONGBOX: SHOOT DOWN BOTH TUGS AND THE BOX DROPS AND BURSTS OPEN' },
 };
 
@@ -176,10 +174,10 @@ export const ELITE_NAMES: Record<Faction, string[]> = {
 
 /** The bounties a faction puts out. */
 export const BOUNTIES: Record<Faction, Foe[]> = {
-  scrap: ['runner', 'cache', 'ace'],
+  scrap: ['runner', 'vault', 'ace'],
   lattice: ['vault', 'runner'],
-  wild: ['runner', 'cache'],
-  bloom: ['cache', 'vault'],
+  wild: ['runner', 'vault'],
+  bloom: ['vault'],
 };
 
 /**

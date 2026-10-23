@@ -67,7 +67,6 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Puffball](puffball.md) | bloom | Spore mine (fodder) | 2 | 2 | 2 | 1 | 1 | A wet pop and a spore sound |
 | [Loot Runner](loot-runner.md) | bounty | Escaping target | 1 | 1 | 2 | 1 | 1 | A tell on its jink |
 | [Strongbox](strongbox.md) | bounty | Hauled by two tugs: cut them loose | 2 | 2 | 2 | 1 | 1 | A model for the tug |
-| [Iron Crate](iron-crate.md) | bounty | Dash check | 2 | 1 | 2 | 1 | 1 | A crack sound of its own |
 | [Dart](dart.md) | old guard, every planet | Formation fodder | 1 | 1 | 2 | 1 | 1 | Tells on the non-dive paths |
 | [Swarm](swarm.md) | old guard | Homing fodder | 1 | 0 | 2 | 1 | 1 | A readable approach |
 | [Gunship](gunship.md) | old guard | Hover and fan | 1 | 2 | 2 | 1 | 1 | A longer open window |
@@ -127,7 +126,6 @@ Worth chasing before they get away (`BOUNTIES`, `src/sim/factions.ts:175`). The 
 
 - [Loot Runner](loot-runner.md)
 - [Strongbox](strongbox.md)
-- [Iron Crate](iron-crate.md)
 
 ## The old guard
 

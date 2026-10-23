@@ -338,7 +338,7 @@ export class Convoy {
         const ts = h.z - lv.scroll + (d.hz ?? -10);
         const cs = sz(lv, e);
         const k = stunned ? 0.4 : 1;
-        moveTo(lv, e, e.x + clamp((tx - e.x) * 4, -30, 30) * DT * k, cs + clamp((ts - cs) * 4, -30, 30) * DT * k);
+        moveTo(lv, e, e.x + clamp((tx - e.x) * 4, -30, 30) * DT * k, cs + clamp((ts - cs) * 4, -30, 30) * DT * k, true);
         if (e.t > BOARD_IN) {
           d.ph = 1;
           e.aim = Math.atan2(h.x - e.x, h.z - e.z);
@@ -348,7 +348,7 @@ export class Convoy {
       }
       case 1: {
         // lining up: it holds off the hull, the tell tracking the hauler until it locks
-        moveTo(lv, e, e.x + (h.vx ?? 0) * DT, sz(lv, e) - 0.2 * DT);
+        moveTo(lv, e, e.x + (h.vx ?? 0) * DT, sz(lv, e) - 0.2 * DT, true);
         const t = e.tele;
         if (t && t.shape === 'line' && e.stateT < t.lock) {
           e.aim = Math.atan2(h.x - e.x, h.z - e.z);
@@ -372,7 +372,7 @@ export class Convoy {
         e.aim = lerpAngle(e.aim, want, 0.04);
         e.heading = e.aim;
         const v = BOARD_SPEED * (stunned ? 0.3 : 1);
-        moveTo(lv, e, e.x + Math.sin(e.aim) * v * DT, sz(lv, e) + Math.cos(e.aim) * v * DT);
+        moveTo(lv, e, e.x + Math.sin(e.aim) * v * DT, sz(lv, e) + Math.cos(e.aim) * v * DT, true);
         if (this.touching(e.x, e.z, 0.4) === h) {
           d.ph = 3;
           d.tx = clamp(e.x - h.x, -BEAM * 0.8, BEAM * 0.8);
@@ -404,7 +404,7 @@ export class Convoy {
       }
       default:
         // off and away up the screen
-        moveTo(lv, e, e.x + Math.sign(e.x || 1) * 10 * DT, sz(lv, e) - 26 * DT);
+        moveTo(lv, e, e.x + Math.sign(e.x || 1) * 10 * DT, sz(lv, e) - 26 * DT, true);
     }
   }
 }

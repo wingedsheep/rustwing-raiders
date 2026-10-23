@@ -21,7 +21,7 @@ const OLD_SHARE = 0.55;
 /** Hot crates turn up from this difficulty on (not on the first stops). */
 const HOT_FROM = 0.15;
 /** Bounties: how long each stays before it gets away. */
-const BOUNTY_LIFE: Partial<Record<Foe, number>> = { runner: 9, vault: 10, cache: 12, ace: 14 };
+const BOUNTY_LIFE: Partial<Record<Foe, number>> = { runner: 9, vault: 10, ace: 14 };
 
 interface Beat {
   /** Distance flown when it happens. */
@@ -370,9 +370,6 @@ export class Director {
         for (const side of [-1, 1]) lv.spawn('tug', foeSkin(lv.spec.planet, 'tug'), hx + side * 3.4, top - 2.6, { host: box.id, side }, {});
         break;
       }
-      case 'cache':
-        lv.spawn(foe, skin, rx(10), top, {}, opts);
-        break;
     }
   }
 

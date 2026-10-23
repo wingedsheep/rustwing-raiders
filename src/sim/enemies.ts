@@ -75,7 +75,6 @@ export interface EnemyData {
   prey?: number;
   drop?: number;
   mine?: number;
-  cracked?: number;
   /** A strongbox cut loose: how long it's been falling, from where (ground z), and its drift. */
   fall?: number;
   gz?: number;
@@ -93,9 +92,8 @@ export interface EnemyData {
   combo?: number;
   /** A move's counter (volleys fired, flanks used). */
   k?: number;
-  /** Fliers: how far across it's swung out of its way round an obstacle, and where it last asked to go (see foes.ts veer). */
+  /** Fliers: how far across it's swung out of its way round an obstacle (see foes.ts veer). */
   veer?: number;
-  vin?: number;
   /** Mantas: their pace (eased), how far along their line and their wave they are, how far they've been knocked off it, and where they were left. */
   pace?: number;
   glide?: number;
@@ -222,7 +220,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
             go(lv, e, 'attack', 0, 'dive');
           }
           const sp = 26 * slow;
-          moveTo(lv, e, e.x + Math.sin(d.dived) * sp * DT, sz(lv, e) + Math.cos(d.dived) * sp * DT);
+          moveTo(lv, e, e.x + Math.sin(d.dived) * sp * DT, sz(lv, e) + Math.cos(d.dived) * sp * DT, true);
         }
       } else if (d.path === 'cross') {
         const dir = d.dir ?? 1;
@@ -269,7 +267,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       e.vx = clamp((e.vx || 0) + ax * DT * slow, -14, 14);
       e.vz = clamp((e.vz || 8) + az * DT * slow, -16, 14);
       const s = sz(lv, e) + e.vz * DT * (0.6 + lv.spec.difficulty * 0.2);
-      moveTo(lv, e, e.x + e.vx * DT, s);
+      moveTo(lv, e, e.x + e.vx * DT, s, true);
       break;
     }
     case 'gunship': {
@@ -301,7 +299,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
             go(lv, e, 'recover', 0.6);
           }
         } else if (over(e)) go(lv, e, 'idle');
-      } else moveTo(lv, e, e.x + (hx < 0 ? -1 : 1) * 10 * DT * (t - 1.6 - stay), sz(lv, e) - 14 * DT * (t - 1.6 - stay));
+      } else moveTo(lv, e, e.x + (hx < 0 ? -1 : 1) * 10 * DT * (t - 1.6 - stay), sz(lv, e) - 14 * DT * (t - 1.6 - stay), true);
       break;
     }
     case 'turret': {
@@ -368,7 +366,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
           }
           if (!beam || over(e)) go(lv, e, 'recover', 1.2);
         } else if (over(e)) go(lv, e, 'idle');
-      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 7) * 30 * DT);
+      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 7) * 30 * DT, true);
       break;
     }
     case 'brute': {
@@ -378,11 +376,11 @@ export function updateEnemy(lv: Level, e: Enemy) {
       else if (t < (e.elite ? 45 : 16) || e.state !== 'idle') {
         if (e.state === 'idle' && d.ph === 1) {
           // back up to where it stands
-          moveTo(lv, e, lerp(e.x, d.bx ?? hx, 0.04), lerp(sz(lv, e), d.bs ?? -13, 0.04));
+          moveTo(lv, e, lerp(e.x, d.bx ?? hx, 0.04), lerp(sz(lv, e), d.bs ?? -13, 0.04), true);
           e.stateT = 0;
           if (Math.abs(sz(lv, e) - (d.bs ?? -13)) < 1.5) d.ph = 0;
         } else if (e.state === 'idle') {
-          moveTo(lv, e, lerp(e.x, hx + Math.sin(t * 0.35) * 12, 0.03), lerp(sz(lv, e), -13 + Math.sin(t * 0.5), 0.05));
+          moveTo(lv, e, lerp(e.x, hx + Math.sin(t * 0.35) * 12, 0.03), lerp(sz(lv, e), -13 + Math.sin(t * 0.5), 0.05), true);
           e.heading = lerpAngle(e.heading, 0, 0.05);
           e.aim = lv.aim(e.x, e.z);
           // short spirals between charges
@@ -411,14 +409,14 @@ export function updateEnemy(lv: Level, e: Enemy) {
             tl.x2 = e.x + Math.sin(e.aim) * (d.len ?? 20);
             tl.z2 = e.z + Math.cos(e.aim) * (d.len ?? 20);
           }
-          moveTo(lv, e, e.x, sz(lv, e));
+          moveTo(lv, e, e.x, sz(lv, e), true);
           if (over(e)) {
             d.gone = 0;
             go(lv, e, 'attack', 0, 'charge');
           }
         } else if (e.state === 'attack') {
           const sp = 32 * slow;
-          moveTo(lv, e, clamp(e.x + Math.sin(e.aim) * sp * DT, -HALF_W + 3, HALF_W - 3), sz(lv, e) + Math.cos(e.aim) * sp * DT);
+          moveTo(lv, e, clamp(e.x + Math.sin(e.aim) * sp * DT, -HALF_W + 3, HALF_W - 3), sz(lv, e) + Math.cos(e.aim) * sp * DT, true);
           d.gone = (d.gone ?? 0) + sp * DT;
           if (d.gone >= (d.len ?? 20) || sz(lv, e) > HALF_H - 4) {
             strike(lv, 'slam', e.x, e.z, { r: 3.6, warn: 0, active: 0.2, air: true, owner: e.id, color: e.skin.colors[2] });
@@ -428,13 +426,13 @@ export function updateEnemy(lv: Level, e: Enemy) {
           }
         } else {
           // open (or knocked reeling by a parry)
-          moveTo(lv, e, e.x, sz(lv, e));
+          moveTo(lv, e, e.x, sz(lv, e), true);
           if (over(e)) {
             d.ph = 1;
             go(lv, e, 'idle');
           }
         }
-      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 16) * 20 * DT);
+      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 16) * 20 * DT, true);
       break;
     }
     case 'serpent': {
@@ -491,7 +489,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
             d.spawned = (d.spawned ?? 0) + 2;
           } else if (lv.spec.difficulty > 0.5) ring(lv, e, 8, 7.5, d.shots * 0.3);
         }
-      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 20) * 16 * DT);
+      } else moveTo(lv, e, e.x, sz(lv, e) - (t - 20) * 16 * DT, true);
       break;
     }
     case 'boss':

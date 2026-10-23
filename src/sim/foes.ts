@@ -24,21 +24,22 @@ function turn(a: number, b: number, rate: number) {
   return a + clamp(d, -rate * DT, rate * DT);
 }
 
-/** Put a flier at screen position (x, s), facing the way it moved. */
-export function moveTo(lv: Level, e: Enemy, x: number, s: number) {
+/**
+ * Put a flier at screen position (x, s), facing the way it moved. `from`: the spot was worked out
+ * from where it is (a step from e.x, its swing already in it), not a spot on a path of its own.
+ */
+export function moveTo(lv: Level, e: Enemy, x: number, s: number, from = false) {
   const nz = lv.scroll + s;
   if (!e.ground) {
     // (down a canyon: between its walls, not into them)
     x = lv.terrain.intoCanyon(x, nz, e.r);
-    // round what stands in its way. Some moves ask for a spot worked out from where it is (its swing
-    // already in it), some for a spot on a path of their own (not): whichever this is nearer to
+    // round what stands in its way. (Said by the move, never guessed: a guess that flips from one
+    // frame to the next puts the whole swing on or takes it off at once, and it jumps)
     const d = e.d;
     const v0 = d.veer ?? 0;
-    const own = Math.abs(x - (d.vin ?? x)) < Math.abs(x - e.x);
-    d.vin = x;
-    const v = veer(lv, e, own ? x : x - v0, nz, s, v0);
+    const v = veer(lv, e, from ? x - v0 : x, nz, s, v0);
     d.veer = v;
-    x += own ? v : v - v0;
+    x += from ? v - v0 : v;
   }
   const dx = x - e.x;
   const dz = nz - e.z;
@@ -118,7 +119,7 @@ function ease(lv: Level, e: Enemy, x: number, s: number, k = 3, max = 18) {
   const cs = sz(lv, e);
   const dx = clamp((x - e.x) * k, -max, max);
   const ds = clamp((s - cs) * k, -max, max);
-  moveTo(lv, e, e.x + dx * DT, cs + ds * DT);
+  moveTo(lv, e, e.x + dx * DT, cs + ds * DT, true);
 }
 
 /** Can it see you? (On screen, and not right at the edge.) */
@@ -148,7 +149,7 @@ function track(lv: Level, e: Enemy, rate = 0.12) {
 function leave(lv: Level, e: Enemy, dx = 0) {
   e.tele = null;
   e.d.away = (e.d.away ?? 0) + DT;
-  moveTo(lv, e, e.x + dx * DT * Math.min(1, e.d.away * 2), sz(lv, e) - 24 * DT * Math.min(1, e.d.away * 1.5));
+  moveTo(lv, e, e.x + dx * DT * Math.min(1, e.d.away * 2), sz(lv, e) - 24 * DT * Math.min(1, e.d.away * 1.5), true);
 }
 
 const ps = (lv: Level, p: Player) => p.z - lv.scroll;
@@ -254,14 +255,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
         track(lv, e);
         e.heading = e.aim;
         // rocking back on its haunches
-        moveTo(lv, e, e.x - Math.sin(e.aim) * 2 * DT, s - Math.cos(e.aim) * 2 * DT);
+        moveTo(lv, e, e.x - Math.sin(e.aim) * 2 * DT, s - Math.cos(e.aim) * 2 * DT, true);
         if (over(e)) {
           d.gone = 0;
           go(lv, e, 'attack', 0, 'lunge');
         }
       } else if (e.state === 'attack') {
         const sp = 40 * slow;
-        moveTo(lv, e, e.x + Math.sin(e.aim) * sp * DT, s + Math.cos(e.aim) * sp * DT);
+        moveTo(lv, e, e.x + Math.sin(e.aim) * sp * DT, s + Math.cos(e.aim) * sp * DT, true);
         e.heading = e.aim;
         d.gone = (d.gone ?? 0) + sp * DT;
         if (crashes(lv, e)) {
@@ -275,7 +276,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         e.vx *= 0.9;
         e.vz *= 0.9;
         e.heading += DT * 9 * (1 - e.stateT / Math.max(e.stateDur, 0.1));
-        moveTo(lv, e, clamp(e.x + e.vx * DT * 0.3, -HALF_W + 2, HALF_W - 2), s - 1.5 * DT);
+        moveTo(lv, e, clamp(e.x + e.vx * DT * 0.3, -HALF_W + 2, HALF_W - 2), s - 1.5 * DT, true);
         if (over(e)) {
           d.n = (d.n ?? 0) + 1;
           // back up the side it's on, not through you
@@ -293,7 +294,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         // waiting under the screen: a chevron at the bottom edge
         if (e.state !== 'windup') go(lv, e, 'windup', 1.0, 'ram', { shape: 'edge', x: e.x, z: lv.bottom });
         const tx = p ? p.x : e.x;
-        moveTo(lv, e, e.x + clamp(tx - e.x, -6, 6) * DT, HALF_H + 5);
+        moveTo(lv, e, e.x + clamp(tx - e.x, -6, 6) * DT, HALF_H + 5, true);
         const t = e.tele;
         if (t && t.shape === 'edge') {
           t.x = e.x;
@@ -311,7 +312,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         // in a fight the screen keeps its pace and boost moves the ship: count the target's boost
         const ds = lv.speedNow - chase + (!p ? 0 : p.boosting * lv.speed * 0.9);
         const tx = p ? p.x : e.x;
-        moveTo(lv, e, e.x + clamp(tx - e.x, -9, 9) * DT * 1.5, s + ds * DT);
+        moveTo(lv, e, e.x + clamp(tx - e.x, -9, 9) * DT * 1.5, s + ds * DT, true);
         e.heading = Math.PI;
         e.aim = Math.PI;
         if (s > HALF_H + 9 && e.stateT > 1) {
@@ -330,7 +331,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       if (ph === 2) {
-        moveTo(lv, e, e.x, s + (lv.speedNow - lv.speed * 1.45) * DT);
+        moveTo(lv, e, e.x, s + (lv.speedNow - lv.speed * 1.45) * DT, true);
         track(lv, e, 0);
         if (over(e)) {
           d.ph = 3;
@@ -339,7 +340,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       if (ph === 3) {
-        moveTo(lv, e, e.x, s - 30 * slow * DT);
+        moveTo(lv, e, e.x, s - 30 * slow * DT, true);
         if (over(e)) {
           d.ph = 4;
           go(lv, e, 'recover', 2.5);
@@ -487,14 +488,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
       }
       if (e.t > life - 1.5) {
         // a bounty bolting: up and away before it's gone
-        moveTo(lv, e, e.x, s - 30 * DT);
+        moveTo(lv, e, e.x, s - 30 * DT, true);
         break;
       }
       // the race: when you boost harder than it can, you pass it
       const push = Math.max(0, lv.speedNow - lv.speed * 1.35 + (!p ? 0 : p.boosting * lv.speed * 0.6));
       if (e.state === 'dodge') {
         e.shielded = true;
-        moveTo(lv, e, clamp(e.x + (d.rollDir ?? 1) * 18 * DT, -HALF_W + 3, HALF_W - 3), s + push * DT);
+        moveTo(lv, e, clamp(e.x + (d.rollDir ?? 1) * 18 * DT, -HALF_W + 3, HALF_W - 3), s + push * DT, true);
         e.heading += DT * 14;
         if (over(e)) {
           d.rollCd = 2.5;
@@ -505,7 +506,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const tx = clamp(p.x, -HALF_W + 4, HALF_W - 4);
       const ts = clamp(py - 10, -HALF_H + 5, 4);
       const cs = s;
-      moveTo(lv, e, e.x + clamp(tx - e.x, -10, 10) * DT * (e.state === 'recover' ? 0.4 : 1), cs + (clamp((ts - cs) * 2, -8, 8) + push) * DT);
+      moveTo(lv, e, e.x + clamp(tx - e.x, -10, 10) * DT * (e.state === 'recover' ? 0.4 : 1), cs + (clamp((ts - cs) * 2, -8, 8) + push) * DT, true);
       e.heading = lerpAngle(e.heading, 0, 0.2);
       if (s > py + 4) {
         d.passed = (d.passed ?? 0) + DT;
@@ -650,7 +651,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const sinking = e.state === 'hidden' && e.stateT < BURROW_SINK && (d.n ?? 0) > 0;
       if (sinking) {
         e.shielded = false;
-        moveTo(lv, e, e.x, s);
+        moveTo(lv, e, e.x, s, true);
         break;
       }
       if ((d.n ?? 0) >= 3 && (e.state === 'hidden' || e.state === 'idle')) {
@@ -668,7 +669,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'windup') {
         e.shielded = true;
         e.y = 2;
-        moveTo(lv, e, e.x, s);
+        moveTo(lv, e, e.x, s, true);
         if (over(e)) {
           strike(lv, 'slam', e.x, e.z, { r: 2.6, warn: 0, active: 0.25, air: true, owner: e.id, color: e.skin.colors[2] });
           strike(lv, 'wave', e.x, e.z, { v: 13, w: 1, rMax: 18, warn: 0.05, active: 2, air: true, owner: e.id, color: e.skin.colors[2] });
@@ -676,12 +677,12 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
       } else if (e.state === 'attack') {
         e.y = FLIGHT_Y - 1;
-        moveTo(lv, e, e.x, s);
+        moveTo(lv, e, e.x, s, true);
         if (over(e)) go(lv, e, 'recover', 2.4);
       } else {
         // up, exposed, then back under
         e.y = FLIGHT_Y - 1;
-        moveTo(lv, e, e.x, s);
+        moveTo(lv, e, e.x, s, true);
         if (over(e)) {
           d.n = (d.n ?? 0) + 1;
           go(lv, e, 'hidden', 1.6 + BURROW_SINK);
@@ -854,14 +855,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
     case 'puffball': {
       // drifting spore mines; boost near them and they come after you
       if (e.state === 'idle') {
-        moveTo(lv, e, e.x + Math.sin(e.t * 1.3 + e.id) * 2 * DT, s + 2.5 * DT);
+        moveTo(lv, e, e.x + Math.sin(e.t * 1.3 + e.id) * 2 * DT, s + 2.5 * DT, true);
         const q = lv.players.find((o) => !o.down && o.boosting > 0.2 && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < 20 * 20);
         if (q && e.t > 0.5 && ok) {
           d.prey = q.id;
           go(lv, e, 'windup', 0.4, 'swell', { shape: 'circle', x: e.x, z: e.z, r: 1.6, ground: false });
         }
       } else if (e.state === 'windup') {
-        moveTo(lv, e, e.x, s);
+        moveTo(lv, e, e.x, s, true);
         if (over(e)) go(lv, e, 'attack', 3.5, 'swell');
       } else if (e.state === 'attack') {
         const q = lv.players[d.prey ?? 0];
@@ -872,7 +873,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           e.vx = clamp(e.vx + (dx / dl) * 30 * DT, -15, 15);
           e.vz = clamp((e.vz ?? 0) + (dz / dl) * 30 * DT, -15, 15);
         }
-        moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT);
+        moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT, true);
         if (over(e)) go(lv, e, 'idle');
       }
       break;
@@ -1216,11 +1217,11 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       if (e.t > life - 1) {
-        moveTo(lv, e, e.x, s - 32 * DT * Math.min(1, (e.t - life + 1) * 3));
+        moveTo(lv, e, e.x, s - 32 * DT * Math.min(1, (e.t - life + 1) * 3), true);
         break;
       }
       if (e.state === 'attack') {
-        moveTo(lv, e, clamp(e.x + (d.dir ?? 1) * 30 * DT, -HALF_W + 3, HALF_W - 3), s);
+        moveTo(lv, e, clamp(e.x + (d.dir ?? 1) * 30 * DT, -HALF_W + 3, HALF_W - 3), s, true);
         if (over(e)) go(lv, e, 'idle');
         break;
       }
@@ -1305,29 +1306,6 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const tx = (box.d.tx ?? e.x) + (alone ? Math.sin(e.t * 2.6 + side) * 9 : side * 3.4);
       ease(lv, e, clamp(tx, -HALF_W + 3, HALF_W - 3), (box.d.ts ?? -13) - 2.6, alone ? 2.2 : 4, alone ? 22 : 16);
       e.heading = lerpAngle(e.heading, Math.PI, 0.1);
-      break;
-    }
-    case 'cache': {
-      // an iron crate: armour you crack with a dash into it (or by shooting it point blank)
-      const life = e.bounty?.life ?? 12;
-      if (e.t > life - 1) moveTo(lv, e, e.x, s - 28 * DT);
-      else moveTo(lv, e, e.x + Math.sin(e.t * 0.9) * 3 * DT + (e.vx || 0) * DT * 0.2, s + (e.t < 1 ? 14 : 3) * DT);
-      e.vx *= 0.95;
-      e.heading += DT * 0.4;
-      if (e.state === 'stagger' && over(e)) go(lv, e, 'recover', 0);
-      if (!d.cracked)
-        for (const q of lv.players) {
-          if (q.down || q.dashT <= 0) continue;
-          if ((q.x - e.x) ** 2 + (q.z - e.z) ** 2 < (e.r + 1.8) ** 2) {
-            d.cracked = 1;
-            q.inv = Math.max(q.inv, 0.35);
-            e.vx = q.dashX * 40;
-            lv.emit({ type: 'crack', enemy: e.id, x: e.x, z: e.z });
-            e.taken = 1.3;
-            lv.damage(e, e.max * 0.25, q.id, false);
-            go(lv, e, 'stagger', 0.8);
-          }
-        }
       break;
     }
   }

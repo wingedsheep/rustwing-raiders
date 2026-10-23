@@ -16,7 +16,7 @@ import { FLIGHT_Y, TILT, fromFlight } from '../sim/types';
  *  - scrap:   hot metal. White-hot slugs trailing tracers, iron flak glowing through its plates,
  *             studded naval mines with a lamp.
  *  - lattice: light. Crystal shards that smear along their path, long lances, a turning ring of
- *             force, a glass cube with a heart that blinks.
+ *             force, a crystal mine caged in rings, its heart blinking.
  *  - wild:    spit. Wet teardrops that wobble and drip, polished thorns, egg sacs lit from inside.
  *  - bloom:   spores. Lumpy pods glowing through their folds; seeds trailing down.
  *
@@ -147,6 +147,9 @@ const STUDS = about(
   () => new THREE.CylinderGeometry(0.1, 0.15, 0.35, 8),
   0.78,
 );
+
+/** A lattice mine's cage: two rings of force, crossed square. */
+const GIMBAL = mergeGeometries([new THREE.TorusGeometry(0.92, 0.07, 6, 24), new THREE.TorusGeometry(0.92, 0.07, 6, 24).rotateY(Math.PI / 2)]);
 
 /** A lumpy pod: deep folds between soft lumps, so a light inside shows through the folds. */
 function pod(lumps: number, depth: number, sharp: number) {
@@ -280,13 +283,15 @@ const SHAPES: ShapeDef[] = [
     halo: [1.8, 0.4],
   },
   {
-    // a glass cube, tumbling, its heart blinking faster as it ripens
+    // a mine of light: a long crystal, point to point, caged in two crossed rings of force, tumbling;
+    // its heart blinking faster as it ripens
     parts: [
-      { geo: OCTA, stuff: 'light', at: place(0, 0, 0, 0.4), color: (x, o) => (blinkOn(x) ? o.copy(WHITE).multiplyScalar(3) : o.copy(x.col).multiplyScalar(1.2)) },
-      { geo: new THREE.BoxGeometry(1.15, 1.15, 1.15), stuff: 'glass', color: tint(1.4, 0.15) },
+      { geo: OCTA, stuff: 'light', at: place(0, 0, 0, 0.3, 0.42, 0.3), color: (x, o) => (blinkOn(x) ? o.copy(WHITE).multiplyScalar(3) : o.copy(x.col).multiplyScalar(1.2)) },
+      { geo: OCTA, stuff: 'glass', at: place(0, 0, 0, 0.62, 1.05, 0.62), color: tint(1.4, 0.15) },
+      { geo: GIMBAL, stuff: 'light', color: tint(2, 0.2) },
     ],
-    spin: [2.4, 'tumble'],
-    halo: [1.7, 0.25],
+    spin: [1.8, 'tumble'],
+    halo: [1.8, 0.3],
   },
   // wild
   {

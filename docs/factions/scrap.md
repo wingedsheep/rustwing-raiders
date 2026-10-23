@@ -9,7 +9,7 @@
 - **Look:** welded plates, chains, harpoons, exhaust stacks; asymmetric, bolted-on, forward-leaning wedges. **Sound:** two-stroke revving, clanks.
 - **Bullets:** hot slugs with tracer streaks, spiked flak, naval mines; a cancelled one pops in sparks.
 - **Roster** (and from how far into a level): [Ramjack](../enemies/ramjack.md) (0), [Flakker](../enemies/flakker.md) (5%), [Rattler](../enemies/rattler.md) (10%), [Hookjaw](../enemies/hookjaw.md) (25%), [Torpedo Rig](../enemies/torpedo-rig.md) (20%), [Pirate Ace](../enemies/pirate-ace.md) (45%), [Technical](../enemies/technical.md) (5%), [Gunboat](../enemies/gunboat.md) (10%, on water), [Dreadnought](../enemies/dreadnought.md) (40%).
-- **Bounties:** [Loot Runner](../enemies/loot-runner.md), [Iron Crate](../enemies/iron-crate.md), [Pirate Ace](../enemies/pirate-ace.md).
+- **Bounties:** [Loot Runner](../enemies/loot-runner.md), [Strongbox](../enemies/strongbox.md), [Pirate Ace](../enemies/pirate-ace.md).
 - **Elite names:** GRISTLE, OLD RUST, BLACK MOLLY, HACKSAW, THE BARON, RIVET-JAW, MAD DOSSA, CINDERBACK.
 
 ## Each power's own (designed, not built)

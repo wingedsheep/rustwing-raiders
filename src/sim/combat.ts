@@ -217,7 +217,6 @@ const TAKEN: Partial<Record<string, [number, number, number]>> = {
   brute: [0.5, 1.5, 2],
   gunship: [1, 1.3, 1.6],
   lancer: [1, 1.8, 2],
-  cache: [0.2, 1, 1.5],
   vault: [1, 1, 1],
 };
 
@@ -226,7 +225,6 @@ export function takenNow(lv: Level, e: Enemy) {
   const t = TAKEN[e.arch] ?? [1, 1.3, 1.6];
   let k = e.state === 'stagger' ? t[2] : e.state === 'recover' ? t[1] : t[0];
   if (e.arch === 'prism' && e.state === 'windup') k = 1.5;
-  if (e.arch === 'cache' && e.d.cracked) k = Math.max(k, 1.3);
   // a strongbox is iron while its tugs hold it
   if (e.arch === 'vault' && e.d.fall === undefined) k = 0;
   // linked by a heartpod: tough
@@ -252,8 +250,6 @@ export function foeShot(lv: Level, e: Enemy, s: Shot) {
     }
     return 0;
   }
-  // an iron crate's armour gives to shots fired from right up against it
-  if (e.arch === 'cache' && !e.d.cracked && (s.vx * s.t) ** 2 + (s.vz * s.t) ** 2 < 7 * 7) return 1 / Math.max(e.taken, 0.05);
   if (e.guard > 0 && blocked(e, s.x - s.vx * s.t, s.z - s.vz * s.t)) {
     lv.emit({ type: 'guard', enemy: e.id, x: s.x, z: s.z });
     // (a boss's shield doesn't wear through: it's there to be got round)
