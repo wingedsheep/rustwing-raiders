@@ -144,7 +144,10 @@ export class Flight implements Screen {
         this.paused = false;
         audio.muffle(false);
         this.finish(false);
-      } else this.hud.sound.update(m);
+      } else {
+        this.hud.sound.update(m);
+        this.game.takeOver();
+      }
       return;
     }
     const v = this.view;

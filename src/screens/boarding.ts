@@ -118,7 +118,10 @@ export class BoardingScreen implements Screen {
         audio.muffle(false);
         b.outcome = 'escaped';
         this.finish();
-      } else this.sound.update(m);
+      } else {
+        this.sound.update(m);
+        this.game.takeOver();
+      }
       return;
     }
     const v = this.view;

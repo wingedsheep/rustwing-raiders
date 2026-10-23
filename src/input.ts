@@ -276,6 +276,16 @@ class Input {
     }
   }
 
+  /** Whether a device is still there to read (a pad can be unplugged or drop off Bluetooth). */
+  connected(dev: DeviceId) {
+    return !dev.startsWith('pad') || padNow.has(Number(dev.slice(3)));
+  }
+
+  /** Drops a device's buffered presses (the one that took a seat back shouldn't also dash). */
+  forget(dev: DeviceId) {
+    for (const a of ACTIONS) buffered.delete(`${dev}:${a}`);
+  }
+
   padIds(): DeviceId[] {
     return [...padNow.keys()].map((i) => `pad${i}` as DeviceId);
   }

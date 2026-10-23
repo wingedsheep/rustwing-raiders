@@ -4,6 +4,7 @@ import { input, type DeviceId, type MenuInput } from '../input';
 import { audio } from '../audio';
 import { W, H, VIEW } from '../ui/hud';
 import { drawText } from '../ui/font';
+import { button } from '../ui/widgets';
 import type { Run } from '../sim/run';
 import { TICK, hashNums, type Netplay } from '../net/netplay';
 
@@ -131,6 +132,10 @@ export class Game {
         drawText(ctx, `${this.frameMs.toFixed(1)}MS ${Math.round(1000 / this.frameMs)}`, VIEW.w - 4, VIEW.h - 11, '#8affb0', { align: 'right' });
       }
       if (this.net) this.netNotes(this.net);
+      else {
+        this.takeNote();
+        this.lostNote();
+      }
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -140,7 +145,111 @@ export class Game {
     this.time += dt;
     if (input.anyKey) audio.unlock();
     this.menus.clear();
+    if (this.reseat(dt)) return;
     this.screen?.update(dt);
+  }
+
+  /** Seconds a player's pad has been gone. */
+  private lostFor = 0;
+
+  /**
+   * Offline, a player whose pad has gone (unplugged, flat, off Bluetooth) holds the game up until
+   * they're back: a press on the pad when it returns (under whatever number), any free pad, or
+   * the keyboard if no one else is on it, and that seat is theirs again. True while it's held.
+   */
+  private reseat(dt: number) {
+    const lost = this.net ? -1 : this.devices.findIndex((d) => !input.connected(d));
+    if (lost < 0) {
+      this.lostFor = 0;
+      return false;
+    }
+    // a blink of the connection isn't worth stopping for
+    if ((this.lostFor += dt) < 0.25) return false;
+    const free = this.freeJoining();
+    if (!free) return true;
+    this.devices[lost] = free;
+    input.forget(free);
+    this.lostFor = 0;
+    return false;
+  }
+
+  /** A device no player has (a pad, or the keyboard if no one's on it) that pressed confirm or start this frame. */
+  private freeJoining() {
+    const keysTaken = this.devices.some((d) => d.startsWith('keys'));
+    return input.joining().find((d) => (d === 'keys' ? !keysTaken : !this.devices.includes(d)));
+  }
+
+  /** In a pause, a device no one has, choosing whose seat it takes (co-op). */
+  private taking: { dev: DeviceId; seat: number } | null = null;
+  /** The frame a pause last offered the swap, so the note shows only while it does. */
+  private offeredAt = -1;
+
+  /**
+   * Called each frame a fight is paused: picking up another controller (a pad, or the keyboard)
+   * and pressing confirm on it hands it the seat. Alone, at once; in co-op it picks P1 or P2
+   * first. The old device is let go.
+   */
+  takeOver() {
+    if (this.net || !this.devices.length) return;
+    this.offeredAt = this.time;
+    const take = (dev: DeviceId, seat: number) => {
+      this.devices[seat] = dev;
+      input.forget(dev);
+      this.taking = null;
+      audio.play('ui_select');
+    };
+    if (this.taking) {
+      const t = this.taking;
+      const m = this.menuOf(t.dev);
+      if (m.left || m.right) {
+        t.seat = m.left ? 0 : 1;
+        audio.play('ui_move');
+      }
+      if (m.confirm) take(t.dev, t.seat);
+      else if (m.back || this.devices.includes(t.dev) || !input.connected(t.dev)) this.taking = null;
+      return;
+    }
+    const free = this.freeJoining();
+    if (!free) return;
+    if (this.devices.length < 2) take(free, 0);
+    else {
+      this.taking = { dev: free, seat: 0 };
+      audio.play('ui_move');
+    }
+  }
+
+  /** Under a pause: how to swap controllers, or whose seat the new one is taking. */
+  private takeNote() {
+    if (this.offeredAt !== this.time) {
+      this.taking = null;
+      return;
+    }
+    const ctx = this.ui;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const y = VIEW.h - 18;
+    const t = this.taking;
+    if (t) {
+      const seat = (i: number) => (t.seat === i ? `[P${i + 1}]` : ` P${i + 1} `);
+      const text = `${input.padName(t.dev)}: ${seat(0)} ${seat(1)}  LEFT/RIGHT TO PICK, ${button(t.dev, 'confirm')} TO TAKE THE SEAT`;
+      drawText(ctx, text, VIEW.w / 2, y, '#ffd04a', { align: 'center' });
+    } else {
+      const keys = this.devices.some((d) => d.startsWith('keys')) ? '' : ' OR ENTER';
+      drawText(ctx, `SWITCHING CONTROLLER? PRESS A OR START ON THE NEW PAD${keys}`, VIEW.w / 2, y, '#9a8cae', { align: 'center' });
+    }
+  }
+
+  /** Over everything while a player's pad is gone. */
+  private lostNote() {
+    const lost = this.devices.findIndex((d) => !input.connected(d));
+    if (this.net || lost < 0 || this.lostFor < 0.25) return;
+    const ctx = this.ui;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(10,8,18,0.8)';
+    ctx.fillRect(0, VIEW.h / 2 - 22, VIEW.w, 44);
+    const who = this.devices.length > 1 ? `P${lost + 1}'S PAD` : 'YOUR PAD';
+    drawText(ctx, `${who} HAS GONE`, VIEW.w / 2, VIEW.h / 2 - 14, '#ffd04a', { scale: 2, align: 'center' });
+    const keys = this.devices.some((d) => d.startsWith('keys')) ? '' : ' OR ENTER';
+    drawText(ctx, `PRESS A OR START ON A PAD${keys} TO CARRY ON`, VIEW.w / 2, VIEW.h / 2 + 8, '#e8e0d0', { align: 'center' });
   }
 
   /**
