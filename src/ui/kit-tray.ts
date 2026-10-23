@@ -10,7 +10,7 @@
 import { WELD as WELDING, type Player } from '../sim/level';
 import type { DeviceId } from '../input';
 import { BRASS, BRASS_LO, cutEdge, cutRect } from './trim';
-import { disc, ring } from './core-icon';
+import { faceGlyph, isFace } from './glyph';
 import { drawText, textWidth } from './font';
 import { flightButton, type FlightAction } from './widgets';
 import { clamp } from '../util';
@@ -286,40 +286,7 @@ function icon(ctx: CanvasRenderingContext2D, art: string[], x: number, y: number
 export function buttonGlyph(ctx: CanvasRenderingContext2D, dev: DeviceId, a: FlightAction, cx: number, y: number, lit: boolean) {
   const b = flightButton(dev, a);
   const cy = y + 5;
-  const PS: Record<string, string> = { TRIANGLE: '#40e0b0', CIRCLE: '#ff6a7a', CROSS: '#8ab4ff', SQUARE: '#ff9ad8' };
-  const XB: Record<string, string> = { A: '#6ad05a', B: '#ff5a4a', X: '#4a9aff', Y: '#ffd04a' };
-  const dimmed = (c: string) => (lit ? c : '#5a4e6a');
-  if (PS[b]) {
-    disc(ctx, cx, cy, 6, KEY);
-    disc(ctx, cx, cy, 5, '#2a2036');
-    ring(ctx, cx, cy, 5, '#4a3c5c', 0.6, 1.1);
-    ctx.fillStyle = dimmed(PS[b]);
-    const px = (dx: number, dy: number) => ctx.fillRect(cx + dx, cy + dy, 1, 1);
-    if (b === 'SQUARE') {
-      ctx.fillRect(cx - 2, cy - 2, 5, 1);
-      ctx.fillRect(cx - 2, cy + 2, 5, 1);
-      ctx.fillRect(cx - 2, cy - 1, 1, 3);
-      ctx.fillRect(cx + 2, cy - 1, 1, 3);
-    } else if (b === 'CIRCLE') ring(ctx, cx, cy, 2.2, dimmed(PS[b]));
-    else if (b === 'CROSS') for (let k = -2; k <= 2; k++) (px(k, k), px(k, -k));
-    else {
-      px(0, -2);
-      px(-1, -1);
-      px(1, -1);
-      px(-2, 0);
-      px(2, 0);
-      ctx.fillRect(cx - 3, cy + 1, 7, 1);
-    }
-    return;
-  }
-  if (XB[b]) {
-    disc(ctx, cx, cy, 6, KEY);
-    disc(ctx, cx, cy, 5, dimmed(XB[b]));
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillRect(cx - 2, cy - 5, 5, 1);
-    drawText(ctx, b, cx - 2, cy - 3, '#1a1020', { shadow: false });
-    return;
-  }
+  if (isFace(b)) return faceGlyph(ctx, b, cx, cy, lit);
   // a cap: a shoulder's tab (L1, LB), a key's letter, or a long key's picture
   const art = KEY_ART[b.replace(/^[LR](?=SHIFT|CTRL)/, '')];
   const shoulder = /^[LR][B12]$/.test(b);

@@ -13,7 +13,7 @@ import { audio } from '../audio';
 import { LIVERY } from '../view/ship-model';
 import { drawText, textWidth } from './font';
 import { DARK, DIM, INK, RED, hex } from './hud';
-import { button, keycap } from './widgets';
+import { button, capWidth, keycap } from './widgets';
 
 export class Accord<K extends string | number = string | number> {
   private votes: (K | null)[];
@@ -170,15 +170,18 @@ export class Quit {
     // (on the keyboard Esc is pause as well as back: give up names a back key that isn't)
     const back = (d: DeviceId) => (input.shown(d) === 'keys' ? 'X' : button(d, 'back'));
     const asking = this.ask > 0;
+    // (a pad's buttons drawn as on the pad: the keyboard's X stays a key)
+    const pads = devs.filter((d) => input.shown(d).startsWith('pad'));
+    const padKeys = new Set([...pads.map((d) => button(d, 'move')), ...pads.map((d) => button(d, 'start')), ...pads.map(back)]);
     const items: [string[], string, string][] = [
       [uniq(devs.map((d) => button(d, 'move'))), 'SOUND', DIM],
       [uniq(devs.map((d) => button(d, 'start'))), 'RESUME', DIM],
       [uniq(devs.map(back)), asking ? `AGAIN: ${what}` : what, asking ? RED : DIM],
     ];
-    const w = items.reduce((s, [ks, t]) => s + ks.reduce((q, k) => q + textWidth(k) + 8, 0) + textWidth(t) + 14, -14);
+    const w = items.reduce((s, [ks, t]) => s + ks.reduce((q, k) => q + capWidth(k, padKeys.has(k)) + 4, 0) + textWidth(t) + 14, -14);
     let x = Math.round(cx - w / 2);
     for (const [ks, t, col] of items) {
-      for (const k of ks) x += keycap(ctx, k, x, y) + 4;
+      for (const k of ks) x += keycap(ctx, k, x, y, padKeys.has(k)) + 4;
       x += drawText(ctx, t, x, y, col) + 14;
     }
     if (asking && Math.floor(this.t * 4) % 2) drawText(ctx, warn, cx, y + 16, RED, { align: 'center' });

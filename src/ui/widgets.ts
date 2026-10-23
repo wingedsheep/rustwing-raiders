@@ -12,6 +12,7 @@ import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
 import { input, type DeviceId } from '../input';
 import { drawText, textWidth, wrap } from './font';
+import { faceGlyph, isFace } from './glyph';
 import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, H, INK, PANEL, RED, W, frame, hullBar } from './hud';
 
 export const RARITY_COLOR: Record<Rarity, string> = { common: '#a8a0b8', rare: '#6ad0ff', epic: '#ffb04a' };
@@ -253,7 +254,7 @@ export type Hint = [Action, string] | [Action, string, string];
 /** How wide a row of hints is. */
 export function hintsWidth(dev: DeviceId | DeviceId[], items: Hint[]) {
   const devs = Array.isArray(dev) ? dev : [dev];
-  return items.reduce((s, [a, t]) => s + [...new Set(devs.map((d) => button(d, a)))].reduce((q, b) => q + textWidth(b) + 6, 0) + textWidth(t) + 12, -12);
+  return items.reduce((s, [a, t]) => s + caps(devs, a).reduce((q, [b, pad]) => q + capWidth(b, pad) + 4, 0) + textWidth(t) + 12, -12);
 }
 
 /** Hints, in as few rows as fit `w` (in order: the first ones first). */
@@ -271,20 +272,37 @@ export function hintRows(dev: DeviceId | DeviceId[], items: Hint[], w: number): 
 export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId | DeviceId[], items: Hint[], x: number, y: number, align: 'left' | 'center' | 'right' = 'left') {
   // (several devices: each one's key, side by side, where they differ: co-op on a shared screen)
   const devs = Array.isArray(dev) ? dev : [dev];
-  const parts = items.map(([a, t, col]) => [[...new Set(devs.map((d) => button(d, a)))], t, col ?? DIM] as const);
+  const parts = items.map(([a, t, col]) => [caps(devs, a), t, col ?? DIM] as const);
   const w = hintsWidth(devs, items);
   let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   cx = Math.round(cx);
   for (const [bs, t, col] of parts) {
-    for (const b of bs) cx += keycap(ctx, b, cx, y) + 4;
+    for (const [b, pad] of bs) cx += keycap(ctx, b, cx, y, pad) + 4;
     drawText(ctx, t, cx, y, col);
     cx += textWidth(t) + 12;
   }
   return w;
 }
 
-/** A keycap: rounded, lit along its top, a darker lip under it, a keyline round the lot. Returns its width. */
-export function keycap(ctx: CanvasRenderingContext2D, b: string, x: number, y: number) {
+/** An action's buttons on each device, where they differ, and whether each is a pad's. */
+function caps(devs: DeviceId[], a: Action): [string, boolean][] {
+  const out = new Map<string, boolean>();
+  for (const d of devs) out.set(button(d, a), input.shown(d).startsWith('pad'));
+  return [...out];
+}
+
+/** How wide a keycap is (a pad's face button is its glyph). */
+export const capWidth = (b: string, pad = false) => (isFace(b, pad) ? 13 : textWidth(b) + 4);
+
+/**
+ * A keycap: rounded, lit along its top, a darker lip under it, a keyline round the lot; a pad's
+ * face button drawn as on the pad (its shape or lettered disc). Returns its width.
+ */
+export function keycap(ctx: CanvasRenderingContext2D, b: string, x: number, y: number, pad = false) {
+  if (isFace(b, pad)) {
+    faceGlyph(ctx, b, x + 6, y + 4, true, true);
+    return 13;
+  }
   const bw = textWidth(b) + 4;
   ctx.fillStyle = DARK;
   ctx.fillRect(x - 3, y - 2, bw + 2, 13);
