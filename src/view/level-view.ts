@@ -287,7 +287,7 @@ export class LevelView {
   /** Floating texts for the HUD (score pops, GRAZE, part names), in world coords; `big` ones are called out large. */
   pops: { text: string; x: number; z: number; t: number; color: string; big?: boolean }[] = [];
   /** Scrap picked up this frame, for the HUD to fly off to the tin (it takes them as it draws). */
-  scrapGot: { x: number; z: number; v: number }[] = [];
+  scrapGot: { x: number; z: number; v: number; id: number }[] = [];
   /** Per player, seconds since: a dash pressed with none left, a guard let fall on nothing, a perfect (for the HUD's flashes). */
   dryT = [9, 9];
   whiffT = [9, 9];
@@ -1718,7 +1718,7 @@ export class LevelView {
     this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 12 : 6, 0xffe08a, big ? 12 : 9, 0.28, 0.24);
     this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 4 : 2, 0xffffff, 14, 0.15, 0.2);
     this.fx.ring(x, FLIGHT_Y, z, big ? 2.6 : 1.6, 0.2, true, 0xffe08a);
-    if (this.scrapGot.length < 80) this.scrapGot.push({ x, z, v });
+    if (this.scrapGot.length < 80) this.scrapGot.push({ x, z, v, id });
     // (no running count over the ship: the motes flying to the tin are the count)
   }
 

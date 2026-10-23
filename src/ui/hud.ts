@@ -206,10 +206,12 @@ export class Hud {
   /** Whose buttons the pause's foot names. */
   hintDevs: DeviceId[] = [];
   /** Scrap on its way up to the tin, from where it was picked up (UI texels); it counts when it lands. */
-  private motes: { x: number; y: number; t: number; v: number; bend: number }[] = [];
+  private motes: { x: number; y: number; t: number; v: number; bend: number; who: number }[] = [];
   /** Where the tin is, and how hard the count last jumped (1, falling away). */
-  private tin = { x: 0, y: 0 };
-  private bump = 0;
+  private tins: { x: number; y: number }[] = [];
+  private bump: number[] = [];
+  /** How many tins there are (a pilot's each in co-op). */
+  private motesFor = 1;
   /** Each player's hull as the bar last showed it: it drains down after a hit, so you see the bite. */
   private hullShown: number[] = [];
 
@@ -217,7 +219,7 @@ export class Hud {
     this.time += 1 / 60;
     for (const g of view.scrapGot) {
       const s = this.toScreen(view, g.x, FLIGHT_Y, g.z);
-      this.motes.push({ x: s.x, y: s.y, t: 0, v: g.v, bend: (Math.random() - 0.5) * 140 });
+      this.motes.push({ x: s.x, y: s.y, t: 0, v: g.v, bend: (Math.random() - 0.5) * 140, who: lv.players.length > 1 ? g.id : 0 });
     }
     view.scrapGot.length = 0;
     this.view = view;
@@ -238,8 +240,9 @@ export class Hud {
     ctx.fillStyle = shade;
     ctx.fillRect(0, 0, w, 40);
     // a player's gauges at each end (P2 at the right in co-op; the right end is the takings solo)
-    this.player(ctx, lv, ps[0], 12, 'left');
-    if (ps[1]) this.player(ctx, lv, ps[1], w - 12, 'right');
+    // (each returns its inner end, for a tin to hang off in co-op)
+    const plates = [this.player(ctx, lv, ps[0], 12, 'left'), ps[1] ? this.player(ctx, lv, ps[1], w - 12, 'right') : 0];
+    this.motesFor = ps.length;
     // the route in the middle: a rail between brass brackets, the biomes along it, the ship's place on it
     const rw = Math.min(240, Math.floor(w * 0.28));
     const rx = Math.floor(w / 2 - rw / 2);
@@ -329,20 +332,32 @@ export class Hud {
       const clean = lv.missed === 0;
       drawText(ctx, `${lv.killed}/${lv.spawned}${lv.missed ? `  ${lv.missed} MISSED` : ''}`, rx + rw, 24, clean ? GOLD : '#c8bcd8', { align: 'right', outline: DARK });
     }
-    // the takings: the scrap and its tin, nothing else (the score waits for the results)
-    // (what's still flying up doesn't count yet)
-    const shown = `${Math.max(0, lv.scrap - this.motes.reduce((a, m) => a + m.v, 0))}`;
-    const b = this.bump;
+    // the takings: the scrap and its tin, nothing else (the score waits for the results). Alone, at
+    // the right end; in co-op a tin each, hung off your own plate: what you scooped is yours, and
+    // what the crew earned (a wave wiped) shows as each one's share of it
+    if (!ps[1]) this.takings(ctx, 0, lv.scrap, w - 12, 'right', [8, 3, 3, 3]);
+    else {
+      const own = ps.map((p) => lv.scrapBy[p.id] ?? 0);
+      const crew = Math.floor((lv.scrap - own.reduce((a, v) => a + v, 0)) / ps.length);
+      this.takings(ctx, 0, own[0] + crew, plates[0] + 4, 'left', [3, 3, 8, 3]);
+      this.takings(ctx, 1, own[1] + crew, plates[1] - 4, 'right', [8, 3, 3, 3]);
+    }
+  }
+
+  /** A tin on its brass plate, its outer end at `x`: pilot `i`'s scrap, less what's still flying up to it. */
+  private takings(ctx: CanvasRenderingContext2D, i: number, scrap: number, x: number, side: 'left' | 'right', cuts: Cuts) {
+    const shown = `${Math.max(0, scrap - this.motes.reduce((a, m) => a + (m.who === i ? m.v : 0), 0))}`;
+    const b = this.bump[i] ?? 0;
     const ty = 13;
-    // on a brass plate cut away toward the middle: solo at the right edge, in co-op right of the route
     const tw = Math.max(textWidth(shown), textWidth('000')) + 30;
-    const tx = ps[1] ? Math.floor(w / 2 + rw / 2 + 14) : w - 12 - tw;
-    brassPlate(ctx, tx, 5, tw, 17, ps[1] ? [3, 3, 3, 3] : [8, 3, 3, 3], 0.8, false);
+    const tx = side === 'left' ? x : x - tw;
+    brassPlate(ctx, tx, 5, tw, 17, cuts, 0.8, false);
     const ix = tx + tw - 11;
     disc(ctx, ix, ty, 6, '#0a0610');
-    ring(ctx, ix, ty, 6, BRASS_LO);
+    // (co-op: the socket's rim in the pilot's colour, so it's plain whose tin it is)
+    ring(ctx, ix, ty, 6, this.motesFor > 1 ? hex(LIVERY[i][2]) : BRASS_LO);
     drawText(ctx, shown, ix - 10, ty - 4 - Math.round(b * 2), b > 0.55 ? '#ffffff' : GOLD, { align: 'right', shadow: BRASS_LO });
-    this.tin = { x: ix, y: ty };
+    this.tins[i] = { x: ix, y: ty };
     // the tin: a gold diamond with a dark keyline, swelling as a piece lands
     const r = 3 + Math.round(b * 1.5);
     const diamond = (rad: number, col: string) => {
@@ -361,19 +376,21 @@ export class Hud {
       ctx.strokeRect(ix - o + 0.5, ty - o + 0.5, o * 2, o * 2);
       ctx.globalAlpha = 1;
     }
-    this.bump = Math.max(0, b - 4 / 60);
+    this.bump[i] = Math.max(0, b - 4 / 60);
   }
 
   /** The scrap flying up to the tin: off to the side first, then drawn in hard, a short gold tail behind. */
   private flyMotes(ctx: CanvasRenderingContext2D) {
     const FLY = 0.42;
+    // (a pilot's own tin in co-op; alone, the one)
+    const tin = (m: (typeof this.motes)[number]) => this.tins[this.motesFor > 1 ? m.who : 0] ?? { x: 0, y: 0 };
     const at = (m: (typeof this.motes)[number], t: number) => {
       const f = clamp(t / FLY, 0, 1);
       const e = f * f;
       const cx = m.x + m.bend;
       const cy = m.y + 10;
       const u = 1 - e;
-      return { x: u * u * m.x + 2 * u * e * cx + e * e * this.tin.x, y: u * u * m.y + 2 * u * e * cy + e * e * this.tin.y };
+      return { x: u * u * m.x + 2 * u * e * cx + e * e * tin(m).x, y: u * u * m.y + 2 * u * e * cy + e * e * tin(m).y };
     };
     for (const m of this.motes) {
       m.t += 1 / 60;
@@ -386,7 +403,7 @@ export class Hud {
         ctx.fillRect(Math.round(p.x) - s, Math.round(p.y) - s, s * 2, s * 2);
       }
       ctx.globalAlpha = 1;
-      if (m.t >= FLY) this.bump = Math.min(1, this.bump + (big ? 0.8 : 0.5));
+      if (m.t >= FLY) this.bump[m.who] = Math.min(1, (this.bump[m.who] ?? 0) + (big ? 0.8 : 0.5));
     }
     this.motes = this.motes.filter((m) => m.t < FLY);
   }
@@ -556,6 +573,7 @@ export class Hud {
     const edge = side === 'left' ? x0 + (coop ? 24 : 4) : x0 + pw - (coop ? 24 : 4);
     if (p.down) drawText(ctx, coop ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', edge, top + ph + 3, RED, { align: side, outline: DARK });
     else this.grafts(ctx, p, edge, side);
+    return side === 'left' ? x0 + pw : x0;
   }
 
   /**
