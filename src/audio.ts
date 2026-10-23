@@ -100,6 +100,8 @@ const settings = { master: 1, music: 0.8, sfx: 1 };
 let isMuted = false;
 try {
   isMuted = localStorage.getItem('rr.muted') === '1';
+  const saved = JSON.parse(localStorage.getItem('rr.volume') ?? 'null') as Partial<typeof settings> | null;
+  for (const k of ['master', 'music', 'sfx'] as const) if (typeof saved?.[k] === 'number') settings[k] = Math.min(1, Math.max(0, saved[k]));
 } catch {
   /* storage unavailable */
 }
@@ -4698,7 +4700,17 @@ export const audio = {
     settings.master = clamp(masterVol, 0, 1);
     settings.music = clamp(music, 0, 1);
     settings.sfx = clamp(sfx, 0, 1);
+    try {
+      localStorage.setItem('rr.volume', JSON.stringify(settings));
+    } catch {
+      /* storage unavailable */
+    }
     applyVolumes();
+  },
+
+  /** The volume settings (each 0 … 1), as the pause menu shows them. */
+  get volumes(): { master: number; music: number; sfx: number } {
+    return { ...settings };
   },
 
   /** For the audio bench: a tap on the final output, to read levels by. */

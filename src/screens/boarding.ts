@@ -11,6 +11,7 @@ import { audio } from '../audio';
 import { drawText, textWidth } from '../ui/font';
 import { CYAN, DARK, DIM, EDGE, GOLD, GREEN, HEIST, INK, RED, VIEW, frame, hex } from '../ui/hud';
 import { flightButton, type FlightAction } from '../ui/widgets';
+import { SoundPanel, SOUND_H, SOUND_W } from '../ui/sound';
 import { icon, iconSize, type Icon } from '../ui/board-icons';
 import { clamp } from '../util';
 
@@ -55,6 +56,7 @@ export class BoardingScreen implements Screen {
   readonly view: BoardingView;
   private acc = 0;
   private paused = false;
+  private sound = new SoundPanel();
   private done = false;
   private banners: Banner[] = [];
   private time = 0;
@@ -108,7 +110,7 @@ export class BoardingScreen implements Screen {
         audio.muffle(false);
         b.outcome = 'escaped';
         this.finish();
-      }
+      } else this.sound.update(m);
       return;
     }
     const v = this.view;
@@ -663,7 +665,7 @@ export class BoardingScreen implements Screen {
     ctx.fillStyle = 'rgba(12,8,18,0.75)';
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     const mid = VIEW.w / 2;
-    const y = Math.round(VIEW.h / 2 - 50);
+    const y = Math.round(VIEW.h / 2 - 50 - SOUND_H / 2);
     drawText(ctx, 'PAUSED', mid, y, INK, { scale: 3, align: 'center' });
     const rows: [FlightAction, string][] = [
       ['fire', 'SHOOT'],
@@ -678,12 +680,14 @@ export class BoardingScreen implements Screen {
     const k = this.game.devices[0] ?? 'keys';
     const resume = k.startsWith('pad') ? 'START' : 'ESC';
     const quit = k.startsWith('pad') ? 'BACK' : 'Q';
+    this.sound.draw(ctx, mid - SOUND_W / 2, y + 92);
+    const hy = y + 104 + SOUND_H;
     let x = mid - 70;
-    x += cap(ctx, resume, x, y + 98, 'left') + 4;
-    drawText(ctx, 'RESUME', x, y + 100, DIM);
+    x += cap(ctx, resume, x, hy - 2, 'left') + 4;
+    drawText(ctx, 'RESUME', x, hy, DIM);
     x = mid + 10;
-    x += cap(ctx, quit, x, y + 98, 'left') + 4;
-    drawText(ctx, 'CUT AND RUN', x, y + 100, DIM);
+    x += cap(ctx, quit, x, hy - 2, 'left') + 4;
+    drawText(ctx, 'CUT AND RUN', x, hy, DIM);
   }
 
   dispose() {

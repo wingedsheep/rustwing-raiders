@@ -21,6 +21,7 @@ import { ROLES } from '../sim/convoy';
 import type { MarkKind } from '../game/parts';
 import type { DeviceId } from '../input';
 import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
+import { SoundPanel, SOUND_H, SOUND_W } from './sound';
 
 /**
  * The menus are laid out on 640 × 360 UI texels: the safe area, in the middle of the window. The
@@ -197,6 +198,8 @@ export class Hud {
   private view: LevelView | null = null;
   /** Each player's device (the pause shows their controls). */
   devs: DeviceId[] = [];
+  /** The sound levels the pause shows (the flight turns them). */
+  readonly sound = new SoundPanel();
   /** Scrap on its way up to the tin, from where it was picked up (UI texels); it counts when it lands. */
   private motes: { x: number; y: number; t: number; v: number; bend: number }[] = [];
   /** Where the tin is, and how hard the count last jumped (1, falling away). */
@@ -1193,13 +1196,14 @@ export class Hud {
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     const mid = VIEW.w / 2;
     const n = lv.players.length;
-    const y = Math.round(VIEW.h / 2 - (CONTROLS_H + 74) / 2);
+    const y = Math.round(VIEW.h / 2 - (CONTROLS_H + SOUND_H + 84) / 2);
     drawText(ctx, 'PAUSED', mid, y, INK, { scale: 3, align: 'center' });
     const gap = 12;
     const x0 = Math.round(mid - (n * CONTROLS_W + (n - 1) * gap) / 2);
     lv.players.forEach((p, i) => {
       controlsCard(ctx, this.devs[i] ?? 'keys', p, hex(LIVERY[i][2]), x0 + i * (CONTROLS_W + gap), y + 34);
     });
-    drawText(ctx, 'START / ESC: RESUME      BACK / Q: ABANDON RUN', mid, y + 46 + CONTROLS_H, DIM, { align: 'center' });
+    this.sound.draw(ctx, mid - SOUND_W / 2, y + 44 + CONTROLS_H);
+    drawText(ctx, 'STICK / ARROWS: SOUND      START / ESC: RESUME      BACK / Q: ABANDON RUN', mid, y + 56 + CONTROLS_H + SOUND_H, DIM, { align: 'center' });
   }
 }
