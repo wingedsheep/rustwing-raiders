@@ -339,13 +339,13 @@ export const PARTS: PartDef[] = [
   {
     id: 'siphon', name: 'Void Siphon', cls: 'defense', tags: ['tech', 'energy'], rarity: 'epic', shape: [[0, 0], [0, 1]], mass: 1.6, shield: 1,
     aux: 'siphon', link: { want: { ids: ['shield', 'mirror'] }, text: 'A DEFLECTOR OR REFLECTOR' },
-    text: 'AUX: a vacuum that drinks the bullets round you. Every few it drinks is a shield. You fly slower while it runs.',
+    text: 'AUX: a vacuum that drinks the bullets round you. Every few it drinks fills a cell of shield, one cell over the top. You fly slower while it runs.',
   },
   // --- passives (they work on their own) ---------------------------------------------------
   {
     id: 'mirror', name: 'Reflector Plate', cls: 'defense', tags: ['armor', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, hp: 10,
     passive: { mirror: 3 },
-    text: 'A bullet your shield or a block stops is thrown back as three shots. Parries throw one more.',
+    text: 'A bullet your shield soaks or a block stops is thrown back as three shots. Parries throw one more.',
   },
   // --- specials (one ability button) ------------------------------------------------------
   {
@@ -394,7 +394,7 @@ export interface FrameDef {
   /** Hit radius: a slim racer is hard to hit, a hauler isn't. */
   core: number;
   // the perks (see `perk`)
-  /** Plating: shields it starts with, that grow back like any shield. */
+  /** Plating: shield cells it starts with (SHIELD_CELL points each), that grow back like any shield. */
   shield?: number;
   /** Its dash rams, this hard (as a Ram Prow). */
   ram?: number;
@@ -429,7 +429,7 @@ export const FRAMES: FrameDef[] = [
     grid: ['#####', '#####', '#####', '.###.'],
     mounts: { T: 1, H: 2, A: 1 },
     hp: 100, mass: 7.8, thrust: 28, grip: 0.75, dash: 1, dashCd: 3, load: 12.7, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
-    start: [['seeker', 1, 0], ['rivet', 2, 0], ['parry', 1, 1]],
+    start: [['seeker', 1, 0], ['rivet', 2, 0]],
   },
   {
     id: 'wasp',

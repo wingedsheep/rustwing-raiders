@@ -180,6 +180,9 @@ export function gunDir(f: FrameDef, p: Placement) {
   return 0;
 }
 
+/** Shield points a part's (or a frame's) shield cell is worth: about a plain hit mid-run. */
+export const SHIELD_CELL = 20;
+
 export function startBuild(frame: string): Build {
   const f = frameById(frame);
   return { frame, parts: f.start.map(([id, c, r]) => ({ id, c, r })) };
@@ -194,7 +197,7 @@ export function stats(b: Build): Stats {
   let hp = f.hp;
   let hullPct = 0;
   let armor = 0;
-  let shield = f.shield ?? 0;
+  let shield = (f.shield ?? 0) * SHIELD_CELL;
   let mass = f.mass;
   let thrust = f.thrust;
   let grip = f.grip;
@@ -219,7 +222,7 @@ export function stats(b: Build): Stats {
     hp += def.hp ?? 0;
     hullPct += def.hullPct ?? 0;
     armor += def.armor ?? 0;
-    shield += def.shield ?? 0;
+    shield += (def.shield ?? 0) * SHIELD_CELL;
     mass += def.mass;
     // engines on the back row push harder
     const back = cellsOf(p).some(([c, r]) => !socket(f, c, r + 1));

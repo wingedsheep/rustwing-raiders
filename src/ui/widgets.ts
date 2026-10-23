@@ -4,7 +4,7 @@
  */
 
 import { EDGES, HARDPOINTS, LOAD, LOAD_CLASS, hardpointOf, partById, type PartDef, type Rarity } from '../game/parts';
-import type { Stats } from '../sim/build';
+import { SHIELD_CELL, type Stats } from '../sim/build';
 import type { Tier } from '../game/loot';
 import { markNames, tagMarks } from '../sim/marks';
 import { input, type DeviceId } from '../input';
@@ -54,7 +54,7 @@ export function partStats(def: PartDef): string[] {
   if (def.hp) out.push(`HULL +${def.hp}`);
   if (def.hullPct) out.push(`HULL +${Math.round(def.hullPct * 100)}%`);
   if (def.armor) out.push(`ARMOUR ${def.armor}: EVERY HIT -${def.armor}`);
-  if (def.shield) out.push(`SHIELD +${def.shield}`);
+  if (def.shield) out.push(`SHIELD +${def.shield * SHIELD_CELL}`);
   if (def.boost) {
     const b = def.boost;
     const bits = [

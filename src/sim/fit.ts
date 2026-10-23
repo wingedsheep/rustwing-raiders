@@ -6,7 +6,7 @@
 
 import { EDGES, frameById, LOAD_CLASS, partById } from '../game/parts';
 import { itemName, type Item } from '../game/loot';
-import { fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
+import { SHIELD_CELL, fits, gunDir, stats, type Build, type Placement, type Stats } from './build';
 import { links } from './links';
 import { markKinds, markNames, reactionsOf } from './marks';
 
@@ -38,7 +38,7 @@ export function dps(s: Stats) {
 /** A rough worth of a ship, to rank placements by: firepower, toughness, speed, links. */
 function worth(b: Build, s: Stats) {
   const lk = links(b);
-  let v = dps(s) / 8 + s.hp * 0.06 + s.armor * 0.5 + s.shield * 1.4 + s.speed * 0.12 + s.dashes * 0.8;
+  let v = dps(s) / 8 + s.hp * 0.06 + s.armor * 0.5 + (s.shield / SHIELD_CELL) * 1.4 + s.speed * 0.12 + s.dashes * 0.8;
   for (const pl of lk.parts) v += pl.str >= 1 ? (pl.str - 1) * 2 : -(1 - pl.str) * 3;
   // how it flies: a nimble ship is worth a part or two, an overloaded one costs as much
   v += s.loadClass === 'nimble' ? 4 : s.loadClass === 'overloaded' ? -6 : 0;

@@ -48,7 +48,7 @@ Every run starts the same: one frame on an open deck with only its guns (a GUARD
 Two ways to a perfect, one for each way of flying. Both pay the same: Burn, a chunk of the Weld, a round in every heavy, nerve for the core, a read on a boss mid-attack, and every "on a perfect" knack and affix. Then each pays its own.
 
 - **Slip it (dash ships).** Dash out of fire just before it lands, and the fire that would have hit where you were is soaked up. You get the dash back, and the guns strike harder out of the dash. Kestrel, Wasp, Hammerhead.
-- **Parry it (guard ships).** The aux's guard burst: its first instant parries, throwing the bullets back, and the guns **riposte** for a second (every shot crits, so it breaks plating). After that instant it only blocks a few shots. Put up on nothing, it's a long wait. Mule and Lattice start with one. Anyone can find one.
+- **Parry it (guard ships).** The aux's guard burst: its first instant parries, throwing the bullets back, and the guns **riposte** for a second (every shot crits, so it breaks plating). After that instant it only blocks a few shots. Put up on nothing, it's a long wait. The Lattice starts with one. Anyone can find one.
 - **Chains.** Perfects close together run on as a chain: the bell climbs a step each time.
 - The ship card says which a frame is: **GUARD** or **DASH**.
 

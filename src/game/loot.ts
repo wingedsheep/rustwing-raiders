@@ -152,7 +152,7 @@ export const AFFIXES: Record<AffixId, AffixSpec> = {
   // the hull
   secondwind: { name: 'SECOND WIND', text: 'Once a level, the hit that would down you leaves you a sliver of hull.', fits: (d) => d.cls === 'defense' },
   barbed: { name: 'BARBED', text: 'Whatever rams you, or you ram, takes a hard hit and reels.', fits: (d) => d.cls === 'defense' && !d.aux },
-  reactive: { name: 'REACTIVE', text: 'Losing a shield lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
+  reactive: { name: 'REACTIVE', text: 'Your shield breaking lets out a shockwave: the bullets round you go, what is near is shocked.', fits: (d) => d.cls === 'defense' && !!d.shield },
   // boosters: on the guns they touch
   hotwired: { name: 'HOT-WIRED', text: 'Touching guns’ shots pierce one more.', fits: (d) => d.cls === 'booster' },
   primed: { name: 'PRIMED', text: 'After a perfect (dash or parry), touching guns hit +60% for 3 s.', fits: (d) => d.cls === 'booster' },

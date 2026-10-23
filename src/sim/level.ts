@@ -8,7 +8,7 @@
 import type { Archetype, Biome, EnemySkin, Planet } from '../world/planets';
 import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, toFlight, type Intent } from './types';
 import { Terrain } from './terrain';
-import { stats, type Build, type Gun, type Stats } from './build';
+import { SHIELD_CELL, stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
@@ -92,6 +92,8 @@ export interface Player {
   hp: number;
   shield: number;
   shieldWait: number;
+  /** What's left this level to refill the shield from (full again at the next). */
+  shieldStore: number;
   /** Invulnerable for this long (after a hit, while dashing, phased). */
   inv: number;
   dashT: number;
@@ -461,8 +463,8 @@ export type LevelEvent =
   | { type: 'torpedo'; x: number; z: number; color: number; shot: boolean }
   /** A seeker stops to turn (`n` turns made so far), goes off down its new leg, is shot down, or breaks on a hull. */
   | { type: 'seeker'; x: number; z: number; color: number; how: 'halt' | 'go' | 'shot' | 'hit'; n: number }
-  /** `dmg` and `tier`: what it took off the hull (none when a shield stopped it). */
-  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier }
+  /** `shield`: the shield took all of it; `dmg` and `tier`: what got through to the hull; `soak`: what the shield took. */
+  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier; soak?: number }
   | { type: 'crash'; id: number; x: number; z: number }
   | { type: 'down'; id: number; x: number; z: number }
   | { type: 'revive'; id: number }
@@ -703,6 +705,7 @@ export class Level {
         hp: Math.min(hull?.[i] ?? s.hp, s.hp),
         shield: s.shield,
         shieldWait: 0,
+        shieldStore: s.shield * SHIELD_STORE,
         inv: 2,
         dashT: 0,
         dashCd: 0,
@@ -1155,15 +1158,15 @@ export class Level {
     this.mind.tick(p);
   }
 
-  /** Shield comes back if you stop getting hit. */
+  /** Shield comes back if you stop getting hit: nothing for a while, then filling steadily, out of the level's store. */
   private regenShield(p: Player) {
     const s = p.stats;
-    if (p.shield >= s.shield) return;
+    if (p.shield >= s.shield || p.shieldStore <= 0) return;
     p.shieldWait += DT;
-    if (p.shieldWait > 6) {
-      p.shield++;
-      p.shieldWait = 0;
-    }
+    if (p.shieldWait <= SHIELD_WAIT) return;
+    const fill = Math.min(SHIELD_RATE * DT, s.shield - p.shield, p.shieldStore);
+    p.shield += fill;
+    p.shieldStore -= fill;
   }
 
   /** `k`: how strong (below 1: the Echo Relay's second go). */
@@ -1499,8 +1502,8 @@ export class Level {
   }
 
   /**
-   * A hit on a player: shield first (it stops a whole hit, whatever its tier), then hull, which
-   * takes what the hit is worth (see HIT_DMG). Returns false if it didn't land.
+   * A hit on a player: it's worth what its tier is (see HIT_DMG, less the armour); the shield
+   * soaks what it can of that, and the hull takes the rest. Returns false if it didn't land.
    */
   hurt(p: Player, x: number, z: number, cause = 'bullet', tier: HitTier = tierOf(cause)) {
     if (p.down || p.inv > 0 || p.phase > 0 || this.state === 'clear') return false;
@@ -1519,17 +1522,21 @@ export class Level {
     p.spiteT = SPITE_TIME;
     // a hit jolts a hot crate's fuse; when it blows, it's the hull it takes (shields or not)
     if (p.crate) p.fuse -= HOT_JOLT;
-    if (p.shield > 0 && cause !== 'crate') {
-      p.shield--;
-      p.inv = 0.8;
+    const worth = this.hitDamage(p, tier);
+    const soak = cause === 'crate' ? 0 : Math.min(p.shield, worth);
+    if (soak > 0) {
+      p.shield -= soak;
       if (p.stats.mirror && cause === 'bullet') this.mirror(p, x, z, p.stats.mirror);
-      this.emit({ type: 'playerHit', id: p.id, shield: true, x, z });
-      if (p.stats.affixes.reactive) this.reactive(p);
+      if (p.shield <= 0 && p.stats.affixes.reactive) this.reactive(p);
+    }
+    const dmg = worth - soak;
+    if (dmg <= 0) {
+      p.inv = 0.8;
+      this.emit({ type: 'playerHit', id: p.id, shield: true, x, z, soak });
     } else {
-      const dmg = this.hitDamage(p, tier);
       p.hp -= dmg;
       p.inv = 1.4;
-      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z, dmg, tier });
+      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z, dmg, tier, soak });
       // PIP'S POLICY pays out on the blow that would down you
       if (p.hp <= 0) this.mind.saved(p);
       // SECOND WIND: once a level, the blow that would down you doesn't
@@ -2623,10 +2630,10 @@ export class Level {
     this.perfect(p, 'parry', count);
   }
 
-  /** A shield from a part, one over the top at most. */
+  /** A cell of shield from a part, one cell over the top at most. */
   private gainShield(p: Player, source: 'siphon') {
-    if (p.shield >= p.stats.shield + 1) return;
-    p.shield++;
+    if (p.shield >= p.stats.shield + SHIELD_CELL) return;
+    p.shield = Math.min(p.stats.shield + SHIELD_CELL, p.shield + SHIELD_CELL);
     this.emit({ type: 'shieldGain', id: p.id, source });
   }
 
@@ -3306,6 +3313,11 @@ const HOT_OPEN_BURN = 1;
 export type HitTier = 'graze' | 'hit' | 'heavy';
 export const HIT_DMG: Record<HitTier, number> = { graze: 8, hit: 15, heavy: 30 };
 const HIT_GROWTH = 0.3;
+/** Seconds without a hit before the shield starts coming back, and how fast it fills then (points a second). */
+const SHIELD_WAIT = 10;
+const SHIELD_RATE = 4;
+/** The store a level starts with, in full shields: it refills the shield about this many times, then it stays down. */
+export const SHIELD_STORE = 2;
 const HEAVY_CAUSES = new Set(['torpedo', 'seeker', 'slam', 'ball', 'lightning', 'laser', 'crate']);
 const GRAZE_CAUSES = new Set(['spore', 'acid', 'puddle', 'jetwash']);
 export const tierOf = (cause: string): HitTier => (HEAVY_CAUSES.has(cause) ? 'heavy' : GRAZE_CAUSES.has(cause) ? 'graze' : 'hit');

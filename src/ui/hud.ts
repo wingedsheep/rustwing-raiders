@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
+import { HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, sigName } from '../sim/boss';
 import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
@@ -387,9 +387,19 @@ export class Hud {
     this.hullShown[p.id] = shown;
     hullBar(ctx, cx, 8, hw, 6, p.hp, s.hp, shown, p.hp > 0 && p.hp <= s.hp * 0.25 && Math.floor(this.time * 4) % 2 === 1);
     cx += hw + 3;
-    for (let i = 0; i < s.shield; i++) {
-      drawText(ctx, '◆', cx, 7, i < p.shield ? CYAN : '#3a2e48', { shadow: false });
-      cx += 7;
+    // the shield: a bar beside it, as long as the shield is deep, filling back after a lull
+    if (s.shield > 0) {
+      const sw = Math.round(clamp(s.shield * 0.45, 8, 40));
+      ctx.fillStyle = '#3a2e48';
+      ctx.fillRect(cx, 8, sw, 6);
+      ctx.fillStyle = CYAN;
+      ctx.fillRect(cx, 8, Math.round((sw * p.shield) / s.shield), 6);
+      // under it, a thin line: what's left this level to refill it from
+      ctx.fillStyle = '#3a2e48';
+      ctx.fillRect(cx, 15, sw, 1);
+      ctx.fillStyle = CYAN;
+      ctx.fillRect(cx, 15, Math.round(sw * Math.min(1, p.shieldStore / (s.shield * SHIELD_STORE))), 1);
+      cx += sw + 3;
     }
     // the Weld: a cell filling as you hit things; full, a cross that pulses while the hull is short
     cx += 2;
