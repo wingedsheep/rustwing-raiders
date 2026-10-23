@@ -37,6 +37,7 @@ export type Sfx =
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
   | 'toll' | 'ice_crack' | 'frost_breath' | 'engine_wake'
   | 'istra_call' | 'crew_ho' | 'cannon' | 'whale_dive' | 'whale_breach' | 'tide_turn' | 'whale_breath'
+  | 'notice' | 'printer' | 'claw' | 'winch' | 'plate_on' | 'plate_tear' | 'clang'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
@@ -57,7 +58,7 @@ export type Sfx =
 export type MiniSfx = `mini_${string}`;
 export type AnySfx = Sfx | MiniSfx;
 export type Loop = 'beam' | 'flame' | 'frost' | 'charge' | 'engine' | 'wind' | 'truck';
-export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
+export type Track = 'title' | 'map' | 'hangar' | 'boss' | 'boss_orutal' | 'boss_glacis' | 'boss_vesh' | 'boss_cinder' | 'orutal' | 'halcyon' | 'kessra' | 'mirefall' | 'glacis' | 'ashgrave' | 'vesh' | 'cinder' | 'board';
 
 // ================================================================================================
 // Engine state
@@ -880,6 +881,73 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'sine', 42 * p, 52 * p, 1.4, 0.16, 0.8);
     return 1.5;
   }, 0.6, 1, { rev: 0.4 }),
+
+  // ARU-0's account notice: the company's two-note chime, pleasant as an airport's
+  notice: S((t, p, o) => {
+    for (const [at, f] of [[0, 784], [0.24, 622]] as const) {
+      tone(o, t + at, 'sine', f * p, f * p, 0.95, 0.15, 0.004, 0.95);
+      tone(o, t + at, 'sine', f * 2 * p, f * 2 * p, 0.32, 0.035, 0.003);
+      tone(o, t + at, 'triangle', f * 0.5 * p, f * 0.5 * p, 0.6, 0.035, 0.01);
+    }
+    return 1.25;
+  }, 0.4, 1, { rev: 0.35, tuned: true }),
+
+  // its hold printing the lien: a dot-matrix head chattering across, the carriage motor, a paper feed
+  printer: S((t, p, o) => {
+    for (let k = 0; k < 22; k++) {
+      const at = t + k * 0.028 + (k >= 11 ? 0.06 : 0);
+      noise(o, at, 0.012, 'bandpass', (2600 + (k % 3) * 500) * p, 2400 * p, 4, 0.16, 0.001);
+      tone(o, at, 'square', 1400 * p, 1300 * p, 0.008, 0.02, 0.001);
+    }
+    tone(filt(o, 'lowpass', 900), t, 'sawtooth', 110 * p, 130 * p, 0.75, 0.04, 0.02);
+    noise(o, t + 0.74, 0.08, 'bandpass', 900 * p, 600 * p, 1.5, 0.12, 0.002);
+    return 0.85;
+  }, 0.3, 1, { rev: 0.15 }),
+
+  // a claw thrown on its cable: the whip of it going, the jaws snapping shut
+  claw: S((t, p, o) => {
+    noise(o, t, 0.18, 'bandpass', 900 * p, 2400 * p, 1.2, 0.1, 0.01);
+    for (const [at, f] of [[0.12, 2300], [0.15, 3100]] as const) {
+      noise(o, t + at, 0.02, 'highpass', f * p, f * p, 1, 0.2, 0.001);
+      tone(o, t + at, 'square', 700 * p, 480 * p, 0.03, 0.05, 0.001);
+    }
+    return 0.3;
+  }, 0.06, 3, { rev: 0.15 }),
+
+  // its winches taking up the lines: a motor winding up under a ratchet
+  winch: S((t, p, o) => {
+    const lp = filt(o, 'lowpass', 1200);
+    tone(lp, t, 'sawtooth', 70 * p, 150 * p, 1.6, 0.08, 0.1);
+    tone(lp, t, 'square', 140 * p, 300 * p, 1.6, 0.025, 0.1);
+    for (let k = 0; k < 14; k++) noise(o, t + k * 0.1, 0.01, 'bandpass', 3000 * p, 3000 * p, 3, 0.09, 0.001);
+    return 1.6;
+  }, 0.5, 1, { rev: 0.2 }),
+
+  // scrap reeled home and bolted on as a plate: a clank, and the bolt gun
+  plate_on: S((t, p, o) => {
+    boom(o, t, p * 1.4, 0.3, 0.12);
+    for (const f of [520, 830, 1290]) tone(o, t, 'triangle', f * p, f * p * 0.98, 0.35, 0.05, 0.001);
+    for (let k = 0; k < 3; k++) noise(o, t + 0.12 + k * 0.05, 0.02, 'bandpass', 4200 * p, 4200 * p, 3, 0.11, 0.001);
+    return 0.45;
+  }, 0.06, 3, { rev: 0.2, tuned: true }),
+
+  // a plate of company hull torn off: metal shrieking as it gives, and the crack as it goes
+  plate_tear: S((t, p, o) => {
+    const bp = filt(o, 'bandpass', 600 * p, 9);
+    bp.frequency.linearRampToValueAtTime(2600 * p, t + 0.55);
+    tone(bp, t, 'sawtooth', 90 * p, 160 * p, 0.6, 0.35, 0.02);
+    noise(o, t, 0.6, 'bandpass', 1500 * p, 3800 * p, 2, 0.1, 0.05);
+    noise(o, t + 0.55, 0.06, 'highpass', 3000 * p, 3000 * p, 0.8, 0.28, 0.001);
+    boom(o, t + 0.55, p * 0.9, 0.5, 0.15);
+    return 0.9;
+  }, 0.3, 2, { rev: 0.3 }),
+
+  // ballast striking the edge of the field: a long clang, like a struck hull
+  clang: S((t, p, o) => {
+    noise(o, t, 0.02, 'highpass', 3000 * p, 3000 * p, 1, 0.28, 0.001);
+    for (const [f, a, d] of [[310, 0.12, 0.9], [697, 0.08, 0.6], [1137, 0.05, 0.4], [1720, 0.03, 0.25]] as const) tone(o, t, 'sine', f * p, f * p * 0.995, d, a, 0.001);
+    return 0.95;
+  }, 0.08, 3, { rev: 0.35, tuned: true }),
 
   // heists: an engine on the runner blows, and its turbine winds down
   engine_out: S((t, p, o) => {
@@ -3380,6 +3448,8 @@ interface TrackDef {
   kick?: [number, number, number];
   minI: number;
   mix?: Partial<Record<Chan, number>>;
+  /** Channels that sit out (a boss theme gone quiet in one of its parts). */
+  mute?: Chan[];
   rev?: Partial<Record<Chan, number>>;
   dly?: Partial<Record<Chan, number>>;
   /**
@@ -3387,7 +3457,7 @@ interface TrackDef {
    * changes from the part before, taken up on the next bar (see `audio.part`). (The tune itself
    * is written once, from the track, so how busy it is can't change by part.)
    */
-  parts?: Partial<Pick<TrackDef, 'lead' | 'leadOct' | 'dbl' | 'bass' | 'pad' | 'padOct' | 'arp' | 'arpOct' | 'arpRate' | 'arpAt' | 'arpStyle' | 'drums' | 'fill' | 'kick' | 'crash'>>[];
+  parts?: Partial<Pick<TrackDef, 'lead' | 'leadOct' | 'dbl' | 'bass' | 'bassStyle' | 'pad' | 'padOct' | 'arp' | 'arpOct' | 'arpRate' | 'arpAt' | 'arpStyle' | 'drums' | 'fill' | 'kick' | 'crash' | 'mute'>>[];
 }
 
 const SC = {
@@ -3576,6 +3646,52 @@ const TRACKS: Record<Track, TrackDef> = {
           clap: '....1.......1...', metal: '0.1.0.1.0.1.0.1.', shaker: '2222222222222222',
         },
         fill: { tomLo: '0.0.0.0.0.0.0000', snare: '....0...00000000' },
+      },
+    ],
+  },
+  // ARU-0, Final Notice: Vantorr's company march at 112, Cinder's tempo (its claws land on the
+  // beat), in a bright C major for the account it's opening. Account open: hold music on the keys
+  // over an oom-pah bass, a dot-matrix chatter in the hats. In arrears: the brass and a distorted
+  // bass take over, snare rolls, the printer running hot. Its nineteen seconds: everything stops
+  // but a hum. Called: the Engine's bells and its ticking clock, in Cinder's key. Its last stand:
+  // the march and the bells at once.
+  boss_cinder: {
+    bpm: 112, root: 36, scale: SC.ionian, progA: [0, 3, 4, 0], progB: [5, 3, 1, 4, 5, 3, 4, 4],
+    lead: 'keys', leadOct: 24, density: 0.55,
+    bass: 'bsaw', bassStyle: 'march', pad: 'warm', padOct: 12,
+    arp: 'pluck', arpOct: 36, arpRate: 2, arpAt: 0.45, arpStyle: 'up',
+    drums: {
+      kick: '0.......0.......', snare: '....0.......0...', tek: '1.11.1.1110.1.1.', hat: '2.2.2.2.2.2.2.2.',
+      metal: '..............2.',
+    },
+    fill: { snare: '....0...0.0.0000', tek: '1111111111111111' },
+    crash: true, kick: [130, 42, 0.3], minI: 0.6, mix: { lead: 0.15, pad: 0.06 },
+    parts: [
+      {},
+      {
+        lead: 'brass', bass: 'dist', arp: 'pulse12', arpRate: 1, arpStyle: 'broken',
+        drums: {
+          kick: '0.......0...0...', snare: '..1.0..1..1.0.11', tek: '1111.111.1111.11', hat: '1212121212121212',
+          metal: '....2.......2...',
+        },
+        fill: { snare: '0.1.0.110.1.0000' },
+      },
+      {
+        bass: 'sub', bassStyle: 'long', pad: 'cold', padOct: 12, crash: false, mute: ['lead', 'arp', 'drum'],
+      },
+      {
+        lead: 'bell', leadOct: 36, arp: 'bell', arpRate: 2, arpStyle: 'up', bass: 'sub', bassStyle: 'pulse8', pad: 'cold', padOct: 24,
+        crash: true, mute: [],
+        drums: { rim: '0...0...0...0...', kick: '0.......0.......', metal: '..............1.' },
+        fill: { rim: '0.0.0.0.0.0.0000' },
+      },
+      {
+        lead: 'brass', dbl: true, arp: 'bell', arpRate: 1, arpStyle: 'updown', bass: 'dist', bassStyle: 'march', pad: 'dark', padOct: 12,
+        drums: {
+          kick: '0...0...0...0.0.', snare: '..1.0..1..1.0.11', rim: '0...0...0...0...', tek: '1111.111.1111.11',
+          metal: '1.1.1.1.1.1.1.1.', hat: '1212121212121212',
+        },
+        fill: { snare: '0.1.0.110.1.0000' },
       },
     ],
   },
@@ -4343,35 +4459,36 @@ function scheduleStep(p: Player, step: number, t0: number) {
   const L = d.scale.length;
   const note = (base: number, deg: number) => mtof(base + degToSemi(d.scale, deg));
 
+  const off = (c: Chan) => !!d.mute?.includes(c);
   // pad: chord held over its run of bars
-  if (s === 0 && d.pad && bar.pad > 0) {
+  if (s === 0 && d.pad && bar.pad > 0 && !off('pad')) {
     const len = bar.pad * 16 * sd;
     for (const k of [0, 2, 4]) playInst(d.pad, t, note(d.root + d.padOct, bar.c + k), len * 0.97, 0.8, p.ch.pad);
   }
   // bass
   for (const e of bar.bass) {
-    if (e.s === s && I >= e.lvl && I < e.hi) playInst(d.bass, t, note(d.root, e.d), e.len * sd, e.v, p.ch.bass);
+    if (e.s === s && I >= e.lvl && I < e.hi && !off('bass')) playInst(d.bass, t, note(d.root, e.d), e.len * sd, e.v, p.ch.bass);
   }
   // lead (and its octave double at high intensity)
   for (const e of bar.lead) {
-    if (e.s !== s) continue;
+    if (e.s !== s || off('lead')) continue;
     const f = note(d.root + d.leadOct, e.d);
     playInst(d.lead, t, f, e.len * sd, e.v, p.ch.lead, p.lastLead);
     p.lastLead = f;
     if (d.dbl && I >= 0.8) playInst('pulse12', t, f * 2, e.len * sd, e.v * 0.3, p.ch.lead);
   }
   // arp: walks the chord tones; comes in a bit earlier in B sections
-  if (d.arp && I >= d.arpAt - (bar.b ? 0.15 : 0) && s % d.arpRate === 0) {
+  if (d.arp && !off('arp') && I >= d.arpAt - (bar.b ? 0.15 : 0) && s % d.arpRate === 0) {
     const pat = ARP[d.arpStyle];
     const idx = pat[Math.floor(step / d.arpRate) % pat.length];
     const deg = bar.c + [0, 2, 4, L][idx];
     playInst(d.arp, t, note(d.root + d.arpOct, deg), d.arpRate * sd * 0.9, s % 4 === 0 ? 0.9 : 0.65, p.ch.arp);
   }
   // drums
-  const fill = sec === 7 && I >= 0.5 && d.fill;
+  const fill = sec === 7 && I >= 0.5 && d.fill && !off('drum');
   const kick = d.kick ?? [150, 45, 0.32];
   for (const k of Object.keys(d.drums) as DrumVoice[]) {
-    if (fill && d.fill && d.fill[k] !== undefined) continue;
+    if (off('drum') || (fill && d.fill && d.fill[k] !== undefined)) continue;
     hitDrum(k, d.drums[k], bi, s, I, t, p, kick);
   }
   if (fill && d.fill) for (const k of Object.keys(d.fill) as DrumVoice[]) hitDrum(k, d.fill[k], bi, s, I, t, p, kick);

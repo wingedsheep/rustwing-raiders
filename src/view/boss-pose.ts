@@ -13,7 +13,10 @@ import { clamp, damp } from '../util';
  *    differently in each phase (`boss_<planet>_p<phase>`: the Engine stirring, awake; else its idle).
  *  - Facing: on a charge, a rake or a sky dive it turns to face where it's going (its aim while it
  *    winds up) and banks into the turn; on a sky dive or a broadside it goes side-on.
- *  - Shedding: a part tagged `shed` (a glTF extra) breaks off as that phase starts.
+ *  - Shedding: a part tagged `shed` (a glTF extra) breaks off as that phase starts; one tagged
+ *    `plate` breaks off when the boss has torn that many away (ARU-0's ballast).
+ *  - Looking up the screen: a pursuer on its chase (behind you), ARU-0 in its silence (facing
+ *    Glacis, in its `silence` clip).
  */
 
 /** Moves it turns to face (a sky dive and a broadside: side-on, along the way it'll go). */
@@ -28,6 +31,8 @@ const SHED_LINE: Record<string, string[]> = {
   orutal: ['', 'THE CAGE CRACKS', 'SHE BREAKS FREE'],
   glacis: ['', 'THE ICE BREAKS', 'IT IS AWAKE'],
   vesh: ['', 'RUN OUT THE GUNS', 'THE CREW ABANDONS HER'],
+  // (3: called)
+  cinder: ['', '', '', 'IT THROWS OFF THE COMPANY'],
 };
 
 export interface Shed {
@@ -58,7 +63,7 @@ export class BossPose {
     const b = e.boss!;
     const move = b.move;
     const state = e.state === 'windup' || e.state === 'attack' || e.state === 'recover' || e.state === 'stagger' ? e.state : null;
-    let next = this.inst.actions.get(`${this.kind}_p${b.phase}`) ?? this.idle;
+    let next = (b.hush > 0 ? this.inst.actions.get(`${this.kind}_silence`) : undefined) ?? this.inst.actions.get(`${this.kind}_p${b.phase}`) ?? this.idle;
     const rest = next;
     if (move && state) {
       const a = this.inst.actions;
@@ -77,7 +82,8 @@ export class BossPose {
     this.lx = e.x;
     this.lz = e.z;
     let want = 0;
-    if (move && TURNS.has(move) && (state === 'windup' || state === 'attack')) {
+    if (b.faceUp) want = Math.PI;
+    else if (move && TURNS.has(move) && (state === 'windup' || state === 'attack')) {
       const fast = Math.hypot(vx, vz) > 10;
       if (state === 'attack' && fast && !SIDE_ON.has(move)) want = Math.atan2(vx, vz);
       else if (SIDE_ON.has(move)) want = b.dir * (Math.PI / 2);
@@ -101,6 +107,23 @@ export class BossPose {
     if (this.cur && this.cur !== next) this.cur.crossFadeTo(next, FADE, false);
     else next.fadeIn(FADE);
     this.cur = next;
+  }
+
+  /** It has torn `n` plates away: those tagged up to `n` break off. Where they were, for the shards. */
+  plateTo(n: number): Shed[] {
+    const pieces: Shed[] = [];
+    const p = new THREE.Vector3();
+    this.inst.obj.updateMatrixWorld(true);
+    this.inst.obj.traverse((o) => {
+      const at = o.userData.plate as number | undefined;
+      if (at === undefined || at > n || !o.visible) return;
+      o.getWorldPosition(p);
+      const mesh = o as THREE.Mesh;
+      const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshToonMaterial | undefined;
+      pieces.push({ x: p.x, y: p.y, z: p.z, color: mat?.color?.getHex() ?? 0xe8e8e0 });
+      o.visible = false;
+    });
+    return pieces;
   }
 
   /** It starts phase `phase`: the parts it sheds by then break off. Where they were, for the shards. */

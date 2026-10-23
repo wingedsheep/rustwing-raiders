@@ -7,8 +7,7 @@ Done work is deleted from here; git and the design docs keep the record.
 ## Now
 
 ### 1. Boss rebuilds
-Five Wardens still fight the old fight. Take them one at a time to a full score (personality, dance, model, animation, music: see [what a finished boss has](bosses/README.md#what-a-finished-boss-has)), and fly each by hand before moving on.
-- **ARU-0** (Cinder): Lien (reels scrap, never you) and the nineteen seconds ([aru-0](bosses/aru-0.md)).
+Four Wardens still fight the old fight. Take them one at a time to a full score (personality, dance, model, animation, music: see [what a finished boss has](bosses/README.md#what-a-finished-boss-has)), and fly each by hand before moving on.
 - **Warlord Khet** (Ashgrave): the false tell, and *Unbending*'s phase as a Compact war machine ([khet](bosses/khet.md)).
 - **Harbourmaster Oko** (Halcyon): the three phases, the record, the paint off, *Patience* ([oko](bosses/oko.md)).
 - **The Sandking** (Kessra): THE PRICE, a haggle under fire, in place of the Vote ([sandking](bosses/sandking.md)).
@@ -32,9 +31,9 @@ Every biome should feel like discovering somewhere new: its own look, its own li
 - Each planet a theme of its own voice (only Oru-Tal's boss has one).
 
 ### 4. What every boss still lacks
-From [bosses](bosses/README.md#across-the-run-designed-not-built), once the five are rebuilt:
-- Their own themes (five share the one `boss` track) and their own horns.
-- Poses for every boss (only Vask, the Engine and Istra have them).
+From [bosses](bosses/README.md#across-the-run-designed-not-built), once the four are rebuilt:
+- Their own themes (four share the one `boss` track) and their own horns.
+- Poses for every boss (only Vask, the Engine, Istra and ARU-0 have them).
 - How each one goes: none of them explodes (a per-boss end in `level.ts`).
 - A line as each comes and goes, and read lines that change by phase.
 - Moves on the beat timed by the music, not the sim.

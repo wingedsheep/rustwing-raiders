@@ -94,7 +94,8 @@ export function textWidth(s: string, scale = 1) {
 
 /**
  * Draws text at (x, y) (top-left), `scale` times the size. With `shadow`, a dark drop shadow one
- * texel down-right, which keeps it readable over anything.
+ * texel down-right, which keeps it readable over anything; with `outline`, a keyline all round as
+ * well, for text laid straight over the field.
  */
 export function drawText(
   ctx: CanvasRenderingContext2D,
@@ -102,7 +103,7 @@ export function drawText(
   x: number,
   y: number,
   color = '#f4ecd8',
-  opts: { scale?: number; shadow?: string | false; align?: 'left' | 'center' | 'right' } = {},
+  opts: { scale?: number; shadow?: string | false; outline?: string; align?: 'left' | 'center' | 'right' } = {},
 ) {
   const scale = opts.scale ?? 1;
   const text = s.toUpperCase();
@@ -110,6 +111,7 @@ export function drawText(
   let x0 = Math.round(opts.align === 'center' ? x - w / 2 : opts.align === 'right' ? x - w : x);
   const y0 = Math.round(y);
   const shadow = opts.shadow === undefined ? '#120c18' : opts.shadow;
+  if (opts.outline) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) blit(ctx, text, x0 + dx * scale, y0 + dy * scale, opts.outline, scale);
   if (shadow) blit(ctx, text, x0 + scale, y0 + scale, shadow, scale);
   blit(ctx, text, x0, y0, color, scale);
   return w;

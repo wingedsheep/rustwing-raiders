@@ -798,14 +798,13 @@ export class ChartScreen implements Screen {
     run.crew.forEach((cr, i) => {
       drawText(ctx, `P${i + 1}`, px + 6, ty, hex(LIVERY[i][2]));
       hullGauge(ctx, cr.hull, crewHull(cr), px + 24, ty, 40);
-      drawText(ctx, `${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, DIM, { align: 'right' });
+      drawText(ctx, `HOLD ${cr.cargo.length}/${CARGO}`, px + pw - 6, ty, DIM, { align: 'right' });
       ty += 10;
     });
     drawText(ctx, 'FUEL', px + 6, ty, DIM);
     for (let k = 0; k < FUEL_MAX; k++) drawText(ctx, '◆', px + 34 + k * 9, ty, k < run.fuel ? FUEL : '#3a2e48');
     ty += 10;
     drawText(ctx, `SCRAP ${run.scrap}`, px + 6, ty, GOLD);
-    drawText(ctx, `${run.score}`, px + pw - 6, ty, DIM, { align: 'right' });
     ty += 10;
     for (const [t, col] of affairs) {
       drawText(ctx, t, px + 6, ty, col);
@@ -831,8 +830,9 @@ export class ChartScreen implements Screen {
     }
     if (this.stuck) hints(ctx, dev, [['confirm', 'FIGHT OUT']], px + pw / 2, H - 20, 'center');
     else if (!this.anim) {
-      hints(ctx, dev, [['move', 'CHOOSE'], ['confirm', 'JUMP'], ['start', 'CORE']], px + pw / 2, H - 30, 'center');
-      hints(ctx, dev, [['alt', 'HANGAR'], ['back', this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH']], px + pw / 2, H - 15, 'center');
+      // (moving the cursor goes without saying; the rest fits the panel in two rows)
+      hints(ctx, dev, [['confirm', 'JUMP'], ['start', 'CORE'], ['alt', 'HANGAR']], px + pw / 2, H - 30, 'center');
+      hints(ctx, dev, [['back', this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH']], px + pw / 2, H - 15, 'center');
     }
   }
 

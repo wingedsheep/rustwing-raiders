@@ -17,8 +17,9 @@ const SFX: Sfx[] = [
   // bosses
   'horn', 'shriek', 'wingbeat', 'toll', 'ice_crack', 'frost_breath', 'engine_wake',
   'istra_call', 'crew_ho', 'cannon', 'whale_dive', 'whale_breach', 'tide_turn', 'whale_breath',
+  'notice', 'printer', 'claw', 'winch', 'plate_on', 'plate_tear', 'clang',
 ];
-const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
+const TRACKS: Track[] = ['title', 'map', 'hangar', 'boss', 'boss_orutal', 'boss_glacis', 'boss_vesh', 'boss_cinder', 'orutal', 'halcyon', 'kessra', 'mirefall', 'glacis', 'ashgrave', 'vesh', 'cinder', 'board'];
 const LOOPS: Loop[] = ['beam', 'flame', 'engine', 'wind', 'truck'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

@@ -139,7 +139,7 @@ Every rustwing runs on a core: Tonkva mould that learns, and copies what it touc
 |---|---|---|
 | **Nerve** | The dash and the read | Perfects, grazes, CLEAN boss phases, a fight without a scratch |
 | **Steel** | Blows and takedowns | Takedowns (big ones more), edge crits, a full clear |
-| **Grease** | The Weld and the hull | Welds, revives, scrap scooped |
+| **Grease** | The Weld and the hull | Welds, jumpstarts, scrap scooped |
 
 After the results the core screen tallies the fight, each line flying into its vein, and the meter round the core fills. Full, it **grows a knot**. Each knot costs more than the last (7, then 10, 13...), so a core grows about one knot every fight or two.
 

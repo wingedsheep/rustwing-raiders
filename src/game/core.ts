@@ -8,7 +8,7 @@
  *
  * - **It takes in what it sees you do.** Every fight, each of its three **veins** is fed by its own
  *   kind of flying: NERVE by perfects (dashed or parried), grazes, Warden phases flown CLEAN and levels without a
- *   scratch; STEEL by takedowns, edge crits and full clears; GREASE by welds, revives and the tin
+ *   scratch; STEEL by takedowns, edge crits and full clears; GREASE by welds, jumpstarts and the tin
  *   scooped. Enough, all told, and the core **grows a knot**.
  * - **Attention, not desire** (docs/lore/consensus.md). A knot only grows on a vein you fed in
  *   that fight. You choose which knot, but how you flew chooses where.
@@ -129,7 +129,7 @@ export const VEINS: Vein[] = ['nerve', 'steel', 'grease'];
 export const VEIN_NAME: Record<Vein, string> = { nerve: 'NERVE', steel: 'STEEL', grease: 'GREASE' };
 export const VEIN_WHAT: Record<Vein, string> = { nerve: 'THE DASH AND THE READ', steel: 'BLOWS AND TAKEDOWNS', grease: 'THE WELD AND THE HULL' };
 /** What feeds a vein, said short. */
-export const VEIN_FED: Record<Vein, string> = { nerve: 'PERFECTS · GRAZES · CLEAN', steel: 'TAKEDOWNS · EDGE CRITS · CLEARS', grease: 'WELDS · REVIVES · THE TIN' };
+export const VEIN_FED: Record<Vein, string> = { nerve: 'PERFECTS · GRAZES · CLEAN', steel: 'TAKEDOWNS · EDGE CRITS · CLEARS', grease: 'WELDS · JUMPSTARTS · THE TIN' };
 export const VEIN_COLOR: Record<Vein, string> = { nerve: '#6ad0ff', steel: '#ff8a4a', grease: '#8affb0' };
 export const VEIN_DARK: Record<Vein, string> = { nerve: '#163a52', steel: '#4a2416', grease: '#1a4a30' };
 
@@ -219,7 +219,7 @@ export const FEED = {
   fullClear: 2,
   // grease
   weld: 2,
-  revive: 2,
+  jumpstart: 2,
   scrap: 30,
 };
 

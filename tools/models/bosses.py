@@ -1207,84 +1207,319 @@ def istra_poses(whale, head, jaw, flips, tail, fluke, ports, queen, arm):
 
 
 # --- CINDER ORCHARD: ASSET RECOVERY UNIT 0, Vantorr's debt collector ------------------------------
+#
+# An Engine recovery unit dug out of Glacis's ice, in company paint. Under it, the old machine: a
+# long navy-and-ceramic carrier built to haul ballast back up the lanes, its open cradle of a hold
+# down its back, an amber furnace for a heart (a weak point), a fan of ceramic drive fins, and two
+# great pincers on hinged arms. Over it, Vantorr: a white cab with a red visor and a scanner on it,
+# a collar round the furnace, nacelles at the back, beacons, the hold's doors, and four white
+# plates on its flanks with the company's three steps on each. Its Ballast tears the plates off one
+# by one (`plate=1..4`); when it's called the rest of the company comes away (`shed=3`) and it's the
+# Tonkva unit underneath. Parts hinge where it moves for its poses (see aru_poses).
 
 def boss_cinder():
-    WHITE, COPPER, RED = hexc(0xe8e8e0), hexc(0xd08a3a), hexc(0xff3a3a)
-    GREYW = "#b8b8b0"
+    WHITE, WHITE2, ORANGE, RED = hexc(0xe8e8e0), "#c8c8c0", hexc(0xd08a3a), hexc(0xff3a3a)
+    HAZARD, INK = "#f0c030", "#1a1a20"
+    NAVY, NAVY2, CER, CER2, HOLD = "#2a3448", "#3e4c66", "#c8d0d8", "#98a4b4", "#141822"
+    AMBER, PALE = "#ffa040", "#ffe0b8"
     root = group("boss_cinder", kind="boss_cinder")
-    K = 1.3                                                                    # built small, scaled up
-    body = group("aru_body", loc=(0, 0, 2.5), parent=root)
-    body.scale = (K, K, K)
+    body = group("aru_body", loc=(0, 0, 2.6), parent=root)
 
-    def at(x, y, z):                                                           # body space -> root space
-        return (x * K, y * K, 2.5 + (z - 2.5) * K)
-    m = Model("aru_torso")
-    # hover skirt
-    m.cyl(2.4, 1.0, (0, 0.6, -2.2), DARK, segs=8, r_top=2.8)
-    for i in range(8):
-        a = TAU * i / 8
-        m.cyl(0.42, 0.2, (math.cos(a) * 2.1, 0.6 + math.sin(a) * 2.1, -2.4), RED, segs=6, glow=True)
-    # torso: clean corporate plates, a copper chest panel with the company mark
-    m.box((4.6, 3.6, 2.6), (0, 0.4, 0), WHITE, taper=0.85)
-    m.box((4.8, 3.8, 0.4), (0, 0.4, -1.2), GREYW)
-    m.box((3.0, 0.3, 1.8), (0, -1.45, 0.1), COPPER, rot=(-0.12, 0, 0))
-    m.box((0.35, 0.32, 1.2), (-0.35, -1.6, 0.1), WHITE, rot=(-0.12, 0, 0.4))           # the V
-    m.box((0.35, 0.32, 1.2), (0.35, -1.6, 0.1), WHITE, rot=(-0.12, 0, -0.4))
-    m.cyl(0.55, 0.3, (0, -1.2, -0.85), RED, segs=8, rot=FWD, glow=True)               # chest core (weak)
-    m.box((4.0, 3.0, 0.3), (0, 0.4, 1.35), COPPER)
-    # head with a scanning visor
-    m.box((1.8, 1.6, 1.1), (0, -0.4, 2.0), WHITE, taper=0.8)
-    m.box((1.9, 0.3, 0.35), (0, -1.2, 2.0), "#1a1a1a")
-    m.box((1.5, 0.32, 0.18), (0, -1.24, 2.0), RED, glow=True)
-    m.box((0.12, 0.6, 1.0), (0, -0.3, 2.8), COPPER)                                   # head crest
-    # backpack: twin thrusters and a recovery hold
-    m.box((3.6, 1.6, 2.4), (0, 2.6, 0.4), GREYW)
+    def hexa(w, y0, y1, nose=1.2, tail=0.8):
+        """A long hexagon in plan: pointed at the front (y0) and the back (y1)."""
+        return ccw([(0, y0 - nose), (w, y0), (w, y1), (0, y1 + tail), (-w, y1), (-w, y0)])
+
+    def sign(m, x, y, z, k=1.0, rot=0.0):
+        """Vantorr's sign: a terrace in three steps, orange on white."""
+        for n in range(3):
+            w = (0.5 + (2 - n) * 0.45) * k
+            cx = x + (-0.55 + n * 0.45) * k
+            cy = y + (0.45 - n * 0.42) * k
+            m.box((w, 0.36 * k, 0.1), (cx, cy, z), ORANGE, rot=(0, 0, rot))
+
+    # the Tonkva unit: a long hexagonal keel, navy, banded in ceramic
+    f = Model("aru_frame", seed=7)
+    f.slab(hexa(2.6, -4.6, 6.4), -1.2, 0.0, NAVY, top=hexa(2.9, -4.7, 6.6))
+    f.slab(hexa(2.9, -4.7, 6.6), 0.0, 0.7, NAVY2, top=hexa(2.4, -4.4, 6.2, 1.0, 0.6))
+    for y in (-3.4, -0.9, 1.6, 4.1, 6.0):                                     # ceramic bands over it
+        f.box((5.6 - abs(y) * 0.12, 0.55, 0.3), (0, y, 0.75), CER)
+        f.box((5.8 - abs(y) * 0.12, 0.2, 0.32), (0, y + 0.3, 0.72), CER2)
+    # the cradle: its open hold down the back, dark inside, ribbed, old amber guide-lights
+    f.slab(ccw([(-2.0, 0.2), (2.0, 0.2), (2.0, 5.4), (-2.0, 5.4)]), 0.5, 0.82, HOLD)
+    for y in (1.2, 2.5, 3.8):
+        f.box((4.2, 0.22, 0.5), (0, y, 0.9), CER2)
+        f.box((3.2, 0.1, 0.06), (0, y - 0.4, 0.84), AMBER, glow=True)
+    # the furnace: its old heart, amber in a navy socket
+    f.cyl(1.45, 0.4, (0, -1.9, 0.6), NAVY, segs=6)
+    f.ball(0.95, (0, -1.9, 0.95), AMBER, subdiv=1, glow=True, scale=(1, 1, 0.4))
+    # the drive: a fan of ceramic fins at the back, burning amber between them
+    for k, a in enumerate((-0.6, -0.2, 0.2, 0.6)):
+        x, y = math.sin(a) * 1.6, 6.6 + math.cos(a) * 1.4
+        f.box((0.4, 2.4, 0.5), (x, y, 0.1), CER, rot=(0, 0, -a))
+        if k in (1, 2):
+            f.box((0.3, 1.2, 0.2), (math.sin(a) * 1.2, 6.4 + math.cos(a) * 0.8, 0.4), AMBER, glow=True, rot=(0, 0, -a))
+    # shoulders: sockets for the arms
     for s in (1, -1):
-        m.cyl(0.6, 1.2, (s * 1.0, 3.0, 0.4), DARK, segs=7, rot=UPY)
-        m.cyl(0.45, 0.1, (s * 1.0, 4.25, 0.4), RED, segs=7, rot=UPY, glow=True)
-    m.box((3.0, 0.2, 0.3), (0, 2.6, 1.7), "#ffd040")                                   # hazard band
-    # shoulder pauldrons with missile racks
+        f.ball(0.85, (s * 2.7, -3.3, 0.1), NAVY2, subdiv=1)
+        f.cyl(0.5, 0.2, (s * 2.7, -3.3, 0.85), CER, segs=6)
+    f.build(body)
+
+    # the arms: upper arm from the shoulder, a forearm, and two jaws (outer and inner) at its tip
+    arms, fores, jaws = {}, {}, {}
     for s in (1, -1):
-        m.box((2.2, 2.6, 1.2), (s * 3.2, 0.4, 1.1), COPPER, taper=0.8)
-        m.box((2.3, 0.4, 1.25), (s * 3.2, -0.5, 1.1), WHITE)
-        m.box((1.4, 1.0, 0.5), (s * 3.2, 0.6, 1.9), WHITE)
-        for dx in (-0.35, 0.35):
-            m.cyl(0.18, 0.1, (s * 3.2 + dx, 0.6, 2.15), RED, segs=6, glow=True)
-    m.build(body)
-    loop(body, "boss_cinder_collect_idle", "location", 2.0, [(0, 0, 0), (0, 0, 0.3), (0, 0, 0), (0, 0, -0.1)])
+        side = 'r' if s > 0 else 'l'
+        a = Model(f"aru_arm_{side}")
+        limb(a, (0, 0, 0), (s * 1.9, -2.5, -0.3), 0.62, 0.5, NAVY2, segs=6)
+        a.box((0.7, 1.9, 0.3), (s * 0.95, -1.25, 0.5), CER, rot=(0, 0, s * 0.65))
+        a.ball(0.6, (s * 1.9, -2.5, -0.3), NAVY, subdiv=0)
+        arm = a.build(body, loc=(s * 2.7, -3.3, 0.1))
+        fo = Model(f"aru_fore_{side}")
+        limb(fo, (0, 0, 0), (-s * 0.5, -2.6, 0.1), 0.55, 0.62, NAVY2, segs=6)
+        fo.box((1.2, 2.0, 0.34), (-s * 0.25, -1.4, 0.55), CER)
+        fo.box((1.0, 0.16, 0.36), (-s * 0.25, -0.5, 0.58), CER2)
+        fo.cyl(0.75, 0.6, (-s * 0.5, -2.6, -0.2), NAVY, segs=6)
+        fore = fo.build(arm, loc=(s * 1.9, -2.5, -0.3))
+        arms[s], fores[s] = arm, fore
+        for js in (1, -1):                                                  # outer, inner
+            j = Model(f"aru_jaw_{side}{'o' if js > 0 else 'i'}")
+            sx = s * js
+            pts = [(0, 0.3), (sx * 0.55, 0.1), (sx * 0.85, -1.0), (sx * 0.55, -2.2), (sx * 0.05, -2.8), (sx * 0.25, -1.9), (sx * 0.3, -0.9), (-sx * 0.1, -0.2)]
+            j.slab(ccw(pts), -0.3, 0.3, CER, top=[(x * 0.92, y * 0.95) for x, y in ccw(pts)])
+            j.box((0.22, 0.6, 0.62), (sx * 0.2, -2.45, 0.0), AMBER, glow=True, rot=(0, 0, -sx * 0.5))
+            jaws[(s, js)] = j.build(fore, loc=(-s * 0.5 + sx * 0.35, -3.0, 0.0))
 
-    # right arm: the repossession claw
-    ra = Model("aru_arm_r")
-    limb(ra, (0, 0, 0), (0.6, -1.6, -0.6), 0.7, 0.6, GREYW, segs=6)
-    ra.ball(0.7, (0.6, -1.6, -0.6), DARK, subdiv=0)
-    limb(ra, (0.6, -1.6, -0.6), (0.6, -3.8, -0.6), 0.75, 0.65, WHITE, segs=6)
-    ra.box((1.8, 1.2, 1.4), (0.6, -4.2, -0.6), COPPER)
-    arm_r = ra.build(body, loc=(4.0, 0.2, 0.4))
-    loop(arm_r, "boss_cinder_collect_idle", "rotation_euler", 2.0, [(0, 0, 0), (-0.1, 0, 0.12), (0, 0, 0), (0.06, 0, -0.06)])
-    for k, (dx, a0) in enumerate(((-0.8, 0.0), (0.8, 0.0))):
-        c = Model(f"aru_claw_{k}")
-        s = -1 if dx < 0 else 1
-        limb(c, (0, 0, 0), (s * 0.6, -1.4, 0), 0.28, 0.22, WHITE, segs=5)
-        limb(c, (s * 0.6, -1.4, 0), (0, -2.4, 0), 0.22, 0.08, COPPER, segs=5)
-        o = c.build(arm_r, loc=(0.6 + dx * 0.8, -4.7, -0.6))
-        loop(o, "boss_cinder_collect_idle", "rotation_euler", 2.0, [(0, 0, s * 0.35), (0, 0, s * 0.35), (0, 0, -s * 0.05), (0, 0, s * 0.1)])
+    # Vantorr's cab over its brow: white, a red visor, headlamps, the company sign; its scanner on
+    # a mast and its beacons ride on it
+    c = Model("aru_cab", seed=4)
+    c.box((3.4, 2.6, 1.3), (0, 0, 0.65), WHITE, taper=0.82)
+    c.box((3.6, 2.8, 0.3), (0, 0, 0.1), WHITE2)
+    c.box((3.0, 0.4, 0.5), (0, -1.35, 0.85), INK, rot=(-0.3, 0, 0))
+    c.box((2.6, 0.42, 0.24), (0, -1.42, 0.86), RED, glow=True, rot=(-0.3, 0, 0))
+    for x in (-1.3, 1.3):
+        c.cyl(0.32, 0.25, (x, -1.45, 0.2), ORANGE, segs=6, rot=FWD, glow=True)
+    c.box((3.5, 0.3, 0.2), (0, 1.25, 1.1), HAZARD)
+    sign(c, 0.15, 0.25, 1.33, 0.9)
+    cab = c.build(body, loc=(0, -4.3, 0.75), shed=3)
+    sc = Model("aru_scanner")
+    sc.cyl(0.12, 0.6, (0, 0, 0), WHITE2, segs=5)
+    sc.cyl(0.5, 0.14, (0, 0, 0.6), INK, segs=8, r_top=0.65)
+    sc.box((0.5, 0.15, 0.12), (0, -0.4, 0.72), RED, glow=True)
+    scanner = sc.build(cab, loc=(-0.9, -0.3, 1.3))
+    bc = Model("aru_beacons")
+    for x in (-1.45, 1.45):
+        bc.cyl(0.22, 0.3, (x, 0, 0), INK, segs=6)
+        bc.box((0.5, 0.14, 0.2), (x, 0, 0.35), ORANGE, glow=True)
+    beacons = bc.build(cab, loc=(0, 0.9, 1.15))
 
-    # left arm: the cannon
-    la = Model("aru_arm_l")
-    limb(la, (0, 0, 0), (-0.6, -1.6, -0.6), 0.7, 0.6, GREYW, segs=6)
-    la.ball(0.7, (-0.6, -1.6, -0.6), DARK, subdiv=0)
-    la.box((1.6, 2.6, 1.4), (-0.6, -2.8, -0.6), WHITE, taper=0.9)
-    la.box((1.7, 0.4, 1.45), (-0.6, -2.2, -0.6), COPPER)
-    la.cyl(0.45, 2.2, (-0.6, -3.8, -0.6), DARK, segs=7, rot=FWD)
-    la.cyl(0.6, 0.4, (-0.6, -5.7, -0.6), STEEL, segs=7, rot=FWD)
-    la.cyl(0.3, 0.06, (-0.6, -6.1, -0.6), RED, segs=7, rot=FWD, glow=True)
-    arm_l = la.build(body, loc=(-4.0, 0.2, 0.4))
-    loop(arm_l, "boss_cinder_collect_idle", "rotation_euler", 2.0, [(0, 0, 0), (0.06, 0, 0.08), (0, 0, 0), (-0.1, 0, -0.1)])
+    # the collar round its furnace (the company's: it comes away with the cab), and its nacelles
+    co = Model("aru_collar")
+    for k in range(6):
+        a0 = k * TAU / 6 + TAU / 12
+        co.box((1.3, 0.55, 0.3), (math.cos(a0) * 1.65, math.sin(a0) * 1.65, 0), WHITE if k % 2 else HAZARD, rot=(0, 0, a0 + math.pi / 2))
+    co.build(body, loc=(0, -1.9, 0.95), shed=3)
+    na = Model("aru_nacelles")
+    for s in (1, -1):
+        na.cyl(0.95, 3.4, (s * 3.3, 4.4, 0.3), WHITE, segs=8, rot=UPY, r_top=0.8)
+        na.box((0.5, 3.0, 0.2), (s * 3.3, 5.9, 1.2), ORANGE)
+        na.cyl(0.72, 0.15, (s * 3.3, 7.8, 0.3), RED, segs=8, rot=UPY, glow=True)
+        na.plank_line((s * 2.5, 4.6, 0.4), (s * 3.0, 4.6, 0.5), 0.5, 0.4, WHITE2)
+    na.build(body, shed=3)
 
-    for x, y, z in ((-4.6, -6.4, 2.3), (-3.55, 0.1, 4.8), (-2.85, 0.1, 4.8), (2.85, 0.1, 4.8), (3.55, 0.1, 4.8), (4.6, -6.6, 2.3), (0, -2.0, 2.5)):
-        mount(root, at(x, y, z), "gun")
-    mount(root, at(0, -1.5, 1.65), "weak")
-    mount(root, at(0, -1.4, 4.5), "weak")
+    # the hold's doors, hinged at their outer edges, opening for a Lien
+    doors = {}
+    for s in (1, -1):
+        d = Model(f"aru_door_{'r' if s > 0 else 'l'}")
+        d.box((2.1, 5.0, 0.22), (-s * 1.05, 0, 0), WHITE)
+        d.box((0.3, 5.0, 0.24), (-s * 1.75, 0, 0.02), ORANGE)
+        for y in (-2.1, 1.0, 2.1):
+            d.box((1.6, 0.08, 0.25), (-s * 1.0, y, 0.02), WHITE2)
+        sign(d, -s * 0.95, -0.6, 0.14, 0.75)
+        doors[s] = d.build(body, loc=(s * 2.1, 2.8, 1.12))
+
+    # four plates of company hull on its flanks, the three steps on each: its Ballast throws them
+    for k, (s, y) in enumerate(((-1, -1.4), (1, -1.4), (-1, 2.6), (1, 2.6))):
+        p = Model(f"aru_plate_{k + 1}")
+        pts = ccw([(0, -1.9), (s * 1.5, -1.6), (s * 1.7, 1.6), (0, 1.9)])
+        p.slab(pts, -0.9, 0.55, WHITE, top=[(x * 0.9, y0 * 0.95) for x, y0 in pts])
+        p.box((0.2, 3.4, 0.2), (s * 1.6, 0, 0.1), HAZARD)
+        sign(p, s * 0.75, 0.0, 0.6, 0.8)
+        p.box((0.28, 0.28, 0.2), (s * 1.2, -1.3, 0.62), RED, glow=True)
+        p.build(body, loc=(s * 2.65, y, 0.1), plate=k + 1)
+
+    core = group("aru_core_pulse", loc=(0, -1.9, 1.05), parent=body)
+    cm = Model("aru_core")
+    cm.ball(0.55, (0, 0, 0.05), "#ffc060", subdiv=1, glow=True, scale=(1, 1, 0.6))
+    cm.build(core)
+
+    aru_poses(body, cab, scanner, beacons, arms, fores, jaws, doors, core)
+
+    # guns: in its claws, on the cab, in the nacelles, on its flanks
+    for x, y, z in ((-4.2, -9.0, 2.6), (4.2, -9.0, 2.6), (0, -6.2, 4.0), (-3.3, 8.2, 2.9), (3.3, 8.2, 2.9), (-4.4, -1.4, 3.4), (4.4, -1.4, 3.4)):
+        mount(root, (x, y, z), "gun")
+    mount(root, (0, -1.9, 4.2), "weak")
+    mount(root, (0, 2.8, 3.8), "weak")
+
+
+BEAT_CINDER = 60 / 112  # its theme's beat (boss_cinder in src/audio.ts)
+
+
+def aru_poses(body, cab, scanner, beacons, arms, fores, jaws, doors, core):
+    """Its idles and a pose for each of its moves (boss_cinder_<move>_<state>, see
+    src/view/boss-pose.ts). Every part that moves is keyed in every clip (so none keeps another's
+    pose). The body's x pitches it (+ nose down), y rolls it; an arm's z swings it out (+s) or in
+    (-s), its x lifts it (-); a forearm's z folds it in (-s); a jaw opens on +s*js; a door opens
+    on its y (+s); the scanner and beacons turn on z; the core pulses in scale."""
+    R, L, S = "rotation_euler", "location", "scale"
+    ZERO, ONE = (0, 0, 0), (1, 1, 1)
+    parts = [(body, R), (body, L), (cab, R), (scanner, R), (beacons, R), (core, S)]
+    parts += [(o, R) for o in arms.values()] + [(o, R) for o in fores.values()] + [(o, R) for o in jaws.values()] + [(o, R) for o in doors.values()]
+
+    def rest(path):
+        return ONE if path == S else ZERO
+
+    def clip(name, period, keys, held=False):
+        """keys: {(obj, path): [values evenly over the period]} (a cycle), or one value (held: go
+        there and hold). Parts not given rest."""
+        for obj, path in parts:
+            v = keys.get((obj, path))
+            if held:
+                end = v if v is not None and not isinstance(v, list) else rest(path)
+                animate(obj, name, path, [(0, rest(path)), (period, end)])
+            else:
+                vs = v if isinstance(v, list) else [v if v is not None else rest(path)]
+                if len(vs) == 1:
+                    vs = vs * 2
+                loop(obj, name, path, period, vs)
+
+    def arm(f):
+        out = {}
+        for s in (1, -1):
+            a, fo = f(s)
+            out[(arms[s], R)] = a
+            out[(fores[s], R)] = fo
+        return out
+
+    def jaw(f):
+        return {(o, R): f(s, js) for (s, js), o in jaws.items()}
+
+    def door(v):
+        return {(o, R): ([(0, s * x, 0) for x in v] if isinstance(v, list) else (0, s * v, 0)) for s, o in doors.items()}
+
+    spin = [(0, 0, a) for a in (0, TAU / 4, TAU / 2, 3 * TAU / 4)]
+    sweep = [(0, 0, a) for a in (0, 0.5, 0, -0.5)]
+
+    # idle: hovering, bobbing, its claws flexing slowly, the scanner sweeping, the beacons turning
+    clip("boss_cinder_collect_idle", 2.4, {
+        (body, L): [(0, 0, 0), (0, 0, 0.3), (0, 0, 0), (0, 0, -0.15)],
+        (body, R): [(0.02, 0.02, 0), (0, 0, 0), (0.02, -0.02, 0), (0, 0, 0)],
+        (scanner, R): sweep, (beacons, R): spin,
+        (core, S): [(1, 1, 1), (1.12, 1.12, 1.12), (1, 1, 1), (0.95, 0.95, 0.95)],
+        **arm(lambda s: ([(0, 0, s * 0.05), (0, 0, -s * 0.05), (0, 0, s * 0.05), (0, 0, 0)], [(0, 0, 0), (0, 0, -s * 0.1), (0, 0, 0), (0, 0, s * 0.05)])),
+        **jaw(lambda s, js: [(0, 0, s * js * 0.15), (0, 0, s * js * 0.35), (0, 0, s * js * 0.15), (0, 0, s * js * 0.05)]),
+    })
+    # called: the bare Tonkva unit, lower and heavier, its claws carried forward like a mantis's,
+    # its furnace beating
+    clip("boss_cinder_p2", 1.6, {
+        (body, L): [(0, 0, -0.3), (0, 0, -0.1), (0, 0, -0.3), (0, 0, -0.45)],
+        (body, R): [(0.06, 0, 0), (0.04, 0.03, 0), (0.06, 0, 0), (0.04, -0.03, 0)],
+        (core, S): [(1.4, 1.4, 1.4), (1.1, 1.1, 1.1), (1.5, 1.5, 1.5), (1.1, 1.1, 1.1)],
+        **arm(lambda s: ([(-0.25, 0, -s * 0.2), (-0.3, 0, -s * 0.25)], [(0, 0, -s * 0.35), (0, 0, -s * 0.45)])),
+        **jaw(lambda s, js: [(0, 0, s * js * 0.5), (0, 0, s * js * 0.2)]),
+    })
+    # its nineteen seconds: still; nose up, claws folded in, the furnace barely glowing
+    clip("boss_cinder_silence", 4.0, {
+        (body, R): [(-0.12, 0, 0), (-0.13, 0, 0)],
+        (body, L): [(0, 0, 0.2), (0, 0, 0.2)],
+        (core, S): [(0.7, 0.7, 0.7), (0.85, 0.85, 0.85)],
+        **arm(lambda s: ((0, 0, -s * 0.5), (0, 0, -s * 0.9))),
+        **jaw(lambda s, js: (0, 0, 0)),
+    })
+
+    # PURSUIT: claws drawn back, cocked; then thrown, one and the other, on every other beat
+    clip("boss_cinder_pursuit_windup", 0.45, {
+        (body, R): (-0.15, 0, 0), (beacons, R): (0, 0, TAU / 2),
+        **arm(lambda s: ((-0.4, 0, s * 0.7), (0, 0, s * 0.3))),
+        **jaw(lambda s, js: (0, 0, s * js * 0.7)),
+    }, held=True)
+    b2 = 2 * BEAT_CINDER
+    clip("boss_cinder_pursuit_attack", 2 * b2, {
+        (body, R): [(-0.1, 0.08, 0), (-0.12, 0, 0), (-0.1, -0.08, 0), (-0.12, 0, 0)],
+        (beacons, R): spin,
+        **{(arms[1], R): [(-0.5, 0, -0.5), (-0.4, 0, 0.6), (-0.4, 0, 0.7), (-0.4, 0, 0.6)],
+           (arms[-1], R): [(-0.4, 0, -0.6), (-0.4, 0, -0.7), (-0.5, 0, 0.5), (-0.4, 0, -0.6)],
+           (fores[1], R): [(0, 0, 0.4), (0, 0, 0.2), (0, 0, 0.3), (0, 0, 0.2)],
+           (fores[-1], R): [(0, 0, -0.2), (0, 0, -0.3), (0, 0, -0.4), (0, 0, -0.2)]},
+        **jaw(lambda s, js: [(0, 0, s * js * 0.6), (0, 0, s * js * 0.1), (0, 0, s * js * 0.6), (0, 0, s * js * 0.1)]),
+    })
+
+    # REPOSSESSION: it goes still and its scanner locks forward, its right claw raised to point;
+    # on each shot it jolts back
+    clip("boss_cinder_repossess_windup", 0.35, {
+        (body, R): (-0.06, 0, 0), (scanner, R): (0.4, 0, 0),
+        **{(arms[1], R): (-0.6, 0, -0.3), (fores[1], R): (0, 0, -0.2), (arms[-1], R): (0, 0, 0.2), (fores[-1], R): (0, 0, -0.3)},
+        **jaw(lambda s, js: (0, 0, s * js * (0.6 if s > 0 else 0.1))),
+    }, held=True)
+    clip("boss_cinder_repossess_attack", 0.5, {
+        (body, L): [(0, 0.6, 0), (0, 0.1, 0)],
+        (body, R): [(-0.15, 0, 0), (-0.05, 0, 0)],
+        (scanner, R): [(0.4, 0, 0), (0.3, 0, 0)],
+        **{(arms[1], R): [(-0.8, 0, -0.2), (-0.6, 0, -0.3)], (fores[1], R): [(0, 0, 0), (0, 0, -0.2)]},
+        **jaw(lambda s, js: [(0, 0, s * js * 0.8), (0, 0, s * js * 0.4)]),
+    })
+
+    # LIEN: the hold opens and the claws spread; then hauling, leaning back, claws pumping the lines
+    clip("boss_cinder_lien_windup", 0.6, {
+        (body, R): (0.08, 0, 0), (core, S): (1.2, 1.2, 1.2), (beacons, R): (0, 0, TAU / 2),
+        **door(1.6),
+        **arm(lambda s: ((0, 0, s * 0.45), (0, 0, s * 0.2))),
+        **jaw(lambda s, js: (0, 0, s * js * 0.8)),
+    }, held=True)
+    clip("boss_cinder_lien_attack", 0.8, {
+        (body, R): [(-0.14, 0, 0), (-0.08, 0, 0)],
+        (body, L): [(0, 0.5, 0), (0, 0.2, 0)],
+        (beacons, R): spin,
+        **door([1.6, 1.5]),
+        **arm(lambda s: ([(0, 0, s * 0.25), (-0.2, 0, s * 0.55)], [(0, 0, -s * 0.4), (0, 0, s * 0.2)])),
+        **jaw(lambda s, js: [(0, 0, s * js * 0.1), (0, 0, s * js * 0.6)]),
+    })
+
+    # its collectors called: the doors flap, beacons spinning
+    clip("boss_cinder_summon", 1.0, {
+        (beacons, R): spin, **door([0.6, 1.0]),
+        (body, L): [(0, 0, 0.2), (0, 0, 0)],
+    })
+
+    # BALLAST: a claw reaches back to its own flank and grips a plate; then the throw
+    clip("boss_cinder_ballast_windup", 0.7, {
+        (body, R): (0.05, 0.25, 0),
+        **{(arms[1], R): (0, 0, 1.3), (fores[1], R): (0, 0, 0.9), (arms[-1], R): (-0.3, 0, 0.3), (fores[-1], R): (0, 0, -0.5)},
+        **jaw(lambda s, js: (0, 0, s * js * (0.1 if s > 0 else 0.6))),
+    }, held=True)
+    clip("boss_cinder_ballast_attack", 0.6, {
+        (body, R): [(-0.1, -0.2, 0), (-0.05, -0.1, 0)],
+        (body, L): [(0, 0.4, 0), (0, 0.1, 0)],
+        **{(arms[1], R): [(-0.5, 0, -0.7), (-0.3, 0, -0.4)], (fores[1], R): [(0, 0, -0.1), (0, 0, -0.3)]},
+        **jaw(lambda s, js: [(0, 0, s * js * 0.9), (0, 0, s * js * 0.6)]),
+    })
+
+    # open after a move: nose down and sagging, claws drooping, the doors hanging half open
+    clip("boss_cinder_recover", 1.4, {
+        (body, R): [(0.18, 0.08, 0), (0.22, 0.12, 0)],
+        (body, L): [(0, 0, -0.4), (0, 0, -0.55)],
+        (core, S): [(1.3, 1.3, 1.3), (1.4, 1.4, 1.4)],
+        **door([0.5, 0.6]),
+        **arm(lambda s: ([(0.35, 0, s * 0.2), (0.4, 0, s * 0.25)], [(0, 0, s * 0.3), (0, 0, s * 0.35)])),
+        **jaw(lambda s, js: [(0, 0, s * js * 0.3), (0, 0, s * js * 0.4)]),
+    })
+    # staggered: rocking hard, claws thrown about, the doors banging, the scanner spinning loose
+    clip("boss_cinder_stagger", 0.9, {
+        (body, R): [(0.2, 0.35, 0), (0.25, 0, 0.1), (0.2, -0.35, 0), (0.25, 0, -0.1)],
+        (body, L): [(0, 0, -0.6)] * 4,
+        (scanner, R): spin, (core, S): [(1.5, 1.5, 1.5), (1.2, 1.2, 1.2)] * 2,
+        **door([1.2, 0.3, 1.0, 0.2]),
+        **arm(lambda s: ([(0.3, 0, s * 0.6), (0.1, 0, -s * 0.2), (0.3, 0, s * 0.5), (0.1, 0, -s * 0.1)], [(0, 0, s * 0.5), (0, 0, -s * 0.3)] * 2)),
+        **jaw(lambda s, js: [(0, 0, s * js * 0.9), (0, 0, 0)] * 2),
+    })
 
 
 def build():

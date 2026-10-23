@@ -1478,321 +1478,447 @@ def blink(obj, clip, period, off=0.12):
                                  (period - off, (-1, -1, -1)), (period - 0.01, (-1, -1, -1)), (period, (0, 0, 0))])
 
 
-# The Kestrel: a worn off-white racer with stripes in the livery down its nose and wings, an
-# intake under each cheek, twin canted tail fins and a cockpit set far back between the engines.
-BONE = "#d2cab6"
-BONE_D = "#a49c88"
+# --- frame shaping -------------------------------------------------------------------------------
+# Seen from above at ~8 texels a unit, a frame lives on its silhouette and a few big fields of
+# colour. Hulls are chamfered slabs (the bevel catches the light as a rim), the livery goes on in
+# big confident shapes (two players on one frame still tell their ships apart), and a socket is a
+# mount set into the hull rather than a tile: a ship flies with most of its sockets empty.
+
+def ccw(pts):
+    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]))
+    return pts if area > 0 else pts[::-1]
+
+
+def offset(pts, d):
+    """The outline moved d inwards, with mitred corners."""
+    pts = ccw(pts)
+    out = []
+    for i in range(len(pts)):
+        (x0, y0), (x1, y1), (x2, y2) = pts[i - 1], pts[i], pts[(i + 1) % len(pts)]
+        l1 = math.hypot(x1 - x0, y1 - y0) or 1
+        l2 = math.hypot(x2 - x1, y2 - y1) or 1
+        n1 = (-(y1 - y0) / l1, (x1 - x0) / l1)
+        n2 = (-(y2 - y1) / l2, (x2 - x1) / l2)
+        k = d / max(0.4, 1 + n1[0] * n2[0] + n1[1] * n2[1])
+        out.append((x1 + (n1[0] + n2[0]) * k, y1 + (n1[1] + n2[1]) * k))
+    return out
+
+
+def hull(m: Model, pts, z0, z1, col, bevel=0.1, rim=None):
+    """A hull plate with chamfered edges: straight sides up to z1 - bevel, then sloping in to the
+    top. Returns the top outline."""
+    pts = ccw(pts)
+    top = offset(pts, bevel)
+    m.slab(pts, z0, z1 - bevel, col)
+    m.slab(pts, z1 - bevel, z1, col if rim is None else rim, top=top)
+    if rim is not None:
+        m.slab(top, z1 - 0.01, z1, col)
+    return top
+
+
+def sym(pts):
+    """A half outline (right side, nose to tail) closed with its mirror image."""
+    return pts + [(-x, y) for x, y in reversed(pts) if abs(x) > 1e-6]
+
+
+def paint(m: Model, pts, z, col, h=0.02, glow=False):
+    """A flat field of paint lying on a surface at z."""
+    m.slab(ccw(pts), z, z + h, col, glow=glow)
+
+
+def hatch(m: Model, x, y, z=DECK, mid=INK, bolt=None):
+    """A socket's mount, on a hull whose top is at z: a dark boss with a bolt at each corner. Parts
+    cover it; an empty one leaves the paint showing."""
+    m.cyl(0.13, 0.02, (x, y, z), mid, segs=6)
+    m.cyl(0.06, 0.02, (x, y, z + 0.015), tone(mid, 1.6) if not isinstance(mid, Skin) else mid, segs=6)
+    if bolt is not None:
+        for dx in (-1, 1):
+            for dy in (-1, 1):
+                m.box((0.08, 0.08, 0.02), (x + dx * 0.24, y + dy * 0.24, z + 0.005), bolt)
+
+
+def nozzle(m: Model, x, y, z, r, col, glow, segs=8, length=0.4):
+    """An exhaust bell facing -y, with a glowing throat."""
+    m.cyl(r, length, (x, y, z), col, segs=segs, r_top=r * 0.82, rot=FWD)
+    m.cyl(r * 1.08, 0.08, (x, y - 0.02, z), DARK, segs=segs, rot=FWD)
+    m.cyl(r * 0.7, 0.04, (x, y - 0.05, z), glow, segs=segs, rot=FWD, glow=True)
+
+
+# The Kestrel: a racer made of tinfoil. A long needle nose, canards, wide swept wings ending in
+# drooped tip fins, twin canted tails and a teardrop canopy set far back. Off-white, worn, with
+# the livery in a big chevron across the wings and a painted nose cone.
+BONE = "#dcd4c0"
+BONE_D = "#a8a08c"
+BONE_S = "#bdb5a0"
 
 
 def kestrel(root):
     g = FRAMES["kestrel"]
     m = Model("kestrel_hull", seed=3)
-    skip = sockets(g)
-    fus = [(0, 3.2), (-0.16, 2.65), (-0.42, 1.9), (-0.5, 0.9), (-0.5, -1.1), (-0.4, -2.1), (-0.2, -2.6),
-           (0.2, -2.6), (0.4, -2.1), (0.5, -1.1), (0.5, 0.9), (0.42, 1.9), (0.16, 2.65)]
-    top = poly(m, fus, 0.0, 0.24, BONE, inset=0.86)
-    plating(m, top, 0.24, BONE, size=0.42, skip=skip)
-    poly(m, [(x * 0.62, y * 0.94) for x, y in fus], -0.16, 0.0, INK)
+    # the wings, one piece under the fuselage: swept, a notch in the trailing edge
+    wing = sym([(0.0, 1.75), (0.5, 1.55), (1.5, 0.45), (2.45, -0.55), (2.5, -1.3), (2.05, -1.25),
+                   (1.35, -1.55), (0.95, -2.15), (0.0, -2.1)])
+    m.slab(ccw([(x * 0.94, y - 0.06) for x, y in wing]), -0.12, 0.0, BONE_D)              # underside
+    top = hull(m, wing, 0.0, 0.26, BONE, bevel=0.1)
+    # the livery chevron down both leading edges, and a thin trim line behind it
     for s in (1, -1):
-        wing = [(0.45, 1.35), (1.1, 0.95), (1.75, -0.15), (2.2, -0.6), (2.25, -1.55), (1.7, -1.45), (1.2, -1.95), (0.45, -2.0)]
-        wing = [(s * x, y) for x, y in wing]
-        top = poly(m, wing, 0.04, 0.2, BONE, inset=0.97)
-        plating(m, top, 0.2, BONE, size=0.42, skip=skip)
-        poly(m, [(x, y - 0.04) for x, y in wing], -0.04, 0.04, BONE_D)                       # underside lip
-        # the livery stripe down the leading edge, and a second, faded, inboard of it
-        for a, b in (((0.45, 1.4), (1.12, 1.0)), ((1.12, 1.0), (1.78, -0.12)), ((1.78, -0.12), (2.22, -0.58))):
-            strip(m, (s * a[0], a[1]), (s * b[0], b[1]), 0.18, 0.23, 0.04, A)
-        strip(m, (s * 1.25, -0.05), (s * 1.2, -1.85), 0.12, 0.23, 0.03, A.shade(0.8))
-        m.box((0.1, 0.6, 0.34), (s * 2.25, -1.3, 0.1), A, taper=0.6)                        # wingtip fin
-        m.box((0.08, 0.18, 0.08), (s * 2.27, -0.95, 0.3), C, glow=True)                      # nav light
-        # canted twin tail fins, striped, with a dark leading edge
+        band = [(0.5, 1.55), (1.5, 0.45), (2.45, -0.55), (2.47, -0.95), (1.45, 0.02), (0.55, 1.05)]
+        paint(m, [(s * x, y) for x, y in band], 0.26, A)
+        trim = [(0.58, 0.9), (1.42, -0.12), (2.47, -1.1), (2.47, -1.22), (1.4, -0.28), (0.6, 0.72)]
+        paint(m, [(s * x, y) for x, y in trim], 0.26, B)
+        # a dark seam across the wing and a scorched panel by the root
+        strip(m, (s * 1.25, -0.5), (s * 2.3, -1.2), 0.07, 0.27, 0.02, BONE_D)
+        paint(m, [(s * 0.62, -1.2), (s * 1.2, -1.2), (s * 1.12, -1.95), (s * 0.62, -2.0)], 0.26, BONE_S)
+        # drooped tip fin, livery tip, nav light
+        m.prism([(0, -0.5), (0.14, -0.5), (0.1, 0.32), (0.02, 0.32)], 0.75, (s * 2.52, -0.95, 0.0), A, rot=(0, 0, 0))
+        m.box((0.12, 0.2, 0.1), (s * 2.53, -0.5, 0.26), C, glow=True)
+        # canted twin tail fins, a livery cap, a dark leading edge
         fin = Model(f"kestrel_fin_{'r' if s > 0 else 'l'}")
-        fin.prism([(0, 0), (0.8, 0), (1.0, 0.7), (0.66, 0.74)], 0.09, (0, 0, 0), BONE, rot=(0, 0, -math.pi / 2))
-        fin.box((0.1, 0.32, 0.12), (0, -0.85, 0.66), A)
-        fin.box((0.1, 0.14, 0.5), (0, -0.05, 0.25), INK, rot=(-0.3, 0, 0))
-        fin.build(root, loc=(s * 1.2, -1.95, 0.16)).rotation_euler = (0, s * 0.35, 0)
-        # cheek intakes, greebles and a pipe run down the flanks
-        m.box((0.16, 0.5, 0.18), (s * 0.48, 1.75, 0.14), STEEL, taper=0.75)
-        m.box((0.12, 0.06, 0.12), (s * 0.5, 2.0, 0.14), INK)
-        pipe(m, (s * 0.52, 1.3), (s * 0.52, -2.0), 0.12, 0.04)
-        soot(m, s * 0.8, -1.98, 0.21, 0.4, 0.2)
-        # a faded roundel out past the sockets
-        m.cyl(0.2, 0.03, (s * 1.72, -1.42, 0.23), tone(BONE, 0.7), segs=10)
-        m.cyl(0.11, 0.03, (s * 1.72, -1.42, 0.24), A.shade(0.85), segs=10)
-    # racing stripes up the nose, and a dark anti-glare panel ahead of them
+        fin.prism([(0, 0), (0.95, 0), (1.15, 0.78), (0.82, 0.8)], 0.1, (0, 0, 0), BONE, rot=(0, 0, -math.pi / 2))
+        fin.prism([(0.88, 0.6), (1.12, 0.6), (1.15, 0.78), (0.82, 0.8)], 0.12, (0, 0, 0), A, rot=(0, 0, -math.pi / 2))
+        fin.box((0.12, 0.14, 0.42), (0, -0.06, 0.2), INK, rot=(-0.35, 0, 0))
+        fin.build(root, loc=(s * 0.98, -1.95, 0.16)).rotation_euler = (0, s * 0.42, 0)
+        # canards up the nose
+        cn = [(0.28, 2.55), (0.95, 2.05), (1.0, 1.85), (0.3, 2.05)]
+        hull(m, [(s * x, y) for x, y in cn], 0.06, 0.2, BONE, bevel=0.04)
+        paint(m, [(s * 0.8, 2.13), (s * 0.95, 2.05), (s * 1.0, 1.85), (s * 0.82, 1.9)], 0.2, A)
+        # intakes under the cheeks, a pipe along the flank
+        m.box((0.22, 0.6, 0.2), (s * 0.55, 1.5, 0.16), STEEL, taper=0.8)
+        m.box((0.16, 0.06, 0.14), (s * 0.55, 1.82, 0.17), INK)
+        soot(m, s * 0.78, -2.08, 0.19, 0.3, 0.22)
+    # the fuselage: a raised spine from the needle nose back to the canopy
+    fus = sym([(0.0, 3.55), (0.14, 3.1), (0.34, 2.5), (0.5, 1.7), (0.52, 0.4), (0.42, -1.1),
+                  (0.46, -2.0), (0.3, -2.55), (0.0, -2.7)])
+    hull(m, fus, 0.0, 0.3, BONE, bevel=0.1)
+    paint(m, [(0.0, 3.5), (0.13, 3.08), (0.25, 2.7), (-0.25, 2.7), (-0.13, 3.08)], 0.3, A)  # nose cone
+    paint(m, [(0.25, 2.62), (0.29, 2.5), (-0.29, 2.5), (-0.25, 2.62)], 0.3, B)
+    m.box((0.2, 0.36, 0.02), (0, 2.25, 0.31), INK, taper=0.6)                              # anti-glare
+    m.cyl(0.03, 0.5, (0, 3.5, 0.13), CHROME, segs=4, rot=FWD)                              # pitot needle
     for s in (1, -1):
-        strip(m, (s * 0.13, 1.62), (s * 0.05, 3.0), 0.1, 0.27, 0.03, A)
-    m.box((0.22, 0.4, 0.02), (0, 2.75, 0.24), INK, taper=0.5)
-    m.cyl(0.03, 0.6, (0, 3.0, 0.12), CHROME, segs=4, rot=FWD)                              # pitot needle
-    vent(m, 0, 2.3, 0.25, 0.3, 0.2, 2)
-    # cockpit in the gap at the back, faired into a tail cone
+        strip(m, (s * 0.2, 2.05), (s * 0.2, 1.25), 0.1, 0.31, 0.02, A)                     # racing stripes
+    # the canopy, long and low, faired back into a tail cone with a little exhaust
     x, y = sock(g, 2, 4)
-    m.box((0.62, 1.1, 0.3), (x, y - 0.1, 0.15), BONE, taper=0.8)
-    canopy(m, (x, y + 0.02, 0.34), (0.24, 0.44, 0.24), bar=INK)
-    m.box((0.46, 0.5, 0.22), (x, y - 0.7, 0.3), tone(BONE, 0.9), taper=0.6)                 # headrest fairing
-    m.box((0.5, 0.06, 0.04), (x, y - 0.95, 0.26), A)
-    decks(m, g, plate=BONE, hatch=tone(BONE, 0.55), bolt=BONE_D)
+    hull(m, [(-0.36, y + 0.55), (0.36, y + 0.55), (0.4, y - 0.4), (0.22, y - 1.05), (-0.22, y - 1.05), (-0.4, y - 0.4)],
+         0.1, 0.42, BONE, bevel=0.08)
+    canopy(m, (x, y + 0.08, 0.44), (0.24, 0.5, 0.2), bar=INK, ribs=1)
+    paint(m, [(-0.2, y - 0.62), (0.2, y - 0.62), (0.14, y - 0.98), (-0.14, y - 0.98)], 0.42, A)
+    nozzle(m, x, y - 1.04, 0.24, 0.13, STEEL, C, segs=6, length=0.2)
+    # the sockets: panels in the skin
+    for sx, sy in sockets(g):
+        hatch(m, sx, sy, 0.3 if abs(sx) < 0.4 else 0.26, mid=BONE_D)
     m.build(root)
     n = Model("kestrel_nose")
     n.ball(0.07, (0, 0, 0), C, subdiv=0, glow=True)
-    blink(n.build(root, loc=(0, 3.32, 0.12)), "frame_kestrel_blink_idle", 1.2)
+    blink(n.build(root, loc=(0, 3.62, 0.13)), "frame_kestrel_blink_idle", 1.2)
 
 
-# The Mule: a grey-olive work hauler. Ribbed flanks, cargo pods slung along the sides, rubber
-# bumpers with hazard chevrons, a cab up front in the livery with a radar turning on its roof,
-# exhaust stacks at the back corners, rust streaks and soot.
-OLIVE = "#6a6c58"
-OLIVE_D = "#4a4c3e"
-OLIVE_L = "#888a72"
+# The Mule: a hauler with guns bolted on. An armoured truck: a dark chassis, an olive deck with
+# yellow tread marks, freight pods in the livery along both flanks, a big cab up front with a
+# windscreen and a turning radar, a bull bar, exhaust stacks and a loading ramp at the back.
+OLIVE = "#6e7258"
+OLIVE_D = "#4c4f3e"
+OLIVE_L = "#8c9070"
 RUST = "#7e4426"
 
 
 def mule(root):
     g = FRAMES["mule"]
     m = Model("mule_hull", seed=5)
-    skip = sockets(g)
-    hull = [(-2.1, -1.72), (2.1, -1.72), (2.2, 1.5), (2.0, 1.72), (-2.0, 1.72), (-2.2, 1.5)]
-    top = poly(m, hull, -0.1, 0.24, OLIVE, inset=0.97)
-    plating(m, top, 0.24, OLIVE, size=0.45, chips=RUST, skip=skip)
-    poly(m, [(x * 0.9, y * 0.88) for x, y in hull], -0.34, -0.1, DARK)
+    chassis = sym([(0.0, 1.85), (1.95, 1.85), (2.1, 1.7), (2.1, -0.85), (1.95, -1.15), (1.2, -1.15),
+                      (1.2, -1.85), (0.0, -1.85)])
+    m.slab(ccw([(x * 1.03, y * 1.02) for x, y in chassis]), -0.42, -0.12, DARK)
+    hull(m, chassis, -0.12, 0.3, OLIVE, bevel=0.1)
     for s in (1, -1):
-        # ribbed flank, a livery band with a cargo pod slung under it, rust streaks
-        for i in range(12):
-            m.box((0.1, 0.12, 0.34), (s * 2.2, -1.43 + i * 0.26, 0.07), OLIVE_D)
-        m.box((0.12, 3.3, 0.08), (s * 2.24, 0.0, 0.2), A)
-        m.box((0.36, 1.3, 0.3), (s * 2.42, 0.1, -0.02), A.shade(0.82))
-        m.box((0.38, 0.1, 0.32), (s * 2.42, 0.3, -0.02), STEEL)
-        m.box((0.38, 0.1, 0.32), (s * 2.42, -0.2, -0.02), STEEL)
-        m.box((0.3, 0.3, 0.02), (s * 2.42, 0.6, 0.14), HAZARD)
-        m.box((0.14, 0.34, 0.24), (s * 2.18, 0.42, 0.0), RUST)
-        m.box((0.14, 0.2, 0.18), (s * 2.18, -0.72, 0.02), RUST)
-        # exhaust stacks in the bare rear corners, sooty at the top
+        # freight pods along the flanks: three in the livery with a cream band, strapped on
+        for i, (y0, y1) in enumerate(((1.45, 0.62), (0.52, -0.31), (-0.41, -1.2))):
+            hull(m, [(s * 2.05, y0), (s * 2.68, y0), (s * 2.68, y1), (s * 2.05, y1)], -0.3, 0.32, A.shade((1.0, 0.86, 0.94)[i]), bevel=0.08)
+            paint(m, [(s * 2.15, y0 - 0.12), (s * 2.58, y0 - 0.12), (s * 2.58, y0 - 0.26), (s * 2.15, y0 - 0.26)], 0.32, B)
+            m.box((0.66, 0.08, 0.06), (s * 2.37, (y0 + y1) / 2, 0.33), DARK)                 # strap
+        # exhaust stacks in the bare back corners, a heat grille at their foot
         x, y = sock(g, 0 if s < 0 else 4, 3)
-        m.box((0.62, 0.62, 0.1), (x, y, 0.2), OLIVE_D)
-        vent(m, x - s * 0.12, y + 0.12, 0.25, 0.3, 0.26, 3)
-        m.cyl(0.13, 0.95, (x + s * 0.12, y - 0.04, 0.2), STEEL, segs=6)
-        m.cyl(0.16, 0.06, (x + s * 0.12, y - 0.04, 0.6), METAL, segs=6)
-        m.cyl(0.15, 0.12, (x + s * 0.12, y - 0.04, 1.1), SOOT, segs=6, r_top=0.17)
-        m.box((0.3, 0.08, 0.1), (x, y - 0.38, 0.14), RED, glow=True)                       # tail light
-        pipe(m, (x - s * 0.2, y - 0.25), (x - s * 0.2, y + 0.3), 0.32, 0.05)
-    # rubber bumpers, front and back, with hazard chevrons
-    for y0 in (1.82, -1.82):
-        m.box((3.9, 0.2, 0.28), (0, y0, 0.04), RUBBER)
-        for i in range(-3, 4):
-            if i:
-                m.box((0.16, 0.06, 0.22), (i * 0.5, y0 + (0.1 if y0 > 0 else -0.1), 0.05), HAZARD, rot=(0, 0, 0.5))
-    soot(m, 0, -1.6, 0.27, 0.5, 0.12)
-    # the cab, up front in the livery, worn
-    x, y = sock(g, 2, 0)
-    cy = y + 0.98
-    m.box((1.5, 0.82, 0.42), (x, cy, 0.22), A, taper=0.88)
-    for i, k in enumerate((1.0, 0.84, 1.1)):
-        m.box((0.42, 0.5, 0.03), (x - 0.46 + i * 0.46, cy + 0.02, 0.44), A.shade(k))
-    m.box((1.52, 0.14, 0.44), (x, cy - 0.38, 0.23), B)
-    canopy(m, (x, cy + 0.32, 0.36), (0.6, 0.12, 0.16), bar=OLIVE_D, ribs=1)
-    m.box((1.0, 0.08, 0.16), (x, cy + 0.43, 0.08), INK)                                    # grille
-    for i in range(-2, 3):
-        m.box((0.04, 0.09, 0.14), (x + i * 0.18, cy + 0.45, 0.08), CHROME)
+        hull(m, [(x - 0.42, y + 0.32), (x + 0.42, y + 0.32), (x + 0.42, y - 0.42), (x - 0.42, y - 0.42)], -0.1, 0.32, OLIVE_D, bevel=0.06)
+        vent(m, x - s * 0.1, y + 0.08, 0.33, 0.36, 0.3, 3)
+        m.cyl(0.16, 1.05, (x + s * 0.14, y - 0.18, 0.3), STEEL, segs=6)
+        m.cyl(0.2, 0.08, (x + s * 0.14, y - 0.18, 0.75), METAL, segs=6)
+        m.cyl(0.18, 0.14, (x + s * 0.14, y - 0.18, 1.32), SOOT, segs=6, r_top=0.21)
+        m.box((0.3, 0.1, 0.12), (x - s * 0.1, y - 0.44, 0.16), RED, glow=True)              # tail light
+        # tread marks down the deck edges
+        for i in range(5):
+            m.box((0.14, 0.28, 0.02), (s * 1.96, 1.35 - i * 0.62, 0.31), HAZARD, rot=(0, 0, s * 0.5))
+        m.box((0.16, 0.42, 0.24), (s * 2.1, 0.0, -0.02), RUST)                                 # rust run
+    # the loading ramp between the stacks, hazard-striped
+    hull(m, [(-1.15, -1.8), (1.15, -1.8), (1.0, -2.25), (-1.0, -2.25)], -0.2, 0.12, OLIVE_D, bevel=0.05)
+    for i in range(-3, 4):
+        m.box((0.16, 0.42, 0.03), (i * 0.3, -2.02, 0.12), HAZARD if i % 2 else INK, rot=(0, 0, 0.55))
+    # the cab, up front in the livery: a windscreen across it, beacons, a radar on the roof
+    cab = sym([(0.0, 2.75), (0.7, 2.75), (0.95, 2.55), (0.95, 1.6), (0.0, 1.6)])
+    hull(m, cab, 0.0, 0.62, A, bevel=0.12)
+    paint(m, [(-0.82, 2.45), (0.82, 2.45), (0.72, 2.66), (-0.72, 2.66)], 0.62, GLASS, glow=True)
+    m.box((1.9, 0.18, 0.62), (0, 1.62, 0.31), B, taper=0.92)                               # cab back
+    m.box((0.5, 0.42, 0.04), (0, 2.0, 0.63), A.shade(0.82))                                 # roof hatch
     for s in (1, -1):
-        m.box((0.18, 0.06, 0.12), (s * 0.6, cy + 0.42, 0.16), "#fff0c0", glow=True)        # headlights
-        m.box((0.08, 0.08, 0.22), (s * 0.7, cy - 0.1, 0.5), C, glow=True)                  # roof beacons
-    m.box((0.24, 0.24, 0.12), (x, cy - 0.12, 0.48), STEEL)                                # radar mount
-    decks(m, g, plate=OLIVE, hatch=OLIVE_D, bolt=HAZARD)
+        m.box((0.12, 0.12, 0.2), (s * 0.72, 1.82, 0.7), C, glow=True)                       # beacons
+        m.box((0.24, 0.1, 0.14), (s * 0.7, 2.8, 0.22), "#fff0c0", glow=True)                # headlights
+    # the bull bar
+    m.box((2.2, 0.2, 0.26), (0, 3.0, 0.12), RUBBER)
+    for i in range(-2, 3):
+        m.box((0.18, 0.08, 0.22), (i * 0.42, 3.1, 0.13), HAZARD, rot=(0, 0, 0.5))
+    for s in (1, -1):
+        m.box((0.12, 0.3, 0.12), (s * 0.85, 2.85, 0.12), STEEL)
+        m.box((0.42, 0.42, 0.3), (s * 1.75, 1.92, 0.04), RUBBER)                            # corner bumpers
+    # the deck mounts: tread plates, yellow bolts
+    for sx, sy in sockets(g):
+        hatch(m, sx, sy, mid=INK, bolt=OLIVE_D)
+    soot(m, 0, -1.55, 0.3, 0.6, 0.2)
+    for s in (1, -1):
+        strip(m, (s * 1.2, 1.5), (s * 1.2, -1.5), 0.1, 0.305, 0.01, tone(B, 0.8))          # lane lines
+        strip(m, (s * 0.4, 1.5), (s * 0.4, -1.5), 0.05, 0.305, 0.01, OLIVE_D)               # seams
+    paint(m, [(-0.85, -0.05), (0.85, -0.05), (0.85, -0.75), (-0.85, -0.75)], 0.3, OLIVE_L, h=0.008)
+    for x, y, w, d in ((-1.55, 0.85, 0.45, 0.3), (0.95, -0.95, 0.35, 0.4), (1.65, 1.35, 0.3, 0.22)):
+        paint(m, [(x - w / 2, y - d / 2), (x + w / 2, y - d / 2), (x + w * 0.3, y + d / 2), (x - w / 2, y + d * 0.3)], 0.3, RUST, h=0.012)
     m.build(root)
     r = Model("mule_radar")
-    r.cyl(0.04, 0.2, (0, 0, 0), METAL, segs=4)
-    r.box((0.62, 0.08, 0.2), (0, 0.06, 0.24), B, taper=0.7)
-    r.box((0.08, 0.08, 0.08), (0, 0.14, 0.26), C, glow=True)
-    spin(r.build(root, loc=(x, cy - 0.12, 0.54)), "frame_mule_radar_idle", 3.0)
+    r.cyl(0.05, 0.22, (0, 0, 0), METAL, segs=4)
+    r.box((0.7, 0.1, 0.24), (0, 0.06, 0.26), B, taper=0.7)
+    r.box((0.1, 0.1, 0.1), (0, 0.14, 0.3), C, glow=True)
+    spin(r.build(root, loc=(0, 2.1, 0.64)), "frame_mule_radar_idle", 3.0)
 
 
-# The Wasp: a podracer. Two big engine intakes out on the prongs with a crackling binder between
-# them, the cockpit pod slung in the middle, a gunmetal body banded in the livery tapering back to
-# a tail spike, air-brake vanes on the booms.
-GUNM = "#4a4844"
+# The Wasp: a pod racer. Two big engines out on the prongs held by a crackling binder, the
+# cockpit pod slung between them, a gunmetal body with swept stabiliser fins, and a banded tail
+# boom tapering to a hot little exhaust.
+GUNM = "#4e4c48"
 GUNM_D = "#302f2d"
+GUNM_L = "#6a6862"
 
 
 def wasp(root):
     g = FRAMES["wasp"]
     m = Model("wasp_hull", seed=7)
-    skip = sockets(g)
-    body = [(-1.4, -1.35), (1.4, -1.35), (2.0, -1.15), (2.05, 0.25), (1.7, 0.45), (-1.7, 0.45), (-2.05, 0.25), (-2.0, -1.15)]
-    top = poly(m, body, -0.04, 0.24, GUNM, inset=0.94)
-    plating(m, top, 0.24, GUNM, skip=skip)
-    poly(m, [(x * 0.8, y * 0.85) for x, y in body], -0.24, -0.04, INK)
-    # the tail: plated bands, livery and gunmetal, narrowing to a spike
-    segs = [(-1.3, -1.98, 1.0, A), (-1.98, -2.34, 0.86, GUNM), (-2.34, -2.68, 0.68, A.shade(0.85)), (-2.68, -2.98, 0.46, GUNM)]
-    for y0, y1, w, col in segs:
-        poly(m, [(-w, y0), (w, y0), (w * 0.86, y1), (-w * 0.86, y1)], -0.12, 0.2 - (y0 + 1.3) * 0.06, col, inset=0.8)
-        m.box((w * 1.3, 0.05, 0.03), (0, y1 + 0.03, 0.2 - (y0 + 1.3) * 0.06), INK)
-    vent(m, 0, -2.5, 0.12, 0.5, 0.18, 2)
-    m.cyl(0.14, 0.55, (0, -2.96, 0.06), STEEL, segs=5, r_top=0.0, rot=BACK)               # tail spike
-    m.ball(0.06, (0, -3.5, 0.06), C, subdiv=0, glow=True)
+    # the thorax under the wide rows
+    thorax = sym([(0.0, 0.6), (1.55, 0.6), (2.05, 0.25), (2.1, -0.95), (1.7, -1.3), (0.0, -1.3)])
+    m.slab(ccw([(x * 0.86, y * 0.9 - 0.04) for x, y in thorax]), -0.3, -0.04, GUNM_D)
+    hull(m, thorax, -0.04, 0.3, GUNM, bevel=0.1)
+    for s in (1, -1):
+        paint(m, [(s * 1.6, 0.48), (s * 1.95, 0.22), (s * 2.0, -0.85), (s * 1.75, -1.15), (s * 1.6, -1.15)], 0.3, A)
+    paint(m, [(-1.2, 0.5), (1.2, 0.5), (1.3, -0.35), (-1.3, -0.35)], 0.3, GUNM_L, h=0.01)
+    strip(m, (-1.9, -0.42), (1.9, -0.42), 0.07, 0.305, 0.01, GUNM_D)
+    for s in (1, -1):
+        strip(m, (s * 0.4, 0.5), (s * 0.4, -1.25), 0.05, 0.305, 0.01, GUNM_D)
+    # the tail boom: armoured bands, livery and gunmetal, stepping down to an exhaust
+    bands = [(-1.2, -1.75, 0.82, A), (-1.75, -2.2, 0.7, GUNM_D), (-2.2, -2.6, 0.56, A.shade(0.85)), (-2.6, -2.92, 0.42, GUNM_D)]
+    for i, (y0, y1, w, col) in enumerate(bands):
+        z1 = 0.3 - i * 0.05
+        hull(m, [(-w, y0), (w, y0), (w * 0.86, y1), (-w * 0.86, y1)], -0.2, z1, col, bevel=0.07)
+    vent(m, 0, -2.0, 0.26, 0.6, 0.26, 2)
+    nozzle(m, 0, -2.92, 0.06, 0.22, STEEL, C, segs=8, length=0.32)
     for s in (1, -1):
         x = s * 0.8
-        # the boom under the prong's sockets
-        m.cyl(0.3, 2.4, (x, -0.2, -0.08), INK, segs=8, r_top=0.28, rot=FWD)
-        top = poly(m, [(x - 0.42, 0.3), (x + 0.42, 0.3), (x + 0.42, 2.05), (x - 0.42, 2.05)], 0.06, 0.22, GUNM, inset=0.94)
-        m.box((0.88, 0.14, 0.04), (x, 0.38, 0.23), A)
-        # the intake: a big cowl in the livery, a dark throat, a fan and a glowing ring
-        m.cyl(0.46, 0.8, (x, 1.95, 0.02), GUNM, segs=10, r_top=0.48, rot=FWD)
-        m.cyl(0.52, 0.32, (x, 2.7, 0.02), A, segs=10, r_top=0.5, rot=FWD)
-        m.cyl(0.53, 0.06, (x, 2.5, 0.02), tone(B, 0.9), segs=10, rot=FWD)
-        m.cyl(0.38, 0.04, (x, 3.02, 0.02), INK, segs=10, rot=FWD)
-        ring(m, 0.36, 0.02, 0.06, C, n=10, w=0.06, glow=True, cx=x, cy=3.0, axis="y")
-        for i in range(6):                                                                 # fan blades
-            a = TAU * i / 6
-            m.box((0.07, 0.04, 0.34), (x + math.cos(a) * 0.15, 2.98, 0.02 + math.sin(a) * 0.15), STEEL, rot=(0, -a + math.pi / 2, 0))
-        m.cyl(0.1, 0.12, (x, 2.96, 0.02), CHROME, segs=6, r_top=0.03, rot=FWD)
-        # air-brake vanes on the boom's outer flank
-        m.box((0.08, 0.7, 0.5), (x + s * 0.5, 1.15, 0.2), A.shade(0.9), taper=0.5)
-        m.box((0.09, 0.08, 0.5), (x + s * 0.5, 1.48, 0.2), INK, taper=0.5)
-        # the binder posts over each intake
-        m.box((0.14, 0.14, 0.4), (x - s * 0.32, 2.7, 0.5), STEEL)
-        m.box((0.12, 0.12, 0.08), (x - s * 0.32, 2.7, 0.72), C, glow=True)
-        pipe(m, (x + s * 0.3, 1.7), (x + s * 0.3, 0.3), 0.3, 0.04)
-        soot(m, s * 0.9, -1.3, 0.25, 0.3, 0.25)
-    m.box((0.92, 0.07, 0.06), (0, 2.7, 0.7), C, glow=True)                                 # binder
-    # the cockpit pod slung between the booms
-    poly(m, [(-0.3, 0.4), (0.3, 0.4), (0.32, 1.3), (0.14, 1.9), (-0.14, 1.9), (-0.32, 1.3)], -0.02, 0.24, A.shade(0.9), inset=0.75)
-    canopy(m, (0, 1.06, 0.3), (0.2, 0.4, 0.2), bar=GUNM_D)
+        # the prong under the front sockets
+        hull(m, [(x - 0.4, 0.4), (x + 0.4, 0.4), (x + 0.4, 2.1), (x - 0.4, 2.1)], -0.04, 0.3, GUNM, bevel=0.08)
+        m.cyl(0.3, 2.0, (x, 0.2, -0.1), INK, segs=8, rot=FWD)
+        # the engine: a fat cowl in the livery, a dark throat, a fan, a glowing ring
+        m.cyl(0.5, 0.9, (x, 2.05, 0.04), GUNM_L, segs=10, r_top=0.54, rot=FWD)
+        m.cyl(0.58, 0.42, (x, 2.75, 0.04), A, segs=10, r_top=0.55, rot=FWD)
+        m.cyl(0.6, 0.08, (x, 2.68, 0.04), B, segs=10, rot=FWD)
+        m.cyl(0.42, 0.05, (x, 3.15, 0.04), INK, segs=10, rot=FWD)
+        ring(m, 0.44, 0.04, 0.06, C, n=10, w=0.07, glow=True, cx=x, cy=3.14, axis="y")
+        for i in range(5):
+            a = TAU * i / 5
+            m.box((0.08, 0.04, 0.38), (x + math.cos(a) * 0.17, 3.12, 0.04 + math.sin(a) * 0.17), STEEL, rot=(0, -a + math.pi / 2, 0))
+        m.cyl(0.11, 0.14, (x, 3.1, 0.04), CHROME, segs=6, r_top=0.03, rot=FWD)
+        # the binder posts
+        m.box((0.16, 0.16, 0.38), (x - s * 0.36, 2.8, 0.58), STEEL)
+        m.box((0.14, 0.14, 0.1), (x - s * 0.36, 2.8, 0.8), C, glow=True)
+        soot(m, x, 0.42, 0.3, 0.36, 0.3)
+        # swept stabiliser fins off the body's flanks: a livery tip, a dark leading edge, a nav light
+        fin = [(1.95, 0.1), (2.75, -0.75), (2.85, -1.35), (2.45, -1.3), (1.95, -1.05)]
+        hull(m, [(s * fx, fy) for fx, fy in fin], -0.1, 0.16, GUNM_L, bevel=0.06)
+        paint(m, [(s * 2.55, -0.55), (s * 2.75, -0.75), (s * 2.85, -1.35), (s * 2.6, -1.32)], 0.16, A)
+        strip(m, (s * 2.0, 0.08), (s * 2.72, -0.68), 0.1, 0.17, 0.02, GUNM_D)
+        m.box((0.1, 0.2, 0.1), (s * 2.86, -1.15, 0.2), C, glow=True)
+        vent(m, s * 2.28, -0.8, 0.17, 0.3, 0.32, 3, rot=s * 0.5)
+    m.box((1.0, 0.08, 0.07), (0, 2.8, 0.78), C, glow=True)                                 # the binder
+    # the cockpit pod slung between the prongs, struts out to them
+    pod = sym([(0.0, 2.2), (0.18, 2.05), (0.34, 1.4), (0.34, 0.5), (0.0, 0.4)])
+    hull(m, pod, -0.02, 0.3, GUNM_L, bevel=0.08)
+    paint(m, [(-0.16, 2.0), (0.16, 2.0), (0.24, 1.6), (-0.24, 1.6)], 0.3, A)
+    canopy(m, (0, 1.1, 0.34), (0.2, 0.36, 0.18), bar=GUNM_D, ribs=1)
     for s in (1, -1):
-        m.box((0.56, 0.12, 0.08), (s * 0.5, 0.7, 0.12), STEEL)                             # struts
-        m.box((0.5, 0.08, 0.06), (s * 0.5, 1.6, 0.1), STEEL)
-    decks(m, g, plate=GUNM, hatch=GUNM_D, bolt=A)
+        m.box((0.5, 0.12, 0.08), (s * 0.4, 0.75, 0.14), STEEL)
+        m.box((0.46, 0.08, 0.06), (s * 0.4, 1.7, 0.12), STEEL)
+    for sx, sy in sockets(g):
+        hatch(m, sx, sy, mid=GUNM_D, bolt=GUNM_L)
     m.build(root)
 
 
-# The Hammerhead: a gunmetal gunship. A wide armoured head, red-eyed sensor pods at its ends,
-# riveted plating, gill vents down the tail, a dorsal fin and tail flukes with faded stripes, an
-# armoured cockpit pod off one shoulder and a sensor mast off the other.
-GUN = "#525a66"
-GUN_D = "#343a46"
-GUN_L = "#6c7686"
+# The Hammerhead: a gunship built to ram. A wide armoured head behind a massive ram plough with a
+# scraped steel edge and heavy ribs, engine nacelles out at the head's ends, a slim tail with
+# stabilisers and twin nozzles, sponsons that carry the cockpit on one side and a sensor mast on
+# the other.
+GUN = "#56606c"
+GUN_D = "#363e4a"
+GUN_L = "#76808e"
 EYE = "#ff3a2a"
 
 
 def hammer(root):
     g = FRAMES["hammer"]
     m = Model("hammer_hull", seed=11)
-    skip = sockets(g)
-    head = [(-2.1, -0.12), (2.1, -0.12), (2.55, 0.25), (2.6, 1.35), (2.3, 1.72), (1.0, 1.95), (-1.0, 1.95), (-2.3, 1.72), (-2.6, 1.35), (-2.55, 0.25)]
-    top = poly(m, head, -0.06, 0.24, GUN, inset=0.97)
-    plating(m, top, 0.24, GUN, size=0.4, skip=skip)
-    poly(m, [(x * 0.85, y * 0.9) for x, y in head], -0.3, -0.06, GUN_D)
-    # armour lip along the front: thick riveted plates, the outer ones in the livery
-    for i, x in enumerate((-1.6, -0.55, 0.55, 1.6)):
-        m.box((1.0, 0.34, 0.36), (x, 1.8 - abs(x) * 0.1, 0.12), A.shade(0.9) if i in (0, 3) else GUN_L,
-              rot=(0, 0, -0.12 * (x / abs(x)) * (abs(x) > 1)), taper=0.8)
-        for dx in (-0.3, 0.3):
-            m.box((0.07, 0.07, 0.04), (x + dx, 1.82 - abs(x) * 0.1, 0.31), GUN_D)
+    body = sym([(0.0, 1.8), (2.35, 1.8), (2.7, 1.5), (2.7, 0.2), (2.35, -0.08), (1.0, -0.12),
+                (0.75, -0.32), (0.75, -1.8), (0.55, -2.15), (0.0, -2.15)])
+    m.slab(ccw([(x * 0.9, y * 0.93) for x, y in body]), -0.36, -0.06, GUN_D)
+    hull(m, body, -0.06, 0.3, GUN, bevel=0.12, rim=GUN_D)
+    # the ram: a heavy plough across the front, standing proud of the deck, its edge scraped bare
+    ram = sym([(0.0, 3.05), (1.3, 2.73), (2.6, 2.15), (2.88, 1.83), (2.7, 1.66), (0.0, 1.66)])
+    m.slab(ccw([(x * 0.96, y - 0.06) for x, y in ram]), -0.32, -0.04, GUN_D)
+    hull(m, ram, -0.04, 0.46, GUN_D, bevel=0.16, rim=STEEL)
+    edge = [(0.0, 2.85), (1.24, 2.55), (2.48, 2.01), (2.62, 1.81), (2.38, 1.85), (1.18, 2.35), (0.0, 2.63)]
     for s in (1, -1):
-        # the eyes: armoured pods at the ends of the head, red slits under a brow
-        m.cyl(0.36, 0.44, (s * 2.85, 0.8, -0.08), GUN_L, segs=6)
-        m.cyl(0.38, 0.08, (s * 2.85, 0.8, 0.08), A, segs=6)
-        m.cyl(0.3, 0.04, (s * 2.85, 0.8, 0.36), GUN_D, segs=6)
-        m.box((0.22, 0.5, 0.08), (s * 2.92, 0.82, 0.42), EYE, glow=True)
-        m.box((0.12, 0.62, 0.16), (s * 2.7, 0.82, 0.44), GUN_D, rot=(0, s * 0.3, 0))      # brow
-        strip(m, (s * 1.75, 1.45), (s * 2.25, 1.05), 0.14, 0.27, 0.03, A.shade(0.85))   # faded stripe
-        vent(m, s * 1.95, 0.05, 0.25, 0.4, 0.2, 2)
-    # the slim tail, with gill vents down its flanks
-    tail = [(-0.88, -1.9), (0.88, -1.9), (0.92, -0.05), (-0.92, -0.05)]
-    poly(m, tail, -0.02, 0.24, GUN, inset=0.95)
-    poly(m, [(x * 0.7, y * 0.95) for x, y in tail], -0.24, -0.02, GUN_D)
+        paint(m, [(s * x, y) for x, y in edge], 0.46, CHROME)
+    paint(m, [(-2.6, 1.96), (2.6, 1.96), (2.6, 1.74), (-2.6, 1.74)], 0.46, INK)              # hazard band
+    for i in range(-6, 7):
+        m.box((0.2, 0.28, 0.03), (i * 0.4, 1.85, 0.47), HAZARD, rot=(0, 0, 0.6))
+    for x in (-1.75, -0.9, 0.0, 0.9, 1.75):                                                 # ribs
+        front = 2.67 - abs(x) * 0.36
+        m.box((0.2, front - 2.0, 0.12), (x, (front + 2.0) / 2, 0.5), STEEL, taper=0.8)
+        m.box((0.26, 0.2, 0.16), (x, front, 0.48), METAL)
+    for x, y, w in ((-1.3, 2.35, 0.3), (0.5, 2.55, 0.22), (1.9, 2.0, 0.26)):               # gouges
+        strip(m, (x, y), (x - 0.06, y - 0.32), w * 0.3, 0.465, 0.01, SOOT)
     for s in (1, -1):
-        for i in range(3):
-            m.box((0.06, 0.08, 0.24), (s * 0.93, -0.55 - i * 0.22, 0.1), INK, rot=(0, 0, s * 0.3))
-        soot(m, s * 0.4, -1.6, 0.25, 0.4, 0.3)
-    # dorsal fin and tail flukes behind the last sockets
-    m.prism([(0, 0), (0.9, 0), (0.25, 0.95), (0.05, 0.9)], 0.12, (0, -2.6, 0.18), GUN_L, rot=(0, 0, math.pi / 2))
-    m.prism([(0.05, 0.62), (0.4, 0.62), (0.28, 0.8), (0.12, 0.8)], 0.13, (0, -2.6, 0.18), A, rot=(0, 0, math.pi / 2))
-    for s in (1, -1):
-        top = poly(m, [(s * 0.2, -1.9), (s * 0.55, -1.95), (s * 1.35, -2.75), (s * 1.15, -2.9), (s * 0.15, -2.45)], -0.02, 0.14, GUN, inset=0.9)
-        strip(m, (s * 0.55, -1.98), (s * 1.3, -2.76), 0.1, 0.15, 0.03, A.shade(0.85))
-    m.cyl(0.24, 0.5, (0, -1.9, 0.08), GUN_D, segs=6, r_top=0.1, rot=BACK)
-    # cockpit pod off the tail's right shoulder, with a visor slit
-    x, y = sock(g, 4, 2)
-    m.box((0.55, 0.18, 0.14), (x - 0.4, y + 0.05, 0.14), STEEL)                           # access tube
-    m.cyl(0.38, 0.32, (x + 0.05, y - 0.05, 0.0), GUN_L, segs=7)
-    m.cyl(0.34, 0.06, (x + 0.05, y - 0.05, 0.32), A, segs=7)
-    m.cyl(0.26, 0.12, (x + 0.05, y - 0.05, 0.36), GUN_D, segs=7, r_top=0.2)
-    m.box((0.36, 0.1, 0.06), (x + 0.05, y + 0.08, 0.46), GLASS, glow=True)
-    # the left shoulder carries a sensor mast and a pectoral fin
-    x, y = sock(g, 1, 2)
-    m.cyl(0.22, 0.24, (x + 0.1, y, 0.0), STEEL, segs=6)
-    m.cyl(0.05, 0.5, (x + 0.1, y, 0.24), METAL, segs=4)
-    m.box((0.5, 0.14, 0.08), (x - 0.25, y + 0.05, 0.14), STEEL)
-    poly(m, [(-0.9, -0.9), (-1.65, -1.6), (-1.5, -1.8), (-0.9, -1.5)], -0.02, 0.14, GUN, inset=0.9)
-    decks(m, g, plate=GUN, hatch=GUN_D, bolt=GUN_L)
+        # livery: a broad band across each shoulder of the head
+        paint(m, [(s * 2.68, 1.2), (s * 2.68, 0.55), (s * 1.62, 0.55), (s * 1.62, 1.2)], 0.3, A)
+        paint(m, [(s * 1.62, 1.12), (s * 1.62, 0.63), (s * 1.5, 0.63), (s * 1.5, 1.12)], 0.3, B)
+        # engine nacelles at the head's ends, a red running light up front, a glowing nozzle behind
+        x = s * 2.95
+        m.cyl(0.36, 1.7, (x, 1.55, 0.08), GUN_L, segs=8, rot=BACK)
+        m.cyl(0.39, 0.3, (x, 1.25, 0.08), A, segs=8, rot=BACK)
+        m.cyl(0.3, 0.2, (x, 1.65, 0.08), GUN_D, segs=8, r_top=0.18, rot=FWD)
+        m.box((0.2, 0.14, 0.12), (x, 1.88, 0.14), EYE, glow=True)
+        m.box((0.1, 1.0, 0.1), (x, 0.65, 0.44), GUN_D)
+        nozzle(m, x, -0.15, 0.08, 0.32, STEEL, C, segs=8, length=0.3)
+        # vents down the tail
+        vent(m, s * 0.45, -0.95, 0.3, 0.3, 0.7, 4)
+        # sponsons, square and armoured
+        hull(m, [(s * 0.7, -0.3), (s * 1.75, -0.4), (s * 1.85, -1.35), (s * 0.7, -1.35)], -0.12, 0.16, GUN, bevel=0.06)
+        # stabilisers off the tail, livery tips
+        fin = [(0.7, -1.4), (1.45, -1.95), (1.5, -2.45), (0.7, -2.1)]
+        hull(m, [(s * x, y) for x, y in fin], -0.1, 0.16, GUN, bevel=0.05)
+        paint(m, [(s * 1.25, -1.8), (s * 1.45, -1.95), (s * 1.5, -2.45), (s * 1.28, -2.36)], 0.16, A)
+        # twin main nozzles
+        nozzle(m, s * 0.32, -2.15, 0.1, 0.24, STEEL, C, segs=8, length=0.3)
+        soot(m, s * 2.2, -0.1, 0.3, 0.4, 0.25)
+    paint(m, [(-1.5, 1.5), (1.5, 1.5), (1.5, 0.12), (-1.5, 0.12)], 0.3, tone(GUN, 1.12), h=0.008)
+    strip(m, (-2.5, 0.8), (2.5, 0.8), 0.06, 0.31, 0.01, GUN_D)
+    for x in (-0.8, 0.8):
+        strip(m, (x, 1.6), (x, 0.05), 0.06, 0.31, 0.01, GUN_D)
+    paint(m, [(-0.18, -0.12), (0.18, -0.12), (0.18, -2.0), (-0.18, -2.0)], 0.3, A)        # spine stripe
+    # the cockpit pod on the right sponson, the sensor mast on the left
+    x, y = 1.28, -0.88
+    m.cyl(0.42, 0.34, (x, y, 0.06), GUN_L, segs=8)
+    m.cyl(0.38, 0.06, (x, y, 0.38), A, segs=8)
+    m.cyl(0.3, 0.14, (x, y, 0.42), GUN_D, segs=8, r_top=0.22)
+    m.box((0.4, 0.14, 0.08), (x, y + 0.16, 0.54), GLASS, glow=True)
+    x, y = -1.28, -0.88
+    m.cyl(0.26, 0.26, (x, y, 0.06), STEEL, segs=6)
+    m.cyl(0.05, 0.6, (x, y, 0.32), METAL, segs=4)
+    m.box((0.4, 0.06, 0.06), (x, y, 0.76), METAL)
+    for sx, sy in sockets(g):
+        hatch(m, sx, sy, mid=GUN_D, bolt=GUN_L)
     m.build(root)
     n = Model("hammer_lamp")
     n.ball(0.08, (0, 0, 0), EYE, subdiv=0, glow=True)
-    blink(n.build(root, loc=(x + 0.1, y, 0.8)), "frame_hammer_blink_idle", 0.9, 0.3)
+    blink(n.build(root, loc=(x, y, 0.96)), "frame_hammer_blink_idle", 0.9, 0.3)
 
 
-# The Lattice: no hull at all, a rusty scaffold of girders between socket pads, conduit run along
-# it, work lamps out on the spars' tips, hazard-striped crossbars, and the cockpit pod hung in a
-# roll cage in the gap at the back.
-IRON = "#6e4630"
-IRON_D = "#43301f"
-PAD = "#5a5c60"
+# The Lattice: no hull at all, an open truss of rusty girders between round socket hubs, a spine
+# girder in the livery, glowing conduit, a hazard crossbar with work lamps out front, and the
+# cockpit pod hung in a roll cage at the back. The ground shows through it.
+IRON = "#7a4a30"
+IRON_D = "#4a3020"
+PAD = "#62666c"
 LAMP = "#ffb04a"
+
+
+def girder(m: Model, a, b, z, col, w=0.36, chord=0.13, n=None):
+    """A truss girder from (x, y) a to b seen from above: two chords and a zigzag web between."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy)
+    ux, uy = dx / L, dy / L
+    px, py = -uy * w / 2, ux * w / 2
+    for k in (-1, 1):
+        strip(m, (a[0] + k * px, a[1] + k * py), (b[0] + k * px, b[1] + k * py), chord, z, 0.12, col)
+    n = n or max(2, round(L / 0.4))
+    for i in range(n):
+        t0, t1 = i / n, (i + 1) / n
+        k = 1 if i % 2 else -1
+        p0 = (a[0] + dx * t0 + k * px, a[1] + dy * t0 + k * py)
+        p1 = (a[0] + dx * t1 - k * px, a[1] + dy * t1 - k * py)
+        strip(m, p0, p1, chord * 0.75, z - 0.02, 0.08, tone(col, 0.8))
 
 
 def lattice(root):
     g = FRAMES["lattice"]
     m = Model("lattice_hull", seed=13)
     cells = [(c, r) for r, row in enumerate(g) for c, ch in enumerate(row) if ch == '#']
-    z = 0.12
-    # a pad under every socket, its collar in the livery
-    for c, r in cells:
-        x, y = sock(g, c, r)
-        m.cyl(0.36, 0.14, (x, y, 0.08), tone(PAD, m.rng.choice((1.0, 0.88, 1.1))), segs=8, r_top=0.32)
-        m.cyl(0.37, 0.04, (x, y, 0.1), A.shade(m.rng.choice((1.0, 0.85))), segs=8)
-        m.cyl(0.12, 0.3, (x, y, -0.22), IRON_D, segs=6)                                    # hanging strut
-    # girders between neighbouring sockets, with conduit along them
+    z = 0.14
+    # girders between neighbouring sockets, glowing conduit along them; the spine is in the livery
     for c, r in cells:
         x0, y0 = sock(g, c, r)
         for dc, dr in ((1, 0), (0, 1)):
             if (c + dc, r + dr) in cells:
                 x1, y1 = sock(g, c + dc, r + dr)
-                for k in (-1, 1):
-                    off = (k * 0.12 * dr, k * 0.12 * dc)
-                    strip(m, (x0 + off[0], y0 + off[1]), (x1 + off[0], y1 + off[1]), 0.09, z, 0.12, tone(IRON, m.rng.choice((1.0, 0.85, 1.15))))
-                strip(m, (x0, y0), (x1, y1), 0.05, z + 0.02, 0.04, C, glow=True)
-    # the open bays: cross-braced, a rivet plate where the braces cross
+                spine = c == 2 and dc == 0
+                girder(m, (x0, y0), (x1, y1), z, A if spine else tone(IRON, m.rng.choice((1.0, 0.88, 1.1))), w=0.44 if spine else 0.34)
+                if not spine:
+                    strip(m, (x0, y0), (x1, y1), 0.06, z + 0.04, 0.04, C, glow=True)
+    # the open bays: one diagonal brace each, a gusset where it meets the hubs
     for c, r in ((1, 0), (3, 0), (1, 1), (3, 1), (1, 3), (3, 3)):
         x, y = sock(g, c, r)
-        for k in (-1, 1):
-            strip(m, (x - 0.8, y + k * 0.4), (x + 0.8, y - k * 0.4), 0.07, z - 0.04, 0.08, IRON_D)
-        m.box((0.2, 0.2, 0.06), (x, y, z - 0.02), STEEL, rot=(0, 0, math.pi / 4))
+        k = 1 if (c + r) % 2 else -1
+        strip(m, (x - 0.8, y + k * 0.4), (x + 0.8, y - k * 0.4), 0.1, z - 0.06, 0.08, IRON_D)
+    # a hub under every socket: an octagonal drum, its collar in the livery, a pad on top
+    for c, r in cells:
+        x, y = sock(g, c, r)
+        m.cyl(0.3, 0.34, (x, y, -0.08), IRON_D, segs=8)
+        m.cyl(0.29, 0.06, (x, y, 0.24), A.shade(m.rng.choice((1.0, 0.88))), segs=8, r_top=0.26)
+        m.cyl(0.17, 0.02, (x, y, 0.3), PAD, segs=8)
+        m.cyl(0.08, 0.02, (x, y, 0.315), INK, segs=6)
     # a hazard-striped front crossbar, and the spars running on past it to work lamps
-    fy = sock(g, 0, 0)[1] + 0.55
-    strip(m, (-1.75, fy), (1.75, fy), 0.14, z, 0.12, HAZARD)
+    fy = sock(g, 0, 0)[1] + 0.62
+    m.box((3.6, 0.2, 0.16), (0, fy, z), HAZARD)
     for i in range(-8, 9):
-        m.box((0.08, 0.15, 0.13), (i * 0.2, fy, z), INK, rot=(0, 0, 0.6))
+        m.box((0.1, 0.24, 0.17), (i * 0.21, fy, z), INK, rot=(0, 0, 0.6))
     for c in (0, 2, 4):
         x, y = sock(g, c, 0)
-        strip(m, (x, y), (x, y + 0.95), 0.12, z, 0.12, IRON)
-        m.box((0.26, 0.2, 0.18), (x, y + 1.0, z + 0.04), STEEL)
-        m.box((0.2, 0.06, 0.12), (x, y + 1.11, z + 0.04), LAMP, glow=True)
-    # rear vanes in the bare back corners, in the livery, with a pipe to each
+        strip(m, (x, y), (x, y + 1.05), 0.14, z, 0.14, IRON)
+        m.box((0.32, 0.24, 0.22), (x, y + 1.1, z + 0.04), STEEL)
+        m.box((0.24, 0.07, 0.14), (x, y + 1.23, z + 0.04), LAMP, glow=True)
+    # outriggers off the middle row: radiator fins, glowing, on struts
+    for s in (1, -1):
+        x, y = sock(g, 0 if s < 0 else 4, 2)
+        strip(m, (x, y), (x + s * 0.75, y), 0.14, z, 0.12, IRON)
+        for i in range(4):
+            m.box((0.5, 0.08, 0.2), (x + s * 0.85, y + 0.33 - i * 0.22, z + 0.02), STEEL)
+        m.box((0.08, 0.8, 0.08), (x + s * 0.85, y, z + 0.06), C, glow=True)
+    # rear vanes in the bare back corners, in the livery, a pipe to each
     for s in (1, -1):
         x, y = sock(g, 0 if s < 0 else 4, 4)
-        poly(m, [(x - 0.3 * s, y + 0.35), (x + 0.25 * s, y + 0.2), (x + 0.35 * s, y - 0.4), (x - 0.05 * s, y - 0.25)], 0.04, 0.16, A, inset=0.85)
-        m.box((0.3, 0.08, 0.02), (x + 0.02 * s, y - 0.05, 0.17), tone(B, 0.85), rot=(0, 0, -0.4 * s))
-        strip(m, (x - 0.3 * s, y + 0.35), (x - 0.75 * s, y + 0.4), 0.08, z, 0.08, IRON)
-        pipe(m, (s * 1.6, -1.15), (s * 1.6, 1.25), z - 0.1, 0.05)
-    # the cockpit pod, hung in a roll cage in the gap at the back
+        vane = [(x - 0.3 * s, y + 0.45), (x + 0.3 * s, y + 0.25), (x + 0.38 * s, y - 0.45), (x - 0.05 * s, y - 0.3)]
+        hull(m, vane, 0.0, 0.2, A, bevel=0.05)
+        m.box((0.32, 0.1, 0.02), (x + 0.04 * s, y - 0.05, 0.2), B, rot=(0, 0, -0.4 * s))
+        strip(m, (x - 0.3 * s, y + 0.4), (x - 0.8 * s, y + 0.4), 0.1, z, 0.1, IRON)
+        pipe(m, (s * 1.62, -1.2), (s * 1.62, 1.3), z - 0.12, 0.06)
+    # the cockpit pod, hung in a roll cage at the back
     x, y = sock(g, 2, 4)
-    m.cyl(0.32, 0.14, (x, y, -0.08), PAD, segs=8)
-    strip(m, (x - 0.8, y), (x + 0.8, y), 0.08, z - 0.06, 0.08, IRON_D)
-    canopy(m, (x, y, 0.34), (0.26, 0.28, 0.24), bar=IRON_D)
-    for dx, dy in ((-0.3, -0.3), (0.3, -0.3), (-0.3, 0.3), (0.3, 0.3)):
-        m.box((0.06, 0.06, 0.62), (x + dx, y + dy, 0.31), STEEL)
-    ring(m, 0.42, 0.62, 0.06, STEEL, n=8, w=0.06, cx=x, cy=y)
-    m.box((0.08, 0.08, 0.08), (x, y + 0.42, 0.68), LAMP, glow=True)
+    strip(m, (x - 0.8, y), (x + 0.8, y), 0.12, z - 0.04, 0.1, IRON_D)
+    m.cyl(0.36, 0.2, (x, y, -0.1), PAD, segs=8)
+    canopy(m, (x, y, 0.34), (0.27, 0.3, 0.24), bar=IRON_D)
+    for dx, dy in ((-0.32, -0.32), (0.32, -0.32), (-0.32, 0.32), (0.32, 0.32)):
+        m.box((0.07, 0.07, 0.66), (x + dx, y + dy, 0.33), STEEL)
+    ring(m, 0.45, 0.66, 0.07, A, n=8, w=0.08, cx=x, cy=y)
+    m.box((0.1, 0.1, 0.1), (x, y + 0.45, 0.72), LAMP, glow=True)
+    nozzle(m, x, y - 0.42, 0.06, 0.16, STEEL, C, segs=6, length=0.24)
     m.build(root)
 
 

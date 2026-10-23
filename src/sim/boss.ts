@@ -26,7 +26,7 @@
  * learnt; after that it reads, and strings moves together (a short breath between, a long one after).
  */
 
-import type { Bullet, Enemy, Level } from './level';
+import type { Bullet, Enemy, Level, Pickup } from './level';
 import { DT, FLIGHT_Y, HALF_H, HALF_W } from './types';
 import { metaOf } from './meta';
 import { clamp, hashStr, lerp, rng, shuffle, smooth } from '../util';
@@ -57,6 +57,9 @@ export type BossMove =
   | 'irons'
   | 'breach'
   | 'broadside'
+  | 'pursuit'
+  | 'lien'
+  | 'ballast'
   // the signatures: one each
   | 'skydive'
   | 'crane'
@@ -138,6 +141,33 @@ export interface BossState {
   tide: { o: Bullet | Strike; at: number; back: boolean }[];
   /** When the tide last turned (it says so once a turn, not once a bubble). */
   tideT: number;
+  /** A chase that ends before its phase does (ARU-0's): it has overtaken you, and holds the screen. */
+  overtook: boolean;
+  /** ARU-0's nineteen seconds: how long it still stands silent (0: not now), and whether it has been called since. */
+  hush: number;
+  called: boolean;
+  /** Its company plates, torn off and thrown as ballast; and the plates its Liens have bolted on (its armour). */
+  torn: number;
+  plates: number;
+  /** Its name on its bar, once it isn't the one it came with (ARU-0, called: RECOVERY UNIT). */
+  name?: string;
+  /** The move it has lined up to make next (two Liens in a string). */
+  next: BossMove | null;
+  /** Turned to look up the screen (on a chase, behind you; ARU-0 facing Glacis). */
+  faceUp: boolean;
+  /** Lien's tow lines: each a line of light to the scrap it's reeling in (or where it threw a claw for it). */
+  tows: Tow[];
+  /** Ballast thrown down its lanes, coming back once it reaches the edge; and the lanes drawn while it tells. */
+  thrown: { s: Strike; back: boolean }[];
+  lanes: Laser[];
+}
+
+type Laser = Level['lasers'][number];
+interface Tow {
+  k: Pickup | null;
+  x: number;
+  z: number;
+  l: Laser;
 }
 
 /** What it notices about how you fly. */
@@ -240,6 +270,9 @@ const ANSWERS: Record<BossMove, Read[]> = {
   irons: ['back', 'side'],
   breach: ['still', 'back'],
   broadside: ['side', 'close'],
+  pursuit: ['back'],
+  lien: ['still', 'close'],
+  ballast: ['side', 'still'],
   slam: ['close', 'still'],
   sweep: ['side', 'still'],
   gate: ['side', 'back'],
@@ -264,9 +297,9 @@ const READ_SAY = 0.55;
 /** How often it strings another move on, by phase (none in the first: it's learnt in order). */
 const COMBO = [0, 0.35, 0.6];
 
-type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost' | 'tide';
+type Pattern = 'fans' | 'spiral' | 'rain' | 'rings' | 'walls' | 'lasers' | 'splitters' | 'curves' | 'frost' | 'tide' | 'ledger';
 
-const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2, tide: 4.4 };
+const LENGTH: Record<Pattern, number> = { fans: 3.5, spiral: 4, rain: 3.5, rings: 3.5, walls: 4, lasers: 4, splitters: 3.5, curves: 4, frost: 3.2, tide: 4.4, ledger: 4 };
 
 /** Bosses lean on patterns that suit them. */
 const FAVOURITES: Record<string, Pattern[]> = {
@@ -311,7 +344,25 @@ const OWN: Record<string, BossMove[][]> = {
   // Istra hunts you as she'd hunt a whale: irons, her breath, a breach; drawing blood makes it a
   // sea fight (broadsides, her captains called in); with her crew gone, everything comes back
   vesh: [['irons', 'breach'], ['irons', 'broadside', 'summon', 'breach'], ['irons', 'broadside', 'breach']],
+  // ARU-0 by the contract: it repossesses, reels in the scrap as a lien and sends its collectors;
+  // in arrears it reels twice running; called, it throws its company hull away as ballast
+  cinder: [['lien', 'summon'], ['lien', 'summon'], ['ballast', 'lien', 'ballast']],
 };
+
+/** A boss whose signature opens each phase instead of coming second (ARU-0 serves notice first). */
+const SIG_FIRST = new Set(['cinder']);
+
+/** A chase that's an opening, not a phase: how long it lasts and what it makes on it, before it overtakes you. */
+const CHASE: Record<string, { len: number; moves: BossMove[] }> = { cinder: { len: 10, moves: ['pursuit'] } };
+
+/** A boss's own last stand, in order, in place of everything once more. */
+const LAST_OWN: Record<string, BossMove[]> = {
+  // ballast down every lane, a Lien on everything on the field, and the lanes again
+  cinder: ['ballast', 'lien', 'ballast', 'repossess'],
+};
+
+/** ARU-0's nineteen seconds: its last phase opens with it standing still and silent, facing Glacis, before it's called. */
+const HUSH: Record<string, number> = { cinder: 19 };
 
 /**
  * A boss's own filler, a list a phase, in place of its planet's favourites. The Engine's guns are
@@ -322,6 +373,8 @@ const FILLER: Record<string, Pattern[][]> = {
   // Istra's crew on the deck guns, then the cannon; and when they've gone, only the sea she
   // breathes out and in
   vesh: [['curves', 'fans'], ['splitters', 'fans'], ['tide']],
+  // ARU-0: the company's orderly walls and its mines; then fees (beams); called, the Engine's own
+  cinder: [['walls', 'splitters'], ['lasers', 'walls'], ['spiral', 'lasers']],
 };
 
 /**
@@ -329,13 +382,13 @@ const FILLER: Record<string, Pattern[][]> = {
  * is the last entry. The Engine is half asleep, then stirring, then wide awake. (A lattice tell is
  * never under a second, however awake.)
  */
-const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85] };
+const TEMPO: Record<string, number[]> = { glacis: [1.35, 1.1, 0.92, 0.85], cinder: [1, 0.92, 0.95, 0.85] };
 
 /** The phase from which a boss has no guns left: no patterns, just its moves (Vask, free). */
 const BARE: Record<string, number> = { orutal: 2 };
 
 /** The beat of a boss's theme (its rings and wing beats land on it). */
-const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120, vesh: 60 / 126 };
+const BEAT: Record<string, number> = { orutal: 60 / 140, glacis: 60 / 120, vesh: 60 / 126, cinder: 60 / 112 };
 
 const KIND: Record<BossMove, AttackKind> = {
   charge: 'charge',
@@ -350,6 +403,9 @@ const KIND: Record<BossMove, AttackKind> = {
   irons: 'harpoon',
   breach: 'slam',
   broadside: 'sweep',
+  pursuit: 'shell',
+  lien: 'beam',
+  ballast: 'slam',
   slam: 'slam',
   sweep: 'sweep',
   gate: 'gate',
@@ -389,7 +445,12 @@ export const MOVE_NAME: Partial<Record<BossMove, string>> = {
   repossess: 'REPOSSESSION',
   count: 'THE COUNT',
   broadside: 'BROADSIDE',
+  pursuit: 'PURSUIT',
+  lien: 'LIEN',
+  ballast: 'BALLAST',
 };
+/** Called, ARU-0 names its moves in the Engine's words. */
+const CALLED_NAME: Partial<Record<BossMove, string>> = { repossess: 'RECOVERY' };
 
 /** Damage that breaks its poise (a share of its hull), and how fast poise comes back. */
 const POISE = 0.075;
@@ -401,7 +462,7 @@ const LAST = 0.08;
  * How much hull it has, against the rest (2400 at the start of a run). Vask's three phases each
  * teach something, so each needs time: half again as long.
  */
-const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4 };
+const HULL: Record<string, number> = { orutal: 2.6, glacis: 2.4, vesh: 2.4, cinder: 2.2 };
 export const bossHull = (planet: string) => HULL[planet] ?? 1;
 
 /** Who comes when it calls. */
@@ -435,7 +496,7 @@ export function makeBoss(planet: string): BossState {
   if (planet === 'ashgrave') moves[2][1] = 'harpoon';
   // its own move comes second in every phase (seen early, and every time round)
   const sig = SIGNATURE[planet] ?? 'skydive';
-  for (const l of moves) l.splice(1, 0, sig);
+  for (const l of moves) l.splice(SIG_FIRST.has(planet) ? 0 : 1, 0, sig);
   return {
     style,
     phase: 0,
@@ -485,6 +546,16 @@ export function makeBoss(planet: string): BossState {
     under: false,
     tide: [],
     tideT: -99,
+    overtook: false,
+    hush: 0,
+    called: false,
+    torn: 0,
+    plates: 0,
+    next: null,
+    faceUp: style === 'pursuer',
+    tows: [],
+    thrown: [],
+    lanes: [],
   };
 }
 
@@ -492,7 +563,8 @@ export function makeBoss(planet: string): BossState {
 export const poiseOf = (e: Enemy) => (e.state === 'stagger' ? 1 : clamp(e.boss!.poise / (e.max * POISE), 0, 1));
 
 /** The name of the move it's making, if it has one (its signature, and a few others). */
-export const sigName = (e: Enemy) => (e.boss?.move && (e.state === 'windup' || e.state === 'attack') ? MOVE_NAME[e.boss.move] : undefined);
+export const sigName = (e: Enemy) =>
+  e.boss?.move && (e.state === 'windup' || e.state === 'attack') ? ((e.boss.called && CALLED_NAME[e.boss.move]) || MOVE_NAME[e.boss.move]) : undefined;
 
 /** A perfect dash through its attack: a read. It wears its poise half through; through its signature, it breaks it. */
 export function bossRead(lv: Level, e: Enemy) {
@@ -509,18 +581,47 @@ export function bossHurt(lv: Level, e: Enemy, dmg: number) {
   if (e.t < 3.5 || e.shielded || b.poiseCd > 0 || e.state === 'stagger') return;
   b.poise += dmg;
   if (b.poise < e.max * POISE) return;
+  stagger(lv, e, b);
+  lv.emit({ type: 'bossStagger', enemy: e.id, x: e.x, z: e.z });
+}
+
+/** Its poise broken (or its plating): whatever it was making stops, and it reels. */
+function stagger(lv: Level, e: Enemy, b: BossState) {
   b.poise = 0;
   b.poiseCd = 5;
-  // whatever it was making stops: beams go out, a swinging ball drops
+  // whatever it was making stops: beams go out, a swinging ball drops, tow lines let go
   for (let i = lv.lasers.length - 1; i >= 0; i--) if (lv.lasers[i].owner === e.id) lv.lasers.splice(i, 1);
   dropBall(b);
+  letGo(b);
   if (e.grab >= 0) release(lv, e, true);
   b.move ??= 'summon';
+  b.next = null;
   // knocked out of a string of moves
   b.combo = 0;
   b.comboed = false;
   go(lv, e, 'stagger', 2.6);
-  lv.emit({ type: 'bossStagger', enemy: e.id, x: e.x, z: e.z });
+}
+
+/**
+ * The plating its Liens bolted on, broken by a blow: it reels, and the plates come off it as scrap
+ * on the field (take it, or the next Lien reels it back in).
+ */
+export function bossUnplated(lv: Level, e: Enemy) {
+  const b = e.boss!;
+  for (let k = 0; k < b.plates; k++) lv.drop('scrap', e.x + (lv.rand() - 0.5) * e.r * 2, e.z + 1 + lv.rand() * e.r, LIEN_SCRAP);
+  b.plates = 0;
+  e.armour = e.armourMax = 0;
+  if (e.state !== 'stagger') stagger(lv, e, b);
+  lv.emit({ type: 'armourBreak', enemy: e.id, x: e.x, z: e.z });
+}
+
+/** Lien's lines let go of what they held (it's left where it is). */
+function letGo(b: BossState) {
+  for (const t of b.tows) if (t.k) t.k.towed = false;
+  b.tows.length = 0;
+  b.lanes.length = 0;
+  for (const w of b.thrown) w.s.dead = true;
+  b.thrown.length = 0;
 }
 
 function dropBall(b: BossState) {
@@ -531,6 +632,8 @@ function dropBall(b: BossState) {
 /** What a hit is worth on it now: armour, and the weak points when it's open. */
 export function bossTaken(lv: Level, e: Enemy, crit: boolean) {
   const b = e.boss!;
+  // ARU-0 in its nineteen seconds: nobody's there to hurt
+  if (b.hush > 0) return crit ? 0.35 : 0.25;
   const open = e.state === 'recover' || e.state === 'stagger';
   if (crit && open) lv.emit({ type: 'weakHit', enemy: e.id, x: e.x, z: e.z, dmg: 0 });
   // poise broken: wide open, whatever it is
@@ -571,17 +674,30 @@ export function updateBoss(lv: Level, e: Enemy) {
     return;
   }
   b.shieldT = Math.max(0, b.shieldT - DT);
-  e.shielded = b.shieldT > 0;
+  e.shielded = b.shieldT > 0 || overtaking(b);
   e.heading = 0;
-  readYou(lv, e, b);
+  // (silent, it isn't watching you)
+  if (!b.hush) readYou(lv, e, b);
+  // what its Liens bolt on stays on until it's broken off (it doesn't grow back)
+  e.armourMax = e.armour;
 
-  // phases at two thirds and one third (a chase ends after half a minute regardless)
+  // phases at two thirds and one third (a chase ends after half a minute regardless, unless it's
+  // only the opening: then it overtakes you after a while, and the phase goes on)
+  const chase = CHASE[lv.spec.planet.id];
   if (b.style === 'pursuer' && b.phase === 0) b.chaseT += DT;
   let want = e.hp < e.max / 3 ? 2 : e.hp < (e.max * 2) / 3 ? 1 : 0;
-  if (b.style === 'pursuer' && b.chaseT > 30) want = Math.max(want, 1);
+  if (b.style === 'pursuer' && b.chaseT > 30 && !chase) want = Math.max(want, 1);
+  if (chase && chasing(b) && b.chaseT > chase.len && !b.move) {
+    b.overtook = true;
+    lv.chase = false;
+    // (once it's at the head of the screen, it serves notice straight away)
+    b.pt = 99;
+    lv.emit({ type: 'bossBeat', enemy: e.id, move: 'overtake', k: 0, x: e.x, z: e.z });
+  }
   b.poiseCd = Math.max(0, b.poiseCd - DT);
   b.poise = Math.max(0, b.poise - e.max * POISE_BACK * DT);
-  const last = e.hp < e.max * LAST && !b.last;
+  // (no last stand until it has been called)
+  const last = e.hp < e.max * LAST && !b.last && !b.hush && (!HUSH[lv.spec.planet.id] || b.called);
   if ((want > b.phase || last) && (!b.move || e.state === 'recover' || e.state === 'stagger')) {
     // a phase taken without a hit: paid for, in scrap thrown from its hull
     const hits = lv.players.reduce((n, p) => n + p.hits, 0);
@@ -596,10 +712,11 @@ export function updateBoss(lv: Level, e: Enemy) {
       b.phase = 2;
       b.moveN = 0;
       // the last stand: its own move, straight away, and then everything at once
-      b.moves[2] = [b.sig, ...b.moves[2].filter((m) => m !== b.sig && m !== 'summon'), b.sig];
+      b.moves[2] = LAST_OWN[lv.spec.planet.id] ?? [b.sig, ...b.moves[2].filter((m) => m !== b.sig && m !== 'summon'), b.sig];
     } else {
       b.phase = want;
       b.moveN = 0;
+      if (want === 2 && HUSH[lv.spec.planet.id]) b.hush = HUSH[lv.spec.planet.id];
     }
     b.current = 0;
     b.pt = 0;
@@ -607,7 +724,9 @@ export function updateBoss(lv: Level, e: Enemy) {
     b.comboed = false;
     b.shieldT = 1.6;
     b.move = null;
+    b.next = null;
     dropBall(b);
+    letGo(b);
     b.tide.length = 0;
     if (e.grab >= 0) release(lv, e, false);
     go(lv, e, 'idle');
@@ -617,7 +736,9 @@ export function updateBoss(lv: Level, e: Enemy) {
     lv.emit({ type: 'bossPhase', phase: b.last ? 3 : b.phase, style: b.style });
     lv.emit({ type: 'explode', x: e.x, z: e.z, y: e.y, size: 4, color: e.skin.colors[2] });
   }
-  if (b.style === 'pursuer' && b.phase === 0) lv.chase = true;
+  if (chasing(b)) lv.chase = true;
+  b.faceUp = chasing(b) || b.hush > 0;
+  if (b.hush > 0) hush(lv, e, b);
   // the hive's pods, a few more each phase
   if (b.style === 'hive' && b.pods < b.phase && t > 4) {
     b.pods = b.phase;
@@ -642,34 +763,64 @@ export function updateBoss(lv: Level, e: Enemy) {
   if (e.shielded || e.stun > 0 || b.move) return;
 
   // patterns, then a breath, then a move, then a breath...
-  const list = b.patterns[b.phase];
+  const list: Pattern[] = b.hush > 0 ? ['ledger'] : b.patterns[b.phase];
   const pat = list[b.current % list.length];
   // on a chase it's all moves (a breath between them); with no guns left, too
-  const chase = b.style === 'pursuer' && b.phase === 0;
+  const onChase = chasing(b);
   const bare = b.phase >= b.bare;
   // in its last stand it hardly stops to breathe between moves
-  const len = bare ? 0.2 : chase || b.last ? 0.6 : LENGTH[pat];
+  const len = bare ? 0.2 : onChase || b.last ? 0.6 : LENGTH[pat];
   b.pt += DT;
   if (b.pt > len + 0.9) {
     b.current++;
     b.pt = 0;
     b.fire = 0;
-    startMove(lv, e, b);
+    // (silent, it makes no moves: it only prints)
+    if (!b.hush) startMove(lv, e, b);
     return;
   }
-  if (b.pt > len || chase || bare) return;
+  if (b.pt > len || onChase || bare) return;
   run(lv, e, b, pat);
+}
+
+/** On its chase: behind you, the level racing by. */
+const chasing = (b: BossState) => b.style === 'pursuer' && b.phase === 0 && !b.overtook;
+/** Its chase over, going round you to its spot at the head of the screen (out of reach meanwhile). */
+const overtaking = (b: BossState) => b.overtook && b.phase === 0 && b.ss > HZ + 6;
+
+/**
+ * ARU-0's nineteen seconds: it stops in the middle of the field, turns to face Glacis and fights
+ * on without a word (its ledger, printed blind down the field, a tick a second). Then a toll, and
+ * it has been called: it isn't Vantorr's any more.
+ */
+function hush(lv: Level, e: Enemy, b: BossState) {
+  const was = Math.ceil(b.hush);
+  b.hush = Math.max(0, b.hush - DT);
+  if (Math.ceil(b.hush) < was) lv.emit({ type: 'bossBeat', enemy: e.id, move: 'hush', k: Math.ceil(b.hush), x: e.x, z: e.z });
+  if (b.hush > 0) return;
+  b.called = true;
+  b.name = 'RECOVERY UNIT';
+  // it leads with the ballast now: Vantorr's hull is the first thing it throws away
+  b.moves[2] = ['ballast', b.sig, 'ballast', 'lien'];
+  b.moveN = 0;
+  b.pt = 0;
+  b.current = 0;
+  b.shieldT = 1.2;
+  for (const r of Object.keys(b.read) as Read[]) b.read[r] = 0;
+  lv.emit({ type: 'bossBeat', enemy: e.id, move: 'called', k: 0, x: e.x, z: e.z });
 }
 
 /** Drifting about its home spot (or, on a chase, about the spot behind you). */
 function home(lv: Level, e: Enemy, b: BossState) {
-  const fast = 1 + b.phase * 0.35;
-  const chase = b.style === 'pursuer' && b.phase === 0;
+  // lighter for every plate it has thrown away
+  const fast = (1 + b.phase * 0.35) * (1 + b.torn * 0.12);
+  const chase = chasing(b);
   const px = lv.nearest(e.x, e.z)?.x ?? 0;
-  // on a chase it drops back behind you round your side, not through you
-  const back = chase && b.ss < CHASE_S - 6;
-  const tx = back ? (px > 0 ? -1 : 1) * (HALF_W - 9) : chase ? clamp(px, -HALF_W + 10, HALF_W - 10) * 0.6 : Math.sin((e.t - 3.5) * 0.35 * fast) * (HALF_W - 18);
-  const ts = chase ? CHASE_S : HZ + Math.sin(e.t * 0.8) * 1.2;
+  // on a chase it drops back behind you round your side, not through you; overtaking, it goes
+  // round you the same way
+  const back = (chase && b.ss < CHASE_S - 6) || overtaking(b);
+  const tx = back ? (px > 0 ? -1 : 1) * (HALF_W - 9) : chase ? clamp(px, -HALF_W + 10, HALF_W - 10) * 0.6 : b.hush > 0 ? 0 : Math.sin((e.t - 3.5) * 0.35 * fast) * (HALF_W - 18);
+  const ts = chase ? CHASE_S : HZ + (b.hush > 0 ? 2 : Math.sin(e.t * 0.8) * 1.2);
   b.sx += clamp((tx - b.sx) * 2, -9, 9) * DT;
   b.ss += clamp((ts - b.ss) * 2, -10, 10) * DT * (back && Math.abs(b.sx - tx) > 6 ? 0.2 : 1);
 }
@@ -686,6 +837,14 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
   if (!b.comboed && b.combo <= 0 && !b.last && lv.rand() < COMBO[b.phase]) {
     b.combo = b.phase >= 2 && lv.rand() < 0.4 ? 2 : 1;
     lv.emit({ type: 'chain', enemy: e.id, n: 1, of: b.combo + 1 });
+  }
+  // in arrears, ARU-0 reels twice running
+  if (m === 'lien' && b.phase === 1 && !b.last && !b.comboed && lv.spec.planet.id === 'cinder') {
+    b.next = 'lien';
+    if (b.combo <= 0) {
+      b.combo = 1;
+      lv.emit({ type: 'chain', enemy: e.id, n: 1, of: 2 });
+    }
   }
   const p = lv.nearest(e.x, e.z);
   // boosting a lot: it aims where you're going, not where you are
@@ -722,8 +881,31 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
       break;
     }
     case 'shells':
-      go(lv, e, 'windup', 0.6, 'shell', { shape: 'circle', x: px, z: pz, r: 3, ground: b.style === 'pursuer' && b.phase === 0 });
+      go(lv, e, 'windup', 0.6, 'shell', { shape: 'circle', x: px, z: pz, r: 3, ground: chasing(b) });
       break;
+    case 'pursuit':
+      // its lamps come up behind you: it's about to throw its claws over you, a row a beat
+      b.dir = px > 0 ? -1 : 1;
+      go(lv, e, 'windup', 0.9, 'shell', { shape: 'ring', x: e.x, z: e.z, r: 7, w: 1.5 });
+      break;
+    case 'lien':
+      lienStart(lv, e, b);
+      break;
+    case 'ballast': {
+      // it tears off a plate: the lane drawn from it through you, edge to edge
+      const warn = tell(b, 1.15 * slow(b));
+      e.aim = aim;
+      b.len = laneLen(e.x, e.z, aim, lv);
+      go(lv, e, 'windup', warn, 'slam', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(aim) * b.len, z2: e.z + Math.cos(aim) * b.len, w: BALLAST_R * 2, lock: warn * 0.6 });
+      b.lanes.length = 0;
+      for (const off of ballastLanes(b).slice(1)) {
+        const l: Laser = { x: e.x, z: e.z, x2: e.x, z2: e.z, warn: warn + 0.05, on: 0.01, color: e.skin.colors[2], owner: e.id };
+        lv.lasers.push(l);
+        b.lanes.push(l);
+        aimLane(lv, e, l, aim + off);
+      }
+      break;
+    }
     case 'harpoon':
       go(lv, e, 'windup', 0.9, 'harpoon', line(60, 0.7, 0.6));
       break;
@@ -781,8 +963,16 @@ function startMove(lv: Level, e: Enemy, b: BossState) {
  * few, and it never makes the same move twice running.
  */
 function pickMove(lv: Level, b: BossState): BossMove {
+  if (b.next) {
+    const m = b.next;
+    b.next = null;
+    return m;
+  }
+  const chase = CHASE[lv.spec.planet.id];
+  if (chase && chasing(b)) return chase.moves[Math.floor(b.chaseT) % chase.moves.length];
   const list = b.moves[b.phase];
-  if (b.phase === 0 || b.last) return list[b.moveN++ % list.length];
+  // (called, ARU-0 keeps the Engine's order: it no longer answers you)
+  if (b.phase === 0 || b.last || b.called) return list[b.moveN++ % list.length];
   b.moveN++;
   const moves = [...new Set(list)].filter((m) => m !== b.lastMove || list.length < 2);
   if (b.sinceSig >= SIG_EVERY && moves.includes(b.sig)) return b.sig;
@@ -896,7 +1086,7 @@ function startSig(lv: Level, e: Enemy, b: BossState, px: number, pz: number) {
       const p = lv.nearest(e.x, e.z);
       b.mx = px;
       b.ms = pz;
-      go(lv, e, 'windup', (b.k ? 0.75 : 1.15) * fast, 'torpedo', p ? { shape: 'lock', id: p.id } : null);
+      go(lv, e, 'windup', tell(b, (b.k ? 0.75 : 1.15) * fast), 'torpedo', p ? { shape: 'lock', id: p.id } : null);
       break;
     }
     case 'irons': {
@@ -980,8 +1170,132 @@ const tideOn = (b: BossState) => b.phase >= 2;
 const EBB = 0.5;
 const TIDE_V = 9;
 
-/** How slowly it moves now (see TEMPO). */
-const slow = (b: BossState) => b.tempo[b.last ? 3 : b.phase] ?? 1;
+/** How slowly it moves now (see TEMPO); ARU-0 quickens for every plate of company hull it throws off. */
+const slow = (b: BossState) => (b.tempo[b.last ? 3 : b.phase] ?? 1) * (1 - b.torn * 0.05);
+/** A tell's length: once ARU-0 has been called, every tell is drawn a full second (the Engine's way). */
+const tell = (b: BossState, d: number) => (b.called ? Math.max(1, d) : d);
+
+/** ARU-0's mines: they wait longer once it's in arrears. */
+const repoMine = (lv: Level, b: BossState) => (lv.spec.planet.id === 'cinder' && b.phase >= 1 ? 2.4 : 1.6);
+
+/** PURSUIT: rows of claws a move, how long each is in the air, the gap's half-width and how far it steps. */
+const pursuitRows = (b: BossState) => (b.chaseT > 8 ? 4 : 3);
+const CLAW_WARN = 1.05;
+const CLAW_GAP = 4.4;
+const CLAW_STEP = 9.5;
+const CLAW_SPACE = 4.2;
+
+/** A row of claws thrown over you to land on your row, with one gap (at you, then stepped to the side with room). */
+function clawRow(lv: Level, e: Enemy, b: BossState) {
+  const p = lv.nearest(e.x, e.z);
+  const px = p?.x ?? 0;
+  // (where you'll be on the screen when they land: the land moves under you on a chase)
+  const z = (p?.z ?? lv.bottom - 8) - (chasing(b) ? lv.speedNow * CLAW_WARN : 0);
+  let gx = px + (b.k % 2) * b.dir * CLAW_STEP;
+  if (Math.abs(gx) > HALF_W - 6) gx = px - (b.k % 2) * b.dir * CLAW_STEP;
+  gx = clamp(gx, -HALF_W + 6, HALF_W - 6);
+  for (let x = -HALF_W + 1.5; x <= HALF_W - 1.5; x += CLAW_SPACE) {
+    if (Math.abs(x - gx) < CLAW_GAP) continue;
+    strike(lv, 'shell', x, z, { r: 2.1, warn: CLAW_WARN + Math.abs(x - gx) * 0.004, active: 0.45, sx: e.x + (lv.rand() - 0.5) * 4, sz: e.z, owner: e.id, color: e.skin.colors[1], air: !chasing(b) });
+  }
+}
+
+/** LIEN: scrap a scrap lot its claws seize, how many lines at most, how few before it throws claws for more, how fast it reels and drifts, and how long it hauls at most. */
+const LIEN_SCRAP = 2;
+const LIEN_MAX = 9;
+const lienMin = (b: BossState) => (b.last ? 6 : 3 + b.phase);
+const LIEN_V = 6.5;
+const LIEN_DRIFT = 4;
+const LIEN_T = 5;
+/** Where a line stops short of what it's reeling: come in behind the scrap and it's yours. */
+const LIEN_GAP = 2.6;
+/** A plate's worth of plating (a share of its hull), and the most it'll carry. */
+const LIEN_PLATE = 0.014;
+const LIEN_CAP = 8;
+const TOW_COLOR = 0xffb04a;
+
+/** The hold opens: lines to every loose scrap on the field, and claws thrown out for more if there's too little. */
+function lienStart(lv: Level, e: Enemy, b: BossState) {
+  const warn = tell(b, 1.2 * slow(b));
+  letGo(b);
+  b.dir = e.x > 0 ? -1 : 1;
+  const loose = lv.pickups
+    .filter((k) => k.kind === 'scrap' && !k.dead && !k.towed && lv.onScreen(k.x, k.z, -2))
+    .sort((a, c) => (a.x - e.x) ** 2 + (a.z - e.z) ** 2 - ((c.x - e.x) ** 2 + (c.z - e.z) ** 2))
+    .slice(0, LIEN_MAX);
+  const line = (k: Pickup | null, x: number, z: number) => {
+    const l: Laser = { x: e.x, z: e.z, x2: x, z2: z, warn: warn + 0.15, on: 99, color: TOW_COLOR, owner: e.id, tow: true };
+    lv.lasers.push(l);
+    b.tows.push({ k, x, z, l });
+  };
+  for (const k of loose) line(k, k.x, k.z);
+  // too little on the field: it puts a lien on salvage, claws thrown down across it
+  const n = Math.max(0, lienMin(b) - loose.length);
+  for (let i = 0; i < n; i++) {
+    const x = clamp(lerp(-HALF_W + 9, HALF_W - 9, (i + 0.5) / n) + (lv.rand() - 0.5) * 6, -HALF_W + 4, HALF_W - 4);
+    const z = lv.scroll + lerp(-2, HALF_H - 8, lv.rand());
+    strike(lv, 'shell', x, z, { r: 1.6, warn, active: 0.15, sx: e.x, sz: e.z, owner: e.id, color: TOW_COLOR, air: true });
+    line(null, x, z);
+  }
+  towLines(lv, e, b);
+  go(lv, e, 'windup', warn, 'beam', { shape: 'ring', x: e.x, z: e.z, r: 6, w: 1.5 });
+}
+
+/** Each line from its hold to what it holds, stopping short of it. */
+function towLines(lv: Level, e: Enemy, b: BossState) {
+  for (const t of b.tows) {
+    const dx = t.x - e.x;
+    const dz = t.z - e.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const len = Math.max(0.5, d - LIEN_GAP);
+    t.l.x = e.x;
+    t.l.z = e.z;
+    t.l.x2 = e.x + (dx / d) * len;
+    t.l.z2 = e.z + (dz / d) * len;
+    t.l.r0 = Math.min(len - 0.1, e.r * 0.7);
+  }
+}
+
+function dropLine(lv: Level, l: Laser) {
+  const i = lv.lasers.indexOf(l);
+  if (i >= 0) lv.lasers.splice(i, 1);
+}
+
+/** A scrap reeled home: bolted on as a plate (plating: the stream glances off it, a blow breaks it all off). */
+function plate(lv: Level, e: Enemy, b: BossState) {
+  if (b.plates < LIEN_CAP) {
+    b.plates++;
+    e.armour += e.max * LIEN_PLATE;
+    e.armourMax = e.armour;
+  }
+  lv.emit({ type: 'bossBeat', enemy: e.id, move: 'lien', k: b.plates, x: e.x, z: e.z });
+}
+
+/** BALLAST: a plate's size, how fast it goes out and how much of that it comes back at, and how many plates of company hull it has to throw. */
+const BALLAST_R = 1.9;
+const BALLAST_V = 27;
+const BALLAST_BACK = 0.8;
+const TORN_MAX = 4;
+/** Its lanes, as turns off the one through you: one, then two (the second leading) once it's lighter; every lane in its last stand. */
+const ballastLanes = (b: BossState) => (b.last ? [0, -0.5, 0.5, -1.05, 1.05] : b.torn >= 2 ? [0, b.dir * 0.42] : [0]);
+
+/** How far from (x, z) along angle a to the edge of the field. */
+function laneLen(x: number, z: number, a: number, lv: Level) {
+  const sx = Math.sin(a);
+  const cz = Math.cos(a);
+  const tx = sx > 0.001 ? (HALF_W - x) / sx : sx < -0.001 ? (-HALF_W - x) / sx : 999;
+  const tz = cz > 0.001 ? (lv.bottom - z) / cz : cz < -0.001 ? (lv.top - z) / cz : 999;
+  return Math.max(4, Math.min(tx, tz));
+}
+
+/** A lane drawn (as a beam that never burns) from it along angle a, edge to edge. */
+function aimLane(lv: Level, e: Enemy, l: Laser, a: number) {
+  const len = laneLen(e.x, e.z, a, lv);
+  l.x = e.x;
+  l.z = e.z;
+  l.x2 = e.x + Math.sin(a) * len;
+  l.z2 = e.z + Math.cos(a) * len;
+}
 
 /** The Engine's scan: how wide it sweeps (each side of straight down), the reading ring's two distances and its half-width. */
 const SCAN_A = 1.2;
@@ -1202,6 +1516,9 @@ function runMove(lv: Level, e: Enemy, b: BossState) {
     case 'irons':
     case 'breach':
     case 'broadside':
+    case 'pursuit':
+    case 'lien':
+    case 'ballast':
       sigAttack(lv, e, b);
       break;
     default:
@@ -1268,6 +1585,23 @@ function sigWindup(lv: Level, e: Enemy, b: BossState) {
       // nose down, sinking; the ring on you
       e.y = lerp(FLIGHT_Y, -2, smooth(clamp(e.stateT / e.stateDur, 0, 1)));
       breachRing(lv, e, b, true);
+      break;
+    case 'lien':
+      // the hold open, the lines drawn to everything it'll take
+      towLines(lv, e, b);
+      break;
+    case 'ballast':
+      // the lane follows you until it locks
+      if (tl && tl.shape === 'line') {
+        if (e.stateT < tl.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.08);
+        b.len = laneLen(e.x, e.z, e.aim, lv);
+        tl.x = e.x;
+        tl.z = e.z;
+        tl.x2 = e.x + Math.sin(e.aim) * b.len;
+        tl.z2 = e.z + Math.cos(e.aim) * b.len;
+        const offs = ballastLanes(b);
+        b.lanes.forEach((l, k) => aimLane(lv, e, l, e.aim + offs[k + 1]));
+      }
       break;
     case 'broadside':
       // out to her side, the row drawn with her
@@ -1357,7 +1691,13 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
       lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, warn: 0.32, on: 0.45, color: col, owner: e.id });
       lv.emit({ type: 'telegraph', x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, t: 0.32 });
       if (b.k % 2 === 1 || b.phase >= 2)
-        for (const s of [-1, 1]) lv.bullet(b.mx + Math.cos(a) * s * 5, b.ms - Math.sin(a) * s * 5, 0, 0, { kind: 'mine', r: 0.7, life: 1.6, split: 6, color: col });
+        for (const s of [-1, 1]) lv.bullet(b.mx + Math.cos(a) * s * 5, b.ms - Math.sin(a) * s * 5, 0, 0, { kind: 'mine', r: 0.7, life: repoMine(lv, b), split: 6, color: col });
+      // ARU-0 seizes what's there: a lot of scrap left where you were (its Lien comes for it next)
+      if (lv.spec.planet.id === 'cinder') {
+        lv.drop('scrap', b.mx, b.ms, LIEN_SCRAP);
+        const k = lv.pickups[lv.pickups.length - 1];
+        k.vx = k.vz = 0;
+      }
       b.k++;
       if (b.k < repoShots(b)) startSig(lv, e, b, px, pz);
       else go(lv, e, 'attack', 0, 'torpedo');
@@ -1412,6 +1752,61 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
         go(lv, e, 'attack', 0, 'harpoon');
         e.tele = null;
       }
+      return true;
+    }
+    case 'pursuit':
+      b.k = 0;
+      b.fire = 0;
+      go(lv, e, 'attack', 0, 'shell');
+      e.tele = null;
+      return true;
+    case 'lien':
+      // the claws it threw have landed: what they hold is its now, and it reels the lot in
+      for (const t of b.tows) {
+        if (!t.k) {
+          lv.drop('scrap', t.x, t.z, LIEN_SCRAP);
+          t.k = lv.pickups[lv.pickups.length - 1];
+          t.k.vx = t.k.vz = 0;
+        }
+        t.k.towed = true;
+      }
+      b.k = 0;
+      go(lv, e, 'attack', 0, 'beam');
+      e.tele = null;
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'reel', k: b.tows.length, x: e.x, z: e.z });
+      return true;
+    case 'ballast': {
+      // down every lane: a plate of its hull, thrown flat; it comes back from the edge
+      for (const l of b.lanes) {
+        const i = lv.lasers.indexOf(l);
+        if (i >= 0) lv.lasers.splice(i, 1);
+      }
+      b.lanes.length = 0;
+      for (const off of ballastLanes(b)) {
+        const a = e.aim + off;
+        const s = strike(lv, 'plate', e.x + Math.sin(a) * e.r * 0.6, e.z + Math.cos(a) * e.r * 0.6, {
+          r: BALLAST_R,
+          warn: 0,
+          active: 99,
+          vx: Math.sin(a) * BALLAST_V,
+          vz: Math.cos(a) * BALLAST_V,
+          owner: e.id,
+          color: col,
+          air: true,
+        });
+        b.thrown.push({ s, back: false });
+      }
+      // what it throws: a plate its Liens bolted on, else its own company hull
+      if (b.plates > 0) {
+        e.armour = Math.max(0, e.armour - e.armour / b.plates);
+        b.plates--;
+      } else if (b.torn < TORN_MAX) {
+        b.torn++;
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'tear', k: b.torn, x: e.x, z: e.z });
+      }
+      lv.emit({ type: 'bossBeat', enemy: e.id, move: 'ballast', k: b.thrown.length, x: e.x, z: e.z });
+      go(lv, e, 'attack', 0, 'slam');
+      e.tele = null;
       return true;
     }
     case 'breach':
@@ -1719,6 +2114,86 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       }
       break;
     }
+    case 'pursuit': {
+      // a row of claws a beat, thrown over you from behind to land on your row: one gap in each,
+      // stepping to the side with room and back (weave)
+      const rows = pursuitRows(b);
+      b.fire -= DT;
+      if (b.fire <= 0 && b.k < rows) {
+        b.fire += 2 * beatOf(lv);
+        clawRow(lv, e, b);
+        lv.emit({ type: 'bossBeat', enemy: e.id, move: 'pursuit', k: b.k++, x: e.x, z: e.z });
+      }
+      if (b.k >= rows && b.fire < -CLAW_WARN) endMove(lv, e, b, 0.9);
+      break;
+    }
+    case 'lien': {
+      // reeling: drifting across the top as it hauls, so its lines swing; each scrap that reaches
+      // its hold is bolted on as a plate
+      const v = LIEN_V + b.phase * 1.5 + (b.last ? 2 : 0);
+      b.sx += b.dir * LIEN_DRIFT * (1 + b.phase * 0.3) * DT;
+      if (Math.abs(b.sx) > HALF_W - 10) {
+        b.sx = Math.sign(b.sx) * (HALF_W - 10);
+        b.dir = -Math.sign(b.sx);
+      }
+      for (const t of b.tows) {
+        const k = t.k;
+        if (!k || k.dead) {
+          // taken from under it (you flew in behind it): the line goes slack
+          t.k = null;
+          dropLine(lv, t.l);
+          lv.emit({ type: 'bossBeat', enemy: e.id, move: 'snap', k: 0, x: t.x, z: t.z });
+          continue;
+        }
+        const dx = e.x - k.x;
+        const dz = e.z - k.z;
+        const d = Math.hypot(dx, dz) || 1;
+        if (d < e.r * 0.8) {
+          k.dead = true;
+          t.k = null;
+          dropLine(lv, t.l);
+          plate(lv, e, b);
+          continue;
+        }
+        k.x += (dx / d) * v * DT;
+        k.z += (dz / d) * v * DT;
+        t.x = k.x;
+        t.z = k.z;
+      }
+      b.tows = b.tows.filter((t) => t.k);
+      towLines(lv, e, b);
+      if (!b.tows.length || e.stateT > LIEN_T) {
+        for (const t of b.tows) dropLine(lv, t.l);
+        letGo(b);
+        endMove(lv, e, b, 1.6);
+      }
+      break;
+    }
+    case 'ballast': {
+      // out to the edge, and back: flat down its lane and home again, a little slower
+      for (const w of b.thrown) {
+        const s = w.s;
+        if (s.dead) continue;
+        if (!w.back) {
+          const out = Math.abs(s.x) > HALF_W - BALLAST_R || s.z < lv.top + BALLAST_R || s.z > lv.bottom - BALLAST_R;
+          if (!out) continue;
+          w.back = true;
+          s.vx = -s.vx * BALLAST_BACK;
+          s.vz = -s.vz * BALLAST_BACK;
+          lv.emit({ type: 'bossBeat', enemy: e.id, move: 'bounce', k: 0, x: s.x, z: s.z });
+        } else if (Math.hypot(e.x - s.x, e.z - s.z) < e.r * 0.8) {
+          s.dead = true;
+          lv.emit({ type: 'bossBeat', enemy: e.id, move: 'catch', k: 0, x: s.x, z: s.z });
+        }
+      }
+      b.thrown = b.thrown.filter((w) => !w.s.dead);
+      if (!b.thrown.length || e.stateT > 5) {
+        for (const w of b.thrown) w.s.dead = true;
+        b.thrown.length = 0;
+        endMove(lv, e, b, 1.8);
+      }
+      break;
+    }
     case 'breath': {
       // in: everything near is drawn to her maw (boost against it; a dash is free of it)
       for (const q of lv.players) {
@@ -1919,6 +2394,19 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
       for (let k = 0; k < n; k++) onTide(lv, b, lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 8, { color: col, kind: 'big', r: 0.6 }), 1.8);
       lv.emit({ type: 'bossBeat', enemy: e.id, move: 'swell', k: b.shots, x: e.x, z: e.z });
       b.fire = 2.2;
+      break;
+    }
+    case 'ledger': {
+      // ARU-0, silent: rows printed blind down the field, its back to you; the gap steps along
+      // the row like a print head, and back
+      const span = 2 * HALF_W - 14;
+      const u = (b.shots * 4.5) % (span * 2);
+      const gx = -HALF_W + 7 + (u < span ? u : span * 2 - u);
+      for (let x = -HALF_W + 0.9; x <= HALF_W; x += 1.9) {
+        if (Math.abs(x - gx) < 5.2) continue;
+        lv.bullet(x, e.z + 2, 0, 6, { color: col, kind: 'needle', r: 0.35 });
+      }
+      b.fire = 1.5;
       break;
     }
     case 'curves': {

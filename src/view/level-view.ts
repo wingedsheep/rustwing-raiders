@@ -190,6 +190,8 @@ export class LevelView {
   private beams: THREE.Mesh[] = [];
   private laserMeshes: THREE.Mesh[] = [];
   private balls: { ball: THREE.Group; links: THREE.Mesh[] }[] = [];
+  /** ARU-0's ballast: plates of its company hull, thrown flat and spinning. */
+  private plates: THREE.Group[] = [];
   private bolts: { mesh: THREE.Mesh; t: number }[] = [];
   private clouds: { obj: THREE.Group; x: number; z: number; drift: number }[] = [];
   /** The shot down, on their way to the ground. */
@@ -620,7 +622,16 @@ export class LevelView {
           this.flashColor.set(0xff6040);
           audio.play('player_down');
           break;
-        case 'revive':
+        case 'crashed':
+          this.trauma = 1;
+          this.flash = 0.8;
+          this.flashColor.set(0xff7030);
+          audio.play('explode_big');
+          audio.play('player_down', { vol: 0.6 });
+          this.fx.sparks(e.x, FLIGHT_Y, e.z, 30, 0xffb060, 18, 0.6, 0.3);
+          this.strokes.burst(e.x, e.z, 26, 0xff7030, 18, 0.4, 0.7);
+          break;
+        case 'jumpstart':
           audio.play('shield_up');
           this.fx.ring(lv.players[e.id].x, FLIGHT_Y, lv.players[e.id].z, 6, 0.4, true, 0x8affb0);
           this.strokes.burst(lv.players[e.id].x, lv.players[e.id].z, 10, 0x8affb0, 6, 0.3, 0.35);
@@ -688,8 +699,18 @@ export class LevelView {
           break;
         case 'windup': {
           const en = lv.enemies.find((o) => o.id === e.enemy);
-          // a boss's signature: a low horn, so the ear learns it too
-          if (en?.boss && en.boss.move === en.boss.sig && en.boss.k === 0) audio.play('horn', { pitch: 0.5, vol: 0.7 });
+          // a boss's signature: a low horn, so the ear learns it too (once ARU-0 is called: a toll)
+          if (en?.boss && en.boss.move === en.boss.sig && en.boss.k === 0) audio.play(en.boss.called ? 'toll' : 'horn', { pitch: 0.5, vol: 0.7 });
+          // ARU-0's: a notice before its claws and its collectors, the printer as its hold opens
+          // for a Lien, metal giving as it tears off ballast; called, a toll for every tell
+          if (en?.boss && lv.spec.planet.id === 'cinder' && en.boss.move !== en.boss.sig) {
+            const m = en.boss.move;
+            if (en.boss.called) audio.play('toll', { pan: en.x / HALF_W, pitch: m === 'ballast' ? 0.62 : 0.84, vol: 0.8 });
+            if (m === 'pursuit' || m === 'summon') audio.play('notice', { pitch: m === 'summon' ? 0.9 : 1, vol: 0.7 });
+            else if (m === 'lien') audio.play('printer', { pan: en.x / HALF_W, pitch: en.boss.called ? 0.8 : 1 });
+            else if (m === 'ballast') audio.play('plate_tear', { pan: en.x / HALF_W, pitch: 0.9 + en.boss.torn * 0.06 });
+            break;
+          }
           // Vask's own: she draws breath for a screech, her wings creak up for a gust
           if (en?.boss?.move === 'screech') audio.play('shriek', { pan: en.x / HALF_W, pitch: 0.6, vol: 0.5 });
           else if (en?.boss?.move === 'gust') audio.play('wingbeat', { pan: en.x / HALF_W, pitch: 0.7, vol: 0.5 });
@@ -1061,7 +1082,13 @@ export class LevelView {
           this.flash = 0.5;
           this.flashColor.set(0xffffff);
           audio.play('explode_big');
-          audio.part(e.phase);
+          // (ARU-0's theme has a part more: its silence, then called)
+          audio.part(e.phase === 3 && lv.spec.planet.id === 'cinder' ? 4 : e.phase);
+          if (lv.spec.planet.id === 'cinder' && e.phase === 1) {
+            const en = lv.enemies.find((o) => o.boss && !o.dead);
+            if (en) this.pop('IN ARREARS', en.x, en.z - 8, '#ffb04a', true);
+            audio.play('notice', { pitch: 0.84 });
+          }
           if (lv.spec.planet.id === 'glacis') audio.play('engine_wake', { pitch: e.phase >= 2 ? 1.12 : 1 });
           // Istra's crew: a shout as the guns run out; and the tide's hush as they leave her
           if (lv.spec.planet.id === 'vesh') audio.play(e.phase === 1 ? 'crew_ho' : 'tide_turn', { pitch: e.phase === 1 ? 0.9 : 0.8 });
@@ -1108,6 +1135,7 @@ export class LevelView {
             this.fx.ring(e.x, FLIGHT_Y, e.z, 9, 0.35, true, 0xe8f8ff);
             this.shards(e.x, e.z, 24, 0xe8f8ff);
           } else if (e.move === 'tide') audio.play('tide_turn', { pan: e.x / HALF_W, vol: 0.8 });
+          else if (lv.spec.planet.id === 'cinder') this.aruBeat(e);
           else if (e.move === 'swell') audio.play('whale_breath', { pan: e.x / HALF_W, pitch: 1.4, vol: 0.5 });
           break;
         case 'biome': {
@@ -1865,6 +1893,11 @@ export class LevelView {
         this.aberr = 1;
         this.punch(1);
         break;
+      case 'crashed':
+        this.impact(0xffb080, 0.14);
+        this.aberr = 1;
+        this.punch(1);
+        break;
       case 'parry':
         // Keep the clang around this ship, without a full-screen impact or camera punch.
         this.strokes.burst(e.x, e.z, 14 + Math.min(8, e.count * 2), 0xffffff, 9, 0.22, 0.4);
@@ -1980,6 +2013,7 @@ export class LevelView {
     this.updateBeams();
     this.updateLasers();
     this.updateBalls();
+    this.updatePlates(dt);
     this.updatePickups(dt);
     this.updateDecoys();
     this.traits.update(dt, scrollDz);
@@ -2220,7 +2254,7 @@ export class LevelView {
       ship.update(dt);
       const r = ship.root;
       const blink = p.inv > 0 && !p.down && p.dashT <= 0 && Math.floor(p.inv * 16) % 2 === 0;
-      r.visible = !blink || p.phase > 0;
+      r.visible = !p.out && (!blink || p.phase > 0);
       r.position.set(p.x, FLIGHT_Y + (p.down ? -1.5 : 0), p.z);
       // dashing, it's drawn out along the way it's going, and snaps back
       this.stretch[i] = damp(this.stretch[i] ?? 0, p.dashT > 0 && !p.down ? 1 : 0, p.dashT > 0 ? 30 : 14, dt);
@@ -2251,9 +2285,9 @@ export class LevelView {
       ship.shield.visible = p.shield > 0 && !p.down;
       ship.flash(p.inv > 1.2 ? 1 : p.phase > 0 ? 0.5 : 0);
       if (p.phase > 0) r.visible = Math.floor(this.time * 20) % 3 !== 0;
-      // a down ship smokes; a partner reviving it gets a ring
-      if (p.down && Math.random() < 0.3) this.fx.add({ x: p.x, y: FLIGHT_Y, z: p.z, vy: 3, vz: 4, size: 0.8, grow: 2.5, life: 1, color: new THREE.Color(0x4a4040), to: new THREE.Color(0x2a2228), carried: true });
-      if (p.down && p.revive > 0 && Math.random() < 0.5) this.fx.sparks(p.x, FLIGHT_Y, p.z, 2, 0x8affb0, 6, 0.3, 0.2);
+      // a down ship smokes; a partner jumpstarting it gets a ring
+      if (p.down && !p.out && Math.random() < 0.3) this.fx.add({ x: p.x, y: FLIGHT_Y, z: p.z, vy: 3, vz: 4, size: 0.8, grow: 2.5, life: 1, color: new THREE.Color(0x4a4040), to: new THREE.Color(0x2a2228), carried: true });
+      if (p.down && p.jump > 0 && Math.random() < 0.5) this.fx.sparks(p.x, FLIGHT_Y, p.z, 2, 0x8affb0, 6, 0.3, 0.2);
       // welding: a torch's sparks spitting off the hull
       if (p.weldT >= WELD.hold && !p.down) {
         if (Math.random() < 0.7) this.fx.sparks(p.x + (Math.random() - 0.5) * 1.6, FLIGHT_Y + 0.6, p.z + (Math.random() - 0.5) * 1.6, 2, WELD_COLOR, 10, 0.25, 0.12);
@@ -2519,6 +2553,109 @@ export class LevelView {
     }
   }
 
+  /**
+   * ARU-0's beats: claws on the beat as it chases, the overtake, its lines reeling and snapping,
+   * plates bolted on and torn off, ballast at the edge and home; its nineteen seconds, and the toll
+   * when it's called.
+   */
+  private aruBeat(e: { move: string; k: number; x: number; z: number }) {
+    const lv = this.lv;
+    const boss = lv.enemies.find((o) => o.boss && !o.dead);
+    const v = boss && this.enemies.get(boss.id);
+    const pan = e.x / HALF_W;
+    switch (e.move) {
+      case 'pursuit':
+        audio.play('claw', { pan, pitch: 1 + e.k * 0.05 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.2, true, 0xffd8a0);
+        break;
+      case 'overtake':
+        audio.play('notice');
+        audio.play('dash', { pitch: 0.5, vol: 0.8 });
+        if (boss) this.pop('ACCOUNT OPEN', 0, lv.scroll - 4, '#ffb04a', true);
+        break;
+      case 'reel':
+        audio.play('winch', { pan });
+        break;
+      case 'lien':
+        // a scrap home: bolted on as a plate
+        audio.play('plate_on', { pan, pitch: 0.9 + e.k * 0.04 });
+        this.fx.sparks(e.x, FLIGHT_Y + 1, e.z, 10, PLATE_HEX, 12, 0.3, 0.2);
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.2, true, PLATE_HEX);
+        if (v) v.punch = 0.6;
+        if (e.k === 1 && boss) this.pop('PLATED', boss.x, boss.z - 7, '#c8d4e8');
+        break;
+      case 'snap':
+        // taken from under its line: the line goes slack
+        audio.play('hook_snap', { pan, pitch: 1.2 });
+        this.strokes.burst(e.x, e.z, 6, 0xffb04a, 4, 0.16, 0.3);
+        this.pop('RECLAIMED', e.x, e.z - 2, '#ffd890');
+        break;
+      case 'ballast':
+        audio.play('dash', { pan, pitch: 0.45 });
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.2, true, 0xffffff);
+        break;
+      case 'bounce':
+        audio.play('clang', { pan });
+        this.trauma = Math.min(1, this.trauma + 0.25);
+        this.fx.sparks(e.x, FLIGHT_Y, e.z, 14, 0xffd890, 14, 0.3, 0.2);
+        break;
+      case 'catch':
+        audio.play('plate_on', { pan, pitch: 0.7 });
+        break;
+      case 'tear': {
+        // a plate of company hull, torn away: it's lighter, and barer
+        const torn = v?.pose?.plateTo(e.k);
+        for (const q of torn ?? []) this.shards(q.x, q.z, 12, q.color);
+        this.trauma = Math.min(1, this.trauma + 0.3);
+        break;
+      }
+      case 'hush':
+        // its nineteen seconds: only a clock
+        audio.play('clock_tick', { pan, pitch: 0.7, vol: 0.5 });
+        break;
+      case 'called': {
+        this.trauma = 0.7;
+        this.flash = 0.45;
+        this.flashColor.set(0x9af4ff);
+        audio.play('toll', { pitch: 0.42, vol: 1 });
+        audio.play('engine_wake', { pitch: 1.2 });
+        audio.part(3);
+        this.fx.ring(e.x, FLIGHT_Y, e.z, 16, 0.5, true, 0x9af4ff);
+        const shed = v?.pose?.shedTo(3);
+        for (const q of shed?.pieces ?? []) this.shards(q.x, q.z, 10, q.color);
+        this.pop('IT HAS BEEN CALLED', e.x, e.z - 8, '#9af4ff', true);
+        break;
+      }
+    }
+  }
+
+  /** ARU-0's ballast: a plate of white company hull with Vantorr's three steps on it, spinning flat down its lane. */
+  private updatePlates(dt: number) {
+    let k = 0;
+    for (const s of this.lv.strikes) {
+      if (s.kind !== 'plate' || s.dead) continue;
+      let g = this.plates[k];
+      if (!g) {
+        g = new THREE.Group();
+        g.add(part(GEO.box, toon(0xe8e8e0), [0, 0, 0], [3.4, 0.35, 2.4]));
+        g.add(part(GEO.box, toon(0x8a8a84), [0, -0.12, 0], [3.6, 0.2, 2.6]));
+        // the company's sign: a terrace in three steps, orange on white
+        for (let n = 0; n < 3; n++) g.add(part(GEO.box, toon(0xd08a3a), [-0.9 + n * 0.6, 0.2, 0.55 - n * 0.45], [0.6 + (2 - n) * 0.6, 0.12, 0.38]));
+        g.add(part(GEO.box, toon(0xff3a3a, { glow: 1 }), [1.4, 0.22, -0.95], [0.3, 0.12, 0.3]));
+        g.traverse((m) => ((m as THREE.Mesh).isMesh ? (m.castShadow = true) : 0));
+        this.scene.add(g);
+        this.plates.push(g);
+      }
+      g.visible = true;
+      g.position.set(s.x, FLIGHT_Y + 0.3, s.z);
+      g.rotation.y += dt * 11;
+      g.rotation.z = Math.sin(this.time * 7 + k) * 0.15;
+      if (Math.random() < 0.35) this.fx.sparks(s.x, FLIGHT_Y, s.z, 1, 0xffd890, 8, 0.2, 0.12, true);
+      k++;
+    }
+    for (; k < this.plates.length; k++) this.plates[k].visible = false;
+  }
+
   private makeEnemy(e: Enemy): EnemyView {
     // a runner's part: the heist view draws it, on the runner
     if (e.d.qp !== undefined) return { inst: null, obj: new THREE.Group(), head: null, ring: null, seen: true, boss: false, ground: false, skin: e.skin.colors, punch: 0, knock: 0, part: true };
@@ -2782,6 +2919,13 @@ export class LevelView {
         m.visible = on;
         m.scale.set(0.18, 0.1, len);
         mat.color.setHex(l.color);
+      } else if (l.tow) {
+        // a tow line, taut: a steady cable of hard light humming as it hauls, a pulse running home
+        // along it now and then, sparks where it holds
+        const pulse = (this.time * 1.6 + k * 0.37) % 1;
+        m.scale.set(0.55 + Math.sin(this.time * 40 + k) * 0.08, 0.2, len);
+        mat.color.setHex(pulse > 0.9 ? 0xffffff : l.color);
+        if (Math.random() < 0.08) this.fx.sparks(l.x2, FLIGHT_Y + 0.8, l.z2, 1, l.color, 6, 0.2, 0.12, true);
       } else {
         m.scale.set(1.6 + Math.sin(this.time * 70) * 0.25, 0.3, len);
         mat.color.setHex(Math.floor(this.time * 30) % 2 ? 0xffffff : l.color);

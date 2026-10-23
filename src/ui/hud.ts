@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { HOT_BOLTS, HOT_CRACK, HULL_STEP, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, type Enemy, type Level, type Player } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, HULL_STEP, JUMP_WAIT, RIPOSTE_TIME as RIPOSTE_SHOWN, SHIELD_STORE, WELD as WELDING, WELD_HEAL, type Enemy, type Level, type Player } from '../sim/level';
 import { poiseOf, sigName } from '../sim/boss';
 import { ChainPips, brokenBar, glint, moveMark, readMark } from './tells';
 import { FOES, PALETTE, type Foe } from '../sim/factions';
 import { GRAFTS, VERBS, hasVerb } from '../game/grafts';
-import { coreBadge } from './core-icon';
+import { coreBadge, disc, ring } from './core-icon';
+import { BRASS, BRASS_LO, brassPlate, chevron, cutEdge, cutRect, rivet, slantBar, slantKey, slantOf, slantSpan, type Cuts } from './trim';
 import { FLIGHT_Y } from '../sim/types';
 import { drawText, textWidth, wrap } from './font';
 import { tierOf } from '../game/loot';
@@ -81,18 +82,30 @@ const saveJournal = () => {
   }
 };
 
-/** A framed panel, pixel-art style: dark fill, a light top-left edge and a dark bottom-right. */
+/**
+ * A framed panel: corners cut at 45°, a dark keyline, the fill with a faint sheen down from the
+ * top and a little shade at the foot, a hairline all round in the edge colour (full along the top,
+ * softer down the sides), and, on a big enough panel, brass rivets in its top corners.
+ */
 export function frame(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill = PANEL, edge = EDGE) {
-  ctx.fillStyle = DARK;
-  ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x, y, w, h);
+  const c = h >= 10 && w >= 10 ? 2 : 0;
+  const cuts: Cuts = [c, c, c, c];
+  cutRect(ctx, x - 1, y - 1, w + 2, h + 2, [c + 1, c + 1, c + 1, c + 1], DARK);
+  cutRect(ctx, x, y, w, h, cuts, fill);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(255,240,255,0.06)');
+  g.addColorStop(Math.min(0.5, 12 / Math.max(1, h)), 'rgba(255,240,255,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.2)');
+  cutRect(ctx, x, y, w, h, cuts, g);
+  ctx.globalAlpha = 0.55;
+  cutEdge(ctx, x, y, w, h, cuts, edge);
+  ctx.globalAlpha = 1;
   ctx.fillStyle = edge;
-  ctx.fillRect(x, y, w, 1);
-  ctx.fillRect(x, y, 1, h);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(x, y + h - 1, w, 1);
-  ctx.fillRect(x + w - 1, y, 1, h);
+  ctx.fillRect(x + c, y, w - c * 2, 1);
+  if (w >= 60 && h >= 28) {
+    rivet(ctx, x + 2, y + 2);
+    rivet(ctx, x + w - 5, y + 2);
+  }
 }
 
 /** A bar, filled to `f`, in segments. */
@@ -101,17 +114,18 @@ export function frame(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
  * moment ago, drawn pale over what's just been lost; `blink`: low, it flashes.
  */
 export function hullBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, hull: number, max: number, ghost = hull, blink = false) {
-  const px = (v: number) => Math.round(w * clamp(v / Math.max(1, max), 0, 1));
-  ctx.fillStyle = '#3a2e48';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#ffe0b0';
-  ctx.fillRect(x + px(hull), y, px(ghost) - px(hull), h);
-  ctx.fillStyle = blink ? '#ffffff' : hull / max <= 0.25 ? '#ff4a3a' : RED;
-  ctx.fillRect(x, y, px(hull), h);
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.fillRect(x, y, px(hull), 1);
-  ctx.fillStyle = '#1a1020';
-  for (let v = HULL_STEP; v < max; v += HULL_STEP) ctx.fillRect(x + px(v), y, 1, h);
+  // as the flight HUD's: slanted armour plates, one a HULL_STEP, lit along their tops
+  max = Math.max(1, max);
+  const px = (v: number) => (w * clamp(v, 0, max)) / max;
+  slantKey(ctx, x, y, w, h);
+  const body = blink ? '#ffffff' : hull / max <= 0.25 ? '#ff4a3a' : RED;
+  for (let v = 0; v < max; v += HULL_STEP) {
+    const a = px(v);
+    const b = px(Math.min(max, v + HULL_STEP)) - (v + HULL_STEP < max ? 1 : 0);
+    slantSpan(ctx, x, y, w, h, a, b, '#3a2e48', 1);
+    slantSpan(ctx, x, y, w, h, a, Math.min(b, px(hull)), body, 1, true);
+    slantSpan(ctx, x, y, w, h, Math.max(a, px(hull)), Math.min(b, px(ghost)), '#ffe0b0', 1);
+  }
 }
 
 export function bar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, f: number, color: string, back = '#2a2236') {
@@ -153,8 +167,10 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.fillRect(x + 1, y, w - 2, h);
   ctx.fillRect(x, y + 1, 1, h - 2);
   ctx.fillRect(x + w - 1, y + 1, 1, h - 2);
-  ctx.fillStyle = 'rgba(255,240,220,0.12)';
+  ctx.fillStyle = 'rgba(255,240,220,0.14)';
   ctx.fillRect(x + 1, y, w - 2, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x + 1, y + h - 1, w - 2, 1);
 }
 
 /**
@@ -206,23 +222,45 @@ export class Hud {
   private topBar(ctx: CanvasRenderingContext2D, lv: Level) {
     const w = VIEW.w;
     const ps = lv.players;
-    // a player's plate at each end (P2 at the right in co-op; the right end is the takings solo)
-    this.player(ctx, lv, ps[0], 6, 'left');
-    if (ps[1]) this.player(ctx, lv, ps[1], w - 6, 'right');
-    // the route in the middle
-    const rw = Math.min(260, Math.floor(w * 0.3));
+    // no boxes: a soft shade down from the top edge keeps it all readable over any ground
+    const shade = ctx.createLinearGradient(0, 0, 0, 40);
+    shade.addColorStop(0, 'rgba(8,5,14,0.62)');
+    shade.addColorStop(0.55, 'rgba(8,5,14,0.25)');
+    shade.addColorStop(1, 'rgba(8,5,14,0)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, w, 40);
+    // a player's gauges at each end (P2 at the right in co-op; the right end is the takings solo)
+    this.player(ctx, lv, ps[0], 12, 'left');
+    if (ps[1]) this.player(ctx, lv, ps[1], w - 12, 'right');
+    // the route in the middle: a rail between brass brackets, the biomes along it, the ship's place on it
+    const rw = Math.min(240, Math.floor(w * 0.28));
     const rx = Math.floor(w / 2 - rw / 2);
-    plate(ctx, rx - 8, 4, rw + 16, 20);
     const segs = lv.spec.biomes;
     const here = lv.terrain.biomeIndex(lv.scroll);
+    ctx.fillStyle = 'rgba(10,6,16,0.8)';
+    ctx.fillRect(rx - 1, 13, rw + 2, 7);
     segs.forEach((b, i) => {
       const x0 = rx + Math.round((rw * i) / segs.length);
-      const x1 = rx + Math.round((rw * (i + 1)) / segs.length) - 2;
+      const x1 = rx + Math.round((rw * (i + 1)) / segs.length) - 1;
       ctx.fillStyle = hex(b.ground[i === here ? 2 : 1]);
-      ctx.globalAlpha = i < here ? 0.45 : i === here ? 1 : 0.7;
-      ctx.fillRect(x0, 16, x1 - x0, 3);
+      ctx.globalAlpha = i < here ? 0.3 : i === here ? 1 : 0.55;
+      ctx.fillRect(x0, 15, x1 - x0, 3);
       ctx.globalAlpha = 1;
+      // a brass tick where one biome gives onto the next
+      if (i) {
+        ctx.fillStyle = BRASS_LO;
+        ctx.fillRect(x0 - 1, 12, 1, 9);
+        ctx.fillStyle = BRASS;
+        ctx.fillRect(x0 - 1, 12, 1, 1);
+      }
     });
+    for (const bx of [rx - 5, rx + rw + 2]) {
+      cutRect(ctx, bx - 1, 9, 5, 15, [1, 1, 1, 1], '#0a0610');
+      cutRect(ctx, bx, 10, 3, 13, [1, 1, 1, 1], BRASS_LO);
+      ctx.fillStyle = BRASS;
+      ctx.fillRect(bx + 1, 10, 1, 12);
+      rivet(ctx, bx + 1, 15);
+    }
     if (lv.heist && !lv.heist.gone) {
       // a heist: where along the route it spools, and where it jumps
       const sx0 = rx + Math.round(rw * lv.heist.spoolAt);
@@ -237,17 +275,34 @@ export class Hud {
       ctx.fillRect(jx - 1, 12, 3, 1);
     }
     const fx = rx + Math.round(rw * clamp(lv.progress, 0, 1));
+    // the distance flown, lit along the rail's foot; the ship an arrowhead riding over it
+    ctx.fillStyle = 'rgba(255,226,160,0.5)';
+    ctx.fillRect(rx, 18, fx - rx, 1);
+    ctx.fillStyle = '#0a0610';
+    for (let k = 0; k < 5; k++) ctx.fillRect(fx - 4 + k, 6 + k, 9 - k * 2, 1);
+    ctx.fillRect(fx - 1, 11, 3, 10);
     ctx.fillStyle = INK;
-    ctx.fillRect(fx - 1, 14, 3, 7);
-    const mode = { raid: 'RAID', hunt: 'HUNT', escort: 'ESCORT', heist: 'HEIST', boss: 'WARDEN' }[lv.spec.mode];
-    drawText(ctx, `${lv.spec.planet.name} · ${mode}`, rx, 6, DIM, { shadow: false });
+    for (let k = 0; k < 4; k++) ctx.fillRect(fx - 3 + k, 7 + k, 7 - k * 2, 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(fx - 2, 7, 2, 1);
+    ctx.fillStyle = INK;
+    ctx.fillRect(fx, 12, 1, 8);
+    // where and what, under the rail while the level opens; after that the rail says enough
+    const intro = clamp(Math.min(lv.time * 2, 7 - lv.time), 0, 1);
+    if (intro > 0) {
+      const mode = { raid: 'RAID', hunt: 'HUNT', escort: 'ESCORT', heist: 'HEIST', boss: 'WARDEN' }[lv.spec.mode];
+      ctx.globalAlpha = intro;
+      drawText(ctx, lv.spec.planet.name, rx, 24, INK, { outline: DARK });
+      drawText(ctx, mode, rx + textWidth(lv.spec.planet.name) + 7, 24, BRASS, { outline: DARK });
+      ctx.globalAlpha = 1;
+    }
     if (lv.convoy) {
       // an escort: the three haulers, each with what's left of its hull
       lv.convoy.haulers.forEach((h, i) => {
         const hx = rx + rw - 3 * 20 + i * 20 + 4;
         const hit = h.hitT < 0.12 && !h.dead;
-        haulerIcon(ctx, hx, 6, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : ROLES[h.role].color, h.dead);
-        if (!h.dead) bar(ctx, hx + 7, 9, 8, 2, h.hp / h.max, hullColor(h.hp / h.max, this.time), 'rgba(60,48,80,0.8)');
+        haulerIcon(ctx, hx, 24, hit ? '#ffffff' : h.boarders && Math.floor(this.time * 8) % 2 ? RED : ROLES[h.role].color, h.dead);
+        if (!h.dead) bar(ctx, hx + 7, 27, 8, 2, h.hp / h.max, hullColor(h.hp / h.max, this.time), 'rgba(60,48,80,0.8)');
       });
     } else if (lv.heist) {
       // a heist: the three strongboxes, aboard, falling, caught or lost
@@ -255,42 +310,50 @@ export class Hud {
         const hx = rx + rw - 3 * 12 + i * 12 + 4;
         const blink = Math.floor(this.time * 8) % 2;
         const col = f === 'caught' ? GOLD : f === 'loose' ? (blink ? '#ffffff' : GOLD) : HEIST;
-        strongboxIcon(ctx, hx, 5, col, f === 'fell' || f === 'jumped');
+        strongboxIcon(ctx, hx, 23, col, f === 'fell' || f === 'jumped');
         if (f === 'caught') {
           ctx.fillStyle = GOLD;
-          ctx.fillRect(hx, 13, 5, 1);
+          ctx.fillRect(hx, 31, 5, 1);
         }
       });
     } else if (lv.spawned > 0) {
       // the hunt's tally: what's down, and what got past (a full clear pays)
       const clean = lv.missed === 0;
-      drawText(ctx, `${lv.killed}/${lv.spawned}${lv.missed ? `  ${lv.missed} MISSED` : ''}`, rx + rw, 6, clean ? GOLD : DIM, { align: 'right', shadow: false });
+      drawText(ctx, `${lv.killed}/${lv.spawned}${lv.missed ? `  ${lv.missed} MISSED` : ''}`, rx + rw, 24, clean ? GOLD : '#c8bcd8', { align: 'right', outline: DARK });
     }
-    // the takings
-    const tx = ps[1] ? Math.floor(w / 2 + rw / 2 + 16) : w - 6;
-    const align = ps[1] ? 'left' : 'right';
-    plate(ctx, ps[1] ? tx - 4 : tx - 104, 4, 108, 20);
-    const sx = ps[1] ? tx + 2 : tx - 98;
+    // the takings: the scrap and its tin, nothing else (the score waits for the results)
     // (what's still flying up doesn't count yet)
     const shown = `${Math.max(0, lv.scrap - this.motes.reduce((a, m) => a + m.v, 0))}`;
     const b = this.bump;
-    drawText(ctx, shown, sx, 7 - Math.round(b * 2), b > 0.55 ? '#ffffff' : GOLD, { shadow: false });
-    const ix = sx + textWidth(shown) + 4;
-    this.tin = { x: ix, y: 10 };
-    const r = 1 + Math.round(b * 2);
-    ctx.fillStyle = b > 0.55 ? '#ffffff' : GOLD;
-    ctx.fillRect(ix - r, 10 - r, r * 2 + 1, r * 2 + 1);
+    const ty = 13;
+    // on a brass plate cut away toward the middle: solo at the right edge, in co-op right of the route
+    const tw = Math.max(textWidth(shown), textWidth('000')) + 30;
+    const tx = ps[1] ? Math.floor(w / 2 + rw / 2 + 14) : w - 12 - tw;
+    brassPlate(ctx, tx, 5, tw, 17, ps[1] ? [3, 3, 3, 3] : [8, 3, 3, 3], 0.8, false);
+    const ix = tx + tw - 11;
+    disc(ctx, ix, ty, 6, '#0a0610');
+    ring(ctx, ix, ty, 6, BRASS_LO);
+    drawText(ctx, shown, ix - 10, ty - 4 - Math.round(b * 2), b > 0.55 ? '#ffffff' : GOLD, { align: 'right', shadow: BRASS_LO });
+    this.tin = { x: ix, y: ty };
+    // the tin: a gold diamond with a dark keyline, swelling as a piece lands
+    const r = 3 + Math.round(b * 1.5);
+    const diamond = (rad: number, col: string) => {
+      ctx.fillStyle = col;
+      for (let k = -rad; k <= rad; k++) ctx.fillRect(ix - (rad - Math.abs(k)), ty + k, (rad - Math.abs(k)) * 2 + 1, 1);
+    };
+    diamond(r + 1, DARK);
+    diamond(r, b > 0.55 ? '#ffffff' : GOLD);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(ix - 1, ty - r + 1, 1, 2);
     if (b > 0) {
       // a ring off the tin as a piece lands
-      const o = Math.round(3 + (1 - b) * 6);
+      const o = Math.round(4 + (1 - b) * 7);
       ctx.globalAlpha = b;
       ctx.strokeStyle = GOLD;
-      ctx.strokeRect(ix - o + 0.5, 10 - o + 0.5, o * 2, o * 2);
+      ctx.strokeRect(ix - o + 0.5, ty - o + 0.5, o * 2, o * 2);
       ctx.globalAlpha = 1;
     }
     this.bump = Math.max(0, b - 4 / 60);
-    drawText(ctx, String(lv.score).padStart(7, '0'), ps[1] ? tx + 98 : tx - 4, 7, INK, { align: 'right', shadow: false });
-    void align;
   }
 
   /** The scrap flying up to the tin: off to the side first, then drawn in hard, a short gold tail behind. */
@@ -370,94 +433,216 @@ export class Hud {
     }
   }
 
-  /** A player's plate: hull, shield, dashes, special, at one end of the top bar. */
+  /**
+   * A player's plate, at one end of the top: a riveted brass plate, its outer end in the
+   * pilot's livery. The ship's core sits in a brass socket at the end, like a dial; beside it the
+   * slanted gauges (hull and shield, the Burn and the special under them); past a seam, the
+   * Weld, the dashes as chevrons, the aux. At the right end, all of it mirrored. The tag only in
+   * co-op: alone, it's plainly you.
+   */
   private player(ctx: CanvasRenderingContext2D, lv: Level, p: Player, x: number, side: 'left' | 'right') {
     const s = p.stats;
     const col = hex(LIVERY[p.id][2]);
-    const pw = 150;
+    const coop = lv.players.length > 1;
+    const dir = side === 'left' ? 1 : -1;
+    const top = 4;
+    const ph = 25;
+    const hw = Math.round(clamp(s.hp * 0.6, 36, 80));
+    const sw = s.shield > 0 ? Math.round(clamp(s.shield * 0.5, 12, 44)) : 0;
+    const spare = p.ch.knacks.has('sparetank');
+    const gauges = hw + (sw ? sw + 2 : 0) + slantOf(7);
+    const kit = 8 + (spare ? 5 : 0) + 3 + s.dashes * 6 + (s.aux ? 13 : 0);
+    const seam = 28 + gauges + 5;
+    const pw = seam + 6 + kit + 9;
     const x0 = side === 'left' ? x : x - pw;
-    plate(ctx, x0, 4, pw, 20);
-    let cx = x0 + 6;
-    drawText(ctx, `P${p.id + 1}`, cx, 7, col, { shadow: false });
-    cx += 16;
-    // the hull: a bar as long as the hull is deep, what a hit bit off draining away after it
-    const hw = Math.round(clamp(s.hp * 0.45, 24, 56));
+    // an element `off` in from the plate's outer end, `w` wide (mirrored at the right)
+    const at = (off: number, w: number) => (dir > 0 ? x0 + off : x0 + pw - off - w);
+    brassPlate(ctx, x0, top, pw, ph, dir > 0 ? [3, 3, 9, 3] : [3, 3, 3, 9], 0.8);
+    // the livery down the outer end
+    ctx.fillStyle = col;
+    ctx.fillRect(at(1, 2), top + 4, 2, ph - 8);
+    // the core, in its socket
+    const cx = at(14, 0);
+    const cy = top + 12;
+    disc(ctx, cx, cy, 9, '#0a0610');
+    ring(ctx, cx, cy, 9, BRASS_LO);
+    ring(ctx, cx, cy, 8, BRASS, 0.62, 1.12);
+    ring(ctx, cx, cy, 8, BRASS_LO, 0.12, 0.62);
+    coreBadge(ctx, p.ch, cx, cy, this.time);
+    // the hull: as long as the hull is deep, notched every HULL_STEP, what a hit bit off draining away
     const shown = Math.max(p.hp, Math.min(s.hp, (this.hullShown[p.id] ?? p.hp) - s.hp / 150));
     this.hullShown[p.id] = shown;
-    hullBar(ctx, cx, 8, hw, 6, p.hp, s.hp, shown, p.hp > 0 && p.hp <= s.hp * 0.25 && Math.floor(this.time * 4) % 2 === 1);
-    cx += hw + 3;
-    // the shield: a bar beside it, as long as the shield is deep, filling back after a lull
-    if (s.shield > 0) {
-      const sw = Math.round(clamp(s.shield * 0.45, 8, 40));
-      ctx.fillStyle = '#3a2e48';
-      ctx.fillRect(cx, 8, sw, 6);
-      ctx.fillStyle = CYAN;
-      ctx.fillRect(cx, 8, Math.round((sw * p.shield) / s.shield), 6);
-      // under it, a thin line: what's left this level to refill it from
-      ctx.fillStyle = '#3a2e48';
-      ctx.fillRect(cx, 15, sw, 1);
-      ctx.fillStyle = CYAN;
-      ctx.fillRect(cx, 15, Math.round(sw * Math.min(1, p.shieldStore / (s.shield * SHIELD_STORE))), 1);
-      cx += sw + 3;
+    const low = p.hp <= s.hp * 0.25;
+    const blink = p.hp > 0 && low && Math.floor(this.time * 4) % 2 === 1;
+    const gy = top + 6;
+    this.hull(ctx, p, at(28, hw + 3), gy, hw, dir, shown, low, blink);
+    // the shield beside it, filling back after a lull; along its foot what's left to refill it from
+    if (sw) {
+      const sx = at(28 + hw + 2, sw + 3);
+      slantBar(ctx, sx, gy, sw, 7, p.shield / s.shield, CYAN, { dir });
+      slantBar(ctx, sx, gy + 9, sw, 1, Math.min(1, p.shieldStore / (s.shield * SHIELD_STORE)), '#4ab0a0', { dir, keyline: false });
     }
-    // the Weld: a cell filling as you hit things; full, a cross that pulses while the hull is short
-    cx += 2;
-    const full = p.weld >= 1;
-    ctx.fillStyle = '#3a2e48';
-    ctx.fillRect(cx, 7, 7, 8);
-    ctx.fillStyle = full ? (p.hp < s.hp && Math.floor(this.time * 3) % 2 ? '#ffffff' : WELD) : '#4a8a68';
-    ctx.fillRect(cx, 7 + Math.round(8 * (1 - p.weld)), 7, Math.round(8 * p.weld));
-    if (full) {
-      ctx.fillStyle = '#1a1020';
-      ctx.fillRect(cx + 3, 8, 1, 6);
-      ctx.fillRect(cx + 1, 10, 5, 2);
-    }
-    // SPARE TANK: a second, thinner cell beside it
-    if (p.ch.knacks.has('sparetank')) {
-      ctx.fillStyle = '#3a2e48';
-      ctx.fillRect(cx + 8, 7, 3, 8);
-      ctx.fillStyle = p.ch.weld2 >= 1 ? WELD : '#4a8a68';
-      ctx.fillRect(cx + 8, 7 + Math.round(8 * (1 - p.ch.weld2)), 3, Math.round(8 * p.ch.weld2));
-      cx += 4;
-    }
-    cx += 9;
-    // dashes: pips, the next one filling
-    cx += 3;
-    const dry = (this.view?.dryT[p.id] ?? 9) < 0.35 && Math.floor(this.time * 16) % 2 === 0;
-    for (let i = 0; i < s.dashes; i++) {
-      ctx.fillStyle = dry ? RED : i < p.dashes ? col : '#3a2e48';
-      ctx.fillRect(cx, 9, 5, 4);
-      if (i === p.dashes && p.dashes < s.dashes) {
-        ctx.fillStyle = col;
-        ctx.fillRect(cx, 9, Math.round(5 * (1 - p.dashCd / s.dashCooldown)), 4);
-      }
-      cx += 7;
-    }
-    // the special charging along the bottom of the plate
-    // the aux: a letter for what it is, filling back up after use
-    if (s.aux) {
-      cx += 3;
-      const ready = p.auxCd <= 0;
-      const k = ready ? 1 : 1 - p.auxCd / Math.max(0.01, p.auxMax);
-      ctx.fillStyle = '#3a2e48';
-      ctx.fillRect(cx, 7, 9, 8);
-      // a guard let fall on nothing refills red: the long wait a whiff costs
-      const whiffed = !ready && s.aux === 'parry' && (this.view?.whiffT[p.id] ?? 9) < p.auxMax + 0.1;
-      ctx.fillStyle = ready ? (p.auxT > 0 || p.riposte > 0 ? '#ffffff' : '#ffc860') : whiffed ? '#a04a3a' : '#806838';
-      ctx.fillRect(cx, 7 + Math.round(8 * (1 - k)), 9, Math.round(8 * k));
-      drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S', bulwark: 'W', beacon: 'B' }[s.aux], cx + 2, 7, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
-      cx += 11;
-    }
-    // the Burn: what boosting spends, earned back by flying close; brighter while it's being spent
+    // under the hull: the Burn (bright as it's spent), and the special charging under that
     const burnCol = p.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : p.burn < 0.15 ? '#a04a3a' : '#ff8a3a';
-    bar(ctx, x0 + 4, 16, pw - 8, 2, p.burn, burnCol, 'rgba(60,48,80,0.6)');
+    slantBar(ctx, at(28, hw + 1), gy + 10, hw - 2, 3, p.burn, burnCol, { dir });
     if (s.special) {
       const ready = p.charge >= 1;
-      bar(ctx, x0 + 4, 19, pw - 8, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', 'rgba(60,48,80,0.6)');
+      slantBar(ctx, at(28, hw - 1), gy + 15, hw - 4, 2, p.charge, ready ? (Math.floor(this.time * 6) % 2 ? GOLD : '#ffffff') : '#c0a040', { dir });
     }
-    coreBadge(ctx, p.ch, side === 'left' ? x0 + pw + 8 : x0 - 8, 13, this.time);
-    if (p.down) drawText(ctx, lv.players.length > 1 ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', side === 'left' ? x0 : x0 + pw, 28, RED, { align: side });
-    else this.grafts(ctx, p, side === 'left' ? x0 : x0 + pw, side);
+    // the seam
+    ctx.fillStyle = BRASS_LO;
+    ctx.fillRect(at(seam, 1), top + 4, 1, ph - 8);
+    ctx.fillStyle = 'rgba(255,226,160,0.25)';
+    ctx.fillRect(at(seam + 1, 1), top + 4, 1, ph - 8);
+    // the kit, centred down the plate
+    const ky = top + 9;
+    let k = seam + 6;
+    const cell = (off: number, w: number, h: number, f: number, c: string, yy = ky) => {
+      const cx0 = at(off, w);
+      ctx.fillStyle = '#0a0610';
+      ctx.fillRect(cx0 - 1, yy - 1, w + 2, h + 2);
+      ctx.fillStyle = '#2a2036';
+      ctx.fillRect(cx0, yy, w, h);
+      const fh = Math.round(h * clamp(f, 0, 1));
+      ctx.fillStyle = c;
+      ctx.fillRect(cx0, yy + h - fh, w, fh);
+      if (fh > 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(cx0, yy + h - fh, w, 1);
+      }
+      return cx0;
+    };
+    // the Weld: a cross filling as you hit things (what it would mend shows on the hull)
+    this.weldCross(ctx, p, at(k, 9), ky - 1);
+    k += 10;
+    // SPARE TANK: a second, thinner cell beside it
+    if (spare) {
+      cell(k, 3, 7, p.ch.weld2, p.ch.weld2 >= 1 ? WELD : '#4a8a68');
+      k += 5;
+    }
+    k += 3;
+    // dashes: chevrons, the next one filling (red, a moment, when one was pressed with none left)
+    const dry = (this.view?.dryT[p.id] ?? 9) < 0.35 && Math.floor(this.time * 16) % 2 === 0;
+    for (let i = 0; i < s.dashes; i++) {
+      const f = i < p.dashes ? 1 : i === p.dashes ? 1 - p.dashCd / s.dashCooldown : 0;
+      chevron(ctx, at(k, 6), ky, 7, dry ? 1 : f, dry ? RED : i < p.dashes ? col : '#6a5a80', '#2a2036', dir);
+      k += 6;
+    }
+    // the aux: a letter for what it is, filling back up after use
+    if (s.aux) {
+      k += 4;
+      const ready = p.auxCd <= 0;
+      const f = ready ? 1 : 1 - p.auxCd / Math.max(0.01, p.auxMax);
+      // a guard let fall on nothing refills red: the long wait a whiff costs
+      const whiffed = !ready && s.aux === 'parry' && (this.view?.whiffT[p.id] ?? 9) < p.auxMax + 0.1;
+      const ax = cell(k, 9, 9, f, ready ? (p.auxT > 0 || p.riposte > 0 ? '#ffffff' : '#ffc860') : whiffed ? '#a04a3a' : '#806838', ky - 1);
+      drawText(ctx, { parry: 'P', tether: 'T', flare: 'F', siphon: 'S', bulwark: 'W', beacon: 'B' }[s.aux], ax + 2, ky, ready ? '#1a1020' : '#c8b8d8', { shadow: false });
+    }
+    // co-op: the pilot's tag on a tab hanging under the outer end
+    if (coop) {
+      const tx = at(4, 17);
+      cutRect(ctx, tx - 1, top + ph, 19, 10, dir > 0 ? [0, 0, 3, 3] : [0, 0, 3, 3], '#0a0610');
+      cutRect(ctx, tx, top + ph, 17, 9, [0, 0, 2, 2], col);
+      drawText(ctx, `P${p.id + 1}`, tx + 3, top + ph + 1, '#1a1020', { shadow: false });
+    }
+    const edge = side === 'left' ? x0 + (coop ? 24 : 4) : x0 + pw - (coop ? 24 : 4);
+    if (p.down) drawText(ctx, coop ? 'DOWN! PARTNER: FLY CLOSE' : 'DOWN!', edge, top + ph + 3, RED, { align: side, outline: DARK });
+    else this.grafts(ctx, p, edge, side);
+  }
+
+  /**
+   * The hull: a slanted bar of armour plates, one a HULL_STEP, each lit along its top. What a hit
+   * just bit off drains away in cream; low, the plates beat red. Past the hull, in the empty
+   * plates, what the Weld would mend: dim green hatching filling in as it charges, solid and
+   * shimmering once it's ready, burning in as the weld goes.
+   */
+  private hull(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number, w: number, dir: 1 | -1, shown: number, low: boolean, blink: boolean) {
+    const max = p.stats.hp;
+    const h = 7;
+    const px = (v: number) => (w * clamp(v, 0, max)) / max;
+    slantKey(ctx, x, y, w, h, dir);
+    if (low) {
+      // a red glow round it while it's low, beating
+      const beat = 0.35 + 0.35 * Math.max(0, Math.sin(this.time * 8));
+      ctx.globalAlpha = beat;
+      slantKey(ctx, x - 1, y - 1, w + 2, h + 2, dir, '#ff3a2a');
+      ctx.globalAlpha = 1;
+      slantKey(ctx, x, y, w, h, dir);
+    }
+    const body = blink ? '#ffffff' : low ? '#ff4a3a' : '#ff5a4a';
+    // the mend: from the hull to what a weld would bring it to
+    const mendTo = Math.min(max, p.hp + Math.round(max * WELD_HEAL));
+    const welding = p.weldT >= WELDING.hold ? clamp((p.weldT - WELDING.hold) / WELDING.time, 0, 1) : -1;
+    for (let v = 0; v < max; v += HULL_STEP) {
+      const a = px(v);
+      const b = px(Math.min(max, v + HULL_STEP)) - (v + HULL_STEP < max ? 1 : 0);
+      slantSpan(ctx, x, y, w, h, a, b, '#2a2036', dir);
+      // the hull in it
+      slantSpan(ctx, x, y, w, h, a, Math.min(b, px(p.hp)), body, dir, true);
+      // the bite, draining
+      slantSpan(ctx, x, y, w, h, Math.max(a, px(p.hp)), Math.min(b, px(shown)), '#ffe0b0', dir);
+      // the mend waiting in it
+      if (p.hp < max && mendTo > p.hp) {
+        const m0 = Math.max(a, px(shown));
+        const m1 = Math.min(b, px(mendTo));
+        if (m1 > m0) {
+          if (welding >= 0) {
+            slantSpan(ctx, x, y, w, h, m0, m1, '#2a5a40', dir);
+            slantSpan(ctx, x, y, w, h, m0, Math.min(m1, px(p.hp) + (px(mendTo) - px(p.hp)) * welding), WELD, dir, true);
+          } else if (p.weld >= 1) {
+            const pulse = 0.55 + 0.45 * Math.sin(this.time * 5);
+            ctx.globalAlpha = pulse;
+            slantSpan(ctx, x, y, w, h, m0, m1, '#4ae08a', dir, true);
+            ctx.globalAlpha = 1;
+          } else {
+            // charging: dim, filling from the hull outward
+            const fill = px(p.hp) + (px(mendTo) - px(p.hp)) * p.weld;
+            slantSpan(ctx, x, y, w, h, m0, Math.min(m1, fill), '#2f6a4a', dir);
+          }
+        }
+      }
+    }
+    // a glint sweeping the hull now and then
+    const g = (this.time * 0.5) % 3;
+    if (g < 1 && !low) {
+      const gx = px(p.hp) * g;
+      slantSpan(ctx, x, y, w, h, gx - 2, Math.min(px(p.hp), gx + 1), 'rgba(255,255,255,0.35)', dir);
+    }
+  }
+
+  /**
+   * The Weld's charge: a plus, keylined, filling from the bottom as you hit things. Ready with the
+   * hull short, it lights and sparkles; held, it burns white as the weld goes.
+   */
+  private weldCross(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
+    const shape = (dx: number, dy: number) => (dx >= 3 && dx <= 5) || (dy >= 3 && dy <= 5);
+    const ready = p.weld >= 1;
+    const want = ready && p.hp < p.stats.hp;
+    const welding = p.weldT >= WELDING.hold;
+    const lit = 9 - Math.round(9 * clamp(p.weld, 0, 1));
+    // the keyline: the plus, a texel bigger all round
+    ctx.fillStyle = '#0a0610';
+    ctx.fillRect(x + 2, y - 1, 5, 11);
+    ctx.fillRect(x - 1, y + 2, 11, 5);
+    const col = welding ? (Math.floor(this.time * 20) % 2 ? '#ffffff' : WELD) : want ? WELD : ready ? '#6ac090' : '#3f8a60';
+    for (let dy = 0; dy < 9; dy++)
+      for (let dx = 0; dx < 9; dx++) {
+        if (!shape(dx, dy)) continue;
+        // filled below the line, its surface lit
+        ctx.fillStyle = dy < lit ? '#2a2036' : dy === lit ? (want ? '#ffffff' : '#a8e8c0') : col;
+        ctx.fillRect(x + dx, y + dy, 1, 1);
+      }
+    if (want && !welding) {
+      // a spark off it, now and then
+      const t = (this.time * 1.6) % 1;
+      if (t < 0.4) {
+        const k = Math.floor(this.time * 1.6) % 4;
+        const sx = x + [9, -1, 9, -1][k] + (k % 2 ? -1 : 1) * Math.round(t * 5);
+        const sy = y + [0, 2, 7, 6][k] - Math.round(t * 4);
+        ctx.fillStyle = t < 0.2 ? '#ffffff' : WELD;
+        ctx.fillRect(sx, sy, 1, 1);
+      }
+    }
   }
 
   /**
@@ -469,19 +654,19 @@ export class Hud {
     if (!Object.keys(p.grafts).length) return;
     const w = VERBS.length * 7 + 3 + p.bonds.length * 7;
     const x0 = side === 'left' ? x + 2 : x - 2 - w;
-    plate(ctx, x0 - 2, 25, w + 3, 8, 0.5);
+    plate(ctx, x0 - 2, 32, w + 3, 8, 0.5);
     VERBS.forEach((v, k) => {
       const id = p.grafts[v];
       const cx = x0 + k * 7;
       ctx.fillStyle = '#2a2236';
-      ctx.fillRect(cx, 27, 5, 4);
+      ctx.fillRect(cx, 34, 5, 4);
       if (!id) return;
       const col = hex(PALETTE[GRAFTS[id].faction][2]);
       const fired = p.gs.fired[v];
       ctx.fillStyle = fired !== undefined && fired < 0.18 ? '#ffffff' : hasVerb(p.stats, v) ? col : '#4a4058';
-      ctx.fillRect(cx, 27, 5, 4);
+      ctx.fillRect(cx, 34, 5, 4);
     });
-    p.bonds.forEach((f, k) => drawText(ctx, '✦', x0 + VERBS.length * 7 + 2 + k * 7, 26, hex(PALETTE[f][2]), { shadow: false }));
+    p.bonds.forEach((f, k) => drawText(ctx, '✦', x0 + VERBS.length * 7 + 2 + k * 7, 33, hex(PALETTE[f][2]), { shadow: false }));
   }
 
   /**
@@ -574,8 +759,16 @@ export class Hud {
     const b = boss.boss!;
     const bw = Math.min(440, w - 80);
     const bx = Math.round(mid - bw / 2);
-    plate(ctx, bx, 28, bw, 24);
-    drawText(ctx, lv.spec.planet.boss.name, bx + 5, 31, INK, { shadow: false });
+    brassPlate(ctx, bx, 28, bw, 24, [3, 3, 6, 6], 0.82, false);
+    const name = b.name ?? lv.spec.planet.boss.name;
+    drawText(ctx, name, bx + 5, 31, INK, { shadow: false });
+    // plating its Liens have bolted on: a steel pip a plate (a blow breaks them all off)
+    for (let k = 0; k < b.plates; k++) {
+      ctx.fillStyle = boss.hitT < 0.07 ? '#ffffff' : '#c8d4e8';
+      ctx.fillRect(bx + 11 + textWidth(name) + k * 6, 32, 4, 5);
+      ctx.fillStyle = '#5a6478';
+      ctx.fillRect(bx + 11 + textWidth(name) + k * 6, 36, 4, 1);
+    }
     // which phase: three pips, or the last stand
     if (b.last) {
       // one pip the width of all three, beating like a heart
@@ -598,7 +791,7 @@ export class Hud {
       const lo = k / 3;
       const seg = clamp((f - lo) * 3, 0, 1);
       const col = boss.shielded ? DIM : boss.flash > 0 ? '#ffffff' : 2 - k === b.phase ? RED : '#c83a3a';
-      bar(ctx, sx, 41, Math.round(sw), 4, seg, col, 'rgba(42,34,54,0.9)');
+      slantBar(ctx, sx, 41, Math.round(sw) - 2, 4, seg, col);
     }
     // poise: fills as it's hit, and breaks
     const pz = poiseOf(boss);
@@ -629,7 +822,7 @@ export class Hud {
     if (!e) return false;
     const bw = Math.min(260, w - 80);
     const bx = Math.round(mid - bw / 2);
-    plate(ctx, bx, 28, bw, 21);
+    brassPlate(ctx, bx, 28, bw, 21, [3, 3, 6, 6], 0.82, false);
     const what = (FOES as Record<string, { name: string }>)[e.arch]?.name ?? e.skin.name ?? e.arch;
     drawText(ctx, e.title!, bx + 5, 31, GOLD, { shadow: false });
     drawText(ctx, `· ${what.toUpperCase()}`, bx + 9 + textWidth(e.title!), 31, DIM, { shadow: false });
@@ -673,7 +866,7 @@ export class Hud {
     const lines = wrap(def.tip ?? '', cw - 12);
     const ch = 30 + lines.length * 10;
     const y = Math.round(h * 0.5 - ch / 2);
-    plate(ctx, x, y, cw, ch, 0.8);
+    brassPlate(ctx, x, y, cw, ch, [0, 3, 9, 0], 0.85, false);
     ctx.fillStyle = g.color;
     ctx.fillRect(x, y, 2, ch);
     drawText(ctx, 'NEW FOE', x + 7, y + 4, DIM, { shadow: false });
@@ -765,7 +958,7 @@ export class Hud {
       const fade = Math.min(1, mb.t * 2.5) * (mb.t > 4 ? Math.max(0, 1 - (mb.t - 4)) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.34);
-      drawText(ctx, 'HEIST', mid, by, HEIST, { scale: 3, align: 'center' });
+      drawText(ctx, 'HEIST', mid, by, HEIST, { scale: 3, align: 'center', outline: DARK });
       drawText(ctx, 'RUN DOWN THE RUNNER BEFORE IT JUMPS', mid, by + 28, INK, { align: 'center' });
       drawText(ctx, 'SHOOT ITS STRONGBOXES LOOSE, AND CATCH THEM AS THEY FALL', mid, by + 40, '#d8cce8', { align: 'center' });
       for (let i = 0; i < 3; i++) strongboxIcon(ctx, mid - 22 + i * 18, by + 54, HEIST);
@@ -774,7 +967,7 @@ export class Hud {
       const fade = Math.min(1, mb.t * 2.5) * (mb.t > 4 ? Math.max(0, 1 - (mb.t - 4)) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.2);
-      drawText(ctx, 'ESCORT', mid, by, HAULER, { scale: 3, align: 'center' });
+      drawText(ctx, 'ESCORT', mid, by, HAULER, { scale: 3, align: 'center', outline: DARK });
       drawText(ctx, 'BRING THE HAULERS HOME', mid, by + 28, INK, { align: 'center' });
       drawText(ctx, 'RAIDERS WILL TRY TO BOARD THEM: SHOOT THEM OFF', mid, by + 40, '#d8cce8', { align: 'center' });
       for (let i = 0; i < 3; i++) haulerIcon(ctx, mid - 26 + i * 20, by + 54, HAULER);
@@ -786,7 +979,7 @@ export class Hud {
       const fade = Math.min(1, b.t * 2.5) * (b.t > 3.6 ? Math.max(0, 1 - (b.t - 3.6) * 1.2) : 1);
       ctx.globalAlpha = fade;
       const by = Math.round(h * 0.2);
-      drawText(ctx, b.name, mid, by, INK, { scale: 3, align: 'center' });
+      drawText(ctx, b.name, mid, by, INK, { scale: 3, align: 'center', outline: DARK });
       const lines = wrap(b.line, 360);
       lines.slice(0, 2).forEach((l, i) => drawText(ctx, l, mid, by + 28 + i * 11, '#d8cce8', { align: 'center' }));
       ctx.globalAlpha = 1;
@@ -804,26 +997,31 @@ export class Hud {
     if (bb && bb.t > 3.5 && bb.t < 7.5) {
       const a = clamp(Math.min(bb.t - 3.5, 7.5 - bb.t) * 2, 0, 1);
       ctx.globalAlpha = a;
-      drawText(ctx, bb.name, mid, Math.round(h * 0.36), GOLD, { scale: 2, align: 'center' });
+      drawText(ctx, bb.name, mid, Math.round(h * 0.36), GOLD, { scale: 2, align: 'center', outline: DARK });
       drawText(ctx, bb.title.toUpperCase(), mid, Math.round(h * 0.36) + 20, '#d8cce8', { align: 'center' });
       ctx.globalAlpha = 1;
     }
     if (boss && boss.t > 0) {
+      // (dropped clear of the rail and what sits under it)
+      ctx.translate(0, 8);
       this.bossBar(ctx, lv, boss, mid, w);
       this.bossRead(ctx, view, mid);
+      ctx.translate(0, -8);
     }
+    ctx.translate(0, 8);
     const elite = !(boss && boss.t > 0) && this.elitePlate(ctx, lv, mid, w);
+    ctx.translate(0, -8);
     // the chain under whatever plate is up
-    this.chain.draw(ctx, lv.combo, mid, boss && boss.t > 0 ? 108 : elite ? 54 : 30, 1 / 60);
+    this.chain.draw(ctx, lv.combo, mid, boss && boss.t > 0 ? 116 : elite ? 62 : 36, 1 / 60);
     this.journal(ctx, lv, h);
     if (lv.state === 'clear' && lv.ending > 0.4) {
       const t = lv.ending;
       const hs = lv.heist;
       const word = lv.spec.mode === 'boss' ? 'WARDEN DOWN' : lv.convoy ? (lv.convoy.delivered ? `${lv.convoy.delivered}/3 HOME` : 'CONVOY LOST') : hs ? (hs.state === 'down' ? 'RUNNER DOWN' : `${hs.caught}/3 CAUGHT`) : 'CLEAR';
       const bad = (lv.convoy && !lv.convoy.delivered) || (hs && hs.state !== 'down' && !hs.caught);
-      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, word, mid, h * 0.4, bad ? RED : GOLD, { scale: 4, align: 'center' });
+      if (t < 3.5 || Math.floor(t * 4) % 2) drawText(ctx, word, mid, h * 0.4, bad ? RED : GOLD, { scale: 4, align: 'center', outline: DARK });
     }
-    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center' });
+    if (lv.state === 'failed' && lv.ending > 0.8) drawText(ctx, 'SHOT DOWN', mid, h * 0.42, RED, { scale: 4, align: 'center', outline: DARK });
   }
 
   /**

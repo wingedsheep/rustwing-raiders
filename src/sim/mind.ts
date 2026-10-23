@@ -80,11 +80,11 @@ export interface MindState {
   luck: { up: Hardpoint; down: Hardpoint } | null;
   /** The Engine's call: seconds the core is still quiet (it answered), and calls heard. */
   quiet: number;
-  /** The fight's tally: takedowns, the big ones, CLEAN phases, revives, scrap caught. */
+  /** The fight's tally: takedowns, the big ones, CLEAN phases, jumpstarts, scrap caught. */
   takedowns: number;
   big: number;
   clean: number;
-  revives: number;
+  jumpstarts: number;
   scrap: number;
   /** Seconds since the core last jolted (a hit), swung (a dash) and barked. */
   jolt: number;
@@ -110,7 +110,7 @@ export const newMindState = (kit?: CoreKit): MindState => ({
   takedowns: 0,
   big: 0,
   clean: 0,
-  revives: 0,
+  jumpstarts: 0,
   scrap: 0,
   jolt: 9,
   swing: 9,
@@ -182,7 +182,7 @@ export class Mind {
   heard(e: LevelEvent) {
     const lv = this.lv;
     if (e.type === 'phaseClean') for (const p of lv.players) if (!p.down) p.ch.clean++;
-    if (e.type === 'revive') for (const p of lv.players) if (p.id !== e.id && !p.down) p.ch.revives++;
+    if (e.type === 'jumpstart') for (const p of lv.players) if (p.id !== e.id && !p.down) p.ch.jumpstarts++;
     if (e.type === 'bossPhase' && this.call && e.phase >= 1 && this.called < (this.call > 1 ? 2 : 1)) {
       this.called++;
       for (const p of lv.players) if (!p.down) this.answer(p);
@@ -457,7 +457,7 @@ export class Mind {
     add('steel', `${edges} EDGE CRITS`, Math.min(4, Math.floor(edges / FEED.edges)));
     if (lv.fullClear) add('steel', 'FULL CLEAR', FEED.fullClear);
     add('grease', `${p.welds} WELD${p.welds === 1 ? '' : 'S'}`, p.welds * FEED.weld);
-    add('grease', `${c.revives} REVIVE${c.revives === 1 ? '' : 'S'}`, c.revives * FEED.revive);
+    add('grease', `${c.jumpstarts} JUMPSTART${c.jumpstarts === 1 ? '' : 'S'}`, c.jumpstarts * FEED.jumpstart);
     add('grease', `${c.scrap} SCRAP SCOOPED`, Math.floor(c.scrap / FEED.scrap));
     const vein = { nerve: 0, steel: 0, grease: 0 };
     for (const l of lines) vein[l.vein] += l.n;

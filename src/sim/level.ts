@@ -12,7 +12,7 @@ import { SHIELD_CELL, stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
 import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
-import { bossRead, type BossState, type BossStyle, type Read } from './boss';
+import { bossRead, bossUnplated, type BossState, type BossStyle, type Read } from './boss';
 import { CHAIN, PLATE, PLATE_GLANCE, plated, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
 import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
@@ -117,7 +117,11 @@ export interface Player {
   phase: number;
   overdrive: number;
   down: boolean;
-  revive: number;
+  /** A partner's jumpstart, under way (s). */
+  jump: number;
+  /** How long it's been down with nobody close: at JUMP_WAIT it crashes, and is `out` for the level. */
+  downT: number;
+  out: boolean;
   focus: boolean;
   firing: boolean;
   /** Beam reach this frame per gun (0 = not beaming), for the view. */
@@ -435,6 +439,8 @@ export interface Pickup {
   part?: Item;
   /** Rings: flown through by. */
   done?: number;
+  /** On a boss's tow line (ARU-0's Lien): it moves it, not the screen. */
+  towed?: boolean;
 }
 
 export type HazardKind = 'geyser' | 'falling_rocks' | 'lightning' | 'spore_cloud' | 'laser_gate' | 'flare';
@@ -479,7 +485,9 @@ export type LevelEvent =
   /** A player's shot meeting the land: stopped there, or (`bounce`) glancing off it. */
   | { type: 'shotLand'; x: number; z: number; bounce: boolean; heavy: boolean; src?: string }
   | { type: 'down'; id: number; x: number; z: number }
-  | { type: 'revive'; id: number }
+  /** A down ship nobody jumpstarted in time: it goes in, and is out for the level. */
+  | { type: 'crashed'; id: number; x: number; z: number }
+  | { type: 'jumpstart'; id: number }
   | { type: 'graze'; id: number; x: number; z: number }
   /** The new kit (see kit.ts): the Bulwark, the Swap Beacon, the skins and the bombs. */
   | { type: 'kit'; id: number; what: KitWhat; x: number; z: number; n?: number; x2?: number; z2?: number }
@@ -619,7 +627,8 @@ export class Level {
   events: LevelEvent[] = [];
   /** Lasers being aimed (lancers), for drawing and for dodging. */
   /** Beams from their owner to (x2, z2); `r0`: it starts that far out (nothing nearer is hit). */
-  readonly lasers: { x: number; z: number; x2: number; z2: number; warn: number; on: number; color: number; owner: number; r0?: number }[] = [];
+  /** `tow`: a tow line, not a beam (ARU-0's Lien: drawn as a cable, hurts the same). */
+  readonly lasers: { x: number; z: number; x2: number; z2: number; warn: number; on: number; color: number; owner: number; r0?: number; tow?: boolean }[] = [];
   /** What isn't bullets: shells, rings, gates, harpoons (see strikes.ts). */
   readonly strikes: Strike[] = [];
   /** A chase boss on its chase: the screen keeps going, though there's a boss. */
@@ -748,7 +757,9 @@ export class Level {
         phase: 0,
         overdrive: 0,
         down: false,
-        revive: 0,
+        jump: 0,
+        downT: 0,
+        out: false,
         focus: false,
         firing: false,
         beam: s.guns.map(() => 0),
@@ -886,7 +897,7 @@ export class Level {
     }
 
     for (let i = 0; i < this.players.length; i++) this.updatePlayer(this.players[i], intents[i] ?? NEUTRAL, dz);
-    this.updateRevives();
+    this.updateJumpstarts();
     this.convoy?.update(dz);
     this.heist?.update(dz);
     this.director.update();
@@ -1518,19 +1529,32 @@ export class Level {
     this.emit({ type: 'arc', points });
   }
 
-  private updateRevives() {
-    if (this.players.length < 2) return;
+  /**
+   * A down ship in co-op: a partner flying close kicks its engines back on. Nobody close, its
+   * countdown runs (held while a partner's there); at JUMP_WAIT it goes in.
+   */
+  private updateJumpstarts() {
+    if (this.players.length < 2 || this.state === 'failed' || this.state === 'clear') return;
     for (const p of this.players) {
-      if (!p.down) continue;
-      const helper = this.players.find((q) => q !== p && !q.down && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < 3.6 * 3.6);
-      if (helper) p.revive += DT;
-      else p.revive = Math.max(0, p.revive - DT * 0.5);
-      if (p.revive >= 1.6) {
+      if (!p.down || p.out) continue;
+      const helper = this.players.find((q) => q !== p && !q.down && (q.x - p.x) ** 2 + (q.z - p.z) ** 2 < JUMP_REACH * JUMP_REACH);
+      if (helper) p.jump += DT;
+      else {
+        p.jump = Math.max(0, p.jump - DT * 0.5);
+        if ((p.downT += DT) >= JUMP_WAIT) {
+          p.out = true;
+          this.emit({ type: 'crashed', id: p.id, x: p.x, z: p.z });
+          this.emit({ type: 'explode', x: p.x, z: p.z, y: FLIGHT_Y, size: 5, color: 0xff7030 });
+          continue;
+        }
+      }
+      if (p.jump >= JUMP_TIME) {
         p.down = false;
-        p.revive = 0;
-        p.hp = Math.round(p.stats.hp * REVIVE_HULL);
+        p.jump = 0;
+        p.downT = 0;
+        p.hp = Math.round(p.stats.hp * JUMP_HULL);
         p.inv = 2.5;
-        this.emit({ type: 'revive', id: p.id });
+        this.emit({ type: 'jumpstart', id: p.id });
       }
     }
   }
@@ -1587,7 +1611,8 @@ export class Level {
         p.hp = 0;
         p.down = true;
         this.dropCrate(p);
-        p.revive = 0;
+        p.jump = 0;
+        p.downT = 0;
         p.firing = false;
         this.emit({ type: 'down', id: p.id, x: p.x, z: p.z });
         this.emit({ type: 'explode', x: p.x, z: p.z, y: FLIGHT_Y, size: 2.5, color: 0xffa040 });
@@ -1609,9 +1634,9 @@ export class Level {
 
   // --- enemies -----------------------------------------------------------------------------
 
-  /** What an enemy's base hull is multiplied by here: the run's growth, two ships, the testing aid. */
+  /** What an enemy's base hull is multiplied by here: the run's growth, two ships (both up), the testing aid. */
   hullScale() {
-    return hullGrowth(this.spec.difficulty) * (this.players.length > 1 ? COOP_HULL : 1) * this.tough;
+    return hullGrowth(this.spec.difficulty) * (this.living().length > 1 ? COOP_HULL : 1) * this.tough;
   }
 
   spawn(arch: Enemy['arch'], skin: EnemySkin, x: number, z: number, d: EnemyData, opts: Partial<Enemy> = {}): Enemy {
@@ -1768,6 +1793,12 @@ export class Level {
   /** Plating broken (by a blow, or the core's doing): it reels, open to a takedown. */
   breakPlating(e: Enemy, owner: number) {
     const p = this.players[owner];
+    // a boss's plating (ARU-0's Liens): off it comes, as scrap, and it reels
+    if (e.boss) {
+      bossUnplated(this, e);
+      this.mind.broke(p, e);
+      return;
+    }
     e.armour = 0;
     e.stun = Math.max(e.stun, 1.2);
     if (e.grab >= 0) release(this, e, true);
@@ -2283,8 +2314,8 @@ export class Level {
         }
       }
       // drifts down the screen and off it: scrap at its own steady pace (even when the screen
-      // holds still for a boss), the rest slower than the land
-      if (!pulled) k.z -= k.kind === 'scrap' ? dz - SCRAP_DRIFT * DT : dz * 0.75;
+      // holds still for a boss), the rest slower than the land (not on a tow line: that's hauled)
+      if (!pulled && !k.towed) k.z -= k.kind === 'scrap' ? dz - SCRAP_DRIFT * DT : dz * 0.75;
       k.x += k.vx * DT;
       k.z += k.vz * DT;
       if (k.z > this.bottom + 3 && !pulled) k.dead = true;
@@ -3393,9 +3424,14 @@ export const tierOf = (cause: string): HitTier => (HEAVY_CAUSES.has(cause) ? 'he
 const BULLET_TIER: Record<BulletKind, HitTier> = { orb: 'hit', needle: 'hit', mine: 'hit', spore: 'graze', big: 'heavy', torpedo: 'heavy', seeker: 'heavy' };
 /** A step of hull (the old pip): a repair kit's worth, a dock's patch, an event's knock. */
 export const HULL_STEP = 20;
-/** Shares of the hull: a Weld mends this much, a revive comes back with this, a SECOND WIND leaves this. */
-const WELD_HEAL = 0.25;
-const REVIVE_HULL = 0.4;
+/** Shares of the hull: a Weld mends this much, a jumpstart comes back with this, a SECOND WIND leaves this. */
+export const WELD_HEAL = 0.25;
+const JUMP_HULL = 0.4;
+/** Co-op downs: a partner within this reach for this long jumpstarts you. */
+const JUMP_REACH = 3.6;
+const JUMP_TIME = 1.6;
+/** How long a down ship holds out with nobody close before it crashes (s). */
+export const JUMP_WAIT = 20;
 const SECOND_WIND = 0.1;
 /** Affixes (see AFFIXES in game/loot.ts). */
 const SPITE_TIME = 5;

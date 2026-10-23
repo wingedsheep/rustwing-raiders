@@ -403,6 +403,16 @@ export class Threats {
         }
         break;
       }
+      case 'plate': {
+        // ballast: where it reaches, white-hot on its way back
+        const ring = this.rings.take(s.vx * s.vx + s.vz * s.vz < 600 ? 0xffffff : col, 0.6);
+        ring.position.set(s.x, Y, s.z);
+        ring.scale.setScalar(s.r);
+        const fill = this.discs.take(col, 0.15);
+        fill.position.set(s.x, Y - 0.01, s.z);
+        fill.scale.setScalar(s.r);
+        break;
+      }
       case 'harpoon': {
         const head = this.discs.take(0xfff0c0, 1);
         head.position.set(s.x, Y + 0.1, s.z);

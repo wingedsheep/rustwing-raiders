@@ -220,11 +220,17 @@ export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId, items: [Acti
   let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
   cx = Math.round(cx);
   for (const [b, t] of parts) {
+    // a keycap: rounded, lit along its top, a darker lip under it, a keyline round the lot
     const bw = textWidth(b) + 4;
-    ctx.fillStyle = '#3a2e48';
-    ctx.fillRect(cx - 2, y - 2, bw, 11);
     ctx.fillStyle = DARK;
-    ctx.fillRect(cx - 2, y + 9, bw, 1);
+    ctx.fillRect(cx - 3, y - 2, bw + 2, 13);
+    ctx.fillRect(cx - 2, y - 3, bw, 15);
+    ctx.fillStyle = '#2a2036';
+    ctx.fillRect(cx - 2, y + 8, bw, 2);
+    ctx.fillStyle = '#4a3c5c';
+    ctx.fillRect(cx - 2, y - 2, bw, 10);
+    ctx.fillStyle = '#6a5a80';
+    ctx.fillRect(cx - 1, y - 2, bw - 2, 1);
     drawText(ctx, b, cx, y, INK, { shadow: false });
     cx += bw + 4;
     drawText(ctx, t, cx, y, DIM);
@@ -237,15 +243,27 @@ export function hints(ctx: CanvasRenderingContext2D, dev: DeviceId, items: [Acti
 /** A ship's hull off the field: its notched bar, `w` wide, and the number after it. */
 export function hullGauge(ctx: CanvasRenderingContext2D, hull: number, max: number, x: number, y: number, w = 48) {
   hullBar(ctx, x, y + 1, w, 6, hull, max);
-  drawText(ctx, `${Math.round(hull)}`, x + w + 4, y, hull <= max * 0.25 ? RED : INK);
+  drawText(ctx, `${Math.round(hull)}`, x + w + 6, y, hull <= max * 0.25 ? RED : INK);
 }
 
 /** A big title across the top of a screen, with a rule under it. */
 export function heading(ctx: CanvasRenderingContext2D, text: string, sub: string, color = INK) {
   drawText(ctx, text, W / 2, 12, color, { scale: 2, align: 'center' });
   if (sub) drawText(ctx, sub, W / 2, 32, DIM, { align: 'center' });
-  ctx.fillStyle = EDGE;
+  // the rule fades out to both ends, a small diamond at its middle
+  const g = ctx.createLinearGradient(40, 0, W - 40, 0);
+  g.addColorStop(0, 'rgba(90,74,112,0)');
+  g.addColorStop(0.5, 'rgba(120,100,148,1)');
+  g.addColorStop(1, 'rgba(90,74,112,0)');
+  ctx.fillStyle = g;
   ctx.fillRect(40, 44, W - 80, 1);
+  ctx.fillStyle = DARK;
+  ctx.fillRect(W / 2 - 3, 43, 7, 3);
+  ctx.fillRect(W / 2 - 2, 42, 5, 5);
+  ctx.fillStyle = color;
+  ctx.fillRect(W / 2 - 1, 43, 3, 3);
+  ctx.fillRect(W / 2, 42, 1, 5);
+  ctx.fillRect(W / 2 - 2, 44, 5, 1);
 }
 
 /** A hauler from above, seven texels long, its engines lit (crossed out in red, if it was lost). */
