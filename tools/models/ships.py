@@ -1953,8 +1953,9 @@ STEEL_HI = "#cfdbe4"          # its worn bevels
 COPPER = "#e07a3e"
 COPPER_LO = "#8a3e22"
 PAINT = "#f2b81e"             # old hazard paint (with black stripes: salvage, plain on any ground)
-MINT = "#6ad8a0"
-MINT_LO = "#2e8a62"
+PATCH = "#2c3a36"             # a repair patch's dark tin
+HEAL = "#3ef06a"              # the green +
+HEAL_HI = "#c8ffd4"
 HOLE = "#1a161c"
 
 
@@ -2023,18 +2024,18 @@ def pickup_scrap_big():
 
 
 def pickup_repair():
-    """A riveted repair patch: a square of mint tin, a rivet at each corner, a chalk cross stitched on."""
+    """A riveted repair patch: a dark square of tin, a rivet at each corner, and a big green + on
+    it, lit from within: what heals is green, and plain at a glance."""
     root = group("pickup_repair", kind="pickup_repair")
     m = Model("patch")
-    m.box((0.66, 0.66, 0.07), (0, 0, 0.035), MINT, glow=True)
-    m.box((0.62, 0.62, 0.03), (0, 0, -0.01), MINT_LO)
+    m.box((0.66, 0.66, 0.07), (0, 0, 0.035), PATCH)
+    m.box((0.62, 0.62, 0.03), (0, 0, -0.01), HOLE)
     for x, y in ((-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)):
-        m.cyl(0.06, 0.06, (x, y, 0.08), STEEL, segs=6)
-    m.box((0.4, 0.13, 0.02), (0, 0, 0.075), CHALK, glow=True)                     # the cross
-    m.box((0.13, 0.4, 0.02), (0, 0, 0.075), CHALK, glow=True)
-    for k in (-1, 1):                                                              # a stitch on each arm
-        m.box((0.025, 0.17, 0.012), (k * 0.14, 0, 0.087), HOLE)
-        m.box((0.17, 0.025, 0.012), (0, k * 0.14, 0.087), HOLE)
+        m.cyl(0.06, 0.06, (x, y, 0.08), STEEL_HI, segs=6)
+    m.box((0.48, 0.16, 0.03), (0, 0, 0.08), HEAL, glow=True)                      # the +
+    m.box((0.16, 0.48, 0.03), (0, 0, 0.08), HEAL, glow=True)
+    m.box((0.3, 0.06, 0.012), (0, 0, 0.1), HEAL_HI, glow=True)                    # its hot core
+    m.box((0.06, 0.3, 0.012), (0, 0, 0.1), HEAL_HI, glow=True)
     m.build(root)
 
 

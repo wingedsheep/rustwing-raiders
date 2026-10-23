@@ -88,7 +88,7 @@ export const FOES: Record<Foe, FoeDef> = {
   halo: { name: 'Halo', faction: 'lattice', hp: 70, r: 1.7, score: 600, scrap: 4, model: 'halo', beast: false, scale: 1.1, tip: 'TWO RINGS: THE FIRST GAP IS WHERE YOU ARE, THE SECOND IS NOT' },
   manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
-  runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 2, model: 'bomber', beast: false, scale: 0.8 },
+  runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 6, model: 'bomber', beast: false, scale: 0.8 },
   vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55, tip: 'TWO TUGS HAUL IT AWAY: SHOOT THEM DOWN AND IT DROPS AND BURSTS OPEN' },
   cache: { name: 'Iron Crate', faction: 'scrap', hp: 80, r: 1.9, score: 700, scrap: 2, model: 'bomber', beast: false, scale: 0.7 },
   tug: { name: 'Tug', faction: 'lattice', hp: 16, r: 1.1, score: 150, scrap: 1, model: 'swarm', beast: false, scale: 0.9, tip: 'HAULING A STRONGBOX: SHOOT DOWN BOTH TUGS AND THE BOX DROPS AND BURSTS OPEN' },

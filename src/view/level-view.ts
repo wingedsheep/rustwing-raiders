@@ -1055,8 +1055,10 @@ export class LevelView {
             this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.3, true, 0xffe08a);
           } else if (e.kind === 'repair') {
             audio.play('heal');
-            this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.4, true, 0x8affb0);
-            for (let k = 0; k < 10; k++) this.fx.add({ x: e.x + (Math.random() - 0.5) * 2.5, y: FLIGHT_Y + 0.5, z: e.z + (Math.random() - 0.5) * 2, vz: -4 - Math.random() * 4, size: 0.3, grow: 0.2, life: 0.5, color: this.c.setHex(0x8affb0), carried: true });
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 5, 0.4, true, 0x40ff70);
+            for (let k = 0; k < 10; k++) this.fx.add({ x: e.x + (Math.random() - 0.5) * 2.5, y: FLIGHT_Y + 0.5, z: e.z + (Math.random() - 0.5) * 2, vz: -4 - Math.random() * 4, size: 0.3, grow: 0.2, life: 0.5, color: this.c.setHex(0x60ff88), carried: true });
+            // and a big green + rising off it, every time
+            this.pops.push({ text: '+', x: e.x, z: e.z - 1, t: 0, color: '#40ff70', big: true });
           } else this.gotPart(e.part, e.x, e.z);
           if (e.kind !== 'scrap') this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 14, 0xffe08a, 8, 0.25, 0.18);
           break;
@@ -3196,7 +3198,7 @@ export class LevelView {
           obj.add(part(GEO.oct, flat(0xfff4e0, { own: true }), [0, 0.8, 0], 0.38));
           obj.add(part(GEO.box, toon(0x1a1014), [-0.45, 0, 0], [0.18, 1.1, 1.1]), part(GEO.box, toon(0x1a1014), [0.45, 0, 0], [0.18, 1.1, 1.1]));
         } else if (k.kind === 'repair') {
-          // a riveted repair patch: mint tin, a chalk cross stitched on
+          // a riveted repair patch: dark tin, a big green + lit from within, in a green glow
           inst = library.clone('pickup_repair');
           obj = new THREE.Group();
           obj.add(inst?.obj ?? part(GEO.box, toon(0xece6d8), [0, 0, 0], [0.7, 0.1, 0.7]));
@@ -3215,7 +3217,7 @@ export class LevelView {
           this.scene.add(v.glow);
         }
         if (k.kind === 'scrap' || k.kind === 'repair') {
-          v.glow = this.glow(k.kind === 'repair' ? 0x8affc0 : 0xffc890);
+          v.glow = this.glow(k.kind === 'repair' ? 0x30ff60 : 0xffc890);
           this.scene.add(v.glow);
           // it clatters out of the wreck with a few chips of its own
           if (k.kind === 'scrap') this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 3, 0xcfdbe4, 7, 0.22, 0.16);

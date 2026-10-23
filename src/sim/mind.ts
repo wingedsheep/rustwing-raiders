@@ -297,7 +297,7 @@ export class Mind {
     this.letGo(p, 'policy');
     p.hp = 1;
     p.inv = 2.5;
-    for (const b of this.lv.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.lv.cancel(b, 0.6);
+    for (const b of this.lv.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.lv.cancel(b);
     this.emit(p, 'policy', p.x, p.z, 0, 'policy');
     return true;
   }

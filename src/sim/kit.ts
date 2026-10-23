@@ -136,7 +136,7 @@ export function kitShip(lv: Level, p: Player, i: Intent, dz: number) {
       const ax = b.x - p.x;
       const az = b.z - p.z;
       if (az < -BULWARK.reach - 1 || az > 0.6 || Math.abs(ax) > BULWARK.width) continue;
-      lv.cancel(b, 0);
+      lv.cancel(b);
       k.wall.n++;
       lv.emit({ type: 'kit', id: p.id, what: 'wallBlock', x: b.x, z: b.z, n: k.wall.n });
     }
@@ -347,7 +347,7 @@ export function kitWorld(lv: Level, dz: number) {
     lv.emit({ type: 'kit', id: b.owner, what: 'bomblet', x: b.x, z: b.z });
     lv.credited('CARPET', () => lv.asBlow(() => lv.blast(b.x, b.z, CARPET.r, b.dmg, b.owner, { quiet: true })));
     // and it knocks bullets out of the air
-    for (const u of lv.bullets) if (!u.dead && (u.x - b.x) ** 2 + (u.z - b.z) ** 2 < CARPET.r * CARPET.r) lv.cancel(u, 0.15);
+    for (const u of lv.bullets) if (!u.dead && (u.x - b.x) ** 2 + (u.z - b.z) ** 2 < CARPET.r * CARPET.r) lv.cancel(u);
   }
   // the frozen: held where they hung (with the screen), till they fall as snow
   if (w.frozenT > 0) {
@@ -364,7 +364,7 @@ export function kitWorld(lv: Level, dz: number) {
     if (w.frozenT <= 0) {
       for (const b of w.frozen.keys()) {
         lv.emit({ type: 'kit', id: 0, what: 'snow', x: b.x, z: b.z });
-        lv.cancel(b, 0.2);
+        lv.cancel(b);
       }
       w.frozen.clear();
     }
@@ -426,7 +426,7 @@ export function kitWorld(lv: Level, dz: number) {
     h.z -= dz;
     for (const b of lv.bullets)
       if (!b.dead && (b.x - h.x) ** 2 + (b.z - h.z) ** 2 < BEACON.eat * BEACON.eat) {
-        lv.cancel(b, 0);
+        lv.cancel(b);
         h.n++;
       }
     if (h.t < BEACON.catch) continue;

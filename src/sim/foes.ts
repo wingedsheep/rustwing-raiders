@@ -1219,12 +1219,6 @@ export function updateFoe(lv: Level, e: Enemy): void {
         moveTo(lv, e, e.x, s - 32 * DT * Math.min(1, (e.t - life + 1) * 3));
         break;
       }
-      d.drop = d.drop ?? 0;
-      // shaken loose: a bit of the loot each fifth of its hull
-      while (e.hp < e.max * (1 - (d.drop + 1) * 0.2) && d.drop < 4) {
-        d.drop++;
-        lv.drop('scrap', e.x, e.z, 2);
-      }
       if (e.state === 'attack') {
         moveTo(lv, e, clamp(e.x + (d.dir ?? 1) * 30 * DT, -HALF_W + 3, HALF_W - 3), s);
         if (over(e)) go(lv, e, 'idle');

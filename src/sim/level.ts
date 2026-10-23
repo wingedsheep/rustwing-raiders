@@ -1254,14 +1254,13 @@ export class Level {
     } else kitSpecial(this, p, kind, k);
   }
 
-  /** A bullet turned into a bit of scrap (bombs, phase changes, perfect dashes). */
-  cancel(b: Bullet, chance = 0.25) {
+  /** A bullet wiped out (bombs, phase changes, perfect dashes). It leaves no scrap: only a kill does. */
+  cancel(b: Bullet) {
     if (b.dead) return;
     b.dead = true;
     if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: true });
     else if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'shot', n: b.leg?.n ?? 0 });
     else this.emit({ type: 'bulletPop', x: b.x, z: b.z, color: b.color, look: b.look });
-    if (this.rand() < chance) this.drop('scrap', b.x, b.z, 1);
   }
 
   onScreen(x: number, z: number, margin = 0) {
@@ -1558,7 +1557,7 @@ export class Level {
         p.hp = Math.round(p.stats.hp * JUMP_HULL);
         p.inv = 2.5;
         // the jolt: a shockwave off the hull that turns the fire round both ships to scrap
-        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < JUMP_JOLT * JUMP_JOLT) this.cancel(b, 0.6);
+        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < JUMP_JOLT * JUMP_JOLT) this.cancel(b);
         this.emit({ type: 'jumpstart', id: p.id, by: helper.id });
       }
     }
@@ -1609,7 +1608,7 @@ export class Level {
         p.wind = true;
         p.hp = Math.max(1, Math.round(p.stats.hp * SECOND_WIND));
         p.inv = 2.5;
-        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.cancel(b, 0.6);
+        for (const b of this.bullets) if ((b.x - p.x) ** 2 + (b.z - p.z) ** 2 < 14 * 14) this.cancel(b);
         this.emit({ type: 'affix', id: p.id, affix: 'secondwind', x: p.x, z: p.z });
       }
       if (p.hp <= 0) {
@@ -2465,7 +2464,7 @@ export class Level {
           if (b.dead || b.hp <= 0 || (b.x - s.x) ** 2 + (b.z - s.z) ** 2 > (b.r + s.r + 0.4) ** 2) continue;
           b.hp -= s.dmg;
           if (b.hp <= 0) {
-            this.cancel(b, 0.6);
+            this.cancel(b);
             this.score += 50 * (1 + this.combo);
           }
           if (s.pierce > 0) s.pierce--;
@@ -2684,7 +2683,7 @@ export class Level {
           const dmg = PARRY_DMG * s.auxStr * (1 + p.burn);
           for (let k = 0; k < (s.mirror ? 2 : 1); k++) this.addShot(p.id, 'slug', b.x, b.z, dir + k * 0.15, 55, dmg, 1, 0, 1).tag = 'reflect';
         } else if (p.parryT <= 0 && d2 < BLOCK_R * BLOCK_R) {
-          this.cancel(b, 0);
+          this.cancel(b);
           p.blocked++;
           blocked++;
           if (s.mirror) this.mirror(p, b.x, b.z, s.mirror);
@@ -2716,7 +2715,7 @@ export class Level {
         const dz = p.z - b.z;
         const d = Math.hypot(dx, dz) || 1;
         if (d < SIPHON_EAT) {
-          this.cancel(b, 0);
+          this.cancel(b);
           p.eaten++;
           p.charge = Math.min(1, p.charge + 0.01);
           this.emit({ type: 'eat', id: p.id, x: b.x, z: b.z });
@@ -3019,7 +3018,7 @@ export class Level {
         e.stun = Math.max(e.stun, 0.3);
       }
     }
-    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < (r * 0.6) ** 2) this.cancel(b, 0.3);
+    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < (r * 0.6) ** 2) this.cancel(b);
     this.emit({ type: 'thunder', id: p.id, x: p.x, z: p.z, r, perfect: p.perfect, hit });
   }
 
@@ -3033,7 +3032,7 @@ export class Level {
   /** VENGEFUL: a hit on you lets out a nova: the bullets round you are gone, and shrapnel flies out, harder on a low hull. */
   private nova(p: Player) {
     const power = 1 + 2 * (1 - p.hp / Math.max(1, p.stats.hp));
-    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < NOVA_R * NOVA_R) this.cancel(b, 0.4);
+    for (const b of this.bullets) if (!b.dead && (b.x - p.x) ** 2 + (b.z - p.z) ** 2 < NOVA_R * NOVA_R) this.cancel(b);
     for (let k = 0; k < NOVA_SHOTS; k++) {
       const s = this.addShot(p.id, 'slug', p.x, p.z, (k / NOVA_SHOTS) * Math.PI * 2 + this.rand() * 0.1, 46, NOVA_DMG * power, 0.55, 1, 0);
       s.tag = 'nova';
@@ -3129,7 +3128,7 @@ export class Level {
     const near = (b: Bullet) => (b.x - p.slipX) ** 2 + (b.z - gz) ** 2 < PERFECT_R * PERFECT_R;
     for (const b of this.bullets)
       if (!b.dead && near(b)) {
-        this.cancel(b, 0.6);
+        this.cancel(b);
         absorbed++;
       }
     if (p.perfect) return;

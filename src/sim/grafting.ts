@@ -734,7 +734,7 @@ export class Grafting {
         continue;
       }
       // spores eat the fire that comes through them
-      if (c.kind === 'spore') for (const b of lv.bullets) if (!b.dead && b.kind !== 'seeker' && (b.x - c.x) ** 2 + (b.z - c.z) ** 2 < (c.r * 0.9) ** 2) lv.cancel(b, 0.05);
+      if (c.kind === 'spore') for (const b of lv.bullets) if (!b.dead && b.kind !== 'seeker' && (b.x - c.x) ** 2 + (b.z - c.z) ** 2 < (c.r * 0.9) ** 2) lv.cancel(b);
       if ((c.tick -= DT) > 0) continue;
       c.tick += 0.25;
       for (const e of lv.enemies) {
@@ -750,7 +750,7 @@ export class Grafting {
     sweep(this.patches, (c) => c.dead);
     sweep(this.binds, (b) => b.t <= 0 || !lv.enemies.some((e) => e.id === b.enemy && !e.dead));
     // halo shards cut through what they meet
-    if (lv.shots.some((s) => s.graft === 'halo' && !s.dead)) for (const b of lv.bullets) if (!b.dead && b.kind !== 'seeker' && this.cuts(b)) lv.cancel(b, 0.1);
+    if (lv.shots.some((s) => s.graft === 'halo' && !s.dead)) for (const b of lv.bullets) if (!b.dead && b.kind !== 'seeker' && this.cuts(b)) lv.cancel(b);
   }
 
   /** A hit on `e` that it took (`dmg`): if it's bound, everything near it takes a share. */
