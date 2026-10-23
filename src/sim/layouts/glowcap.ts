@@ -343,7 +343,7 @@ export const glowcap: Layout = {
           const ang = b.side * range(r, 0.15, 0.55);
           const ux = Math.cos(ang) * -b.side;
           const uz = Math.sin(ang) * b.side;
-          for (let zz = b.z0 - range(r, 4, 7); zz > b.z1 + 4; zz -= range(r, 8, 11)) {
+          for (let zz = b.z0 - range(r, 4, 7); zz > b.z1 + 4; zz -= range(r, 7, 10)) {
             // (most long enough to lie across the lane: it's flown over the stalks, not between them)
             const L = range(r, 32, 54);
             // (the stumps anywhere from the windward edge to past the middle, all lying downwind)
@@ -664,7 +664,7 @@ function plan(kit: Kit, b: Forest) {
           // caps in a line down each flank of the rotted stalk, oldest by the stump and younger
           // towards the cap end, broken where the lane's gone through
           let flank = r() < 0.5 ? 1 : -1;
-          for (let t = 3; t < lg.len; t += range(r, 2.8, 3.6)) {
+          for (let t = 3; t < lg.len; t += range(r, 2.4, 3.2)) {
             flank = -flank;
             const x = lg.x + lg.ux * t - lg.uz * flank * 1.5;
             const z = lg.z + lg.uz * t + lg.ux * flank * 1.5;

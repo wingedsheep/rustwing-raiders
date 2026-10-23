@@ -72,8 +72,7 @@ const PASS = {
   clumping: 0.7,
   /** The narrowest way through, in ship widths. */
   lane: 3,
-  /** A screen's most scenery, colliders, landmarks. */
-  scenery: 60,
+  /** A screen's most colliders and landmarks (scenery is counted, not capped: how it looks decides). */
   colliders: 8,
   landmarks: 1,
 };
@@ -269,7 +268,7 @@ for (const s of shots) {
 if (STATS) {
   const head = ['', 'detail', 'bullets', 'ΔE worst', 'ΔE median', 'fire C', 'world C99', 'look-alikes', 'clumping', 'lane', 'most on a screen', 'ambient'];
   const md = [
-    `seed ${SEED}, ${AT} s into a ${MODE}. Pass at: detail ≥ ${PASS.detail}, ΔE worst ≥ ${PASS.fire} (a painting's: its tenth percentile), fire C ≥ ${PASS.chroma}, look-alikes ≤ ${PASS.lookalikes}, clumping ≤ ${PASS.clumping}, lane ≥ ${PASS.lane} ship widths (${stat.SHIP_W.toFixed(1)}), at most ${PASS.scenery} scenery / ${PASS.colliders} colliders / ${PASS.landmarks} landmark a screen. ✗ fails.`,
+    `seed ${SEED}, ${AT} s into a ${MODE}. Pass at: detail ≥ ${PASS.detail}, ΔE worst ≥ ${PASS.fire} (a painting's: its tenth percentile), fire C ≥ ${PASS.chroma}, look-alikes ≤ ${PASS.lookalikes}, clumping ≤ ${PASS.clumping}, lane ≥ ${PASS.lane} ship widths (${stat.SHIP_W.toFixed(1)}), at most ${PASS.colliders} colliders / ${PASS.landmarks} landmark a screen (scenery counted, not capped). ✗ fails.`,
     '',
     `| ${head.join(' | ')} |`,
     `|${head.map(() => '---').join('|')}|`,
@@ -308,7 +307,7 @@ function measure(s: Shot, base: string, still: string, air: { ambient: number; c
   const lane = Math.min(...stat.lanes(lv).map((l) => l.open)) / stat.SHIP_W;
   const screens = stat.budget(lv);
   const most = (k: 'scenery' | 'colliders' | 'landmarks') => Math.max(...screens.map((x) => x[k]));
-  const over = screens.filter((x) => x.scenery > PASS.scenery || x.colliders > PASS.colliders || x.landmarks > PASS.landmarks).length;
+  const over = screens.filter((x) => x.colliders > PASS.colliders || x.landmarks > PASS.landmarks).length;
   const clump = stat.clumping(lv);
   const detail = stat.detail(stat.oklab(img).L, W, H);
   const busy = `${most('scenery')} / ${most('colliders')} / ${most('landmarks')}${over ? ` ✗ (${over} of ${screens.length})` : ''}`;

@@ -85,7 +85,7 @@ Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints s
 - **Ground cover, mid props, rare heroes**, several species each, so no planet looks copy-pasted. Props fit their planet.
 - **Props are beautiful and make the biome its own**: each biome has props you won't see anywhere else, worth looking at up close. Anything a biome needs is modelled in Blender (`tools/models/`); never make do with another biome's props or generic ones.
 - **Big shapes and small details, balanced**: a few large forms give each screen its shape, mid-sized groups frame the lane, and small details gather round the big forms. Never all crumbs, all blocks, or one size everywhere. This balance is a big part of what makes a level look great.
-- **Composed, not scattered**: groups along the canyon edges and the field's sides frame a clear lane. One hero landmark per screen at most, at a chosen beat, under a density budget.
+- **Composed, not scattered**: groups along the canyon edges and the field's sides frame a clear lane. One hero landmark per screen at most, at a chosen beat.
 
 ## Levels and placement
 

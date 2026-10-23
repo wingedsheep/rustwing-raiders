@@ -25,7 +25,7 @@ Each push is small enough to finish and check on its own, and is checked before 
 - **Look-alikes**: a detector for small, bright, saturated blobs, run on the frame without bullets. Anything it finds could be mistaken for a shot.
 - **Clumping**: the Clark–Evans nearest-neighbour score of prop positions. 1 is random scatter; lower is grouped.
 - **Open lane**: the narrowest corridor a ship can fly through, over every screen of the level.
-- **Budget**: props, colliders, ambient particles and landmarks per screen, counted in the sim. Lists every screen over the limit.
+- **Budget**: colliders, ambient particles and landmarks per screen, counted in the sim. Lists every screen over the limit. Props are counted too, but never capped: how it looks decides.
 - **Off-route**: route-bound foes not on their route (a boat off the water, a car off the road), and turrets not at a guarded spot. Should be zero.
 
 **People and play**
@@ -91,7 +91,7 @@ A first guess at the families, to be changed as the rows get written:
 | Push | Family | Biomes |
 |---|---|---|
 | 12 | Gorges and walls | mesarun, tidecaves, bonearch, basalt |
-| 13 | Open flats | saltpans (laid out: `src/sim/layouts/saltpans.ts`, its own props in `tools/models/set_kessra.py`), tundra, coralflats, oasis |
+| 13 | Open flats | saltpans (laid out: `src/sim/layouts/saltpans.ts`, its own props in `tools/models/set_kessra.py`), tundra, coralflats, oasis (laid out: `src/sim/layouts/oasis.ts`; its qanat shafts, sand fences, garden walls, dovecotes, windcatcher cistern, noria, dead crowns, mud houses and house blocks, caravanserai, wagons and cargo modelled in `tools/models/set_kessra.py`) |
 | 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap (laid out: `src/sim/layouts/glowcap.ts`; its caps' light moved off lime and their warts unlit in `tools/models/props_a_mirefall.py`; the moss a dim grey teal so the violet caps stand off it by hue; the *Tamsin Lowe* modelled as `mirefall_tamsin_lowe` in `tools/models/set_mirefall.py`), fernwood, whitewood, orchards, jade |
@@ -99,7 +99,7 @@ A first guess at the families, to be changed as the rows get written:
 | 18 | Monuments and giants | titans, monoliths, temple, arkbones |
 | 19 | Sky and ice | stormwall, shelf |
 
-Each family push passes push 11's checks for every biome in it, and the generator's: a set of twelve seeds, calm and mid-fight, where you can say why each group is where it is; a few big forms on every screen with the details gathered round them; clumping at most 0.7; an open lane of at least three ship widths; no screen over its budget and at most one landmark on it; twelve seeds that look like one family; a strip with visible bones, beats and breathers; a way in and a way out. And:
+Each family push passes push 11's checks for every biome in it, and the generator's: a set of twelve seeds, calm and mid-fight, where you can say why each group is where it is; a few big forms on every screen with the details gathered round them; clumping at most 0.7; an open lane of at least three ship widths; at most one landmark on a screen; twelve seeds that look like one family; a strip with visible bones, beats and breathers; a way in and a way out. And:
 
 - **Pass, screenshots:** each biome's set passes every principle.
 - **Pass, squint:** next to each other, the family's biomes read as different places, not one layout reskinned.

@@ -97,7 +97,7 @@ export interface Layout {
   plan(kit: Kit, bones: Bones): void;
 }
 
-/** A screen of the level, for the budget. */
+/** A screen of the level. */
 export const SCREEN = HALF_H * 2;
 
 /** A size to grow to: a scale, or `fit` to as tall as passes under you. */
@@ -133,7 +133,8 @@ export interface Group {
 
 /**
  * The toolkit a layout plans on: putting things down where there's room (each thing's footprint
- * kept), groups that go big to small, the posts and routes, and the budget per screen.
+ * kept), groups that go big to small, the posts and routes. No cap on how much goes on a screen:
+ * how it looks decides that, and performance is made to work round it.
  */
 export class Kit {
   readonly props: Placed[] = [];
@@ -141,8 +142,6 @@ export class Kit {
   readonly routes: Route[] = [];
   readonly fx: Emitter[] = [];
   private taken: { x: number; z: number; r: number }[] = [];
-  /** Scenery per screen down the stretch (index: screens from its near end). */
-  private counts: number[] = [];
 
   constructor(
     readonly ground: Ground,
@@ -151,8 +150,6 @@ export class Kit {
     readonly biome: number,
     readonly r: Rng,
     readonly beats: Beat[],
-    /** The most scenery on a screen. */
-    readonly budget = 60,
   ) {}
 
   /** The beat at z. */
@@ -177,17 +174,9 @@ export class Kit {
     this.taken.push({ x, z, r: rad });
   }
 
-  private screen(z: number) {
-    return Math.floor((this.z0 - z) / SCREEN);
-  }
-
   /** Puts a kind down at (x, z), if there's room and it fits the ground (null if not). */
   put(kind: string, x: number, z: number, o: Put = {}): Placed | null {
     if (z > this.z0 || z <= this.z1) return null;
-    const sc = this.screen(z);
-    // (what's on a rim counts when it's on screen: it's as much in the picture)
-    const scenery = !o.rim || inField(x, -10);
-    if (scenery && (this.counts[sc] ?? 0) >= this.budget) return null;
     const p = o.rim ? this.onRim(kind, x, z) : this.ground.place(kind, x, z, this.r, this.biome);
     if (!p) return null;
     if (o.variant !== undefined && metaOf(kind, o.variant)?.variant === o.variant) p.variant = o.variant;
@@ -202,7 +191,6 @@ export class Kit {
     if (!o.overlap && !this.free(x, z, rad + (o.pad ?? 0))) return null;
     this.claim(x, z, rad);
     this.props.push(p);
-    if (scenery) this.counts[sc] = (this.counts[sc] ?? 0) + 1;
     return p;
   }
 
@@ -219,11 +207,6 @@ export class Kit {
    */
   group(x: number, z: number, g: Group): Placed[] {
     const out: Placed[] = [];
-    // (a group the screen hasn't room for is left out whole: one cut short is a lone stone)
-    if (!g.rim || inField(x, -10)) {
-      const sc = z <= this.z0 && z > this.z1 ? this.screen(z) : -1;
-      if (sc >= 0 && (this.counts[sc] ?? 0) + Math.ceil(g.n * 0.75) > this.budget) return out;
-    }
     const r = this.r;
     const c = Math.cos(g.along ?? 0);
     const sn = Math.sin(g.along ?? 0);

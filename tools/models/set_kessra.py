@@ -2289,19 +2289,21 @@ def _crown(m, rng, c, R, blades=10, dome=6, lift=0.7):
             m.ball(0.17, tuple(pts[-1]), SALT_TIP, subdiv=0)
 
 
-def _bottle(m, rng, base, h, r, lean=(0.0, 0.0)):
-    """A bluecrown trunk: swollen with water low down, ringed with old leaf scars, iron-red."""
+def _bottle(m, rng, base, h, r, lean=(0.0, 0.0), bark=None, ring=None):
+    """A bluecrown trunk: swollen with water low down, ringed with old leaf scars, iron-red (or
+    `bark`, a dead one's grey)."""
+    bark = bark or IRONBARK
     pts = bend(base, (base[0], base[1], base[2] + h), lean, n=5)
     radii = [r * 1.3, r * 1.45, r * 1.25, r * 1.0, r * 0.8, r * 0.7]
-    tube(m, pts, radii, IRONBARK[0], segs=7, colors=[IRONBARK[(k * 3 + 1) % 4] for k in range(5)])
+    tube(m, pts, radii, bark[0], segs=7, colors=[bark[(k * 3 + 1) % 4] for k in range(5)])
     for k in range(1, 5, 2):                                               # scar rings
         p = pts[k]
-        m.cyl(radii[k] * 1.06, 0.14, (p.x, p.y, p.z - 0.07), BARK_RING, segs=7)
+        m.cyl(radii[k] * 1.06, 0.14, (p.x, p.y, p.z - 0.07), ring or BARK_RING, segs=7)
     for k in range(4):                                                     # root flare
         a = k * math.tau / 4 + rng.uniform(-0.4, 0.4)
         x, y = base[0], base[1]
         tube(m, [Vector((x, y, 0.45)), Vector((x + math.cos(a) * r * 2.4, y + math.sin(a) * r * 2.4, -0.1))],
-             [r * 0.55, r * 0.2], IRONBARK[2], segs=4)
+             [r * 0.55, r * 0.2], bark[2], segs=4)
     return pts[-1]
 
 
@@ -2683,6 +2685,665 @@ def market_stall(variants):
         m.build(r, rot_z=rng.uniform(0, math.tau))
 
 
+# --- the oasis laid out (sim/layouts/oasis.ts) ------------------------------------------------
+# Everything at Bluepalm is there because of the water: the qanats that bring it under the erg,
+# the noria that lifts it, the bunds and walls of the gardens it's shared out to, the cistern that
+# keeps it cool, the market and the caravanserai where the road meets it. Mud brick, iron-red
+# spoil, frond fences, blue tile.
+
+MUD = ["#b87a52", "#a86c48", "#c48a5e"]
+MUD_TOP = "#dcae7e"
+MUD_SHADE = "#8a5438"
+MUD_DARK = "#4a2a20"
+SPOIL = ["#9a4e34", "#8a422e", "#a85c3c", "#b46a44"]
+SPOIL_TOP = "#c88058"
+SHAFT = "#22140f"
+FROND = ["#b89a6a", "#a68456", "#c8aa78", "#94744a"]
+DEAD = ["#8a7a68", "#9a8a74", "#6e6254", "#a89a84"]
+DEAD_LEAF = ["#a8977c", "#8e7e66", "#bcae94"]
+SACK = ["#c8a870", "#b08a58", "#d8bc88"]
+DUNE = ["#d8b078", "#c89a68", "#e2c08c"]
+DOOR = "#2a6a8a"
+
+
+def _mud_box(m, size, loc, rng, jit=0.06, taper=1.0):
+    """A block of mud brick, its top a shade lighter, its shaded faces darker, a little uneven."""
+    w, d, h = size
+    fs = list(m.box((w + rng.uniform(-jit, jit), d + rng.uniform(-jit, jit), h + rng.uniform(-jit, jit) * 2), loc,
+                    MUD[rng.randrange(3)], taper=taper))
+    _paint(m, fs, MUD_TOP, MUD_SHADE, dot=0.8)
+    return fs
+
+
+def _mound(m, rng, x, y, sx, sy, h, colors=None, top=None):
+    """A smooth low heap (sand drifted, spoil tipped): a squashed ball half sunk in the ground."""
+    colors = colors or SAND
+    fs = list(m.ball(1.0, (x, y, 0.0), colors[rng.randrange(len(colors))], subdiv=1, scale=(sx, sy, h),
+                     rot=(0, 0, rng.uniform(0, math.tau)), jitter=0.06 * min(sx, sy)))
+    _paint(m, fs, top or colors[-1], None, dot=0.85)
+    return fs
+
+
+def _hole(m, x, y, z, w, h, facing=-1):
+    """A dark opening on a wall's face (facing -y by default: towards the camera)."""
+    m.box((w, 0.12, h), (x, y + facing * 0.02, z), MUD_DARK)
+
+
+def qanat_shaft(variants):
+    """Scenery, in dotted lines across the erg: a qanat's access shaft, the spoil dug out of it
+    heaped in a ring round the dark hole, iron-red on the pale sand. The second has a windlass
+    over it (they're cleaning it), the third is an old one slumped and drifted half full, the
+    fourth the mother well, kerbed."""
+    for i in range(variants):
+        r = root("kessra_qanat_shaft", i)
+        rng = random.Random(3700 + i)
+        m = Model(f"kessra_qanat_shaft_{i}", 3700 + i)
+        old = i == 2
+        R = 1.25 if not old else 1.4
+        n = 7
+        a0 = rng.uniform(0, math.tau)
+        cols = SAND if old else SPOIL[:3]
+        for k in range(n):
+            a = a0 + k * math.tau / n + rng.uniform(-0.12, 0.12)
+            _mound(m, rng, math.cos(a) * R, math.sin(a) * R, rng.uniform(0.85, 1.0), rng.uniform(0.7, 0.85),
+                   (0.38 if old else 0.62) * rng.uniform(0.85, 1.1), cols, SAND[2] if old else SPOIL_TOP)
+        # the spoil tipped outwards on one side, a tongue of it
+        _mound(m, rng, math.cos(a0) * (R + 1.2), math.sin(a0) * (R + 1.2), 1.0, 0.75, 0.3, cols, SAND[2] if old else SPOIL[3])
+        hole = 0.6 if not old else 0.42
+        m.cyl(hole + 0.2, 0.3, (0, 0, -0.05), SPOIL[1] if not old else SAND[0], segs=8)
+        m.cyl(hole, 0.06, (0, 0, 0.22), SHAFT, segs=8)
+        if i == 1:
+            # a windlass: two forked posts, the drum across, a rope and a leather bucket
+            for sd in (-1, 1):
+                tube(m, [Vector((sd * 1.0, 0, 0.1)), Vector((sd * 0.95, 0, 1.6))], [0.12, 0.1], WOOD[2], segs=4)
+                m.box((0.14, 0.32, 0.32), (sd * 0.95, 0, 1.65), WOOD[0])
+            m.cyl(0.2, 2.1, (-1.05, 0, 1.6), WOOD[1], segs=6, rot=(0, math.pi / 2, 0))
+            m.cyl(0.27, 0.6, (-0.3, 0, 1.6), ROPE, segs=6, rot=(0, math.pi / 2, 0))
+            tube(m, [Vector((0, 0, 1.45)), Vector((0, 0, 0.55))], [0.05, 0.05], ROPE, segs=3)
+            m.cyl(0.26, 0.32, (0, 0, 0.3), "#6a3a24", segs=6, r_top=0.3)
+            m.cyl(0.38, 0.3, (1.5, -1.0, 0.05), FROND[1], segs=7, r_top=0.44)       # a basket of spoil
+            m.ball(0.36, (1.5, -1.0, 0.38), SPOIL[2], subdiv=0, scale=(1, 1, 0.5))
+        elif i == 2:
+            m.box((1.3, 0.5, 0.18), (0.1, 0.1, 0.25), MUD[1], rot=(0.1, 0.05, 0.6))   # a lintel half over it
+        elif i == 3:
+            # the mother well, where the qanat's dug from: a kerb of brick, a tiled lip, a marker
+            fs = list(m.cyl(1.25, 0.6, (0, 0, 0), MUD[1], segs=10, r_top=1.15))
+            _paint(m, fs, None, MUD_SHADE)
+            m.cyl(1.2, 0.12, (0, 0, 0.6), TILE[1], segs=10)
+            m.cyl(0.7, 0.06, (0, 0, 0.68), SHAFT, segs=8)
+            for sd in (-1, 1):
+                m.box((0.2, 0.2, 1.3), (sd * 0.95, 0, 1.25), WOOD[2])
+            m.box((2.2, 0.22, 0.22), (0, 0, 1.95), WOOD[0])
+            m.cyl(0.05, 1.6, (2.0, 1.2, 0), WOOD[2], segs=4)
+            m.prism([(0, 0), (0.8, -0.15), (0, -0.4)], 0.04, (2.0, 1.2, 1.6), FLAGS[2])
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def sand_fence(variants):
+    """Scenery, in rows on the erg's edge: fences of palm frond to stop the dunes walking in, sand
+    heaped against their windward side; one gapped and leaning where the sand's winning. Long
+    along +y (about 6)."""
+    for i in range(variants):
+        r = root("kessra_sand_fence", i)
+        rng = random.Random(3720 + i)
+        m = Model(f"kessra_sand_fence_{i}", 3720 + i)
+        L = 6.0
+        lean = 0.12 if i == 0 else 0.3
+        y = -L / 2
+        while y < L / 2 - 0.1:
+            w = rng.uniform(0.28, 0.42)
+            if i == 1 and rng.random() < 0.18:                             # gaps where it's broken
+                y += w + 0.15
+                continue
+            h = rng.uniform(1.1, 1.6) * (1 if i == 0 else rng.uniform(0.6, 1.0))
+            c = FROND[rng.randrange(4)]
+            tilt = lean + rng.uniform(-0.08, 0.08)
+            m.box((0.1, w, h), (math.sin(tilt) * h / 2, y + w / 2, math.cos(tilt) * h / 2), c, rot=(0, tilt, rng.uniform(-0.06, 0.06)))
+            y += w + rng.uniform(0.0, 0.06)
+        # posts and the rail they're tied to
+        for k in range(4):
+            py = -L / 2 + 0.2 + k * (L - 0.4) / 3
+            tube(m, [Vector((-0.1, py, -0.1)), Vector((math.sin(lean) * 1.5 - 0.1, py, 1.5))], [0.09, 0.07], WOOD[2], segs=4)
+        tube(m, [Vector((math.sin(lean) * 1.0 - 0.15, -L / 2, 1.0)), Vector((math.sin(lean) * 1.0 - 0.15, L / 2, 1.0))],
+             [0.05, 0.05], ROPE, segs=3)
+        # sand heaped on the windward side (-x), up to half its height
+        for k in range(4):
+            py = -L / 2 + 0.9 + k * (L - 1.8) / 3 + rng.uniform(-0.3, 0.3)
+            _mound(m, rng, -0.75, py, 1.0, 1.1, 0.5 + 0.25 * (i == 1), DUNE)
+        m.build(r)
+
+
+def garden_wall(variants):
+    """A garden's mud-brick wall, 8 long along +y: buttressed, its top uneven and capped, palm
+    frond laid along it against the sun. The second has its gate (a blue door ajar), the third has
+    slumped and the sand's drifting over it."""
+    for i in range(variants):
+        r = root("kessra_garden_wall", i)
+        rng = random.Random(3740 + i)
+        m = Model(f"kessra_garden_wall_{i}", 3740 + i)
+        L = 8.0
+        T = 0.6
+        n = 8
+        for k in range(n):
+            y0 = -L / 2 + k * L / n
+            if i == 1 and 3 <= k <= 4:
+                continue                                                   # the gateway
+            h = 1.15 + rng.uniform(-0.08, 0.08)
+            if i == 2:
+                h *= (1.0, 0.95, 0.75, 0.42, 0.28, 0.5, 0.85, 1.0)[k]
+            _mud_box(m, (T, L / n + 0.02, h), (0, y0 + L / n / 2, h / 2), rng, jit=0.04)
+            m.box((T + 0.12, L / n + 0.04, 0.12), (0, y0 + L / n / 2, h + 0.04), MUD_TOP)
+        for y in (-2.9, 2.9) if i != 1 else (-3.4, 3.4):                   # buttresses
+            _mud_box(m, (0.5, 0.6, 0.9), (0.5, y, 0.45), rng, taper=0.6)
+        if i == 0:
+            # fronds laid along the top
+            for k in range(9):
+                y = -3.6 + k * 0.85 + rng.uniform(-0.1, 0.1)
+                m.box((0.95, 0.75, 0.08), (rng.uniform(-0.1, 0.1), y, 1.28), FROND[k % 4], rot=(0, rng.uniform(-0.1, 0.1), rng.uniform(-0.25, 0.25)))
+        if i == 1:
+            for s in (-1, 1):                                              # gateposts and the door
+                _mud_box(m, (0.85, 0.85, 1.9), (0, s * 1.25, 0.95), rng)
+                m.cyl(0.3, 0.3, (0, s * 1.25, 1.9), MUD_TOP, segs=6, r_top=0.05)
+            m.box((0.08, 1.0, 1.4), (-0.4, -0.35, 0.72), DOOR, rot=(0, 0, 0.9))
+            m.box((0.08, 1.0, 1.4), (0, 0.55, 0.72), DOOR)
+            m.box((0.1, 0.25, 0.25), (-0.05, 0.4, 0.9), "#d8a040")
+        if i == 2:
+            for k in range(6):                                             # its fallen brick and the sand
+                y = rng.uniform(-0.8, 1.6)
+                m.box((0.45, 0.35, 0.3), (rng.uniform(0.5, 1.3) * rng.choice((-1, 1)), y, 0.12), MUD[k % 3],
+                      rot=(rng.uniform(-0.3, 0.3), 0, rng.uniform(0, 3)))
+            _mound(m, rng, -1.0, 0.6, 1.6, 2.6, 0.75, DUNE)
+            _mound(m, rng, -0.8, 3.0, 1.2, 1.4, 0.5, DUNE)
+        m.build(r)
+
+
+def garden_tower(variants):
+    """A garden's corner tower: the dovecote, round and tapering, a crown of little turrets on
+    top, rows of nest holes, white streaks from the birds; and a square watchtower with a frond
+    shade and a lamp. About 6.5 tall: under you, but the tallest thing in the gardens."""
+    for i in range(variants):
+        r = root("kessra_garden_tower", i)
+        rng = random.Random(3760 + i)
+        m = Model(f"kessra_garden_tower_{i}", 3760 + i)
+        if i == 0:
+            fs = list(m.cyl(1.9, 4.6, (0, 0, 0), MUD[0], segs=10, r_top=1.45))
+            fs += list(m.cyl(1.45, 0.4, (0, 0, 4.6), MUD[2], segs=10, r_top=1.6))
+            _paint(m, fs, MUD_TOP, MUD_SHADE, dot=0.8)
+            for row, z in enumerate((2.2, 3.3)):                           # nest holes, in rows
+                for k in range(10):
+                    a = (k + 0.5 * row) * math.tau / 10
+                    R = 1.9 - (1.9 - 1.45) * z / 4.6
+                    m.box((0.22, 0.12, 0.3), (math.cos(a) * R, math.sin(a) * R, z), MUD_DARK, rot=(0, 0, a + math.pi / 2))
+            m.cyl(1.94, 0.18, (0, 0, 1.5), "#e8dcc4", segs=10, r_top=1.88)    # the whitewash band
+            m.cyl(1.55, 0.06, (0, 0, 5.0), MUD_TOP, segs=10)
+            for k in range(6):                                             # the crown of turrets
+                a = k * math.tau / 6
+                x, y = math.cos(a) * 1.15, math.sin(a) * 1.15
+                t = list(m.cyl(0.36, 0.9, (x, y, 5.0), MUD[k % 3], segs=6, r_top=0.3))
+                t += list(m.cyl(0.32, 0.4, (x, y, 5.9), MUD[2], segs=6, r_top=0.02))
+                _paint(m, t, MUD_TOP, MUD_SHADE)
+                m.box((0.14, 0.12, 0.2), (x * 1.25, y * 1.25, 5.45), MUD_DARK, rot=(0, 0, a + math.pi / 2))
+            m.ball(0.75, (0, 0, 5.2), MUD_TOP, subdiv=1, scale=(1, 1, 0.7))
+            for k in range(5):                                             # the birds' droppings, white streaks
+                a = rng.uniform(0, math.tau)
+                m.box((0.16, 0.08, 0.7), (math.cos(a) * 1.62, math.sin(a) * 1.62, 3.5), "#f2ece0", rot=(0, 0, a + math.pi / 2))
+            for k in range(4):                                             # birds on the turrets
+                a = (k + 0.3) * math.tau / 6 * 1.4
+                m.ball(0.16, (math.cos(a) * 1.15, math.sin(a) * 1.15, 6.4), ("#e8e0d0", "#6a6a78")[k % 2], subdiv=0,
+                       scale=(1.4, 0.8, 0.8))
+        else:
+            fs = _mud_box(m, (2.6, 2.6, 4.8), (0, 0, 2.4), rng, taper=0.82)
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    _mud_box(m, (0.55, 0.55, 0.7), (sx * 1.05, sy * 1.05, 5.15), rng)
+            m.box((2.2, 2.2, 0.1), (0, 0, 4.85), MUD_TOP)
+            _hole(m, 0, -1.12, 3.6, 0.4, 0.8)
+            _hole(m, 0, -1.25, 0.8, 0.9, 1.5)
+            m.box((0.16, 0.9, 1.5), (-0.4, -1.35, 0.8), DOOR, rot=(0, 0, 0.5))
+            # a frond shade on poles over the top, a lamp hung under it
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    m.cyl(0.06, 1.6, (sx * 0.8, sy * 0.8, 4.9), WOOD[2], segs=4)
+            for k in range(5):
+                m.box((2.5, 0.42, 0.06), (0, -1.0 + k * 0.5, 6.5), FROND[k % 4], rot=(0, 0, rng.uniform(-0.06, 0.06)))
+            m.ball(0.22, (0.5, 0.4, 6.1), LAMP, subdiv=0, glow=True)
+            for k in range(3):                                             # sacks and a jar at its foot
+                m.ball(0.42, (1.8, -0.6 + k * 0.6, 0.3), SACK[k], subdiv=0, scale=(1, 0.8, 0.75), jitter=0.04)
+            m.cyl(0.32, 0.8, (-1.8, -1.2, 0), POT[0], segs=6, r_top=0.2)
+        m.build(r, rot_z=rng.uniform(0, math.tau) if i == 0 else 0.0)
+
+
+def windcatcher(variants):
+    """Landmark, an obstacle: the cistern in the market square, a dome over cold water deep
+    underground, and its windcatcher towers standing up over it (14 tall: you fly round them, not
+    over), slatted near the top to catch the wind and send it down to the water. A tiled portal,
+    steps going down into the dark."""
+    for i in range(variants):
+        r = root("kessra_windcatcher", i)
+        rng = random.Random(3780 + i)
+        m = Model(f"kessra_windcatcher_{i}", 3780 + i)
+        # the dome, on a low drum, in rings of brick, a tiled finial
+        fs = list(m.cyl(4.6, 1.2, (0, 0, 0), MUD[1], segs=14, r_top=4.5))
+        fs += list(m.ball(4.4, (0, 0, 1.0), MUD[0], subdiv=2, scale=(1, 1, 0.78)))
+        _paint(m, fs, None, MUD_SHADE, dot=0.9)
+        m.cyl(4.62, 0.3, (0, 0, 1.1), TILE[1], segs=14)
+        m.cyl(0.7, 0.5, (0, 0, 4.3), TILE[1], segs=8, r_top=0.4)
+        m.ball(0.4, (0, 0, 4.95), TILE[0], subdiv=0)
+        # the portal: a tall gateway with a pointed niche, tiled, steps down into the dark
+        _mud_box(m, (3.4, 1.6, 4.6), (0, -4.3, 2.3), rng)
+        m.box((3.5, 1.7, 0.3), (0, -4.3, 4.7), TILE[2])
+        m.box((3.0, 0.2, 0.35), (0, -5.15, 4.2), TILE[1])
+        m.prism([(-0.9, 0), (0.9, 0), (0.9, 2.4), (0, 3.3), (-0.9, 2.4)], 0.3, (0, -5.0, 0.1), MUD_DARK)
+        for k in range(4):
+            m.box((2.0 - k * 0.15, 0.5, 0.2), (0, -5.6 - k * 0.45, 0.1 + (3 - k) * 0.05), STONE_TOP if k % 2 else TILE[2])
+        # the towers: tall, square, slatted at the top, tile banded; on the dome's shoulders
+        spots = ((-3.2, 2.2, 14.0), (3.2, 2.2, 13.4), (-3.4, -1.6, 13.0), (3.4, -1.6, 14.4)) if i == 0 else \
+                ((-2.6, 1.8, 14.6), (3.0, 0.6, 13.2))
+        for k, (x, y, H) in enumerate(spots):
+            W = 1.9 if i == 0 else 2.3
+            t = list(m.box((W, W, H), (x, y, H / 2), MUD[k % 3], taper=0.9))
+            _paint(m, t, MUD_TOP, MUD_SHADE, dot=0.8)
+            top = H
+            w2 = W * 0.9
+            for s in range(3):                                             # the slats, dark, on every face
+                off = (s - 1) * w2 * 0.3
+                for f, (dx, dy, rot) in enumerate(((0, -1, 0), (0, 1, 0), (-1, 0, math.pi / 2), (1, 0, math.pi / 2))):
+                    m.box((w2 * 0.16, 0.12, 2.0), (x + dx * w2 / 2 + (off if dy else 0), y + dy * w2 / 2 + (off if dx else 0), top - 1.6),
+                          MUD_DARK, rot=(0, 0, rot))
+            m.box((w2 + 0.4, w2 + 0.4, 0.35), (x, y, top + 0.15), MUD_TOP)
+            m.box((w2 + 0.15, w2 + 0.15, 0.3), (x, y, top - 3.0), TILE[1])
+            m.box((w2 + 0.1, w2 + 0.1, 0.22), (x, y, top - 3.4), TILE[0])
+            for sx in (-1, 1):                                             # little pinnacles
+                for sy in (-1, 1):
+                    m.cyl(0.14, 0.5, (x + sx * w2 * 0.45, y + sy * w2 * 0.45, top + 0.3), MUD_TOP, segs=4, r_top=0.02)
+            collider(r, x, y, W * 0.75)
+        # water jars and a trough by the steps, people come here to fill up
+        for k in range(5):
+            m.cyl(0.3, 0.7, (-2.6 + k * 0.4, -6.4 - (k % 2) * 0.4, 0), POT[k % 3], segs=6, r_top=0.2)
+        m.box((2.0, 0.7, 0.5), (2.6, -6.2, 0.25), STONE[1])
+        m.box((1.7, 0.45, 0.08), (2.6, -6.2, 0.52), POOL)
+        m.build(r)
+
+
+def noria(variants):
+    """Landmark, at the mother pool's lip: a great wheel of wood turned by the water, pots on its
+    rim lifting it up into a trough on a brick pier that carries it off to the gardens. The wheel
+    turns (its own object, pivoted on the axle)."""
+    for i in range(variants):
+        r = root("kessra_noria", i)
+        rng = random.Random(3800 + i)
+        m = Model(f"kessra_noria_{i}", 3800 + i)
+        w = Model(f"kessra_noria_{i}_wheel", 3810 + i)
+        R = 3.4
+        AX = 3.0
+        # the wheel, in the xz plane (its face towards you), built round its own axle: two rims
+        # with paddles between them, six spokes, a pot on every paddle
+        for side in (-0.5, 0.5):
+            for k in range(14):
+                a0 = k * math.tau / 14
+                a1 = (k + 1) * math.tau / 14
+                tube(w, [Vector((math.cos(a0) * R, side, math.sin(a0) * R)), Vector((math.cos(a1) * R, side, math.sin(a1) * R))],
+                     [0.2, 0.2], WOOD[1], segs=4)
+            for k in range(6):
+                a = k * math.tau / 6
+                tube(w, [Vector((0, side, 0)), Vector((math.cos(a) * R, side, math.sin(a) * R))], [0.16, 0.13], WOOD[2], segs=4)
+        for k in range(14):
+            a = (k + 0.5) * math.tau / 14
+            x, z = math.cos(a) * R, math.sin(a) * R
+            w.box((0.5, 1.2, 0.12), (x, 0, z), WOOD[0], rot=(0, -a, 0))
+            w.cyl(0.26, 0.6, (math.cos(a) * (R + 0.35), 0, math.sin(a) * (R + 0.35) - 0.3), POT[k % 3], segs=6, r_top=0.18)
+        w.cyl(0.45, 1.6, (0, 0.8, 0), WOOD[0], segs=6, rot=(math.pi / 2, 0, 0))
+        # the piers it turns on and the trough it spills into, off along +x on brick arches
+        for side in (-1, 1):
+            _mud_box(m, (0.8, 0.6, AX + 0.4), (0, side * 1.05, (AX + 0.4) / 2), rng)
+        m.box((0.9, 2.8, 0.3), (0, 0, AX + 0.5), WOOD[1])
+        span = 9.0
+        for k in range(3):
+            x = 2.4 + k * span / 3
+            _mud_box(m, (0.9, 1.2, AX + 0.6), (x + 1.2, 0, (AX + 0.6) / 2), rng)
+        m.box((span + 0.6, 1.3, 0.6), (2.0 + span / 2, 0, AX + 0.9), MUD[2])
+        m.box((span + 0.6, 0.8, 0.12), (2.0 + span / 2, 0, AX + 1.22), POOL)
+        for s in (-1, 1):
+            m.box((span + 0.6, 0.22, 0.25), (2.0 + span / 2, s * 0.55, AX + 1.3), MUD_TOP)
+        m.box((1.4, 1.3, 0.5), (1.4, 0, AX + 1.0), "#1e9aa8")
+        m.build(r)
+        wheel = w.build(r, loc=(0, 0, AX))
+        from kit import animate, _CLIPS
+        clip = f"kessra_noria_{i}_turn_idle"
+        T = 12.0
+        animate(wheel, clip, "rotation_euler", [(T * k / 12, (0, -math.tau * k / 12, 0)) for k in range(13)])
+        for fc in _fcurves(_CLIPS[clip]):
+            for kp in fc.keyframe_points:
+                kp.interpolation = "LINEAR"
+
+
+def _fcurves(act):
+    """Every fcurve in an action (slotted or not)."""
+    try:
+        return list(act.fcurves)
+    except AttributeError:
+        out = []
+        for layer in act.layers:
+            for strip in layer.strips:
+                for bag in strip.channelbags:
+                    out += list(bag.fcurves)
+        return out
+
+
+def dead_crown(variants):
+    """Scenery, in the dry garden: a bluecrown dead where it stood when its water stopped, the
+    trunk gone grey, its blades hanging dead round it; and one snapped, its crown on the sand."""
+    for i in range(variants):
+        r = root("kessra_dead_crown", i)
+        rng = random.Random(3820 + i)
+        m = Model(f"kessra_dead_crown_{i}", 3820 + i)
+        if i == 0:
+            top = _bottle(m, rng, (0, 0, 0), 2.7, 0.44, (0.4, -0.1), bark=DEAD, ring=DEAD[3])
+            c = top + Vector((0.1, 0, 0.8))
+            _limb(m, top, c, 0.3, 0.2)
+            turn = rng.uniform(0, math.tau)
+            for k in range(9):
+                yaw = turn + k * math.tau / 9 + rng.uniform(-0.2, 0.2)
+                pts = arc(tuple(c), yaw, rng.uniform(1.6, 2.4), -0.2, 1.6, n=3)    # hanging down
+                ribbon(m, pts, [0.2, 0.3, 0.2, 0.04], DEAD_LEAF[k % 3], DEAD_LEAF[(k + 1) % 3], fold=0.3, thick=0.06)
+            m.ball(0.55, tuple(c), DEAD[1], subdiv=0, scale=(1, 1, 0.6))
+        else:
+            top = _bottle(m, rng, (0, 0, 0), 1.3, 0.46, (0.2, 0.1), bark=DEAD, ring=DEAD[3])
+            for k in range(4):                                             # the splintered break
+                a = k * math.tau / 4 + rng.uniform(-0.3, 0.3)
+                m.cyl(0.14, rng.uniform(0.3, 0.6), (top.x + math.cos(a) * 0.25, top.y + math.sin(a) * 0.25, top.z - 0.1),
+                      DEAD[3], segs=4, r_top=0.0)
+            # the fallen top, lying on the sand with its crown
+            tube(m, [Vector((0.8, 0.3, 0.35)), Vector((2.6, 1.2, 0.4)), Vector((3.6, 1.6, 0.35))], [0.38, 0.32, 0.26],
+                 DEAD[0], segs=6, colors=[DEAD[1], DEAD[0]])
+            for k in range(7):
+                yaw = k * math.tau / 7
+                pts = arc((4.0, 1.8, 0.3), yaw, rng.uniform(1.2, 1.8), 0.05, 0.3, n=2)
+                ribbon(m, pts, [0.2, 0.28, 0.18, 0.04], DEAD_LEAF[k % 3], DEAD_LEAF[(k + 2) % 3], fold=0.25, thick=0.05)
+            _mound(m, rng, 2.2, 0.6, 1.4, 0.8, 0.3, DUNE)
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
+def mud_house(variants):
+    """Scenery, behind the market's stalls: flat-roofed mud houses, their roofs the living room:
+    rugs laid out to air, jars, a frond shade, a stair up; one with a little windcatcher of its
+    own. About 5 across, 3 tall."""
+    for i in range(variants):
+        r = root("kessra_mud_house", i)
+        rng = random.Random(3840 + i)
+        m = Model(f"kessra_mud_house_{i}", 3840 + i)
+        H = 2.8 + 0.3 * (i == 2)
+        W, D = (4.6, 4.2) if i != 1 else (5.6, 3.6)
+        _mud_box(m, (W, D, H), (0, 0, H / 2), rng)
+        for (sx, sy, w, d) in ((0, -1, W, 0.3), (0, 1, W, 0.3), (-1, 0, 0.3, D), (1, 0, 0.3, D)):  # the parapet
+            m.box((w + 0.05, d + 0.05, 0.45), (sx * (W / 2 - 0.15), sy * (D / 2 - 0.15), H + 0.2), MUD_TOP if sy != 1 else MUD[2])
+        m.box((W - 0.5, D - 0.5, 0.06), (0, 0, H + 0.02), "#cc9a6c")       # the roof floor
+        _hole(m, -W * 0.22, -D / 2 - 0.04, 1.0, 0.95, 1.9)                    # a door
+        m.box((0.9, 0.1, 1.8), (-W * 0.22, -D / 2 - 0.1, 0.95), DOOR if i != 1 else "#a83a2a")
+        _hole(m, W * 0.25, -D / 2 - 0.04, 1.9, 0.5, 0.5)
+        if i == 0:
+            for k in range(2):
+                m.box((1.5, 1.0, 0.05), (-0.8 + k * 1.7, 0.4 - k * 0.5, H + 0.08), RUG[k * 2], rot=(0, 0, rng.uniform(-0.2, 0.2)))
+                m.box((1.1, 0.12, 0.06), (-0.8 + k * 1.7, 0.4 - k * 0.5, H + 0.1), RUG[(k * 2 + 1) % 4])
+            for k in range(3):
+                m.cyl(0.25, 0.55, (1.6, 1.3 - k * 0.5, H), POT[k], segs=6, r_top=0.15)
+        elif i == 1:
+            # a second storey on half of it, a stair up, a frond shade over the low roof
+            _mud_box(m, (2.4, D, 1.9), (W / 2 - 1.2, 0, H + 0.95), rng)
+            m.box((2.5, D + 0.05, 0.3), (W / 2 - 1.2, 0, H + 1.95), MUD_TOP)
+            for k in range(5):
+                m.box((0.7, 0.4, 0.3), (-W / 2 - 0.35, -D / 2 + 0.4 + k * 0.45, 0.3 + k * 0.55), MUD[2])
+            for k in range(6):
+                m.box((0.4, 2.4, 0.06), (-W / 2 + 0.6 + k * 0.42, 0, H + 1.4), FROND[k % 4])
+            for sx in (-W / 2 + 0.4, -W / 2 + 2.6):
+                for sy in (-1, 1):
+                    m.cyl(0.05, 1.4, (sx, sy * 1.05, H), WOOD[2], segs=4)
+            m.box((0.9, 0.7, 0.05), (W / 2 - 1.2, 0.5, H + 2.15), RUG[1])
+        else:
+            # its own small windcatcher, and a blue-tiled band over the door
+            t = list(m.box((1.1, 1.1, 2.4), (W / 2 - 0.8, D / 2 - 0.8, H + 1.2), MUD[0]))
+            _paint(m, t, MUD_TOP, MUD_SHADE)
+            for f in ((0, -1), (-1, 0)):
+                m.box((0.7 if f[1] else 0.12, 0.12 if f[1] else 0.7, 0.9),
+                      (W / 2 - 0.8 + f[0] * 0.56, D / 2 - 0.8 + f[1] * 0.56, H + 1.9), MUD_DARK)
+            m.box((1.3, 1.3, 0.2), (W / 2 - 0.8, D / 2 - 0.8, H + 2.45), MUD_TOP)
+            m.box((1.4, 0.14, 0.3), (-W * 0.22, -D / 2 - 0.08, 2.1), TILE[1])
+            m.box((1.2, 1.4, 0.05), (-0.8, -0.3, H + 0.08), RUG[3])
+            for k in range(4):                                             # sacks of spice drying, bright
+                m.ball(0.3, (0.6 + (k % 2) * 0.7, -0.9 + (k // 2) * 0.7, H + 0.15), SPICE[k], subdiv=0, scale=(1, 1, 0.45))
+        m.build(r)
+
+
+def _house(m, rng, x, y, W, D, H, roof="plain", door=True):
+    """One flat-roofed mud house in a block: walls, a parapet, the roof floor and what's on it."""
+    _mud_box(m, (W, D, H), (x, y, H / 2), rng, jit=0.04)
+    m.box((W - 0.4, D - 0.4, 0.06), (x, y, H + 0.02), "#cc9a6c")
+    for (sx, sy, w, d) in ((0, -1, W, 0.28), (0, 1, W, 0.28), (-1, 0, 0.28, D), (1, 0, 0.28, D)):
+        m.box((w + 0.04, d + 0.04, 0.4), (x + sx * (W / 2 - 0.14), y + sy * (D / 2 - 0.14), H + 0.18), MUD_TOP)
+    if door:
+        _hole(m, x - W * 0.2, y - D / 2 - 0.04, 0.95, 0.9, 1.8)
+        m.box((0.85, 0.1, 1.75), (x - W * 0.2, y - D / 2 - 0.1, 0.9), (DOOR, "#a83a2a", "#3a6a4a")[rng.randrange(3)])
+    _hole(m, x + W * 0.22, y - D / 2 - 0.04, H * 0.66, 0.45, 0.45)
+    if roof == "rugs":
+        for k in range(2):
+            m.box((min(1.5, W * 0.4), 0.95, 0.05), (x - W * 0.2 + k * W * 0.38, y + (k - 0.5) * 0.7, H + 0.08), RUG[rng.randrange(4)],
+                  rot=(0, 0, rng.uniform(-0.2, 0.2)))
+    elif roof == "jars":
+        for k in range(3):
+            m.cyl(0.24, 0.5, (x + W / 2 - 0.6, y - D / 2 + 0.7 + k * 0.5, H), POT[k], segs=6, r_top=0.14)
+        m.box((1.0, 1.2, 0.05), (x - 0.4, y, H + 0.08), RUG[rng.randrange(4)])
+    elif roof == "shade":
+        for k in range(5):
+            m.box((min(2.4, W - 0.6), 0.4, 0.06), (x, y - 0.9 + k * 0.45, H + 1.35), FROND[k % 4])
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                m.cyl(0.05, 1.35, (x + sx * 1.0, y + sy * 0.95, H), WOOD[2], segs=4)
+    elif roof == "spice":
+        for k in range(4):
+            m.ball(0.3, (x - 0.4 + (k % 2) * 0.7, y - 0.4 + (k // 2) * 0.7, H + 0.15), SPICE[k], subdiv=0, scale=(1, 1, 0.45))
+    elif roof == "wind":
+        bx, by = x + W / 2 - 0.75, y + D / 2 - 0.75
+        t = list(m.box((1.0, 1.0, 2.2), (bx, by, H + 1.1), MUD[0]))
+        _paint(m, t, MUD_TOP, MUD_SHADE)
+        m.box((0.65, 0.12, 0.8), (bx, by - 0.51, H + 1.7), MUD_DARK)
+        m.box((0.12, 0.65, 0.8), (bx - 0.51, by, H + 1.7), MUD_DARK)
+        m.box((1.2, 1.2, 0.2), (bx, by, H + 2.25), MUD_TOP)
+
+
+def house_block(variants):
+    """Scenery, the town's fabric behind the market's stalls: a block of mud houses built wall to
+    wall, each its own height, round a little court (one with a bluecrown in it), the roofs lived
+    on. About 10 across: one prop, a whole corner of the town."""
+    plans = [
+        # (x, y, W, D, H, roof)
+        [(-2.6, -2.2, 4.6, 4.2, 2.8, "rugs"), (2.4, -2.4, 5.0, 3.8, 3.4, "wind"), (-2.9, 2.2, 4.0, 4.6, 3.6, "shade"),
+         (2.6, 2.5, 4.4, 3.6, 2.6, "jars")],
+        [(-3.0, -1.8, 4.0, 5.2, 3.0, "spice"), (1.0, -3.0, 4.0, 2.8, 2.5, "plain"), (3.4, 0.2, 3.0, 7.2, 3.8, "wind"),
+         (-2.4, 3.0, 5.2, 3.0, 2.7, "rugs"), (0.8, 3.4, 2.2, 2.2, 2.2, "jars")],
+        [(-3.2, 0.0, 3.6, 9.0, 3.2, "shade"), (1.6, -3.0, 5.6, 3.0, 2.6, "rugs"), (3.0, 1.4, 2.8, 3.6, 3.6, "spice"),
+         (0.4, 3.6, 3.0, 2.0, 2.4, "plain")],
+    ]
+    for i in range(min(variants, len(plans))):
+        r = root("kessra_house_block", i)
+        rng = random.Random(3900 + i)
+        m = Model(f"kessra_house_block_{i}", 3900 + i)
+        for k, (x, y, W, D, H, roof) in enumerate(plans[i]):
+            _house(m, rng, x, y, W, D, H, roof, door=y < 0 or k == 0)
+        # the court between them: beaten earth, a well, a tree or a stair
+        m.box((2.4, 2.4, 0.06), (0.0 if i != 2 else 0.4, 0.0 if i != 2 else 0.2, 0.03), "#c49a6c")
+        if i == 0:
+            top = _bottle(m, rng, (0.1, 0.1, 0), 1.6, 0.26, (0.1, 0.1))
+            c = (top.x, top.y, top.z + 0.5)
+            _limb(m, top, c, 0.18, 0.14)
+            _crown(m, rng, c, 1.6, blades=8, dome=4, lift=0.45)
+        elif i == 1:
+            m.cyl(0.6, 0.6, (-0.8, 0.6, 0), TILE[2], segs=8)
+            m.cyl(0.45, 0.08, (-0.8, 0.6, 0.58), POOL, segs=8)
+        else:
+            for k in range(4):
+                m.box((0.7, 0.45, 0.3), (0.6, -1.1 + k * 0.45, 0.25 + k * 0.5), MUD[2])
+        m.build(r)
+
+
+def wagon(variants):
+    """Scenery, in the camp's rings: a caravan's wagon, long along +x, on big iron-shod wheels,
+    its hood of striped cloth on hoops (the second open, piled with cargo), the shafts the
+    striders are put to lying on the sand."""
+    for i in range(variants):
+        r = root("kessra_wagon", i)
+        rng = random.Random(3920 + i)
+        m = Model(f"kessra_wagon_{i}", 3920 + i)
+        L, W = 4.2, 1.8
+        m.box((L, W, 0.35), (0, 0, 0.95), WOOD[1])
+        for sy in (-1, 1):
+            m.box((L, 0.14, 0.5), (0, sy * W / 2, 1.3), WOOD[0])
+            for sx in (-1, 1):
+                m.cyl(0.75, 0.22, (sx * 1.3, sy * (W / 2 + 0.2), 0.75), WOOD[2], segs=10, rot=(math.pi / 2, 0, 0))
+                m.cyl(0.2, 0.3, (sx * 1.3, sy * (W / 2 + 0.25), 0.75), IRON[0], segs=6, rot=(math.pi / 2, 0, 0))
+        for sy in (-0.45, 0.45):                                           # the shafts, down on the sand
+            tube(m, [Vector((L / 2, sy, 0.9)), Vector((L / 2 + 2.4, sy * 0.7, 0.1))], [0.08, 0.07], WOOD[0], segs=4)
+        if i < 2:
+            a, b = CLOTH[(1, 0)[i]]
+            n = 7
+            for k in range(n):
+                x = -L / 2 + 0.3 + k * (L - 0.6) / (n - 1)
+                for j in range(6):                                         # a hood: a half-round of panels
+                    t0 = math.pi * j / 6
+                    t1 = math.pi * (j + 1) / 6
+                    R = W / 2 + 0.1
+                    p0 = (x, -math.cos(t0) * R, 1.45 + math.sin(t0) * R)
+                    p1 = (x, -math.cos(t1) * R, 1.45 + math.sin(t1) * R)
+                    mid = ((p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2)
+                    ang = math.atan2(p1[2] - p0[2], p1[1] - p0[1])
+                    m.box(((L - 0.6) / (n - 1) + 0.02, math.dist(p0[1:], p1[1:]) + 0.04, 0.08), (x, mid[0], mid[1]),
+                          (a, b)[k % 2], rot=(ang, 0, 0))
+            m.cyl(0.9, 0.08, (-L / 2 + 0.25, 0, 1.45), MUD_DARK, segs=8, rot=(0, math.pi / 2, 0))
+        else:
+            for k in range(5):
+                m.ball(0.42, (-1.4 + k * 0.7, rng.uniform(-0.35, 0.35), 1.45), SACK[k % 3], subdiv=0, scale=(1, 0.8, 0.7), jitter=0.04)
+            for k in range(2):
+                m.cyl(0.3, 1.5, (-0.9 + k * 1.6, 0.0, 1.95), RUG[k + 1], segs=6, rot=(math.pi / 2, 0, 0))
+            m.cyl(0.32, 0.8, (1.5, 0.4, 1.1), POT[0], segs=6, r_top=0.2)
+        m.build(r)
+
+
+def caravanserai(variants):
+    """Landmark: the caravanserai, where the caravans put up: a square of rooms round a courtyard
+    with a pool and a tree in it, a tall portal on the road side, round towers at the corners,
+    the roofs piled with cargo. 18 across, 6 at the portal's top."""
+    for i in range(variants):
+        r = root("kessra_caravanserai", i)
+        rng = random.Random(3860 + i)
+        m = Model(f"kessra_caravanserai_{i}", 3860 + i)
+        S = 18.0
+        T = 3.6
+        H = 3.4
+        # the four ranges of rooms (the front one either side of the portal)
+        for (x, y, w, d) in ((0, S / 2 - T / 2, S, T), (-(S / 2 - T / 2), 0, T, S - 2 * T), (S / 2 - T / 2, 0, T, S - 2 * T)):
+            _mud_box(m, (w, d, H), (x, y, H / 2), rng)
+            m.box((w - 0.4, d - 0.4, 0.06), (x, y, H + 0.02), "#cc9a6c")
+        for s in (-1, 1):
+            w = S / 2 - 2.0
+            _mud_box(m, (w, T, H), (s * (1.9 + w / 2), -(S / 2 - T / 2), H / 2), rng)
+            m.box((w - 0.4, T - 0.4, 0.06), (s * (1.9 + w / 2), -(S / 2 - T / 2), H + 0.02), "#cc9a6c")
+        # parapets, outer and inner
+        for k in range(4):
+            a = k * math.pi / 2
+            for (R, c) in ((S / 2 - 0.1, MUD_TOP), (S / 2 - T + 0.1, MUD[2])):
+                L = 2 * R
+                cx, cy = math.cos(a) * R, math.sin(a) * R
+                m.box((0.25 if k % 2 == 0 else L, L if k % 2 == 0 else 0.25, 0.4), (cx, cy, H + 0.2), c)
+        # the arcade round the courtyard: dark arched doorways on each inner face
+        inner = S / 2 - T
+        for k in range(4):
+            a = k * math.pi / 2
+            nx, ny = math.cos(a), math.sin(a)
+            for j in range(-2, 3):
+                if k == 3 and j == 0:
+                    continue
+                t = j * 2.2
+                x = nx * (inner + 0.03) - ny * t
+                y = ny * (inner + 0.03) + nx * t
+                m.box((1.2 if ny else 0.12, 0.12 if ny else 1.2, 1.8), (x, y, 1.0), MUD_DARK)
+        # the courtyard: paving, a pool, a bluecrown, striders' troughs, cargo
+        m.box((2 * inner, 2 * inner, 0.08), (0, 0, 0.04), "#d8b88a")
+        for k in range(8):
+            a = k * math.tau / 8
+            m.box((0.9, 0.5, 0.35), (math.cos(a) * 1.9, math.sin(a) * 1.9, 0.18), TILE[2], rot=(0, 0, a + math.pi / 2))
+        m.cyl(1.7, 0.12, (0, 0, 0.2), POOL, segs=8)
+        m.cyl(1.0, 0.13, (0, 0, 0.22), POOL_DEEP, segs=8)
+        top = _bottle(m, rng, (2.6, 2.4, 0), 1.9, 0.3, (0.2, 0.1))
+        c = (top.x, top.y, top.z + 0.6)
+        _limb(m, top, c, 0.2, 0.15)
+        _crown(m, rng, c, 1.9, blades=8, dome=5, lift=0.5)
+        for k in range(4):
+            m.ball(0.45, (-3.0 + (k % 2) * 0.8, 2.6 - (k // 2) * 0.7, 0.35), SACK[k % 3], subdiv=0, scale=(1, 0.8, 0.7), jitter=0.04)
+        for k in range(3):
+            m.cyl(0.32, 1.6, (-3.2, -1.6 + k * 0.7, 0.35), RUG[k], segs=6, rot=(0, math.pi / 2, 0))
+        # cargo on the roofs, rugs airing
+        for k in range(6):
+            a = rng.uniform(0, math.tau)
+            R = S / 2 - T / 2
+            side = rng.randrange(4)
+            t = rng.uniform(-S / 2 + 2.5, S / 2 - 2.5)
+            x, y = [(R, t), (-R, t), (t, R), (t, -R)][side]
+            if side == 3 and abs(t) < 3:
+                continue
+            if k % 2:
+                m.box((1.4, 1.0, 0.05), (x, y, H + 0.08), RUG[k % 4], rot=(0, 0, rng.uniform(-0.3, 0.3)))
+            else:
+                for j in range(3):
+                    m.ball(0.38, (x + (j - 1) * 0.6, y, H + 0.3), SACK[j], subdiv=0, scale=(1, 0.8, 0.7))
+        # the corner towers
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                t = list(m.cyl(1.3, H + 1.0, (sx * S / 2, sy * S / 2, 0), MUD[1], segs=9, r_top=1.15))
+                _paint(m, t, MUD_TOP, MUD_SHADE)
+                m.cyl(1.25, 0.3, (sx * S / 2, sy * S / 2, H + 1.0), MUD_TOP, segs=9)
+        # the portal, tall, tiled, its pointed arch dark, on the road side (-y)
+        _mud_box(m, (5.4, 2.6, 6.0), (0, -S / 2 + 0.6, 3.0), rng)
+        m.box((5.5, 2.7, 0.35), (0, -S / 2 + 0.6, 6.1), MUD_TOP)
+        m.box((4.6, 0.2, 0.5), (0, -S / 2 - 0.75, 5.4), TILE[1])
+        m.box((4.2, 0.2, 0.25), (0, -S / 2 - 0.75, 4.95), TILE[0])
+        m.prism([(-1.3, 0), (1.3, 0), (1.3, 3.0), (0, 4.2), (-1.3, 3.0)], 0.3, (0, -S / 2 - 0.65, 0.05), MUD_DARK)
+        m.box((1.2, 0.1, 2.8), (-0.65, -S / 2 - 0.85, 1.45), DOOR, rot=(0, 0, 0.6))
+        m.build(r)
+
+
+def bales(variants):
+    """Detail, round the stalls and in the camp: a caravan's cargo set down: sacks, rolled rugs,
+    jars in straw, a crate or two."""
+    for i in range(variants):
+        r = root("kessra_bales", i)
+        rng = random.Random(3880 + i)
+        m = Model(f"kessra_bales_{i}", 3880 + i)
+        if i == 0:
+            for k in range(6):
+                x, y = (k % 3) * 0.8 - 0.8, (k // 3) * 0.75 - 0.35
+                m.ball(0.48, (x, y, 0.38), SACK[k % 3], subdiv=0, scale=(1, 0.8, 0.75), jitter=0.04)
+            for k in range(2):
+                m.ball(0.45, (-0.4 + k * 0.8, 0, 0.98), SACK[(k + 1) % 3], subdiv=0, scale=(1, 0.8, 0.7), jitter=0.04)
+        elif i == 1:
+            for k in range(4):
+                m.cyl(0.36, 2.0, (-1.0, -0.8 + k * 0.6, 0.36), RUG[k], segs=6, rot=(0, math.pi / 2, 0))
+            for k in range(2):
+                m.cyl(0.34, 1.8, (-0.9, -0.5 + k * 0.6, 1.0), RUG[(k + 2) % 4], segs=6, rot=(0, math.pi / 2, 0))
+            m.box((1.0, 1.0, 0.8), (1.6, 0.2, 0.4), WOOD[1])
+            m.box((1.02, 0.15, 0.82), (1.6, 0.2, 0.4), WOOD[2])
+        else:
+            for k in range(7):
+                a = k * math.tau / 7
+                d = 0.0 if k == 0 else 0.85
+                h = rng.uniform(0.8, 1.1)
+                x, y = math.cos(a) * d, math.sin(a) * d
+                m.cyl(0.35, h * 0.6, (x, y, 0), POT[k % 3], segs=7, r_top=0.46)
+                m.cyl(0.46, h * 0.4, (x, y, h * 0.6), POT[k % 3], segs=7, r_top=0.2)
+            for k in range(5):
+                a = k * math.tau / 5 + 0.3
+                m.ball(0.35, (math.cos(a) * 1.5, math.sin(a) * 1.5, 0.12), FROND[k % 4], subdiv=0, scale=(1.4, 1, 0.35))
+        m.build(r, rot_z=rng.uniform(0, math.tau))
+
+
 def build():
     leviathan(2)
     salt_arch(2)
@@ -2732,3 +3393,15 @@ def build():
     works_shed(2)
     caravan_wreck(3)
     toll_hut(1)
+    qanat_shaft(4)
+    sand_fence(2)
+    garden_wall(3)
+    garden_tower(2)
+    windcatcher(2)
+    noria(1)
+    dead_crown(2)
+    mud_house(3)
+    house_block(3)
+    caravanserai(1)
+    wagon(3)
+    bales(3)
