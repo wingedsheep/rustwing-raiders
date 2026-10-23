@@ -32,6 +32,8 @@ Don't copy their palettes, props or layouts one to one. Each planet gets its own
    - grown things root where they would grow: in the wet, on the rock, round the vents.
 5. **Each planet is its own place.** Its own light, its own palette, its own shapes, alive in its own way: wind, water, life at ground level. You should know where you are from a thumbnail.
 6. **Contrast where it counts.** The lane stays calm, at mid-value. The strongest contrast goes to danger, walls and your ship; the world's richest colour goes to the edges.
+7. **Big shapes and small details, balanced.** A good screen has a few large forms (a cliff, a titan's hand, a crater, a cap tree) that give it its shape, mid-sized groups that frame the lane, and small details gathered round them that give texture up close. All small things look like noise; all big things look empty and blocky; the same size everywhere looks like a pattern. The big forms are placed first and the details follow them (rubble at a cliff's foot, shards round a crater's rim), never sprinkled evenly. This is one of the main things that makes a level look great.
+8. **Props are beautiful, and make the biome its own.** Every prop is worth looking at, and the props are much of what makes a biome feel unique: shapes, materials and life you won't see on any other planet. A biome never makes do with another biome's props or with generic rocks and trees. If a layout needs something that doesn't exist (a jetty, a road, a fallen titan's rib, a vent cone, a better cliff piece), model it in Blender (`tools/models/`, see [AGENTS.md](../AGENTS.md)). Then check the result and refine it: look at it in `just preview` and in game screenshots, fix what's off, and look again until it's right. A model isn't done when it builds.
 
 ## How a biome is checked: screenshots, many of them
 
@@ -43,7 +45,8 @@ Looking is the main check, and it wins over every other. While working on a plan
    - What will hurt me? Can I find every enemy shot in a second? Does anything else look like one?
    - Does the placement make sense? Could I say why each group is where it is? Does any screen look like a random scatter, or a clutter?
    - Do the foes fit the ground? Boats on water, cars on roads, turrets where they guard something?
-   - Is it this planet, and nowhere else? Is it alive? Is it beautiful in its own way?
+   - Are big shapes and small details balanced? Does each screen have a few large forms giving it shape, with the details gathered round them, or is it all crumbs, all blocks, or one size everywhere?
+   - Is it this planet, and nowhere else? Is it alive? Is it beautiful in its own way? Are the props worth looking at, and could they only be from here?
    - Beside a painting: is it as clean, as contrasted and as well grouped, even though it looks different?
 3. **Fix, then shoot the set again** at the same seeds and moments, so before and after sit side by side.
 4. **Repeat until the list is empty.** Then fly it by hand and run the bench.
@@ -52,7 +55,7 @@ A push isn't done until its last set of screenshots has been looked at and passe
 
 ## Laying out a level
 
-**This is one of the most important things to get right.** Good art on a random layout still looks like clutter; a well laid-out level reads even in plain grey. Placement comes from algorithms that build the level the way the place would have formed or been built, never from scattering props at random x.
+**The level generator is one of the most important things to get right**, and building it is one of the biggest steps in this plan. Good art on a random layout still looks like clutter; a well laid-out level reads even in plain grey. Placement comes from algorithms that build the level the way the place would have formed or been built, never from scattering props at random x.
 
 **Each biome has its own layout.** A canyon, a salt flat, a reef and a buried city aren't the same algorithm with different props: they grow different bones, group things by different rules and give foes different routes. Today every biome shares one generator and differs only in its terrain `shape` and prop weights (`src/world/planets.ts`, `src/sim/terrain.ts`). That has to become one layout per biome, built on a shared toolkit.
 
@@ -62,12 +65,12 @@ Every biome's layout runs the same steps, in order, but each step is its own per
 
 1. **The bones**: the big features first. Canyon walls, a river and its banks, a road or a rail line, ridges, craters, a coast, a fault, a street grid. They run with the scroll and give the level its beats.
 2. **The lane**: the open space the ship flies through, kept at least three ship widths wide, opened and narrowed on purpose.
-3. **Groups along the bones**: props cluster where the features say they would (reeds on the banks, rubble under the cliffs, wrecks along the road, caps in the wet hollows), at the sides of the lane, framing it. A density budget per screen.
+3. **Groups along the bones, big to small**: the large forms go down first, then mid-sized groups, then the small details round them. Props cluster where the features say they would (reeds on the banks, rubble under the cliffs, wrecks along the road, caps in the wet hollows), at the sides of the lane, framing it. Each biome sets its own mix of sizes, and a density budget per screen.
 4. **Landmarks at chosen beats**: at most one per screen, where the level turns or opens.
 5. **Foes on the features they need**: route-bound foes are only spawned where their route exists, and follow it (boats on the water, vehicles on the road). Turrets are placed at the spots the bones make worth guarding. Free fliers fill the rest.
 6. **Breathers**: stretches with little scenery and no fire, so the busy parts read as busy.
 
-The toolkit gives the shared parts (a route the sim can follow, a lane carved through the bones, group placement along a curve or round a point, the budget, the beat clock). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
+The toolkit gives the shared parts (a route the sim can follow, a lane carved through the bones, group placement along a curve or round a point, big-to-small placement, the budget, the beat clock). The layout gives the rules. A foe whose route a biome lacks isn't in that biome's roster.
 
 ### Each biome's layout
 
@@ -88,7 +91,7 @@ A first idea for each painted biome, to be tried in screenshots and changed. Eve
 
 ### Layout first, art after
 
-Each biome's layout is built and judged before its new art. Its screenshots in today's models (and in the grey frame and the strip) must already read as a designed place: clear bones, grouped props, an open lane, foes on their routes. New models on a bad layout don't fix it.
+Each biome's layout is built and judged before its full new look. Its screenshots (in today's models plus whatever the layout needed modelled, and in the grey frame and the strip) must already read as a designed place: clear bones, grouped props, an open lane, foes on their routes. New models on a bad layout don't fix it.
 
 ## The checks
 
@@ -139,17 +142,9 @@ The lines are rough, from one run. They only need to point at what looks chaotic
 
 Today's game fails detail, bullet contrast and colour, and clumping everywhere. Glowcap, Spore Vents, Glass Craters and Engine City are full of look-alikes, and every biome puts two landmarks on a screen. The lane is open everywhere.
 
-## Red Mesa Run, piece by piece
+## The level generator
 
-The first biome taken all the way. It is a canyon, so it settles the camera, walls, colliders, layout and foe placement, which every later biome reuses. [Its painting](art-direction/planets/kessra-red-mesa-run.png) is the reference for how clean and contrasted it should be.
-
-### Push 7: the camera
-The paintings look down more steeply than the game's 30° (`TILT` in `src/sim/types.ts`), so the cliffs show their faces. Try 30°, 38° and 45°.
-
-- **Look:** Red Mesa, Glowcap and Titan Graveyard at each angle, beside their paintings.
-- **Pass, warning time:** how long a bullet fired from the top of the screen takes to reach the ship. The chosen angle loses at most 10% against 30°.
-- **Pass, hand and bench:** each angle flown by hand. The bench's hit rate doesn't rise at the chosen angle.
-- **Decide:** one angle for the whole game, written into the art direction.
+The most important part of the plan: build the generator, then run every biome through it and improve it from screenshots. It decides what is a wall, what is solid and what is scenery, as well as where everything goes, so walls and colliders are part of it. It is tried first on Red Mesa Run, since a canyon has the most walls to get right. The camera stays as it is.
 
 ### Push 8: walls that read as walls
 Stand the cliffs up (no `depthOff` push on rock above the flight line), with a lit cream lip along the top, dark faces and a bold edge. A first touch slides along the wall in a shower of sparks, instead of bouncing.
@@ -166,10 +161,11 @@ Today a prop is a collider at 11 or taller and scenery reaches 8.5, with nothing
 - **Pass, collider map:** a debug frame with every collider tinted, next to the normal frame. In the five-second test, newcomers pick out the same things as solid.
 - **Pass, look:** fly into a collider. It stays solid all the way.
 
-### Push 10: the layout toolkit, and Red Mesa's layout
+### Push 10: the generator, and Red Mesa's layout
 The [shared toolkit](#the-shared-toolkit) and the first biome layout on it, Red Mesa Run's [row](#each-biomes-layout). Today each chunk scatters props at random x, landmarks up to 26 wide included. Build the toolkit so a second, very different layout (Salt Pans or Tide Caves) fits it without changes: try it as a sketch before the push closes.
 
 - **Pass, screenshots:** a set of twelve seeds, calm and mid-fight, in today's models. On every screen you can say why each group is where it is.
+- **Pass, big and small:** every screen has a few big forms with details gathered round them. No screen is all crumbs, all blocks, or one size everywhere.
 - **Pass, second layout:** a rough Salt Pans or Tide Caves layout on the same toolkit, in a strip and a few stills. It reads as a different place laid out by different rules.
 - **Pass, clumping:** clearly below 1 (start at ≤ 0.7), against today's score of about 1.
 - **Pass, open lane:** at least three ship widths on every screen.
@@ -178,35 +174,57 @@ The [shared toolkit](#the-shared-toolkit) and the first biome layout on it, Red 
 - **Pass, strip:** the level has visible bones, beats and breathers.
 
 ### Push 11: foes that belong where they are
-Foes placed and moving by the layout: vehicles along the wash and the canyon tracks, turrets dug into the walls at the narrows and guarding the depot, fliers coming in over the rim. Any foe in the roster whose route the canyon lacks moves to a biome that has it.
+The generator places the foes: vehicles along the wash and the canyon tracks, turrets dug into the walls at the narrows and guarding the depot, fliers coming in over the rim. Any foe in the roster whose route the canyon lacks moves to a biome that has it.
 
 - **Pass, screenshots:** a mid-fight set. Every foe's place and path makes sense from the still alone.
 - **Pass, off-route:** zero, over every seed.
 - **Pass, strip:** routes and the foes on them show in the strip.
 - **Pass, hand and bench:** the fights still play well; hits don't go up.
 
-### Push 12: Red Mesa Run's own look
+## Every biome through the generator
+
+Then every biome gets its own layout on the generator, a family at a time. Today's models are the start; anything a layout needs that's missing or not good enough (its bones, its big forms, the props that make it its own) is modelled in Blender as part of the push. Biomes that share bones share most of their layout code, and each gets its own rules on top. A family is one push. Inside it, for each biome: write its [layout row](#each-biomes-layout), build it, put its foes on their routes, then take a screenshot set, look, fix and reshoot until it looks right. When a family needs the toolkit to change, reshoot the families already done.
+
+A first guess at the families, to be changed as the rows get written:
+
+| Push | Family | Biomes |
+|---|---|---|
+| 12 | Gorges and walls | mesarun, tidecaves, bonearch, basalt |
+| 13 | Open flats | saltpans, tundra, coralflats, oasis |
+| 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
+| 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
+| 16 | Fields and forests | glowcap, fernwood, whitewood, orchards, jade |
+| 17 | Rises, bowls and craters | glass, sporevents, springs, prism |
+| 18 | Monuments and giants | titans, monoliths, temple, arkbones |
+| 19 | Sky and ice | stormwall, shelf |
+
+Each family push passes push 10's and push 11's checks for every biome in it, and:
+
+- **Pass, screenshots:** each biome's set passes every principle.
+- **Pass, squint:** next to each other, the family's biomes read as different places, not one layout reskinned.
+
+## The look, a biome at a time
+
+New models and light come after a biome's layout passes. A good layout in plain grey is worth more than new art on a bad one. Red Mesa Run goes first and sets the routine; each later biome runs push 20's checks, plus its own.
+
+### Push 20: Red Mesa Run's own look
 The models and light. Codex paints the biome's pieces on flat grey from the in-flight angle and the side (cliff pieces, the broken arch, scrub, rock stacks, the depot dug into the wall), with the painting as a reference for grain, cleanness and contrast, not a model sheet to copy. They are modelled in Blender (`tools/models/`), with dusk light: only the tops lit, a warm key and a cool fill.
 
 - **Pass, preview:** `just preview` of each model next to its sheet.
-- **Pass, screenshots:** a full set (seeds, moments, the strip) passes every principle. Beside the painting it is as clean, as contrasted and as well grouped, in its own palette.
+- **Pass, screenshots:** a full set (seeds, moments, the strip) passes every principle. Beside the painting it is as clean, as contrasted and as well grouped, in its own palette. The new models keep the balance of big forms and small details the layout set up.
 - **Pass, squint:** the thumbnail reads as Red Mesa next to every other biome's.
 - **Pass, detail ratio:** at least the painting's lower bound, the lane calmer than the edges.
 - **Pass, paint-over:** Codex repaints a still in the game's style without moving anything. What it changes is the to-do list, and the push is done when that list is small.
 - **Re-run:** bullet contrast, saturation, look-alikes and squint, and the checks from pushes 10 and 11.
 - **Keep:** the final set's best still as `art-direction/planets/kessra-mesarun-game.png`.
 
-## More biomes
-
-Each push reuses pushes 7–11 and starts with its own layout: its row in [each biome's layout](#each-biomes-layout), written on the toolkit and judged on screenshots before any new art. Then its foes on its own routes, then its own light and palette. Each one runs pushes 10–12's checks, plus its own.
-
-### Push 13: Glowcap Forest
+### Push 21: Glowcap Forest
 An open field at night under a violet sky. The bones are wet hollows and the dry rises between them; caps grow in groups in the hollows at the sides and frame the lane. They glow down and brighten in a wave as you pass; tall caps carry the collider lip. Brood sacs root in the deepest hollows.
 
 - **Pass, look-alikes:** zero, with every cap glowing.
 - **Pass, saturation rule:** the acid-green brood sacs are the only saturated green, and the engine the only warm thing.
 
-### Push 14: Titan Graveyard
+### Push 22: Titan Graveyard
 Flat overcast and ash. The bones are the titans' fallen bodies; wrecks and scavenger camps gather round them, and one titan's hand frames the lane, its knuckles lipped. This is Khet's planet, so the sector comes together with its rebuilt Warden.
 
 - **Pass, saturation:** the world's median saturation stays near grey. Only factions and the player are saturated.
@@ -214,7 +232,7 @@ Flat overcast and ash. The bones are the titans' fallen bodies; wrecks and scave
 
 ## The foes
 
-### Pushes 15–18: one faction each (scrap, lattice, wild, bloom)
+### Pushes 23–26: one faction each (scrap, lattice, wild, bloom)
 Codex paints a sheet of the faction's foes from the in-flight angle, kept in [`art-direction/enemies/`](art-direction/enemies/), and the models are rebuilt from it. The faction is in the material and hue, the job in the shape ([shapes](art-direction.md#shapes)). Each foe's sheet says what ground it needs (water, road, wall, open sky) and how it moves along it.
 
 - **Pass, silhouettes:** every foe as a black shape at 32 pixels. Each one is told apart from its faction's others.
@@ -226,7 +244,7 @@ Codex paints a sheet of the faction's foes from the in-flight angle, kept in [`a
 
 Each planet is a push, all four biomes together, starting with Kessra, Mirefall, Ashgrave, then Glacis and Vesh. Each planet picks its own style and palette, and its sides can differ (a day side and a night side, a sea coast and an ice cap). Oru-Tal, Halcyon and Cinder have no paintings yet, so each starts by painting its four biomes and judging them against the questions in [AGENTS.md](../AGENTS.md).
 
-- **Pass:** each biome's own layout, judged on screenshots first, then pushes 10–12's checks.
+- **Pass:** each biome's layout already through the generator (pushes 12–19), then push 20's checks for each biome.
 - **Pass, blind test:** thumbnails of the planet's four biomes, shuffled with two other planets' thumbnails. People sort them by planet.
 
 The scripted moments and each planet's music stay with [biomes](backlog.md#7-biomes-places-worth-seeing).

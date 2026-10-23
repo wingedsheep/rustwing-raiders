@@ -62,6 +62,9 @@ include the variant in the clip name (`tree_fern_1_sway_idle`) — clip names mu
 Always render previews and **look at them** (Read the PNG) — from the game angle and `--top` —
 and iterate until each model reads clearly and looks lovely. Put preview PNGs in your scratchpad,
 not in the repo. Export at the end (no `--preview`) so `public/models/<module>.glb` is written.
+Then check it in the game too (`just look`, `just shot`): next to its neighbours, at its real size,
+in the biome's light. Refine and look again until it's right there as well; a model isn't done
+when it builds.
 Only edit your own module file(s); kit.py and build.py are shared (ask before changing them).
 
 ## Set pieces (`set_<planet>.py`)

@@ -12,6 +12,7 @@ How Rustwing Raiders should look in flight: the image, light, colour, shapes, th
 - **Soft outlines** where depth jumps. Foes get a crisp one-texel dark ring, so they read on any ground.
 - **Bloom only on light sources**: engines, lamps, lava, muzzle flash. Lit surfaces never bloom.
 - **A split tone and a soft vignette** that pull the eye to the lane.
+- **The camera** looks down from above, tilted back about 30° (`TILT` in `src/sim/types.ts`). It stays as it is.
 - **Smooth scroll**: the camera moves in whole texels plus a sub-pixel shift, so the land glides without crawling.
 
 ## Light
@@ -82,6 +83,8 @@ Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints s
 - **Height must read**: anything you fly under is clearly higher than you, lit from the side, and casts a band of shadow on the ground. An object's size matches its layer.
 - **No foliage in the sky.** The high parallax layer is haze, cloud, moons and planets.
 - **Ground cover, mid props, rare heroes**, several species each, so no planet looks copy-pasted. Props fit their planet.
+- **Props are beautiful and make the biome its own**: each biome has props you won't see anywhere else, worth looking at up close. Anything a biome needs is modelled in Blender (`tools/models/`); never make do with another biome's props or generic ones.
+- **Big shapes and small details, balanced**: a few large forms give each screen its shape, mid-sized groups frame the lane, and small details gather round the big forms. Never all crumbs, all blocks, or one size everywhere. This balance is a big part of what makes a level look great.
 - **Composed, not scattered**: groups along the canyon edges and the field's sides frame a clear lane. One hero landmark per screen at most, at a chosen beat, under a density budget.
 
 ## Levels and placement
