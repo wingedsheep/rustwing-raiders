@@ -73,3 +73,9 @@ They make an S to C rank that pays a little on top, more on a bigger ship.
 No hitstop and no slow motion (the clock is shared in co-op: see `parry-rules.md`). The punch
 comes from flashes, camera kick and shake, casings, shards of kit, bodies flying, stains left
 on the deck, and each arm's own voice.
+
+Every hit you land gives a white pop, a blink of light, the camera nudged the way the round went,
+and a tick that climbs as they near going down. Every crewman dropped gives a burst of light, a
+shove of the camera, a crunch, and a struck-metal sting that climbs a step with each one dropped
+in a row. Guns are shaped noise over a sine thump, never chip tones: crack, blast, thump, the
+slide's clicks, the room.
