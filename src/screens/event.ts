@@ -569,7 +569,7 @@ export class EventScreen implements Screen {
       let fit = byWho.get(who);
       if (!fit) byWho.set(who, (fit = bestFit(crew[who].build, it)));
       const cx = W - 8 - 184;
-      lootCard(ctx, it, crew[who].build, cx, cy, 184, ch, { t: this.t, fit, terse: true, livery: who });
+      lootCard(ctx, it, crew[who].build, cx, cy, 184, ch, { t: this.t, fit, terse: true, livery: who, whose: crew.length > 1 ? who : undefined });
       if (crew.length > 1) {
         tag(ctx, who, cx + 184 - 17, cy + ch - 12);
         crew.forEach((_, i) => {

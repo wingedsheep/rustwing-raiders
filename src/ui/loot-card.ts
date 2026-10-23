@@ -5,7 +5,8 @@
  * that changes. The results screen, the dealer and the hangar all use it.
  */
 
-import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED } from './hud';
+import { LIVERY } from '../view/ship-model';
+import { CLASS_COLOR, DARK, DIM, EDGE, GOLD, GREEN, INK, RED, hex } from './hud';
 import { drawText, textWidth, wrap } from './font';
 import { partStats, TIER_BODY, TIER_COLOR, TIER_DARK } from './widgets';
 import { frameById, partById, verbOf, type PartDef, type Verb } from '../game/parts';
@@ -41,6 +42,8 @@ export interface CardOpts {
   dim?: boolean;
   /** Whose livery the part is shown in (player index). */
   livery?: number;
+  /** Whose ship the fit is for, named at the foot (co-op, on a card both see); unset: yours. */
+  whose?: number;
 }
 
 /** A shape drawn big: bevelled cells in its class colour. */
@@ -338,7 +341,7 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
     for (const l of wrap(base.text.toUpperCase(), w - 14)) if (!line(l, '#7a6e8a')) break;
   }
 
-  if (o.fit && b) foot(ctx, o.fit, b, x, y + h - footH, w, footH, tier, t);
+  if (o.fit && b) foot(ctx, o.fit, b, x, y + h - footH, w, footH, tier, t, o.whose);
 
   if (o.dim) {
     ctx.fillStyle = 'rgba(15,11,22,0.6)';
@@ -352,12 +355,12 @@ function footHeight(f: Fit) {
 }
 
 /** What it would do on the ship: the grid with it in place, and the numbers that change. */
-function foot(ctx: CanvasRenderingContext2D, f: Fit, b: Build, x: number, y: number, w: number, h: number, tier: Tier, t: number) {
+function foot(ctx: CanvasRenderingContext2D, f: Fit, b: Build, x: number, y: number, w: number, h: number, tier: Tier, t: number, whose?: number) {
   ctx.fillStyle = 'rgba(10,7,16,0.55)';
   ctx.fillRect(x + 1, y, w - 2, h - 1);
   ctx.fillStyle = EDGE;
   ctx.fillRect(x + 1, y, w - 2, 1);
-  drawText(ctx, 'ON YOUR SHIP', x + 6, y + 4, DIM);
+  drawText(ctx, whose === undefined ? 'ON YOUR SHIP' : `ON P${whose + 1}'S SHIP`, x + 6, y + 4, whose === undefined ? DIM : hex(LIVERY[whose][2]));
   if (!f.place) {
     drawText(ctx, 'NO WAY TO FIT IT', x + w - 6, y + 4, RED, { align: 'right' });
     return;
