@@ -18,7 +18,9 @@ import { IMPRINTS, KNACKS, ROOM, type CoreKit, type Fed, type ImprintId, type Kn
 
 export interface FlightResult {
   cleared: boolean;
+  /** What it paid all told, and what of that each pilot scooped up themselves (theirs; the rest is the crew's). */
   scrap: number;
+  scrapBy?: number[];
   score: number;
   /** Parts picked up, per player, as rolled when they dropped. */
   loot: Item[][];
@@ -175,6 +177,7 @@ export class Flight implements Screen {
     this.onDone({
       cleared,
       scrap: lv.scrap,
+      scrapBy: lv.players.map((p) => lv.scrapBy[p.id] ?? 0),
       score: lv.score,
       loot: lv.loot,
       hull: lv.players.map((p) => (p.down ? 1 : p.hp)),

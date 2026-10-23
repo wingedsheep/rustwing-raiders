@@ -20,18 +20,23 @@ const TONE = { good: GREEN, bad: RED, info: CYAN };
 
 /** The crew's state, top right: scrap, fuel, hull, and what hangs over you. */
 export function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
-  const lines = 2 + run.crew.length + (run.bounty ? 1 : 0) + (run.debt ? 1 : 0) + (run.policy ? 1 : 0);
+  const coop = run.crew.length > 1;
+  const lines = (coop ? 1 : 2) + run.crew.length + (run.bounty ? 1 : 0) + (run.debt ? 1 : 0) + (run.policy ? 1 : 0);
   frame(ctx, x - 132, y, 132, 6 + lines * 10, 'rgba(18,12,24,0.86)');
   let ty = y + 4;
-  drawText(ctx, 'SCRAP', x - 126, ty, DIM);
-  drawText(ctx, `${run.scrap}`, x - 6, ty, GOLD, { align: 'right' });
-  ty += 10;
+  // (co-op: each pilot's scrap on their own line, by their hull)
+  if (!coop) {
+    drawText(ctx, 'SCRAP', x - 126, ty, DIM);
+    drawText(ctx, `${run.scrap}`, x - 6, ty, GOLD, { align: 'right' });
+    ty += 10;
+  }
   drawText(ctx, 'FUEL', x - 126, ty, DIM);
   for (let k = 0; k < FUEL_MAX; k++) drawText(ctx, '◆', x - 96 + k * 10, ty, k < run.fuel ? '#ffb04a' : '#3a2e48');
   ty += 10;
   run.crew.forEach((c, i) => {
     drawText(ctx, `P${i + 1}`, x - 126, ty, hex(LIVERY[i][2]));
     hullGauge(ctx, c.hull, crewHull(c), x - 108, ty, 40);
+    if (coop) drawText(ctx, `${c.scrap}`, x - 6, ty, GOLD, { align: 'right' });
     ty += 10;
   });
   if (run.bounty) {
@@ -59,12 +64,17 @@ interface Offer {
   act: () => void;
 }
 
-type ShopRow = { kind: 'buy'; item: ShopItem } | { kind: 'repair' } | { kind: 'fuel' } | { kind: 'debt' } | { kind: 'sell'; index: number } | { kind: 'leave' };
+type ShopRow = { kind: 'buy'; item: ShopItem } | { kind: 'repair' } | { kind: 'fuel' } | { kind: 'debt' } | { kind: 'give' } | { kind: 'sell'; index: number } | { kind: 'leave' };
+
+/** Scrap handed over a counter at a time (co-op). */
+const GIVE = 10;
 
 /**
- * A salvage dealer: buy parts, sell what's in the hold, patch the hull, fuel up. Scrap is shared.
- * In co-op each of you has a counter of your own (your cursor, your hold, your hull) over the one
- * stall, and you leave together, once you've both said you're done.
+ * A salvage dealer: buy parts, sell what's in the hold, patch the hull, fuel up. Parts and
+ * repairs come out of your own scrap and sales go into it; fuel and a debt are the crew's (see
+ * Run.scrap). In co-op each of you has a counter of your own (your cursor, your hold, your hull,
+ * your scrap, which you can hand across) over the one stall, and you leave together, once you've
+ * both said you're done.
  */
 export class Shop implements Screen {
   private stock: ShopItem[];
@@ -96,6 +106,7 @@ export class Shop implements Screen {
     const crew = this.run.crew[who];
     const rows: ShopRow[] = [...this.stock.map((item) => ({ kind: 'buy', item }) as ShopRow), { kind: 'repair' }, { kind: 'fuel' }];
     if (this.run.debt) rows.push({ kind: 'debt' });
+    if (this.run.crew.length > 1) rows.push({ kind: 'give' });
     rows.push(...crew.cargo.map((_, index) => ({ kind: 'sell', index }) as ShopRow), { kind: 'leave' });
     return rows;
   }
@@ -142,17 +153,17 @@ export class Shop implements Screen {
     switch (row.kind) {
       case 'buy':
         if (row.item.sold) return say('SOLD OUT');
-        if (run.scrap < row.item.price) return say('NOT ENOUGH SCRAP');
+        if (crew.scrap < row.item.price) return say(run.scrap >= row.item.price ? 'NOT ENOUGH OF YOUR OWN SCRAP' : 'NOT ENOUGH SCRAP');
         if (crew.cargo.length >= CARGO) return say('THE HOLD IS FULL');
-        run.scrap -= row.item.price;
+        crew.scrap -= row.item.price;
         crew.cargo.push(row.item.part);
         row.item.sold = true;
         audio.play('ui_buy');
         break;
       case 'repair':
         if (crew.hull >= crewHull(crew)) return say('HULL IS SOUND');
-        if (run.scrap < REPAIR) return say('NOT ENOUGH SCRAP');
-        run.scrap -= REPAIR;
+        if (crew.scrap < REPAIR) return say('NOT ENOUGH SCRAP');
+        crew.scrap -= REPAIR;
         crew.hull = Math.min(crewHull(crew), crew.hull + HULL_STEP);
         audio.play('heal');
         break;
@@ -171,9 +182,18 @@ export class Shop implements Screen {
         audio.play('ui_buy');
         break;
       }
+      case 'give': {
+        const to = run.crew[1 - who];
+        const n = Math.min(GIVE, crew.scrap);
+        if (n <= 0) return say('NOTHING TO GIVE');
+        crew.scrap -= n;
+        to.scrap += n;
+        audio.play('pickup_scrap');
+        break;
+      }
       case 'sell': {
         const it = crew.cargo.splice(row.index, 1)[0];
-        run.scrap += run.sellPrice(it, this.node);
+        crew.scrap += run.sellPrice(it, this.node);
         audio.play('pickup_scrap');
         break;
       }
@@ -222,18 +242,21 @@ export class Shop implements Screen {
       const tier = tierOf(it);
       this.itemRow(ctx, it, x, y, row.item.sold ? '#4a3e58' : ink, on);
       drawText(ctx, cheap ? 'CHEAP' : tier === 'common' ? '' : TIER_WORD[tier], right - 86, y, row.item.sold ? '#4a3e58' : cheap ? GREEN : TIER_COLOR[tier], { align: 'right' });
-      drawText(ctx, row.item.sold ? 'SOLD' : `${row.item.price}`, right, y, row.item.sold ? '#4a3e58' : run.scrap >= row.item.price ? GOLD : RED, { align: 'right' });
+      drawText(ctx, row.item.sold ? 'SOLD' : `${row.item.price}`, right, y, row.item.sold ? '#4a3e58' : run.crew[who].scrap >= row.item.price ? GOLD : RED, { align: 'right' });
       return it;
     }
     if (row.kind === 'repair') {
       drawText(ctx, `REPAIR${run.crew.length > 1 ? ` P${who + 1}` : ''}: +${HULL_STEP} HULL`, x, y, ink);
-      drawText(ctx, `${REPAIR}`, right, y, run.scrap >= REPAIR ? GOLD : RED, { align: 'right' });
+      drawText(ctx, `${REPAIR}`, right, y, run.crew[who].scrap >= REPAIR ? GOLD : RED, { align: 'right' });
     } else if (row.kind === 'fuel') {
       drawText(ctx, `FUEL: +1 (${run.fuel}/${FUEL_MAX})`, x, y, ink);
       drawText(ctx, `${this.fuelPrice}`, right, y, run.scrap >= this.fuelPrice ? GOLD : RED, { align: 'right' });
     } else if (row.kind === 'debt') {
       drawText(ctx, `PAY MAMA RUZZ (OWE ${run.debt})`, x, y, on ? INK : '#ff8a7a');
       drawText(ctx, `${Math.min(run.scrap, run.debt)}`, right, y, GOLD, { align: 'right' });
+    } else if (row.kind === 'give') {
+      drawText(ctx, `GIVE P${2 - who} ${GIVE} SCRAP`, x, y, ink);
+      drawText(ctx, `-${GIVE}`, right, y, run.crew[who].scrap > 0 ? DIM : RED, { align: 'right' });
     } else if (row.kind === 'sell') {
       const it = run.crew[who].cargo[row.index];
       const def = partById(it.id);
@@ -303,7 +326,7 @@ export class Shop implements Screen {
   private drawCounters(ctx: CanvasRenderingContext2D, bits: [string, string][]) {
     const run = this.run;
     // the shared purse in the middle, the market either side of it
-    const purse = `SCRAP ${run.scrap}   FUEL ${run.fuel}/${FUEL_MAX}`;
+    const purse = `FUEL ${run.fuel}/${FUEL_MAX}`;
     const line = bits.reduce((s, [t]) => s + textWidth(t) + 14, textWidth(purse));
     let bx = Math.round(W / 2 - line / 2);
     bx += drawText(ctx, purse, bx, 50, GOLD) + 14;
@@ -318,6 +341,7 @@ export class Shop implements Screen {
       frame(ctx, x0, top, cw, 16, '#2c2240', col);
       drawText(ctx, `P${who + 1}`, x0 + 6, top + 5, col);
       hullGauge(ctx, c.hull, crewHull(c), x0 + 26, top + 5, 60);
+      drawText(ctx, `SCRAP ${c.scrap}`, x0 + 128, top + 5, GOLD);
       drawText(ctx, `HOLD ${c.cargo.length}/${CARGO}`, x0 + cw - 6, top + 5, c.cargo.length >= CARGO ? GOLD : DIM, { align: 'right' });
       const rows = this.rows(who);
       const x = x0 + 10;

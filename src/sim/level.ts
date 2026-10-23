@@ -670,6 +670,8 @@ export class Level {
   /** Seconds since the level ended (it lingers a little). */
   ending = 0;
   scrap = 0;
+  /** What each pilot scooped up themselves (theirs to keep; the rest of `scrap` is the crew's). */
+  scrapBy: number[] = [];
   score = 0;
   combo = 0;
   comboT = 0;
@@ -2417,6 +2419,7 @@ export class Level {
             k.done = (k.done ?? 0) | (1 << p.id);
             const v = k.value;
             this.scrap += v;
+            this.scrapBy[p.id] = (this.scrapBy[p.id] ?? 0) + v;
             this.combo++;
             this.comboT = 3;
             p.charge = Math.min(1, p.charge + 0.06);
@@ -2440,6 +2443,7 @@ export class Level {
           const v = k.value;
           if (k.kind === 'scrap') {
             this.scrap += v;
+            this.scrapBy[p.id] = (this.scrapBy[p.id] ?? 0) + v;
             this.mind.scrap(p, v);
           } else if (k.kind === 'repair') p.hp = Math.min(p.stats.hp, p.hp + HULL_STEP);
           else if (k.kind === 'part') this.loot[p.id].push(k.part!);

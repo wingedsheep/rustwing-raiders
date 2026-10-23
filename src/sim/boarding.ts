@@ -560,7 +560,7 @@ export interface BoardResult {
   size: ShipSize;
   family: Family;
   condition: Condition;
-  heroes: { kills: number; takedowns: number; perfects: number; hits: number; out: boolean }[];
+  heroes: { kills: number; takedowns: number; perfects: number; hits: number; out: boolean; tins: number }[];
 }
 
 /** The pickings by ship size: the strongbox's weight. */
@@ -3223,7 +3223,7 @@ export class Boarding {
       size: this.size,
       family: this.family,
       condition: this.condition,
-      heroes: this.heroes.map((h) => ({ kills: h.kills, takedowns: h.takedowns, perfects: h.perfects, hits: h.hits, out: h.out || (got && h.down) })),
+      heroes: this.heroes.map((h) => ({ kills: h.kills, takedowns: h.takedowns, perfects: h.perfects, hits: h.hits, out: h.out || (got && h.down), tins: h.tins })),
     };
   }
 

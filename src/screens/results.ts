@@ -178,7 +178,7 @@ export class Results implements Screen {
           const r = this.cardRect(i, p.at);
           this.burst(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h, TIER_COLOR[tierOf(it)], 30);
         } else {
-          this.run.scrap += this.scrapValue(p);
+          this.run.crew[i].scrap += this.scrapValue(p);
           audio.play('pickup_scrap');
         }
         p.done = true;
@@ -230,7 +230,7 @@ export class Results implements Screen {
     ctx.clearRect(0, 0, W, 360);
     backdrop(ctx);
     const boss = this.spec.mode === 'boss';
-    heading(ctx, boss ? 'WARDEN DOWN' : (this.res.title ?? `${this.spec.planet.name.toUpperCase()} CLEAR`), `+${this.res.scrap} SCRAP   ${this.res.score} POINTS   ${this.run.scrap} SCRAP IN THE TIN`, boss ? GOLD : INK);
+    heading(ctx, boss ? 'WARDEN DOWN' : (this.res.title ?? `${this.spec.planet.name.toUpperCase()} CLEAR`), `+${this.res.scrap} SCRAP   ${this.res.score} POINTS   ${this.run.crew.length > 1 ? `TINS ${this.run.purses()}` : `${this.run.scrap} SCRAP IN THE TIN`}`, boss ? GOLD : INK);
     // the rank, stamped in the corner, and what earned it
     const r = this.res.report;
     if (r?.rank) {

@@ -258,7 +258,7 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         run.tip = 0;
         run.notes.push(`SQUIT'S TIP PAID: +${extra} SCRAP`);
       }
-      run.scrap += res.scrap;
+      payOut(run, res);
       // the insurance pays for what got shot off
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
       // patched up a little on the way out
@@ -357,7 +357,7 @@ export function board(game: Game, node: ChartNode) {
         res.scrap += extra;
         run.notes.push(`DANGER PAID: +${extra} SCRAP`);
       }
-      run.scrap += res.scrap;
+      payOut(run, res);
       run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
       run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + (r.outcome === 'escaped' && !r.heroes[i]?.out ? HULL_STEP : 0))));
       const was = run.crew.map((c) => ({ ...c.core, life: { ...c.core.life } }));
@@ -367,6 +367,13 @@ export function board(game: Game, node: ChartNode) {
       game.go(new Results(game, run, res, spec, core));
     }, run.crew[0].build.frame),
   );
+}
+
+/** A fight's pay: what each pilot scooped up is theirs, the rest (bonuses, a site's pay) the crew's. */
+function payOut(run: Run, res: FlightResult) {
+  const own = res.scrapBy ?? [];
+  own.forEach((v, i) => run.crew[i] && (run.crew[i].scrap += v));
+  run.share(res.scrap - own.reduce((a, b) => a + b, 0));
 }
 
 /** What the rank pays on top, by ship size. */
@@ -402,6 +409,8 @@ function boardResult(r: BoardResult, hull: number[]): FlightResult {
   return {
     cleared: true,
     scrap: r.tins + r.pay + spare + bonus,
+    // (the tins each picked up are theirs)
+    scrapBy: r.heroes.map((h) => h.tins),
     score: 0,
     loot: r.heroes.map(() => []),
     hull,

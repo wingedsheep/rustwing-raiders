@@ -491,7 +491,7 @@ export class Hangar implements Screen {
     ctx.clearRect(0, 0, W, H);
     backdrop(ctx);
     drawText(ctx, 'HANGAR', W / 2, 6, INK, { scale: 2, align: 'center' });
-    drawText(ctx, `SCRAP ${this.run.scrap}`, W - 10, 10, GOLD, { align: 'right' });
+    drawText(ctx, `SCRAP ${this.run.purses()}`, W - 10, 10, GOLD, { align: 'right' });
     drawText(ctx, `SECTOR ${this.run.sector + 1}`, 10, 10, DIM);
     // the 3D goes under the UI canvas: each area cuts a window for it
     this.bays.forEach((bay, i) => this.area(ctx, bay, i));

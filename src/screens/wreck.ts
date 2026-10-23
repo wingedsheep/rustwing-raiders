@@ -206,7 +206,7 @@ export class WreckScreen implements Screen {
     p.done = true;
     p.doneT = 0;
     if (p.at >= p.cards.length) {
-      this.run.scrap += this.scrapValue(p);
+      this.run.crew[i].scrap += this.scrapValue(p);
       audio.play('pickup_scrap');
       return;
     }

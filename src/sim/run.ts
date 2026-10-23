@@ -1,5 +1,5 @@
 /**
- * A run: the crew (one or two ships, their cargo and the shared scrap) across three sectors, each a
+ * A run: the crew (one or two ships, their cargo and their scrap) across three sectors, each a
  * star system to cross (sim/chart.ts). Levels are made here from a planet and a kind of landing,
  * and so is what you find there: loot to choose from, a dealer's stock and prices.
  *
@@ -47,12 +47,16 @@ export interface Crew {
   grafts: Grafts;
   /** The ship's core, and what it's learnt (see game/core.ts): this run's, lost at its end. */
   core: Core;
+  /** This pilot's own scrap (see Run.scrap for the crew's). */
+  scrap: number;
 }
 
 /** A ship's whole hull: the frame's and its parts', and UNBENDING's if the core holds it. */
 export const crewHull = (c: Crew) => stats(c.build).hp + (c.core.held.includes('unbending') ? UNBENDING_HULL : 0);
 
 export const CARGO = 6;
+/** Each pilot's scrap at the start of a run. */
+export const START_SCRAP = 25;
 /** Parts a dealer lays out. */
 export const SHOP_PARTS = 3;
 export const SECTORS = 3;
@@ -107,6 +111,7 @@ export interface Contract {
 /** The run's affairs at a moment, to see what an event changed. */
 export interface Snapshot {
   scrap: number;
+  purse: number[];
   fuel: number;
   hull: number[];
   cargo: Item[][];
@@ -130,7 +135,6 @@ export interface Snapshot {
 
 export class Run {
   crew: Crew[];
-  scrap = 25;
   score = 0;
   sector = 0;
   levels = 0;
@@ -189,10 +193,60 @@ export class Run {
     this.r = rng(seed ^ 0x5eed);
     this.crew = frames.map((f, i) => {
       const build = startBuild(f);
-      return { build, cargo: [], hull: stats(build).hp, grafts: {}, core: newCore(seed * 7 + i) };
+      return { build, cargo: [], hull: stats(build).hp, grafts: {}, core: newCore(seed * 7 + i), scrap: START_SCRAP };
     });
     this.chart = new Chart(chartSeed(seed, 0), 0);
     this.chart.nodes[0].done = true;
+  }
+
+  /**
+   * The crew's scrap, all told. Each pilot has a purse of their own: what you scoop in a fight,
+   * sell or scrap is yours, and what you buy for your own ship is paid from it. What comes to the
+   * crew as a whole (a site's pay, a bonus, an event's reward) is shared out evenly, and what the
+   * crew pays (fuel, fines, a debt, an event's price) is split evenly, whoever has more covering
+   * what the other is short. So `run.scrap += n` and `run.scrap -= n` are the crew's, and whether
+   * the crew can afford a thing is this total.
+   */
+  get scrap() {
+    return this.crew.reduce((a, c) => a + c.scrap, 0);
+  }
+
+  set scrap(v: number) {
+    this.share(Math.round(v) - this.scrap);
+  }
+
+  /** Each pilot's scrap in a few words ('P1 25  P2 40'), or the one purse's. */
+  purses() {
+    return this.crew.length > 1 ? this.crew.map((c, i) => `P${i + 1} ${c.scrap}`).join('  ') : `${this.scrap}`;
+  }
+
+  /** Scrap to (or, negative, from) the crew as a whole, split as `scrap` says. */
+  share(d: number) {
+    const n = this.crew.length;
+    if (!d || !n) return;
+    // the odd one goes to (or comes from) whoever has less (or more), P1 on a tie
+    const order = this.crew.map((_, i) => i).sort((a, b) => (d > 0 ? this.crew[a].scrap - this.crew[b].scrap : this.crew[b].scrap - this.crew[a].scrap) || a - b);
+    const each = Math.trunc(d / n);
+    const odd = d - each * n;
+    const part = order.map((i, k) => [i, each + (k < Math.abs(odd) ? Math.sign(odd) : 0)] as const);
+    if (d > 0) {
+      for (const [i, v] of part) this.crew[i].scrap += v;
+      return;
+    }
+    // a cost: each their half, as far as their purse goes; then whoever has some covers the rest
+    let short = 0;
+    for (const [i, v] of part) {
+      const take = Math.min(-v, Math.max(0, this.crew[i].scrap));
+      this.crew[i].scrap -= take;
+      short += -v - take;
+    }
+    for (const c of [...this.crew].sort((a, b) => b.scrap - a.scrap)) {
+      const take = Math.min(short, Math.max(0, c.scrap));
+      c.scrap -= take;
+      short -= take;
+    }
+    // (more than the crew has: P1 goes into the red, as the crew did before purses)
+    this.crew[0].scrap -= short;
   }
 
   /** Difficulty of the next level: rises through each sector and from sector to sector. */
@@ -345,7 +399,7 @@ export class Run {
       c.cargo.push(it);
       return true;
     }
-    this.scrap += Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]);
+    c.scrap += Math.round(SELL[partById(it.id).rarity] * TIER_VALUE[tierOf(it)]);
     return false;
   }
 
@@ -464,6 +518,7 @@ export class Run {
   snapshot(): Snapshot {
     return {
       scrap: this.scrap,
+      purse: this.crew.map((c) => c.scrap),
       fuel: this.fuel,
       hull: this.crew.map((c) => c.hull),
       cargo: this.crew.map((c) => [...c.cargo]),
@@ -490,7 +545,12 @@ export class Run {
   changes(s: Snapshot): { text: string; tone: 'good' | 'bad' | 'info' }[] {
     const out: { text: string; tone: 'good' | 'bad' | 'info' }[] = [];
     const num = (d: number, what: string, goodUp = true) => d && out.push({ text: `${d > 0 ? '+' : ''}${d} ${what}`, tone: d > 0 === goodUp ? 'good' : 'bad' });
-    num(this.scrap - s.scrap, 'SCRAP');
+    if (this.crew.length > 1)
+      this.crew.forEach((c, i) => {
+        const d = c.scrap - s.purse[i];
+        if (d) out.push({ text: `P${i + 1} ${d > 0 ? '+' : ''}${d} SCRAP`, tone: d > 0 ? 'good' : 'bad' });
+      });
+    else num(this.scrap - s.scrap, 'SCRAP');
     num(this.fuel - s.fuel, 'FUEL');
     const hull = this.crew.reduce((a, c, i) => a + c.hull - s.hull[i], 0);
     num(hull, 'HULL');

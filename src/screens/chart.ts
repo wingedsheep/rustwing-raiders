@@ -845,7 +845,7 @@ export class ChartScreen implements Screen {
     drawText(ctx, 'FUEL', px + 6, ty, DIM);
     for (let k = 0; k < FUEL_MAX; k++) drawText(ctx, '◆', px + 34 + k * 9, ty, k < run.fuel ? FUEL : '#3a2e48');
     ty += 10;
-    drawText(ctx, `SCRAP ${run.scrap}`, px + 6, ty, GOLD);
+    drawText(ctx, `SCRAP ${run.purses()}`, px + 6, ty, GOLD);
     ty += 10;
     for (const [t, col] of affairs) {
       drawText(ctx, t, px + 6, ty, col);
