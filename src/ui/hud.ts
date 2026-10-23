@@ -23,6 +23,7 @@ import type { DeviceId } from '../input';
 import { controlsCard, CONTROLS_H, CONTROLS_W } from './controls';
 import { SoundPanel, SOUND_H, SOUND_W } from './sound';
 import { Quit } from './accord';
+import type { Run } from '../sim/run';
 import { KitTray, TRAY } from './kit-tray';
 
 /** The runs whose pilots have been told, big, to fly to a down partner (after that it's said small). */
@@ -218,8 +219,8 @@ export class Hud {
   private motesFor = 1;
   /** Each player's hull as the bar last showed it: it drains down after a hit, so you see the bite. */
   private hullShown: number[] = [];
-  /** The run being flown (the flight sets it), for what's said once a run. */
-  run: object | null = null;
+  /** The run being flown (the flight sets it), for what's said once a run and the scrap already in the tins. */
+  run: Run | null = null;
   /** Each ship: down last frame, when it went down, and whether its partner's call is the big one. */
   private wasDown: boolean[] = [];
   private downAt: number[] = [];
@@ -348,13 +349,15 @@ export class Hud {
     }
     // the takings: the scrap and its tin, nothing else (the score waits for the results). Alone, at
     // the right end; in co-op a tin each, hung off your own plate: what you scooped is yours, and
-    // what the crew earned (a wave wiped) shows as each one's share of it
-    if (!ps[1]) this.takings(ctx, 0, lv.scrap, w - 12, 'right', [8, 3, 3, 3]);
+    // what the crew earned (a wave wiped) shows as each one's share of it. The tin shows the lot:
+    // what's already in it from the run so far, and this level's takings on top
+    const held = (i: number) => this.run?.crew[i]?.scrap ?? 0;
+    if (!ps[1]) this.takings(ctx, 0, held(0) + lv.scrap, w - 12, 'right', [8, 3, 3, 3]);
     else {
       const own = ps.map((p) => lv.scrapBy[p.id] ?? 0);
       const crew = Math.floor((lv.scrap - own.reduce((a, v) => a + v, 0)) / ps.length);
-      this.takings(ctx, 0, own[0] + crew, plates[0] + 4, 'left', [3, 3, 8, 3]);
-      this.takings(ctx, 1, own[1] + crew, plates[1] - 4, 'right', [8, 3, 3, 3]);
+      this.takings(ctx, 0, held(0) + own[0] + crew, plates[0] + 4, 'left', [3, 3, 8, 3]);
+      this.takings(ctx, 1, held(1) + own[1] + crew, plates[1] - 4, 'right', [8, 3, 3, 3]);
     }
   }
 
