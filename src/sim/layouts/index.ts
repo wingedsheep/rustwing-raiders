@@ -6,7 +6,8 @@
 import type { Layout } from '../layout';
 import { glowcap } from './glowcap';
 import { mesarun } from './mesarun';
+import { monoliths } from './monoliths';
 import { oasis } from './oasis';
 import { saltpans } from './saltpans';
 
-export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, oasis, saltpans };
+export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, monoliths, oasis, saltpans };

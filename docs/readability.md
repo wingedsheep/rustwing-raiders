@@ -96,7 +96,7 @@ A first guess at the families, to be changed as the rows get written:
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap (laid out: `src/sim/layouts/glowcap.ts`; its caps' light moved off lime and their warts unlit in `tools/models/props_a_mirefall.py`; the moss a dim grey teal so the violet caps stand off it by hue; the *Tamsin Lowe* modelled as `mirefall_tamsin_lowe` in `tools/models/set_mirefall.py`), fernwood, whitewood, orchards, jade |
 | 17 | Rises, bowls and craters | glass, sporevents, springs, prism |
-| 18 | Monuments and giants | titans, monoliths, temple, arkbones |
+| 18 | Monuments and giants | titans, monoliths (laid out: `src/sim/layouts/monoliths.ts`; its Tonkva ledger-beacons, sunk faces, fallen beacons, count stones and the reading ring's hearth modelled in `tools/models/set_kessra_monoliths.py`), temple, arkbones |
 | 19 | Sky and ice | stormwall, shelf |
 
 Each family push passes push 11's checks for every biome in it, and the generator's: a set of twelve seeds, calm and mid-fight, where you can say why each group is where it is; a few big forms on every screen with the details gathered round them; clumping at most 0.7; an open lane of at least three ship widths; at most one landmark on a screen; twelve seeds that look like one family; a strip with visible bones, beats and breathers; a way in and a way out. And:

@@ -3405,3 +3405,6 @@ def build():
     caravanserai(1)
     wagon(3)
     bales(3)
+    # the Monolith Field's beacons, faces and counts (set_kessra_monoliths.py)
+    import set_kessra_monoliths
+    set_kessra_monoliths.build()
