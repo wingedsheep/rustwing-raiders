@@ -26,7 +26,7 @@ How Rustwing Raiders should look in flight: the image, light, colour, shapes, th
 
 - **Rust and cream belong to the player**: ships, shots, trails and the engine's warm glow. No enemy uses that family.
 - **Faction hues belong to enemy fire**: scrap brass and flare red, lattice cyan and white, bloom violet and acid green, wild earth tones with one hot accent.
-- **Pickups are chalk-white with a dark outline**, in shapes no bullet has (a bent tin coin, a riveted repair patch). They bob and turn; they never streak.
+- **Pickups are salvage with a dark outline**, in shapes no bullet has: scrap is a blued-steel cog, a hex nut on a copper washer or an offcut of hazard-striped plate; a repair is a riveted mint patch with a chalk cross. Small and lit from within (their bright steel and copper glow), in a soft halo of their own light: loot that shines, not a bullet's hard glow. They bob and turn; they never streak (a magnet's pull spins them up).
 - **Colliders have one look**: dark faces, a lit cream lip along the top, a bold dark outline. If it has a lip, you'll hit it. Laser gates are white-hot cores with a dark edge, not scrap red.
 - **The lane sits at mid-value and mid-saturation.** The richest colour is at the screen's edges and on the horizon. The most saturated things on screen are always enemy fire.
 - **Each planet has a palette you could name blind**, and its four biomes vary it without breaking it. A planet's sides can have styles of their own (a day side and a night side, a coast and an ice cap).
@@ -38,7 +38,7 @@ Every frame splits into four layers you can tell apart in under a second:
 1. **The world**: painted and muted under the lane, with the bloom, grade and vignette.
 2. **Walls and solid things**: the collider look.
 3. **Danger**: unlit, saturated, with a near-black rim, drawn above the grade. The world is painted; the danger isn't.
-4. **What's yours**: rust and cream, plus white pickups.
+4. **What's yours**: rust and cream, plus the salvage pickups.
 
 Nothing ambient may look like a bullet. Spores, embers, pollen, ash and glints stay below the flight plane, dimmer, bigger and softer than any shot, and drift with the ground. They thin out while a fight is on.
 

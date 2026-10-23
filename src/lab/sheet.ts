@@ -94,11 +94,13 @@ scene.add(shotArt.group);
 const pickups: THREE.Object3D[] = [];
 async function lay() {
   await library.load();
-  ['pickup_scrap', 'pickup_scrap_big', 'pickup_repair', 'pickup_part'].forEach((kind, j) => {
-    const inst = library.clone(kind);
+  // (the three kinds of salvage, then the bundle, the patch and the crate)
+  const kinds = [['pickup_scrap', 0], ['pickup_scrap', 1], ['pickup_scrap', 2], ['pickup_scrap_big', 0], ['pickup_repair', 0], ['pickup_part', 0]] as const;
+  kinds.forEach(([kind, variant], j) => {
+    const inst = library.clone(kind, variant);
     const obj = new THREE.Group();
     obj.add(inst?.obj ?? new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), toon(0xff00ff)));
-    obj.scale.setScalar(kind === 'pickup_part' ? 1 : kind === 'pickup_repair' ? 2.2 : kind === 'pickup_scrap_big' ? 2.3 : 2);
+    obj.scale.setScalar(kind === 'pickup_part' ? 1 : kind === 'pickup_repair' ? 1.25 : kind === 'pickup_scrap_big' ? 1.5 : 1.25);
     // one flat, one turned over a little (as they bob and turn)
     for (const [k, tilt] of [[0, -0.5], [1, 0.6]] as const) {
       const o = k === 0 ? obj : obj.clone(true);

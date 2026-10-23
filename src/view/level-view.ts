@@ -9,11 +9,11 @@ import { Fx } from './fx';
 import { Strokes } from './strokes';
 import { Life, busy } from './life';
 import { GLASSY, TELL_COLOR, Threats } from './threats';
-import { BulletArt } from './bullets';
+import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Guards, Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { HOT_BOLTS, JUMP_JOLT, TORPEDO, WELD } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, JUMP_JOLT, TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
@@ -48,6 +48,8 @@ import { EDGES, type Edge } from '../game/parts';
 /** A tug's tow line: a rod of hard light, stretched from the tug to its strongbox. */
 const TOW = new THREE.CylinderGeometry(0.08, 0.08, 1, 5);
 const TOW_D = new THREE.Vector3();
+/** The disc a pickup's halo is drawn on. */
+const GLOW_DISC = new THREE.PlaneGeometry(1, 1);
 /** Hot crates (see Level.hotCrate). */
 const HOT_HEX = 0xff6a2a;
 /** The Weld (see hud.ts WELD): mending green. */
@@ -156,7 +158,7 @@ export class LevelView {
   private hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
   private ships: (ShipModel | null)[] = [];
   private enemies = new Map<number, EnemyView>();
-  private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null; beacon?: THREE.Group }>();
+  private pickups = new Map<object, { obj: THREE.Object3D; inst: Instance | null; beacon?: THREE.Group; glow?: THREE.Group; phase: number; spin: number }>();
   /** Geysers, rockfalls, lightning… as each planet has them. */
   private hazards: HazardView;
   private bullets = new BulletArt();
@@ -212,6 +214,9 @@ export class LevelView {
   /** Juice. */
   trauma = 0;
   flash = 0;
+  /** Scrap taken in a quick run (how many, and when the last one landed): each lands brighter. */
+  private scrapChain = 0;
+  private scrapChainT = -9;
   flashColor = new THREE.Color(1, 1, 1);
   hurt = 0;
   /** Strike lines, glints and slashes: the ink of a blow. */
@@ -1273,17 +1278,17 @@ export class LevelView {
         case 'hot': {
           const name = e.part ? itemName(e.part) : 'PART';
           if (e.state === 'appear') {
-            // the danger and the prize, both said up front
-            const tier = e.part ? tierOf(e.part) : 'epic';
-            this.pop('! VOLATILE !', e.x, e.z + 4, HOT_TEXT, true);
-            this.pop(`${tier.toUpperCase()} PART INSIDE`, e.x, e.z + 7, TIER_COLOR[tier]);
+            // no words: it lands with a hot flash and an alarm, and its look says the rest (the
+            // danger in its shudder and glow, the prize in its beacon's colour)
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 7, 0.4, true, HOT_HEX);
+            this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 16, HOT_HEX, 14, 0.35, 0.2);
             audio.play('risk_up', { pan: e.x / HALF_W, pitch: 0.8 });
             audio.play('alarm', { pan: e.x / HALF_W, vol: 0.4 });
           } else if (e.state === 'on') {
-            // taken: it's armed, and the rules are said once
+            // taken: it's armed, and only now is the rule said
             this.fx.ring(e.x, FLIGHT_Y, e.z, 6, 0.35, true, HOT_HEX);
             this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 18, HOT_HEX, 14, 0.4, 0.2);
-            this.pop('DON\'T GET HIT', e.x, e.z, '#ffd0a0', true);
+            this.warn(`HOLD ${HOT_CRACK[e.part ? tierOf(e.part) : 'epic']}S UNHIT`, e.x, e.z, '#ffd0a0');
             audio.play('risk_up', { pitch: 0.6 });
           } else if (e.state === 'bolt') {
             // a bolt gives: it shoots off the lid with a clank
@@ -1776,9 +1781,27 @@ export class LevelView {
   /** Scrap in: a flash and a ring where it was, the ship's tally up, and a mote for the HUD to fly to the tin. */
   private gotScrap(id: number, x: number, z: number, v: number) {
     const big = v > 1;
-    this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 12 : 6, 0xffe08a, big ? 12 : 9, 0.28, 0.24);
-    this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 4 : 2, 0xffffff, 14, 0.15, 0.2);
-    this.fx.ring(x, FLIGHT_Y, z, big ? 2.6 : 1.6, 0.2, true, 0xffe08a);
+    // a run of pieces taken close together builds: each one lands a little brighter
+    this.scrapChain = this.time - this.scrapChainT < 0.6 ? Math.min(this.scrapChain + 1, 12) : 0;
+    this.scrapChainT = this.time;
+    const ch = this.scrapChain / 12;
+    const p = this.lv.players[id];
+    const sx = p?.x ?? x;
+    const sz = p?.z ?? z;
+    // the piece's light streaks into the ship
+    for (let k = 0; k < 4; k++) {
+      const f = k / 4;
+      this.fx.add({ x: x + (sx - x) * f, y: FLIGHT_Y + 0.6, z: z + (sz - z) * f, vx: (sx - x) * 6, vz: (sz - z) * 6, size: 0.5 - f * 0.25, grow: 0.2, life: 0.1, color: this.c.setHex(0xffe2b0), carried: true, drag: 8 });
+    }
+    // and the ship drinks it in: a warm flash on the hull, swelling with the run, a tight ring
+    this.fx.add({ x: sx, y: FLIGHT_Y + 0.8, z: sz, size: (big ? 3.2 : 2.4) + ch * 2, grow: 0.4, life: 0.16, color: this.c.setHex(0xffd8a0), carried: true });
+    this.fx.add({ x: sx, y: FLIGHT_Y + 0.9, z: sz, size: (big ? 1.4 : 1) + ch, grow: 0.2, life: 0.08, color: this.c.setHex(0xffffff), carried: true });
+    this.fx.ring(sx, FLIGHT_Y, sz, (big ? 2.4 : 1.8) + ch * 1.5, 0.18, true, 0xffe8c0);
+    // sparkles fly off it: tiny, white, quick
+    this.fx.sparks(x, FLIGHT_Y + 0.6, z, big ? 8 : 5, 0xffffff, big ? 16 : 13, 0.16, 0.14);
+    this.fx.sparks(x, FLIGHT_Y + 0.6, z, big ? 6 : 3, 0xffe08a, 9, 0.26, 0.18);
+    // chips of what it was: blued steel, copper, old paint
+    for (const c of [0xcfdbe4, 0xe07a3e, 0xf2b81e]) this.fx.sparks(x, FLIGHT_Y + 0.5, z, big ? 2 : 1, c, 10, 0.3, 0.16);
     if (this.scrapGot.length < 80) this.scrapGot.push({ x, z, v, id });
     // (no running count over the ship: the motes flying to the tin are the count)
   }
@@ -3155,35 +3178,48 @@ export class LevelView {
         let inst: Instance | null = null;
         let obj: THREE.Object3D;
         if (k.kind === 'scrap') {
-          // a bent tin coin (a bundle of two for more), chalk-white and inked round like a foe, so
-          // it reads on any ground; no glow (what glows is fire)
-          inst = library.clone(k.value > 1 ? 'pickup_scrap_big' : 'pickup_scrap');
+          // salvage you can sell: a cog, a nut on its bolt or a painted offcut (a lashed bundle for
+          // more), inked round like a foe so it reads on any ground; small, lit softly from within
+          // and haloed in its own light, never the hard glow of fire
+          inst = k.value > 1 ? library.clone('pickup_scrap_big') : library.clone('pickup_scrap', Math.floor(Math.random() * 3));
           obj = new THREE.Group();
           obj.add(inst?.obj ?? part(GEO.oct, toon(0xece6d8), [0, 0, 0], 0.3));
         } else if (k.kind === 'part') {
           inst = library.clone('pickup_part');
           obj = inst?.obj ?? part(GEO.box, toon(0x5a8a6a, { glow: 0.3 }), [0, 0, 0], [1.1, 0.8, 0.8]);
         } else if (k.kind === 'hot') {
-          // a volatile strongbox: hazard orange, black bands, a warning light on top, and a chalk
-          // ring pulsing round it on the ground (white like everything you can take: red is fire)
+          // a volatile strongbox: hazard orange, black bands, a warning light on top; live, so it
+          // looks it (see below), and its tier shows only in its beacon's colour
           obj = new THREE.Group();
           obj.add(part(GEO.box, toon(HOT_HEX, { glow: 0.4 }), [0, 0, 0], [1.4, 1, 1]));
           obj.add(part(GEO.box, toon(0x1a1014), [0, 0, 0], [1.5, 0.2, 1.1]));
-          obj.add(part(GEO.oct, flat(0xfff4e0), [0, 0.8, 0], 0.38));
+          obj.add(part(GEO.oct, flat(0xfff4e0, { own: true }), [0, 0.8, 0], 0.38));
           obj.add(part(GEO.box, toon(0x1a1014), [-0.45, 0, 0], [0.18, 1.1, 1.1]), part(GEO.box, toon(0x1a1014), [0.45, 0, 0], [0.18, 1.1, 1.1]));
         } else if (k.kind === 'repair') {
-          // a riveted repair patch: chalk tin, a stitched cross (green is the bloom's)
+          // a riveted repair patch: mint tin, a chalk cross stitched on
           inst = library.clone('pickup_repair');
           obj = new THREE.Group();
           obj.add(inst?.obj ?? part(GEO.box, toon(0xece6d8), [0, 0, 0], [0.7, 0.1, 0.7]));
-          obj.scale.setScalar(2.2);
+          obj.scale.setScalar(1.25);
         } else {
           obj = part(new THREE.TorusGeometry(2.4, 0.22, 4, 18), toon(0xffd04a, { glow: 0.6 }), [0, 0, 0], 1);
         }
         if (k.kind === 'scrap' || k.kind === 'repair') outlined(obj);
         this.scene.add(obj);
-        v = { obj, inst, beacon: (k.kind === 'part' || k.kind === 'hot') && k.part ? this.beacon(tierOf(k.part)) : undefined };
+        v = { obj, inst, beacon: (k.kind === 'part' || k.kind === 'hot') && k.part ? this.beacon(tierOf(k.part)) : undefined, phase: Math.random(), spin: 0 };
         if (v.beacon) this.scene.add(v.beacon);
+        if (k.kind === 'hot') {
+          // it glows in its tier's colour, like any prize
+          const tier = k.part ? tierOf(k.part) : 'common';
+          v.glow = this.glow(tier === 'common' ? 0xffd8a0 : TIER_HEX[tier]);
+          this.scene.add(v.glow);
+        }
+        if (k.kind === 'scrap' || k.kind === 'repair') {
+          v.glow = this.glow(k.kind === 'repair' ? 0x8affc0 : 0xffc890);
+          this.scene.add(v.glow);
+          // it clatters out of the wreck with a few chips of its own
+          if (k.kind === 'scrap') this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 3, 0xcfdbe4, 7, 0.22, 0.16);
+        }
         this.pickups.set(k, v);
         if (k.part?.tier === 'legendary') audio.play('loot_epic', { pan: k.x / HALF_W, pitch: 0.8, vol: 0.6 });
       }
@@ -3199,23 +3235,56 @@ export class LevelView {
         // a coin or a patch turns over as it bobs, showing its thin edge now and then: it drifts,
         // it never streaks
         v.obj.rotation.set(-0.5 + 0.9 * Math.sin(this.time * 2.2 + k.x), this.time * 1.3 + k.z, 0);
+        const speed = Math.hypot(k.vx, k.vz);
         if (k.kind === 'scrap') {
           const big = k.value > 1;
           // it pops out of the wreck
           const f = Math.min(1, k.t / 0.22);
           const pop = f * (1 + 0.5 * Math.sin(f * Math.PI));
-          v.obj.scale.setScalar((big ? 2.3 : 2) * pop);
+          v.obj.scale.setScalar((big ? 1.5 : 1.25) * pop);
+        }
+        // caught by the magnet: it spins up and sheds bright chips on its way in
+        if (speed > 8) v.spin += dt * 14;
+        v.obj.rotation.y += v.spin;
+        if (speed > 8) {
+          if (Math.random() < 0.5) this.fx.add({ x: k.x, y: FLIGHT_Y + 0.5, z: k.z, size: 0.22, grow: 0.2, life: 0.18, color: this.c.setHex(k.kind === 'repair' ? 0x8affb0 : 0xffe8b0), carried: true });
+        }
+        if (v.glow) {
+          // its light: a soft halo breathing slowly round a bright core, and now and then a shimmer
+          // swells through it, the way something polished catches the light as it turns
+          v.glow.position.copy(v.obj.position);
+          const breath = 1 + 0.12 * Math.sin(this.time * 3 + v.phase * 6);
+          const g = (this.time * 0.7 + v.phase) % 1;
+          const shimmer = g < 0.16 ? Math.sin((g / 0.16) * Math.PI) : 0;
+          const caught = speed > 8 ? 1 : 0;
+          v.glow.scale.setScalar((k.kind === 'scrap' && k.value > 1 ? 2.7 : 2.2) * (breath + shimmer * 0.35) * Math.min(1, k.t / 0.22));
+          (v.glow.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>).material.opacity = Math.min(1, 0.85 * breath + caught * 0.15);
+          (v.glow.children[1] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>).material.opacity = Math.min(1, 0.35 + shimmer * 0.65 + caught * 0.4);
         }
       } else {
         v.obj.rotation.y += dt * 1.5;
-        // the strongbox's light blinks: it's live
+        // the strongbox is a prize first, glowing in its tier's colour; it's only a little live: its
+        // light blinks red, it crackles now and then, and every so often it gives a short rattle
         if (k.kind === 'hot') {
-          v.obj.children[2].visible = Math.floor(this.time * 5) % 2 === 0;
-          if (k.t % 0.7 < dt) this.fx.ring(k.x, FLIGHT_Y, k.z, 7, 0.5, false, 0xfff4e0);
+          const blink = Math.floor(this.time * 4) % 2 === 0;
+          const light = v.obj.children[2] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+          light.material.color.setHex(blink ? 0xff3a2a : 0xfff4e0);
+          if ((k.t + v.phase) % 1.4 < 0.18) {
+            v.obj.position.x += (Math.random() - 0.5) * 0.14;
+            v.obj.rotation.z = (Math.random() - 0.5) * 0.1;
+          } else v.obj.rotation.z = 0;
+          if (v.glow) {
+            const breath = 1 + 0.1 * Math.sin(this.time * 3 + v.phase * 6);
+            v.glow.position.copy(v.obj.position);
+            v.glow.scale.setScalar(7 * breath);
+            (v.glow.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>).material.opacity = 0.85 * breath;
+            (v.glow.children[1] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>).material.opacity = 0.4;
+          }
+          if (Math.random() < 0.08) this.fx.sparks(k.x, FLIGHT_Y + 1, k.z, 1, 0xffb040, 8, 0.16, 0.12);
         }
         if (k.kind === 'part' || k.kind === 'hot') {
           const tier = k.part ? tierOf(k.part) : 'common';
-          const col = k.kind === 'hot' && Math.random() < 0.5 ? HOT_HEX : tier === 'common' ? 0xfff4e0 : TIER_HEX[tier];
+          const col = tier === 'common' ? 0xfff4e0 : TIER_HEX[tier];
           v.obj.scale.setScalar((k.kind === 'hot' ? 2 : 1) * (1 + Math.sin(this.time * 6) * 0.08));
           if (Math.random() < (tier === 'legendary' ? 0.6 : tier === 'epic' ? 0.35 : 0.15)) this.fx.sparks(k.x, FLIGHT_Y + 0.5, k.z, 1, col, tier === 'legendary' ? 7 : 4, 0.4, 0.2);
           if (v.beacon) {
@@ -3234,9 +3303,23 @@ export class LevelView {
       if (!seen.has(k)) {
         this.scene.remove(v.obj);
         if (v.beacon) this.scene.remove(v.beacon);
+        if (v.glow) this.scene.remove(v.glow);
         v.inst?.dispose();
         this.pickups.delete(k);
       }
+  }
+
+  /** A pickup's light: a soft halo in its colour, and a small white-hot core inside it. */
+  private glow(col: number): THREE.Group {
+    const g = new THREE.Group();
+    for (const [c, size] of [[col, 1], [0xfff8ec, 0.45]] as const) {
+      const m = new THREE.Mesh(GLOW_DISC, new THREE.MeshBasicMaterial({ map: SOFT, color: c, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+      m.rotation.x = -Math.PI / 2;
+      m.scale.setScalar(size);
+      m.renderOrder = 4;
+      g.add(m);
+    }
+    return g;
   }
 
   /** A part crate's beacon in its tier's colour: a shaft of light, a ring at its foot, and for a legendary, rays. */

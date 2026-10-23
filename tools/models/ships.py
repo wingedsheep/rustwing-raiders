@@ -1944,59 +1944,97 @@ def pickup_part():
     m.build(root)
 
 
-# Pickups are chalk-white, matte and angular (docs/art-direction/pickups/sheet.png): nothing round
-# or glowing, so nothing you take looks like a bullet.
+# Pickups are salvage you can sell (docs/art-direction/pickups/README.md): bare blued steel with a
+# bright bevel, copper windings, chips of old hazard paint. Matte, angular and inked round, nothing round
+# but small and lit from within: their bright steel and copper glow, so they shine like loot.
 CHALK = "#ece6d8"
-CHALK_DIM = "#b8b0a0"
-TIN_RUST = "#a0562e"
+STEEL_B = "#8fabc4"           # blued steel, cool against warm grounds
+STEEL_HI = "#cfdbe4"          # its worn bevels
+COPPER = "#e07a3e"
+COPPER_LO = "#8a3e22"
+PAINT = "#f2b81e"             # old hazard paint (with black stripes: salvage, plain on any ground)
+MINT = "#6ad8a0"
+MINT_LO = "#2e8a62"
 HOLE = "#1a161c"
 
 
-def coin(m: Model, z: float, seed: int):
-    """A bent tin coin: a stamped disc of salvage, its outline dented, a punched hole, one edge
-    bent up, a patch of rust. About 0.6 across, lying flat at height z."""
-    n = 9
-    pts = []
-    for i in range(n):
-        a = TAU * i / n
-        r = 0.3 * (1 - 0.18 * ((i * 7 + seed * 3) % 4 == 0) - 0.06 * math.sin(a * 3 + seed))
-        pts.append((math.cos(a) * r, math.sin(a) * r))
-    m.slab(pts, z, z + 0.06, CHALK)
-    m.slab([(x * 0.96, y * 0.96) for x, y in pts], z - 0.02, z, CHALK_DIM)          # its underside rim
-    m.box((0.2, 0.2, 0.05), (0.27, -0.04, z + 0.07), CHALK, rot=(0, -0.55, 0.2))  # the bent edge
-    m.cyl(0.055, 0.03, (-0.12, 0.1, z + 0.06), HOLE, segs=6)                      # punched hole
-    m.box((0.12, 0.09, 0.012), (0.06, -0.15, z + 0.065), TIN_RUST, rot=(0, 0, 0.4))
+def cog(m: Model, z: float, r: float = 0.24, teeth: int = 8, turn: float = 0.0, cx: float = 0.0, cy: float = 0.0):
+    """A stripped cog: blued steel, its teeth worn bright, a copper bush, a dark axle hole."""
+    m.cyl(r, 0.08, (cx, cy, z), STEEL_B, segs=teeth, glow=True)
+    m.cyl(r * 0.78, 0.02, (cx, cy, z + 0.08), STEEL_HI, segs=teeth, glow=True)    # the worn face
+    for i in range(teeth):
+        a = TAU * i / teeth + turn
+        m.box((0.1, 0.11, 0.08), (cx + math.cos(a) * (r + 0.04), cy + math.sin(a) * (r + 0.04), z + 0.04),
+              STEEL_HI if i % 3 else STEEL_B, rot=(0, 0, a), glow=True)
+    m.cyl(r * 0.42, 0.04, (cx, cy, z + 0.08), COPPER, segs=6, glow=True)          # the bush
+    m.cyl(r * 0.2, 0.03, (cx, cy, z + 0.11), HOLE, segs=6)
+    m.box((0.06, r * 0.9, 0.02), (cx + r * 0.5, cy, z + 0.09), PAINT, rot=(0, 0, 0.6))  # a fleck of old paint
+
+
+def nut(m: Model, z: float = 0.0, cx: float = 0.0, cy: float = 0.0):
+    """A big hex nut, worn bright on its face, a dark threaded hole, a copper washer under it."""
+    m.cyl(0.28, 0.035, (cx, cy, z), COPPER, segs=10, glow=True)
+    m.cyl(0.25, 0.1, (cx, cy, z + 0.035), STEEL_B, segs=6, glow=True)
+    m.cyl(0.21, 0.02, (cx, cy, z + 0.135), STEEL_HI, segs=6, glow=True)           # the worn face
+    m.cyl(0.11, 0.03, (cx, cy, z + 0.135), HOLE, segs=8)                          # the hole
+    m.box((0.06, 0.12, 0.06), (cx + 0.23, cy, z + 0.08), PAINT)                   # paint caught on a flat
+
+
+def offcut(m: Model, z: float):
+    """A torn offcut of hull plate in old paint, a strip of bare steel along the tear, two
+    rivets, a coil of copper wire on it."""
+    pts = [(-0.3, -0.18), (0.12, -0.26), (0.3, -0.08), (0.24, 0.2), (-0.08, 0.26), (-0.28, 0.1)]
+    m.slab(pts, z, z + 0.05, PAINT)
+    m.slab([(x * 0.95, y * 0.95) for x, y in pts], z - 0.03, z, STEEL_B)
+    m.box((0.46, 0.06, 0.02), (0.05, -0.2, z + 0.05), STEEL_HI, rot=(0, 0, 0.2), glow=True)  # the tear
+    for k in (-1, 1):                                                             # its hazard stripes
+        m.box((0.08, 0.36, 0.012), (0.13 * k + 0.02, 0.04, z + 0.052), HOLE, rot=(0, 0, 0.7))
+    for x, y in ((-0.2, 0.0), (0.18, 0.12)):
+        m.cyl(0.04, 0.03, (x, y, z + 0.05), STEEL_HI, segs=6)
+    for k in range(4):                                                            # the coil
+        m.cyl(0.1, 0.022, (-0.02, 0.02, z + 0.05 + k * 0.028), COPPER if k % 2 else COPPER_LO, segs=8, glow=k % 2 == 1)
+    m.cyl(0.05, 0.03, (-0.02, 0.02, z + 0.16), HOLE, segs=6)
 
 
 def pickup_scrap():
-    root = group("pickup_scrap", kind="pickup_scrap")
-    m = Model("coin")
-    coin(m, 0.0, 1)
-    m.build(root)
+    """Three small pieces of salvage (variants): a cog, a nut on its bolt, an offcut with a coil."""
+    for v, make in enumerate((lambda m: cog(m, 0.0), lambda m: nut(m), lambda m: offcut(m, 0.0))):
+        root = group("pickup_scrap", kind="pickup_scrap", variant=v)
+        m = Model(f"scrap_{v}")
+        make(m)
+        m.build(root)
 
 
 def pickup_scrap_big():
-    """A bundle: two coins stacked and wired together."""
+    """A bundle: a cog and a nut lashed to an offcut with a band of copper wire."""
     root = group("pickup_scrap_big", kind="pickup_scrap_big")
     m = Model("bundle")
-    coin(m, 0.0, 2)
-    coin(m, 0.1, 4)
-    m.box((0.08, 0.66, 0.2), (0.02, 0, 0.08), HOLE)                               # the wire round them
-    m.box((0.1, 0.1, 0.06), (0.02, 0.0, 0.2), STEEL)                               # its twist
+    pts = [(-0.42, -0.22), (0.3, -0.3), (0.44, -0.02), (0.36, 0.26), (-0.18, 0.3), (-0.42, 0.08)]
+    m.slab(pts, 0.0, 0.05, PAINT)
+    m.slab([(x * 0.95, y * 0.95) for x, y in pts], -0.03, 0.0, STEEL_B)
+    m.box((0.6, 0.06, 0.02), (0.05, -0.24, 0.05), STEEL_HI, rot=(0, 0, 0.12), glow=True)   # the tear
+    for k in range(4):                                                            # hazard stripes
+        m.box((0.07, 0.4, 0.012), (-0.36 + k * 0.24, 0.0, 0.052), HOLE, rot=(0, 0, 0.7))
+    cog(m, 0.05, r=0.18, teeth=7, turn=0.3, cx=0.17)
+    nut(m, 0.05, cx=-0.2, cy=0.03)
+    m.box((0.05, 0.64, 0.24), (-0.03, 0.0, 0.1), COPPER_LO)                       # the band of wire
+    m.box((0.07, 0.07, 0.05), (-0.03, 0.0, 0.24), COPPER, glow=True)              # its twist
     m.build(root)
 
 
 def pickup_repair():
-    """A riveted repair patch: a square of chalk tin, a rivet at each corner, a stitched cross."""
+    """A riveted repair patch: a square of mint tin, a rivet at each corner, a chalk cross stitched on."""
     root = group("pickup_repair", kind="pickup_repair")
     m = Model("patch")
-    m.box((0.66, 0.66, 0.07), (0, 0, 0.035), CHALK)
-    m.box((0.62, 0.62, 0.03), (0, 0, -0.01), CHALK_DIM)
+    m.box((0.66, 0.66, 0.07), (0, 0, 0.035), MINT, glow=True)
+    m.box((0.62, 0.62, 0.03), (0, 0, -0.01), MINT_LO)
     for x, y in ((-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)):
         m.cyl(0.06, 0.06, (x, y, 0.08), STEEL, segs=6)
-    for k in range(-2, 3):                                                         # the stitches
-        for sx, sy in ((1, 1), (1, -1)):
-            m.box((0.1, 0.035, 0.02), (k * 0.085 * sx, k * 0.085 * sy, 0.075), HOLE, rot=(0, 0, math.atan2(sy, sx) + math.pi / 2))
+    m.box((0.4, 0.13, 0.02), (0, 0, 0.075), CHALK, glow=True)                     # the cross
+    m.box((0.13, 0.4, 0.02), (0, 0, 0.075), CHALK, glow=True)
+    for k in (-1, 1):                                                              # a stitch on each arm
+        m.box((0.025, 0.17, 0.012), (k * 0.14, 0, 0.087), HOLE)
+        m.box((0.17, 0.025, 0.012), (0, k * 0.14, 0.087), HOLE)
     m.build(root)
 
 

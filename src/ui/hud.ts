@@ -985,15 +985,7 @@ export class Hud {
     this.marks(ctx, lv, view);
     if (lv.convoy) this.convoy(ctx, lv, view);
     if (lv.heist) this.heist(ctx, lv, view);
-    // a volatile crate up for grabs: what it is, and what's in it, for as long as it's there
-    for (const k of lv.pickups) {
-      if (k.kind !== 'hot' || k.dead || !k.part) continue;
-      const s = this.toScreen(view, k.x, FLIGHT_Y, k.z);
-      const tier = tierOf(k.part);
-      drawText(ctx, 'VOLATILE', s.x, s.y - 34, Math.floor(this.time * 5) % 2 ? HOT : '#ffffff', { align: 'center' });
-      drawText(ctx, `${tier.toUpperCase()} PART`, s.x, s.y - 25, TIER_COLOR[tier], { align: 'center' });
-      drawText(ctx, `HOLD ${HOT_CRACK[tier]}S UNHIT`, s.x, s.y + 16, '#ffd0a0', { align: 'center' });
-    }
+    // (a volatile crate up for grabs says nothing: its look is the warning, its beacon the prize)
     // pops
     // the pops: big ones (a reaction's name) first, then the rest nudged down off them (numbers
     // may pile on numbers), and never up under the top bar

@@ -1308,7 +1308,13 @@ const SFX: Record<Sfx, SfxDef> = {
     tone(o, t, 'triangle', f, f, 0.12, 0.15, 0.002);
     tone(o, t, pulse12, f, f, 0.07, 0.045, 0.002);
     tone(o, t + 0.035, 'sine', f * 1.5, f * 1.5, 0.09, 0.055, 0.002);
-    return 0.14;
+    // the clink of salvage landing in the hold, on the same rising step
+    metal(o, t, f * 0.5, 0.05, 0.16);
+    // and a bright bell over it: something nice
+    tone(o, t + 0.02, 'sine', f * 2, f * 2, 0.22, 0.04, 0.002);
+    tone(o, t + 0.05, 'sine', f * 3, f * 3, 0.16, 0.018, 0.002);
+    noise(o, t, 0.025, 'highpass', 6000, 6000, 0.7, 0.05);
+    return 0.26;
   }, 0.035, 5, { low: true, tuned: true }),
 
   pickup_part: S((t, p, o) => {
