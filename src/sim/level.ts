@@ -2536,7 +2536,7 @@ export class Level {
     else if (a === 'flare') this.setAuxCd(p, CD_FLARE);
     else if (a === 'tether') {
       p.hook = 0;
-      this.setAuxCd(p, kill ? CD_PARRY : CD_TETHER);
+      this.setAuxCd(p, kill ? CD_TETHER_KILL : CD_TETHER);
     }
   }
 
@@ -3225,10 +3225,11 @@ const PERFECT_CHAIN = 3;
 /** Special charge for a parry, and for each bullet in it. */
 const PARRY_CHARGE = 0.08;
 const PARRY_CHARGE_EACH = 0.03;
-/** The wait after: a parry (or a tether kill), a block, a whiff. */
-const CD_PARRY = 0.2;
-const CD_BLOCK = 1;
-const CD_WHIFF = 1.5;
+/** The wait after: a parry, a block, a whiff (a good read comes back soonest; it can't be held up against everything), and a tether kill. */
+const CD_PARRY = 1.5;
+const CD_BLOCK = 2.5;
+const CD_WHIFF = 3;
+const CD_TETHER_KILL = 0.2;
 /** Grapple Tether: reach, reel speed, the hit on arrival, how long it can reel, the waits. */
 const TETHER_RANGE = 24;
 const REEL = 75;
