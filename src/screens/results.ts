@@ -16,6 +16,7 @@ import { LIVERY } from '../view/ship-model';
 import { backdrop, haulerIcon, heading, hints, shapeIcon, strongboxIcon, TIER_COLOR, TIER_DARK } from '../ui/widgets';
 import { HAULER, HEIST, RED } from '../ui/hud';
 import { cardBack, lootCard } from '../ui/loot-card';
+import { itemTag, recorder } from '../game/recorder';
 
 interface Pick {
   options: Item[];
@@ -168,6 +169,7 @@ export class Results implements Screen {
       if (m.up || m.down || m.left || m.right || m.prev || m.next) audio.play('ui_move');
       if (m.confirm) {
         p.took = p.at;
+        recorder.offer('results', i, p.options.map((it, k) => (p.lost[k] ? `lost:${itemTag(it)}` : itemTag(it))), p.at < 3 ? itemTag(p.options[p.at]) : 'scrap');
         if (p.at < 3) {
           const it = p.options[p.at];
           if (this.run.stow(i, it)) audio.play('pickup_part');

@@ -6,16 +6,10 @@ Done work is deleted from here; git and the design docs keep the record.
 
 ## Now
 
-### 1. The flight recorder
-This comes first, so the first playtest already gives data. See [the recorder](simple-run.md#you-play-i-tune-the-flight-recorder).
-- **A run log**: route, rewards offered and picked, and dealer buys.
-- **Stage logs**: the build at the start, time, hull lost by source, time to kill per enemy kind, damage per part and graft, verbs used.
-- **Warden logs**: time and hits per phase and per move.
-- **A fixed run**: `?run=<seed>` gives the same chart, stages, Warden and reward offers every time, so one build compares with the next.
-- **Inputs, frame by frame**, for replays. Check first that a replay of a recorded stage ends where the stage did.
-- **A one-tap rating** after each stage and Warden (fun / meh / unfair), skippable.
-- **Saving**: a Vite endpoint that writes to `playtests/` (gitignored), with a download button when there's no dev server.
-- **`just playtest-report`** sums up a session, and **`just replay <file> --stage n`** replays a stage or records it to video.
+### 1. The flight recorder: the first run by hand
+The recorder is in ([how to use it](simple-run.md#how-it-gets-to-me)). What's left:
+- **Fly one run by hand** on the dev server, and read its report together.
+- **Part drops in flight** still roll from the stage's own dice, so they change with how you fly. The site rewards of the first slice (2) are rolled from the site's seed, so the same run offers the same rewards.
 
 **Done when** one run, played by hand, gives a report that answers: where did I die, what hurt me, what did I pick, and which buttons did I never press?
 

@@ -244,9 +244,10 @@ Every run writes one file:
 - **A one-tap rating** at the end of a stage or Warden (fun / meh / unfair), and an optional line at the end of the run. Skippable.
 
 ### How it gets to me
-- **The dev server saves each run** to `playtests/` (a small Vite endpoint, like the relay). Raw files stay out of git.
-- **`just playtest-report`** sums up a session: deaths and where, hull lost by source, times to kill against the targets, Warden phase times, which rewards get picked and which never do, and which buttons nobody presses.
-- **`just replay <file> --stage 3`** replays a stage in the browser, or records it to video.
+- **Play on the dev server** (`just serve`, then `?run=<seed>` for the fixed run). Every run is recorded there, and with `?rec` anywhere else; `?norec` turns it off.
+- **The dev server saves each run** to `playtests/` after every stage, stamped with the commit it was flown on (`server/playtests.ts`). Raw files stay out of git. Without a dev server, the file downloads at the run's end.
+- **`just playtest-report`** sums up the latest day's runs (`--all`, or name the files): the route, each stage's hull and rating, deaths and what did it, hull lost by source, times to kill against the targets, Warden phase times and hits by move, damage by part, the picks, and which buttons nobody pressed.
+- **`just replay <file> --stage 3`** flies a stage again headless, checks it ends where it did, and prints its timeline: every hit, by whom, and where. `--browser` shows it in the game, and `--video` records it (`tools/record.ts`).
 - **The autopilot is checked against you.** Where its hull loss differs from yours, its bench verdict bands get recalibrated, so the bench predicts human play between playtests.
 
 ## What we keep from the cut

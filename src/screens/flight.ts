@@ -2,7 +2,9 @@ import type { Game, Screen } from '../game/game';
 import type { Role } from '../sim/convoy';
 import { Level, type LevelSpec } from '../sim/level';
 import { parseWaves } from '../sim/director';
-import { DT, type Intent } from '../sim/types';
+import { DT, NEUTRAL, type Intent } from '../sim/types';
+import { charge, endOf, rounded, StageRecorder, type StageSetup } from '../sim/recording';
+import { recorder } from '../game/recorder';
 import { LevelView } from '../view/level-view';
 import { Hud } from '../ui/hud';
 import { Quit } from '../ui/accord';
@@ -61,6 +63,14 @@ export class Flight implements Screen {
   private done = false;
   /** How fast the sim runs against the clock (the wave lab's speed control; 0 holds it still). */
   rate = 1;
+  /** What the level was made from, and (in a recorded run) its log as it's flown. */
+  readonly setup: StageSetup;
+  private rec: StageRecorder | null = null;
+  /** A replay (?replay): each player's recorded inputs, flown in place of anyone's, and how far in it is. */
+  tape: Intent[][] | null = null;
+  private ticks = 0;
+  /** The recorded end of the stage on the tape, checked against when it runs out. */
+  tapeEnd: ReturnType<typeof endOf> | null = null;
 
   constructor(
     private game: Game,
@@ -91,12 +101,19 @@ export class Flight implements Screen {
       });
     }
     if (game.params.has('call')) call = Number(game.params.get('call'));
+    this.setup = structuredClone({
+      planet: spec.planet.id, biomes: spec.biomes.map((b) => b.id), mode: spec.mode, seed: spec.seed, difficulty: spec.difficulty, length: spec.length,
+      builds, hull, grafts, kits, call,
+      // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
+      tough: Number(game.params.get('tough') ?? 1) || 1,
+      // &combos: blows cash in setups (see sim/arsenal.ts)
+      combos: game.params.has('combos'),
+      charged: game.params.has('charged'),
+    });
     this.lv = new Level(spec, builds, hull, grafts, kits, call);
-    // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
-    this.lv.tough = Number(game.params.get('tough') ?? 1) || 1;
-    // &combos: blows cash in setups (see sim/arsenal.ts)
-    if (game.params.has('combos')) this.lv.combos = true;
-    this.charged = game.params.has('charged');
+    this.lv.tough = this.setup.tough;
+    this.lv.combos = this.setup.combos;
+    this.charged = this.setup.charged;
     // &runner=0.1: a heist's runner that much as tough (to see it go down)
     const rk = Number(game.params.get('runner'));
     if (rk > 0 && this.lv.heist) for (const e of this.lv.enemies) if (e.d.qp) e.hp = e.max = e.max * rk;
@@ -131,6 +148,10 @@ export class Flight implements Screen {
     this.pilots = look || game.params.has('autopilot') || game.params.has('autorun') || game.params.has('tour') ? this.lv.players.map(() => newPilot()) : null;
     if (auto === '2') this.only = 1;
     audio.music(spec.planet.id as Track);
+    if (recorder.active && game.run) {
+      this.rec = new StageRecorder(this.lv, this.setup);
+      recorder.takeoff();
+    }
     Object.assign(window, { level: this.lv, view: this.view, flight: this, audio });
   }
 
@@ -150,7 +171,7 @@ export class Flight implements Screen {
       if (this.hud.quit.update(ms, dt)) {
         this.paused = false;
         audio.muffle(false);
-        this.finish(false);
+        this.finish(false, true);
       } else {
         this.hud.sound.update(m);
         this.game.takeOver();
@@ -163,16 +184,29 @@ export class Flight implements Screen {
     while (this.acc >= DT && steps < 4 * Math.max(1, Math.ceil(this.rate))) {
       this.acc -= DT;
       steps++;
-      const intents: Intent[] = this.lv.players.map((p, i) => (this.pilots && (this.only < 0 || this.only === i) ? pilot(this.lv, p, this.pilots[i]) : input.intent(this.game.devices[i] ?? 'keys')));
+      if (this.tape && this.ticks >= this.tape[0].length) {
+        this.replayed();
+        break;
+      }
+      let intents: Intent[] = this.tape
+        ? this.lv.players.map((_, i) => this.tape![i]?.[this.ticks] ?? NEUTRAL)
+        : this.lv.players.map((p, i) => (this.pilots && (this.only < 0 || this.only === i) ? pilot(this.lv, p, this.pilots[i]) : input.intent(this.game.devices[i] ?? 'keys')));
+      this.ticks++;
+      // (recorded: rounded as the tape keeps them, so a replay flies exactly this)
+      if (this.rec) {
+        intents = intents.map(rounded);
+        this.rec.input(intents);
+      }
       // &charged (the forge): the special fills back up in 3 s, to try a bomb again and again
-      if (this.charged) for (const p of this.lv.players) p.charge = Math.min(1, p.charge + 1 / 180);
+      if (this.charged) charge(this.lv);
       this.lv.step(intents);
+      this.rec?.events(this.lv.events);
       v.handle(this.lv.events);
       this.lv.events.length = 0;
     }
     v.update(dt * Math.min(this.rate, 1));
     const lv = this.lv;
-    if (!this.done && ((lv.state === 'clear' && lv.ending > 4) || (lv.state === 'failed' && lv.ending > 3.5))) this.finish(lv.state === 'clear');
+    if (!this.done && !this.tape && ((lv.state === 'clear' && lv.ending > 4) || (lv.state === 'failed' && lv.ending > 3.5))) this.finish(lv.state === 'clear');
   }
 
   /** ?look: the autopilot flies up to the moment in fixed steps, the view stepped with each, then it all holds. */
@@ -190,10 +224,31 @@ export class Flight implements Screen {
     }
   }
 
-  private finish(cleared: boolean) {
+  /** Fly a recorded stage again (?replay): its inputs in place of anyone's, its switches, and where it ended to check against. */
+  play(tape: Intent[][], setup: StageSetup, end: ReturnType<typeof endOf> | null) {
+    this.tape = tape;
+    this.tapeEnd = end;
+    this.pilots = null;
+    this.lv.tough = setup.tough;
+    this.lv.combos = setup.combos;
+    this.charged = setup.charged;
+  }
+
+  /** A replay's tape has run out: did it end where the stage did? */
+  private replayed() {
+    if (this.done) return;
+    this.done = true;
+    const got = endOf(this.lv, this.tapeEnd?.state ?? 'quit');
+    const want = this.tapeEnd;
+    const same = want && JSON.stringify({ ...got, state: 0 }) === JSON.stringify({ ...want, state: 0 });
+    console.log(same ? '[replay] ends where the stage did' : `[replay] DIFFERS: got ${JSON.stringify(got)} want ${JSON.stringify(want)}`);
+  }
+
+  private finish(cleared: boolean, quit = false) {
     if (this.done) return;
     this.done = true;
     const lv = this.lv;
+    if (this.rec) recorder.landedStage(this.rec.finish(cleared ? 'clear' : quit ? 'quit' : 'failed'));
     this.onDone({
       cleared,
       scrap: lv.scrap,

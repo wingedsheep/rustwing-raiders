@@ -34,7 +34,11 @@ async function boot() {
   const q = game.params;
   // &forge=<JSON PartDef[]>: the forge's bench parts, and the ones made there (see game/lab-parts.ts)
   if (q.has('forge')) registerLabParts(JSON.parse(q.get('forge') || '[]'));
-  if (q.has('planet') || q.has('mode') || q.has('tour')) {
+  if (q.has('replay')) {
+    // a recorded stage flown again (see tools/playtest.ts): ?replay=<file in playtests/>&stage=3
+    const { replay } = await import('./game/replay');
+    await replay(game, q.get('replay')!, Number(q.get('stage') ?? 1));
+  } else if (q.has('planet') || q.has('mode') || q.has('tour')) {
     // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule&biomes=prism,jade
     // ?tour: the autopilot flies level after level, every planet × mode and then the next seed (narrowed by &planet= and &mode=)
     const tour = q.has('tour');

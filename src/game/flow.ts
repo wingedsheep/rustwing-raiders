@@ -30,9 +30,12 @@ import type { ChartNode } from '../sim/chart';
 import { HULL_STEP, type Mode } from '../sim/level';
 import type { Planet } from '../world/planets';
 import { hashStr, pick, rng } from '../util';
+import { recorder } from './recorder';
+import { Rate } from '../screens/rate';
 
 export function newRun(game: Game, frames: string[], seed: number) {
   game.run = new Run(frames, seed);
+  recorder.begin(game.run, !!game.net);
   const p = game.params;
   // for testing: ?debt=N, ?bounty=N, ?fuel=N to start with; ?gate straight to the Warden's gate
   if (p.has('debt')) game.run.debt = Number(p.get('debt'));
@@ -66,6 +69,7 @@ export function land(game: Game, node: ChartNode) {
   const run = game.run!;
   run.stops++;
   run.landing = node;
+  recorder.landed(run, node);
   run.deliver(node);
   // whoever owes you a visit (someone you crossed sent them)
   const due = node.kind !== 'gate' ? run.due.shift() : undefined;
@@ -209,7 +213,7 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
   const hull = run.crew.map((c) => c.hull);
   if (!node) run.landing = null;
   game.go(
-    new Flight(game, spec, builds, hull, (res: FlightResult) => {
+    new Flight(game, spec, builds, hull, (res: FlightResult) => rated(game, `${planet.name.toUpperCase()}  ${mode === 'boss' ? 'THE WARDEN' : mode.toUpperCase()}`, !res.cleared || (mode === 'boss' && run.sector + 1 >= SECTORS), (line) => {
       run.levels++;
       run.score += res.score;
       // what each core took in (a policy paid out is gone, cleared or not)
@@ -220,6 +224,7 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         run.stats.hits += s.hits;
       }
       if (!res.cleared) {
+        recorder.end(run, false, line);
         game.go(new Ending(game, run, false, `Shot down over ${planet.name}.`));
         return;
       }
@@ -267,7 +272,10 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       if (boss) run.stats.bosses++;
       const next = () => {
         if (boss) {
-          if (run.sector + 1 >= SECTORS) game.go(new Ending(game, run, true, 'The last Warden falls. The way out is open.'));
+          if (run.sector + 1 >= SECTORS) {
+            recorder.end(run, true, line);
+            game.go(new Ending(game, run, true, 'The last Warden falls. The way out is open.'));
+          }
           else {
             run.nextSector();
             toChart(game);
@@ -281,7 +289,21 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
       const core = () => (grows.some((n) => n > 0) || run.crew.some((c) => c.core.growths > 0) ? game.go(new CoreScreen(game, run, res.fed, was, next)) : next());
       // then the wrecks taken down, if any, to strip
       game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, core)) : core())));
-    }, run.crew.map((c) => c.grafts), run.crew.map((c) => kitOf(c.core)), mode === 'boss' ? Math.min(2, run.sector) : 0),
+    }), run.crew.map((c) => c.grafts), run.crew.map((c) => kitOf(c.core)), mode === 'boss' ? Math.min(2, run.sector) : 0),
+  );
+}
+
+/**
+ * In a recorded run, the pilot's verdict on the stage just flown before going on (and, if the run
+ * ends here, a line about it). Not online: both browsers must stay on the same screens.
+ */
+function rated(game: Game, what: string, last: boolean, then: (line?: string) => void) {
+  if (!recorder.active || game.net) return then();
+  game.go(
+    new Rate(game, what, last, (r, line) => {
+      recorder.rate(r);
+      then(line);
+    }),
   );
 }
 

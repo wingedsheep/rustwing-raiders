@@ -348,6 +348,8 @@ export interface Bullet {
   /** Been out in the open air: from then on the land stops it (a gun dug into a cliff still gets its shots out). */
   open: boolean;
   dead: boolean;
+  /** Who fired it (a foe's kind, a boss's move), for the flight recorder. */
+  from?: string;
 }
 
 /** Torpedoes: drift out for `launch` seconds, then light and chase (turning at `turn` rad/s, up to `speed`) until `fuel` runs out. */
@@ -486,7 +488,8 @@ export type LevelEvent =
   /** A seeker stops to turn (`n` turns made so far), goes off down its new leg, is shot down, or breaks on a hull. */
   | { type: 'seeker'; x: number; z: number; color: number; how: 'halt' | 'go' | 'shot' | 'hit'; n: number }
   /** `shield`: the shield took all of it; `dmg` and `tier`: what got through to the hull; `soak`: what the shield took. */
-  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier; soak?: number }
+  /** `cause`: what kind of thing hit (bullet, laser, land, ram:<kind>); `by`: who fired it, where known (a foe's kind, a boss's move). */
+  | { type: 'playerHit'; id: number; shield: boolean; x: number; z: number; dmg?: number; tier?: HitTier; soak?: number; cause: string; by?: string }
   /** A ship into the land or an obstacle: (x, z) where it struck, (nx, nz) the way it was thrown off. */
   | { type: 'crash'; id: number; x: number; z: number; nx: number; nz: number }
   /** A player's shot meeting the land: stopped there, or (`bounce`) glancing off it. */
@@ -624,6 +627,17 @@ export type LevelEvent =
 
 export type Rank = 'S' | 'A' | 'B' | 'C';
 
+/** Who an enemy's fire is put down to: its kind (an elite's own), or a boss's move. */
+function firer(e: Enemy | undefined): string | undefined {
+  if (!e) return undefined;
+  const b = e.boss;
+  if (b) {
+    const list = b.patterns[b.phase] ?? [];
+    return `boss:${b.move ?? (list.length ? list[b.current % list.length] : 'boss')}`;
+  }
+  return e.elite ? `elite:${e.arch}` : e.arch;
+}
+
 export class Level {
   readonly terrain: Terrain;
   readonly players: Player[] = [];
@@ -710,6 +724,8 @@ export class Level {
   cashed: Record<string, number> = {};
   /** Who the damage being dealt now is put down to, when it isn't a shot's. */
   credit: string | null = null;
+  /** Who's firing now (the foe being updated), so its bullets carry it (see Bullet.from). */
+  firing: string | undefined;
   private nextId = 1;
   private biomeShown = -1;
 
@@ -918,7 +934,9 @@ export class Level {
       e.flash = Math.max(0, e.flash - DT);
       e.stun = Math.max(0, e.stun - DT);
       preMove(e, dz);
+      this.firing = firer(e);
       updateEnemy(this, e);
+      this.firing = undefined;
       if (e.kx || e.kz) {
         e.x += e.kx! * DT;
         e.z += e.kz! * DT;
@@ -1574,7 +1592,7 @@ export class Level {
    * A hit on a player: it's worth what its tier is (see HIT_DMG, less the armour); the shield
    * soaks what it can of that, and the hull takes the rest. Returns false if it didn't land.
    */
-  hurt(p: Player, x: number, z: number, cause = 'bullet', tier: HitTier = tierOf(cause)) {
+  hurt(p: Player, x: number, z: number, cause = 'bullet', tier: HitTier = tierOf(cause), by?: string) {
     if (p.down || p.inv > 0 || p.phase > 0 || this.state === 'clear') return false;
     // an Ablative layer takes it instead (and a Static Skin lets go at whatever hit it)
     if (kitSoak(this, p, x, z)) return true;
@@ -1603,11 +1621,11 @@ export class Level {
     const dmg = worth - soak;
     if (dmg <= 0) {
       p.inv = 0.8;
-      this.emit({ type: 'playerHit', id: p.id, shield: true, x, z, soak });
+      this.emit({ type: 'playerHit', id: p.id, shield: true, x, z, soak, cause, by });
     } else {
       p.hp -= dmg;
       p.inv = 1.4;
-      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z, dmg, tier, soak });
+      this.emit({ type: 'playerHit', id: p.id, shield: false, x, z, dmg, tier, soak, cause, by });
       // PIP'S POLICY pays out on the blow that would down you
       if (p.hp <= 0) this.mind.saved(p);
       // SECOND WIND: once a level, the blow that would down you doesn't
@@ -2021,6 +2039,7 @@ export class Level {
       split: 0,
       splitA: 0,
       look: factionOf(this.spec.planet),
+      from: this.firing,
       seek: -1,
       hp: 0,
       seed: (((this.time * 13.7 + x * 0.31 + z * 0.17 + angle * 0.53) % 1) + 1) % 1,
@@ -2290,7 +2309,7 @@ export class Level {
       for (const p of this.players) {
         if (p.slip > 0 && !p.down && inBeam(p.slipX, this.scroll + p.slipZ, p.stats.core)) this.perfectDash(p);
         if (inBeam(p.x, p.z, p.stats.core) && !kitWalls(p, l.z)) {
-          this.hurt(p, p.x, p.z, 'laser');
+          this.hurt(p, p.x, p.z, 'laser', undefined, firer(this.enemies.find((e) => e.id === l.owner)));
         }
       }
       this.convoy?.laser(inBeam);
@@ -2367,7 +2386,7 @@ export class Level {
         if (p.slip > 0 && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
         if (b.dead) continue;
         if (d2 < hitR * hitR) {
-          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind])) {
+          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind], b.from)) {
             b.dead = true;
             if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
             if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });

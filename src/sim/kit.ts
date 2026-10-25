@@ -173,7 +173,7 @@ export function kitShip(lv: Level, p: Player, i: Intent, dz: number) {
     if (k.drop <= 0) {
       k.drop = CARPET.every;
       const w = worldKit(lv);
-      const x = p.x + (Math.random() - 0.5) * 1.6;
+      const x = p.x + (lv.rand() - 0.5) * 1.6;
       const z = p.z + 1.2;
       w.bomblets.push({ x, z, t: 0, owner: p.id, dmg: CARPET.dmg });
       lv.emit({ type: 'kit', id: p.id, what: 'drop', x, z });
@@ -242,7 +242,7 @@ export function kitSoak(lv: Level, p: Player, x: number, z: number): boolean {
   p.inv = Math.max(p.inv, 0.8);
   p.shieldWait = 0;
   // the layer goes in a spray of shrapnel, all ways
-  const a0 = Math.random() * Math.PI * 2;
+  const a0 = lv.rand() * Math.PI * 2;
   for (let j = 0; j < ABLATIVE.shards; j++) {
     const s = lv.addShot(p.id, 'pellet', p.x, p.z, a0 + (j / ABLATIVE.shards) * Math.PI * 2, 42, ABLATIVE.dmg, 0.35, 0, 0);
     s.src = 'ablative';
@@ -297,7 +297,7 @@ export function kitSpecial(lv: Level, p: Player, kind: string, k: number) {
     p.inv = Math.max(p.inv, 0.5);
   } else if (kind === 'drones') {
     s.droneT = DRONES.time * k;
-    s.drones = DRONES.at.map(([x, z]) => ({ x: p.x + x * 0.3, z: p.z + z * 0.3, cd: Math.random() * 0.1, fired: -1 }));
+    s.drones = DRONES.at.map(([x, z]) => ({ x: p.x + x * 0.3, z: p.z + z * 0.3, cd: lv.rand() * 0.1, fired: -1 }));
   }
 }
 
@@ -412,7 +412,7 @@ export function kitWorld(lv: Level, dz: number) {
             if (d > WELL.r * 0.6 + e.r) continue;
             lv.damage(e, WELL.dmg * g.k, g.owner, false);
             // flung apart, into each other (a random way out of the dead middle)
-            const a = d > 0.3 ? Math.atan2(dzw, dx) : Math.random() * Math.PI * 2;
+            const a = d > 0.3 ? Math.atan2(dzw, dx) : lv.rand() * Math.PI * 2;
             if (!e.dead) shove(lv, e, Math.cos(a), Math.sin(a), WELL.fling, g.owner);
           }
         }),
@@ -437,7 +437,7 @@ export function kitWorld(lv: Level, dz: number) {
     const near = lv.enemies.filter((e) => !e.dead && e.t >= 0 && lv.seen(e)).sort((a, b) => (a.x - h.x) ** 2 + (a.z - h.z) ** 2 - ((b.x - h.x) ** 2 + (b.z - h.z) ** 2));
     for (let m = 0; m < Math.min(h.n, BEACON.back) && near.length; m++) {
       const e = near[m % Math.min(3, near.length)];
-      const s = lv.addShot(h.owner, 'slug', h.x, h.z, Math.atan2(e.x - h.x, -(e.z - h.z)) + (Math.random() - 0.5) * 0.15, 55, BEACON.each, 1, 0, 1);
+      const s = lv.addShot(h.owner, 'slug', h.x, h.z, Math.atan2(e.x - h.x, -(e.z - h.z)) + (lv.rand() - 0.5) * 0.15, 55, BEACON.each, 1, 0, 1);
       s.src = 'BEACON';
       s.tag = 'mirror';
     }

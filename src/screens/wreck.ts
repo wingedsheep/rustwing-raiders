@@ -3,6 +3,7 @@ import type { Run } from '../sim/run';
 import type { Planet } from '../world/planets';
 import type { Faction } from '../sim/factions';
 import { stats, type Stats } from '../sim/build';
+import { recorder } from '../game/recorder';
 import { BONDS, BOND_AT, FACTION_NAME, GRAFTS, VERBS, VERB_COLOR, VERB_NAME, boltOn, factionCount, hasVerb, salvageOffer, type GraftId, type GraftVerb, type Wreck } from '../game/grafts';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -202,6 +203,7 @@ export class WreckScreen implements Screen {
   }
 
   private take(p: Pick, i: number) {
+    recorder.offer('wreck', i, p.cards.map((c) => c.id), p.at < p.cards.length ? p.cards[p.at].id : 'scrap');
     p.took = p.at;
     p.done = true;
     p.doneT = 0;

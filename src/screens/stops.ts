@@ -12,6 +12,7 @@ import type { MenuInput } from '../input';
 import { itemName, tierOf, type Item } from '../game/loot';
 import { bestFit, type Fit } from '../sim/fit';
 import { lootCard, TIER_WORD } from '../ui/loot-card';
+import { itemTag, recorder } from '../game/recorder';
 import { drawArt } from './art';
 import { Accord } from '../ui/accord';
 import { rng } from '../util';
@@ -156,6 +157,7 @@ export class Shop implements Screen {
         if (crew.scrap < row.item.price) return say(run.scrap >= row.item.price ? 'NOT ENOUGH OF YOUR OWN SCRAP' : 'NOT ENOUGH SCRAP');
         if (crew.cargo.length >= CARGO) return say('THE HOLD IS FULL');
         crew.scrap -= row.item.price;
+        recorder.buy(who, itemTag(row.item.part), row.item.price);
         crew.cargo.push(row.item.part);
         row.item.sold = true;
         audio.play('ui_buy');
@@ -164,6 +166,7 @@ export class Shop implements Screen {
         if (crew.hull >= crewHull(crew)) return say('HULL IS SOUND');
         if (crew.scrap < REPAIR) return say('NOT ENOUGH SCRAP');
         crew.scrap -= REPAIR;
+        recorder.buy(who, 'repair', REPAIR);
         crew.hull = Math.min(crewHull(crew), crew.hull + HULL_STEP);
         audio.play('heal');
         break;
@@ -194,6 +197,7 @@ export class Shop implements Screen {
       case 'sell': {
         const it = crew.cargo.splice(row.index, 1)[0];
         crew.scrap += run.sellPrice(it, this.node);
+        recorder.buy(who, `sell:${itemTag(it)}`, -run.sellPrice(it, this.node));
         audio.play('pickup_scrap');
         break;
       }

@@ -73,3 +73,13 @@ forge *args:
 event-audit event="":
     @npx esbuild tools/event-audit.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-event-audit.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-event-audit.mjs" {{event}}
+
+# the flight recorder's runs (playtests/, saved by the dev server): what they say (e.g. just playtest-report, just playtest-report --all)
+playtest-report *args:
+    @npx esbuild tools/playtest.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-playtest.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-playtest.mjs" report {{args}}
+
+# fly a recorded stage again: headless with its timeline, in the browser, or to video (e.g. just replay <file> --stage 3 --video)
+replay file *args:
+    @npx esbuild tools/playtest.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-playtest.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-playtest.mjs" replay {{file}} {{args}}

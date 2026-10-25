@@ -15,3 +15,6 @@ config.yaml
 
 # voice previews (generated, large)
 tools/voices/previews/
+
+# flight recorder logs (see docs/simple-run.md)
+playtests/
