@@ -214,6 +214,75 @@ function crashes(lv: Level, e: Enemy) {
   return false;
 }
 
+/**
+ * The scraplings' formations: classic popcorn paths, each a string of them on one path (or a V, or
+ * a column that peels apart), in shapes you can sweep.
+ *  - snake:   down the screen in an S
+ *  - sweep:   in from a side, across in a shallow bow, out the other side
+ *  - hook:    down a side lane, a U-turn across towards you, and back up and away
+ *  - loop:    down, one full loop, and on down off the bottom
+ *  - vee:     a V straight down, its wings splitting off to the sides
+ *  - peel:    a column down the middle, each one peeling off left or right in turn
+ *  - retreat: down to near your row, then back up and away the way it came
+ */
+export type Form = 'snake' | 'sweep' | 'hook' | 'loop' | 'vee' | 'peel' | 'retreat';
+
+/** Where a scrapling of its formation is, `t` seconds along its path (screen x, s). */
+function formation(d: Enemy['d'], t: number): [number, number] {
+  const x0 = d.x0 ?? 0;
+  const dir = d.dir ?? 1;
+  const slot = d.slot ?? 0;
+  const top = -HALF_H - 3;
+  switch (d.form) {
+    case 'sweep': {
+      const span = 2 * (HALF_W + 4);
+      const u = clamp((t * 22) / span, 0, 1.4);
+      return [-dir * (HALF_W + 4) + dir * u * span, (d.sz0 ?? -16) + Math.sin(Math.min(u, 1) * Math.PI) * 7];
+    }
+    case 'hook':
+    case 'loop': {
+      const v = 18;
+      const R = d.form === 'hook' ? 9 : 7;
+      const s0 = d.sz0 ?? -8;
+      const t1 = (s0 - top) / v;
+      if (t < t1) return [x0, top + t * v];
+      const a = ((t - t1) * v) / R;
+      const turn = d.form === 'hook' ? Math.PI : 2 * Math.PI;
+      if (a < turn) return [x0 + dir * R * (1 - Math.cos(a)), s0 + R * Math.sin(a)];
+      const after = t - t1 - (turn * R) / v;
+      // the hook climbs away on the far side; the loop carries on down
+      return d.form === 'hook' ? [x0 + dir * 2 * R, s0 - after * v * 1.2] : [x0, s0 + after * v];
+    }
+    case 'vee': {
+      const s = top + t * 13;
+      const u = Math.max(0, s + 8);
+      return [x0 + slot * 3.2 + Math.sign(slot) * u * u * 0.05, s];
+    }
+    case 'peel': {
+      const v = 14;
+      const s1 = -10;
+      const t1 = (s1 - top) / v;
+      if (t < t1) return [x0, top + t * v];
+      const side = slot % 2 ? 1 : -1;
+      const R = 10;
+      const a = Math.min(((t - t1) * v) / R, Math.PI / 2);
+      const on = Math.max(0, t - t1 - (Math.PI / 2) * (R / v));
+      return [x0 + side * (R * (1 - Math.cos(a)) + on * v * 1.3), s1 + R * Math.sin(a)];
+    }
+    case 'retreat': {
+      const v = 18;
+      const s0 = d.sz0 ?? 0;
+      const t1 = (s0 - top) / v;
+      if (t < t1) return [x0, top + t * v];
+      const b = t - t1;
+      // a short rounded turn at the bottom, then up and away on a slant
+      return [x0 + dir * b * 9, s0 + 3 * Math.sin(Math.min(b * 3, Math.PI)) - Math.max(0, b - 0.35) * 17];
+    }
+    default:
+      return [x0 + dir * 11 * Math.sin(t * 1.5), top + t * 15];
+  }
+}
+
 export function updateFoe(lv: Level, e: Enemy): void {
   const d = e.d;
   // an elite doesn't tire and leave: it stays till it's beaten (or a long while)
@@ -222,7 +291,107 @@ export function updateFoe(lv: Level, e: Enemy): void {
   const ok = live(lv, e);
   const s = sz(lv, e);
   const slow = e.stun > 0 ? 0.3 : 1;
+  // a path's own clock, slowed by a stun where it is (see enemies.ts)
+  if (e.stun > 0 && e.t > 0) d.lag = (d.lag ?? 0) + DT * (1 - slow);
+  const pt = e.t - (d.lag ?? 0);
   switch (e.arch) {
+    // --- the scrap popcorn ----------------------------------------------------------------------
+    case 'scrapling': {
+      // a string of them on one of the formations; only a leader shoots, and only later on: once,
+      // a short flare and one slug
+      const [x, fs] = formation(d, pt);
+      moveTo(lv, e, x, fs);
+      if (e.state === 'idle') {
+        if (d.shots === 1 && ok && p && s > -16 && s < -2 && ps(lv, p) - s > 10) {
+          d.shots = 2;
+          e.aim = lv.aim(e.x, e.z);
+          go(lv, e, 'windup', 0.5 * quick(lv), 'burst', line(e, 24, 0.4, 0.3 * quick(lv)));
+        }
+      } else if (e.state === 'windup') {
+        track(lv, e, 0.2);
+        if (over(e)) {
+          lv.bullet(e.x, e.z, e.aim, 12, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          go(lv, e, 'recover', 0.4);
+        }
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'potshot': {
+      // drops in to a spot, stops, flares and takes its shot (two, later on), sits a moment
+      // exposed, then runs off up the side it's on
+      const hx = d.hx ?? 0;
+      const hz = d.hz ?? -12;
+      if ((d.n ?? 0) >= 1 && e.state === 'idle') {
+        leave(lv, e, Math.sign(e.x || 1) * 14);
+        break;
+      }
+      if (e.t < 0.9) {
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 0.9)), lerp(-HALF_H - 4, hz, smooth(e.t / 0.9)));
+        e.aim = lv.aim(e.x, e.z);
+        e.heading = 0;
+        break;
+      }
+      if (e.state === 'idle') {
+        ease(lv, e, hx, hz, 4, 10);
+        e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
+        e.heading = lerpAngle(e.heading, e.aim, 0.1);
+        if (e.stateT > (d.phase ?? 0.3) && ok && p && ps(lv, p) - s > 8) go(lv, e, 'windup', 0.7 * quick(lv), 'burst', line(e, 30, 0.5, 0.45 * quick(lv)));
+      } else if (e.state === 'windup') {
+        track(lv, e, 0.15);
+        e.heading = e.aim;
+        // a kick back as it braces
+        moveTo(lv, e, e.x - Math.sin(e.aim) * 1.2 * DT, s - Math.cos(e.aim) * 1.2 * DT, true);
+        if (over(e)) {
+          d.shots = 0;
+          d.fire = 0;
+          go(lv, e, 'attack', 0.4, 'burst');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0 && (d.shots ?? 0) < (lv.spec.difficulty >= 0.5 ? 2 : 1)) {
+          d.fire = 0.18;
+          d.shots = (d.shots ?? 0) + 1;
+          lv.bullet(e.x, e.z, e.aim, 13, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          // the recoil
+          moveTo(lv, e, e.x - Math.sin(e.aim) * 0.6, s - Math.cos(e.aim) * 0.6, true);
+        }
+        if (over(e)) go(lv, e, 'recover', 0.9);
+      } else if (over(e)) {
+        d.n = 1;
+        go(lv, e, 'idle');
+      }
+      break;
+    }
+    case 'raker': {
+      // across the top third in a string; as it comes over you it flares and drops one slug
+      // straight down, leading you by where it'll be
+      const dir = d.dir ?? 1;
+      const x = -dir * (HALF_W + 4) + dir * pt * 20;
+      moveTo(lv, e, x, (d.sz0 ?? -16) + Math.sin(pt * 2 + (d.phase ?? 0)) * 0.8);
+      e.heading = (dir * Math.PI) / 2;
+      e.aim = 0;
+      if (e.state === 'idle') {
+        const lead = e.x + dir * 20 * 0.35;
+        if (!d.shots && ok && p && Math.abs(p.x - lead) < 3 && ps(lv, p) - s > 8)
+          go(lv, e, 'windup', 0.35 * quick(lv), 'burst', { shape: 'line', x: e.x, z: e.z, x2: e.x, z2: e.z + 26, w: 0.5, lock: 0 });
+      } else if (e.state === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'line') {
+          t.x = t.x2 = e.x;
+          t.z = e.z;
+          t.z2 = e.z + 26;
+        }
+        if (over(e)) {
+          d.shots = 1;
+          lv.bullet(e.x, e.z + 0.8, 0, 15, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          go(lv, e, 'recover', 0.6);
+        }
+      } else if (over(e)) go(lv, e, 'idle');
+      break;
+    }
     // --- scrappers ------------------------------------------------------------------------
     case 'ramjack': {
       // hovers, lines up (a line that locks), lunges, brakes near you and sits there spinning
@@ -951,7 +1120,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
         drive(lv, e, e.x + dir * Math.max(0, 9 - e.stateT * 30) * DT, zg);
       }
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
-      if (Math.abs(e.x) > HALF_W + 8 || (d.ride && sz(lv, e) > HALF_H + 6)) {
+      // (off the side it's driving to: the trucks behind the first come in from further out)
+      if ((Math.abs(e.x) > HALF_W + 8 && Math.sign(e.x) === dir) || (d.ride && sz(lv, e) > HALF_H + 6)) {
         lv.escape(e);
         break;
       }

@@ -9,10 +9,10 @@ import { HALF_H, HALF_W, toFlight } from './types';
 import { LOOT } from './build';
 import { bossHull, makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
-import { BOUNTIES, FOES, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
+import { BOUNTIES, FOES, HEAVY, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
 import { CHAIN } from './combat';
-import { afloat, road } from './foes';
+import { afloat, road, type Form } from './foes';
 import { routeX } from './layout';
 import { boarderSkin } from './convoy';
 
@@ -98,11 +98,13 @@ export class Director {
     // gaps between waves shrink as the run goes on (the field is wide: it takes a lot to fill)
     // (an escort leaves room for the boarders)
     // (a heist leaves room for the runner: its own fire and fighters are the fight)
-    const gap = lerp(54, 35, Math.min(d, 1.2)) * (mode === 'escort' ? 1.15 : mode === 'heist' ? 1.45 : 1);
+    const gap = lerp(44, 34, Math.min(d, 1.2)) * (mode === 'escort' ? 1.15 : mode === 'heist' ? 1.45 : 1);
     const end = mode === 'boss' ? L - 40 : L - 70;
     let at = 70;
     let n = 0;
     const seen = new Set<string>();
+    // heavies come one at a time, with room between them (see HEAVY)
+    let heavyAt = -Infinity;
     while (at < end) {
       // a breather as each new biome comes in, so it can be looked at
       const bz = -at;
@@ -120,7 +122,10 @@ export class Director {
       // (no boats where there's no water)
       const wet = biome.water !== null;
       const can = weights.filter(([a, w]) => w > 0 && (wet || !(isFoe(a) && FOES[a].water)));
-      const first = weighted(r, can);
+      // (a heavy too soon after the last: something lighter)
+      const light = can.filter(([a]) => !HEAVY.has(a));
+      const first = weighted(r, at - heavyAt < L * HEAVY_GAP && light.length ? light : can);
+      if (HEAVY.has(first)) heavyAt = at;
       const fresh = !seen.has(first);
       seen.add(first);
       this.wave(at, first);
@@ -136,14 +141,21 @@ export class Director {
       } else if (!fresh && r() < 0.15 + t * 0.3 + d * 0.2) {
         // later on, waves come in pairs
         const solo = ['brute', 'carrier', 'ace', 'gatekeeper', 'hookjaw', 'rigger', 'blimp'];
-        const met = can.filter(([a]) => !solo.includes(a) && a !== first && seen.has(a));
+        const met = can.filter(([a]) => !solo.includes(a) && a !== first && seen.has(a) && !HEAVY.has(a));
         if (met.length) this.wave(at + 8, weighted(r, met));
       }
-      at += gap * (0.75 + r() * 0.5);
+      // popcorn between the beats, so there's always something to shoot (never on the heels of a
+      // kind met for the first time: that's to be looked at)
+      const step = gap * (0.75 + r() * 0.5);
+      const fill = (FILL[factionsIn(lv.spec.planet, biome)[0]] ?? []).filter((a) => isFoe(a) || this.skinFor(a as Archetype));
+      if (!fresh && fill.length && r() < FILL_ODDS) this.wave(at + step * 0.5, pick(r, fill)!);
+      at += step;
       n++;
     }
     // a supply drop in every level: an elite carrying a part
-    const elites = mode === 'hunt' ? [0.3, 0.55, 0.8] : mode === 'heist' ? [] : [0.45 + r() * 0.2];
+    // (a hunt in the first sector has two, not three: it comes early in a run)
+    const hunt = d < 0.4 ? [0.4, 0.75] : [0.3, 0.55, 0.8];
+    const elites = mode === 'hunt' ? hunt : mode === 'heist' ? [] : [0.45 + r() * 0.2];
     for (const f of elites) {
       // a champion of the faction (or of the planet's old guard), with a fight to learn: armour
       // to break, and attacks it chains (see combat.ts CHAIN)
@@ -212,10 +224,24 @@ export class Director {
     this.beats.push({ at, run: () => (isFoe(arch) ? this.spawnFoe(arch, false) : this.spawnArch(arch, false)) });
   }
 
+  /**
+   * Walls either side just ahead (a canyon): nothing comes in from the sides, which are rock (it
+   * would be pushed out of the rock onto the screen), so what would gets swapped for what comes
+   * in from the top.
+   */
+  private walled() {
+    return this.lv.terrain.biome(this.lv.top - 10).shape === 'canyon';
+  }
+
   /** A faction foe (or a group of them), as one wave. */
-  spawnFoe(foe: Foe, elite: boolean, bounty?: Enemy['bounty']) {
+  spawnFoe(foe: Foe, elite: boolean, bounty?: Enemy['bounty']): void {
     const lv = this.lv;
     const r = this.r;
+    if (this.walled() && !bounty) {
+      const instead: Partial<Record<Foe, Foe>> = { raker: 'scrapling', hookjaw: 'rigger', manta: 'swooper' };
+      const swap = instead[foe];
+      if (swap) return this.spawnFoe(swap, elite);
+    }
     const skin = foeSkin(lv.spec.planet, foe);
     const opts: Partial<Enemy> = { ...(elite ? { elite: true } : {}), ...(bounty ? { bounty } : {}) };
     const top = lv.top - 4;
@@ -362,6 +388,27 @@ export class Director {
         lv.spawn(foe, skin, -dir * (HALF_W + 7), lv.scroll - 15, { dir, hz: lerp(-17, -10, r()), phase: r() * 6 }, { ...opts, heading: (dir * Math.PI) / 2 });
         break;
       }
+      case 'scrapling':
+        this.formation(skin, opts);
+        break;
+      case 'potshot': {
+        // in lanes, each on the other side from the last, so you sway between them
+        const n = 3 + (r() < 0.3 + d * 0.4 ? 1 : 0);
+        let side = r() < 0.5 ? -1 : 1;
+        for (let k = 0; k < n; k++) {
+          const hx = side * lerp(6, HALF_W - 9, r());
+          side = -side;
+          lv.spawn(foe, skin, hx, top, { hx, x0: hx, hz: lerp(-17, -9, r()), phase: 0.2 + r() * 0.4 }, { ...opts, t: -k * 0.55 });
+        }
+        break;
+      }
+      case 'raker': {
+        const n = 3 + Math.floor(r() * (2 + d * 2));
+        const dir = r() < 0.5 ? -1 : 1;
+        const sz0 = lerp(-21, -12, r());
+        for (let k = 0; k < n; k++) lv.spawn(foe, skin, -dir * (HALF_W + 4), lv.scroll + sz0, { dir, sz0, phase: k * 0.9 }, { ...opts, t: -k * 0.45 });
+        break;
+      }
       case 'runner':
         lv.spawn(foe, skin, rx(10), top, { x0: rx(10) }, opts);
         break;
@@ -372,6 +419,73 @@ export class Director {
         for (const side of [-1, 1]) lv.spawn('tug', foeSkin(lv.spec.planet, 'tug'), hx + side * 3.4, top - 2.6, { host: box.id, side }, {});
         break;
       }
+    }
+  }
+
+  /**
+   * A formation of scraplings (see foes.ts formation): a string on one path, a V, a column that
+   * peels apart, or two strings from both sides at once (a pincer). The gentle ones come first.
+   */
+  private formation(skin: EnemySkin, opts: Partial<Enemy>) {
+    const lv = this.lv;
+    const r = this.r;
+    const d = lv.spec.difficulty;
+    const t = (-lv.scroll + HALF_H) / Math.max(1, this.length);
+    // (in a canyon, nothing from the sides: see walled)
+    const side = this.walled() ? 0 : 1;
+    const forms: [Form | 'pincer', number][] = [
+      ['snake', 3],
+      ['sweep', 3 * side],
+      ['vee', 2.5],
+      ['peel', 2],
+      ['hook', t > 0.15 ? 2.5 : 0.5],
+      ['loop', t > 0.2 ? 2 : 0],
+      ['retreat', t > 0.3 ? 1.5 : 0],
+      ['pincer', t > 0.25 ? 2 * side : 0],
+    ];
+    const form = weighted(r, forms);
+    const top = lv.top - 4;
+    // the leader shoots, later on (see foes.ts)
+    const shoots = r() < (d - 0.15) * 1.2;
+    const string = (f: Form, n: number, gap: number, x0: number, dir: number, sz0: number) => {
+      for (let k = 0; k < n; k++) {
+        const [x, z] = f === 'sweep' ? [-dir * (HALF_W + 4), lv.scroll + sz0] : [x0, top];
+        lv.spawn('scrapling', skin, x, z, { form: f, slot: k, x0, dir, sz0, shots: k === 0 && shoots ? 1 : 0 }, { ...opts, t: -k * gap });
+      }
+    };
+    const dir = r() < 0.5 ? -1 : 1;
+    const n = 6 + Math.floor(r() * 3);
+    switch (form) {
+      case 'pincer':
+        string('sweep', 4, 0.32, 0, dir, lerp(-20, -16, r()));
+        string('sweep', 4, 0.32, 0, -dir, lerp(-13, -9, r()));
+        break;
+      case 'vee': {
+        // the leader, then a pair a beat behind it, and another
+        const x0 = lerp(-HALF_W + 16, HALF_W - 16, r());
+        const shoots0 = shoots;
+        const wings = n > 6 ? 3 : 2;
+        lv.spawn('scrapling', skin, x0, top, { form: 'vee', slot: 0, x0, shots: shoots0 ? 1 : 0 }, opts);
+        for (let k = 1; k <= wings; k++) for (const side of [-1, 1]) lv.spawn('scrapling', skin, x0 + side * k * 3.2, top, { form: 'vee', slot: side * k, x0 }, { ...opts, t: -k * 0.15 });
+        break;
+      }
+      case 'peel':
+        string('peel', n - 1, 0.3, lerp(-10, 10, r()), dir, 0);
+        break;
+      case 'hook':
+        string('hook', n, 0.28, -dir * lerp(16, 24, r()), dir, lerp(-10, -4, r()));
+        break;
+      case 'loop':
+        string('loop', n, 0.25, -dir * lerp(4, 14, r()), dir, lerp(-12, -6, r()));
+        break;
+      case 'retreat':
+        string('retreat', n - 2, 0.3, -dir * lerp(8, 22, r()), dir, lerp(-4, 2, r()));
+        break;
+      case 'sweep':
+        string('sweep', n, 0.3, 0, dir, lerp(-20, -10, r()));
+        break;
+      default:
+        string('snake', n, 0.28, lerp(-HALF_W + 14, HALF_W - 14, r()), dir, 0);
     }
   }
 
@@ -447,7 +561,7 @@ export class Director {
     lv.emit({ type: 'windup', enemy: a.id, kind: 'gate', tele: { shape: 'gate', x: -HALF_W, x2: HALF_W, z, gx, gap: 16 }, dur: reach, faction: 'lattice', style: 'draw' });
   }
 
-  spawnArch(arch: Archetype, elite: boolean) {
+  spawnArch(arch: Archetype, elite: boolean): void {
     const lv = this.lv;
     const skin = this.skinFor(arch);
     if (!skin) return;
@@ -456,7 +570,7 @@ export class Director {
     const opts: Partial<Enemy> = elite ? { elite: true } : {};
     switch (arch) {
       case 'dart': {
-        const path = pick(r, ['swoop', 'swoop', 'dive', 'cross', 'loop'] as const);
+        const path = pick(r, this.walled() ? (['swoop', 'swoop', 'dive', 'loop'] as const) : (['swoop', 'swoop', 'dive', 'cross', 'loop'] as const));
         const count = path === 'dive' ? 4 + Math.floor(r() * 4) : 5 + Math.floor(r() * 5);
         const x0 = lerp(-HALF_W + 8, HALF_W - 8, r());
         const dir = r() < 0.5 ? -1 : 1;
@@ -507,6 +621,8 @@ export class Director {
         break;
       }
       case 'bomber': {
+        // (it crosses from a side: in a canyon, a gunship instead)
+        if (this.walled()) return this.spawnArch('gunship', elite);
         const dir = r() < 0.5 ? -1 : 1;
         lv.spawn('bomber', skin, -dir * (HALF_W + 5), lv.scroll - 14, { dir, sz0: lerp(-HALF_H + 6, -10, r()) }, opts);
         break;
@@ -629,6 +745,17 @@ export class Director {
     return true;
   }
 }
+
+/** The heavies (factions.ts HEAVY) come one at a time, at least this far through the level apart. */
+const HEAVY_GAP = 0.2;
+/** The popcorn that fills between the beats, by faction (and how often it does). */
+const FILL: Partial<Record<string, (Archetype | Foe)[]>> = {
+  scrap: ['scrapling', 'scrapling', 'scrapling', 'raker', 'dart'],
+  lattice: ['dart', 'dart', 'swarm'],
+  wild: ['dart', 'swarm'],
+  bloom: ['puffball', 'dart'],
+};
+const FILL_ODDS = 0.75;
 
 const HAZARD_GAP: Record<HazardKind, number> = {
   geyser: 3.5,

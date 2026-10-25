@@ -6,6 +6,7 @@
  * An enemy with a negative age is waiting its turn in a formation: hidden above the screen.
  */
 
+import type { Form } from './foes';
 import type { Enemy, Level } from './level';
 import { DT, HALF_H, HALF_W } from './types';
 import { clamp, lerp, smooth } from '../util';
@@ -22,6 +23,11 @@ export interface EnemyData {
   /** Taken down this stagger (a dash through it: see Level.takedown). */
   td?: number;
   path?: 'swoop' | 'dive' | 'cross' | 'loop';
+  /** Seconds a stun has held its path back (see updateEnemy). */
+  lag?: number;
+  /** Scraplings: the formation it flies (see foes.ts FORMS), and its place in it (0: the leader). */
+  form?: Form;
+  slot?: number;
   x0?: number;
   sz0?: number;
   /** Where it hovers (screen space). */
@@ -193,6 +199,10 @@ export function updateEnemy(lv: Level, e: Enemy) {
   const stunned = e.stun > 0;
   const slow = stunned ? 0.3 : 1;
   const t = e.t;
+  // a path's own clock: it loses what a stun slows it by, so a stunned flier slows where it is
+  // (a path read off the clock times `slow` would throw it back along its path, then snap it on)
+  if (stunned && t > 0) d.lag = (d.lag ?? 0) + DT * (1 - slow);
+  const pt = t - (d.lag ?? 0);
   switch (e.arch) {
     case 'dart': {
       const x0 = d.x0 ?? 0;
@@ -224,7 +234,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         }
       } else if (d.path === 'cross') {
         const dir = d.dir ?? 1;
-        moveTo(lv, e, -dir * (HALF_W + 4) + dir * t * 20 * slow, (d.sz0 ?? -12) + Math.sin(t * 2) * 1.5);
+        moveTo(lv, e, -dir * (HALF_W + 4) + dir * pt * 20, (d.sz0 ?? -12) + Math.sin(t * 2) * 1.5);
         d.fire = (d.fire ?? 0.6) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e)) {
           d.fire = 0.8;
@@ -233,7 +243,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       } else if (d.path === 'loop') {
         // down, a loop, and off the way it came
         const cx = x0;
-        const a = t * 2.1 * slow;
+        const a = pt * 2.1;
         const s = -HALF_H - 3 + Math.min(t, 1.4) * 16 - (t > 1.4 ? Math.sin(a - 2.94) * 6 : 0);
         moveTo(lv, e, cx + (t > 1.4 ? (1 - Math.cos(a - 2.94)) * 6 * (d.dir ?? 1) : 0), s - (t > 4.4 ? (t - 4.4) * 20 : 0));
         if (t > 2 && !d.shots && live(lv, e)) {
@@ -242,7 +252,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         }
       } else {
         // swoop: a weave down the screen
-        moveTo(lv, e, x0 + Math.sin(t * 1.9 + (d.phase ?? 0)) * (d.amp ?? 7), -HALF_H - 3 + t * 15 * slow);
+        moveTo(lv, e, x0 + Math.sin(t * 1.9 + (d.phase ?? 0)) * (d.amp ?? 7), -HALF_H - 3 + pt * 15);
         d.fire = (d.fire ?? 1 + (d.phase ?? 0) * 0.3) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e) && sz(lv, e) < 6) {
           d.fire = 2.4;
@@ -320,7 +330,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'bomber': {
       const dir = d.dir ?? 1;
       // across the whole width in about nine seconds, mining as it goes
-      moveTo(lv, e, -dir * (HALF_W + 5) + dir * t * 9 * slow, (d.sz0 ?? -14) + Math.sin(t) * 1.2);
+      moveTo(lv, e, -dir * (HALF_W + 5) + dir * pt * 9, (d.sz0 ?? -14) + Math.sin(t) * 1.2);
       e.heading = (dir * Math.PI) / 2;
       d.fire = (d.fire ?? 0.8) - DT * pace(lv) * slow;
       if (d.fire <= 0 && live(lv, e)) {
@@ -438,7 +448,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'serpent': {
       if (d.leader === undefined) {
         // the head: weaving across, leaving a trail for the body
-        const s = -HALF_H - 3 + t * 8.5 * slow;
+        const s = -HALF_H - 3 + pt * 8.5;
         moveTo(lv, e, (d.x0 ?? 0) + Math.sin(t * 1.3 + (d.phase ?? 0)) * (d.amp ?? 10), s);
         (d.trail ??= []).push(e.x, s);
         if (d.trail.length > 400) d.trail.splice(0, 2);

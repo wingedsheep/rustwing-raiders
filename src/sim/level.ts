@@ -14,7 +14,7 @@ import { Director } from './director';
 import { updateEnemy, enemyRadius, type EnemyData } from './enemies';
 import { bossRead, bossUnplated, type BossState, type BossStyle, type Read } from './boss';
 import { CHAIN, PLATE, PLATE_GLANCE, plated, foeDefaults, foeHurt, go, lookOf, release, winded, foeShot, foeTaken, wearGuard, killHow, onKill, tickCombat, type FoeEvent, type FoeFields } from './combat';
-import { ELITE_NAMES, FOES, factionOf, isFoe, type Faction, type Foe } from './factions';
+import { ELITE_NAMES, FOES, POPCORN, factionOf, isFoe, type Faction, type Foe } from './factions';
 import { updateStrikes, type Strike } from './strikes';
 import type { AuxKind, Edge, MarkKind } from '../game/parts';
 import { BURN, CRACK, SHOCK, detonate, mark, markTaken, marksOn, newMarks, spread, tickMarks, type Marks, type ReactionKind } from './marks';
@@ -534,7 +534,7 @@ export type LevelEvent =
   /** Every one of a wave killed: `bonus` scrap, paid at (x, z) (the last kill). */
   | { type: 'waveClear'; wave: number; bonus: number; x: number; z: number }
   /** An enemy got away (off the screen, or a bounty's time ran out). */
-  | { type: 'escaped'; enemy: number; x: number; z: number }
+  | { type: 'escaped'; enemy: number; x: number; z: number; kind: string }
   /** A bounty showed up, was claimed (killed: `reward` paid), or escaped. */
   | { type: 'bounty'; state: 'appear' | 'claimed' | 'escaped'; enemy: number; x: number; z: number; reward: number }
   /** On a clear: the fight's tally; the rank and the scrap it earned. */
@@ -1053,7 +1053,7 @@ export class Level {
   escape(e: Enemy) {
     if (e.dead) return;
     e.dead = true;
-    this.emit({ type: 'escaped', enemy: e.id, x: e.x, z: e.z });
+    this.emit({ type: 'escaped', enemy: e.id, x: e.x, z: e.z, kind: e.boss ? 'boss' : e.elite ? `elite:${e.arch}` : e.arch });
     if (e.bounty) {
       this.bountiesLost++;
       this.emit({ type: 'bounty', state: 'escaped', enemy: e.id, x: e.x, z: e.z, reward: e.bounty.reward });
@@ -2417,8 +2417,10 @@ export class Level {
         if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < r * r) {
           // a Ram Prow dashing through: the dash does the hitting (see ramAlong)
           if (p.dashT > 0 && (p.stats.mod.ram > 0 || this.grafting.rams(p))) continue;
-          if (this.hurt(p, p.x, p.z, 'ram:' + e.arch)) {
-            this.damage(e, e.arch === 'swarm' ? 999 : 20, p.id, false);
+          // (popcorn only grazes you, and breaks on you)
+          const pop = POPCORN.has(e.arch);
+          if (this.hurt(p, p.x, p.z, 'ram:' + e.arch, pop ? 'graze' : undefined)) {
+            this.damage(e, pop ? 999 : 20, p.id, false);
             if (p.stats.affixes.barbed) this.barb(p, e);
           }
         }

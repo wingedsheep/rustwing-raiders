@@ -40,6 +40,10 @@ export type Foe =
   | 'halo'
   | 'manta'
   | 'rook'
+  // the scrap popcorn: cheap, many, in formation
+  | 'scrapling'
+  | 'potshot'
+  | 'raker'
   // bounties: worth chasing down before they get away
   | 'runner'
   | 'vault'
@@ -87,12 +91,21 @@ export const FOES: Record<Foe, FoeDef> = {
   halo: { name: 'Halo', faction: 'lattice', hp: 70, r: 1.7, score: 600, scrap: 4, model: 'halo', beast: false, scale: 1.1, tip: 'TWO RINGS: THE FIRST GAP IS WHERE YOU ARE, THE SECOND IS NOT' },
   manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
+  scrapling: { name: 'Scrapling', faction: 'scrap', hp: 9, r: 1.1, score: 80, scrap: 1, model: 'dart', beast: false, scale: 1.35, tip: 'THEY FLY IN STRINGS: SIT IN THEIR PATH AND SWEEP THE LOT FOR A BONUS' },
+  potshot: { name: 'Potshot', faction: 'scrap', hp: 22, r: 1.3, score: 160, scrap: 1, model: 'dart', beast: false, scale: 1.25, tip: 'DROPS IN, STOPS, TAKES ONE SHOT: KILL IT BEFORE IT FIRES, OR STEP OFF ITS LINE' },
+  raker: { name: 'Raker', faction: 'scrap', hp: 14, r: 1.3, score: 120, scrap: 1, model: 'dart', beast: false, scale: 1.15, tip: 'CROSSES THE TOP AND DROPS A SLUG AS IT PASSES OVER YOU: DON\'T SIT UNDER IT' },
   runner: { name: 'Loot Runner', faction: 'scrap', hp: 55, r: 1.8, score: 800, scrap: 6, model: 'bomber', beast: false, scale: 0.8 },
   vault: { name: 'Strongbox', faction: 'lattice', hp: 90, r: 2, score: 900, scrap: 2, model: 'carrier', beast: false, scale: 0.55, tip: 'TWO TUGS HAUL IT AWAY: SHOOT THEM DOWN AND IT DROPS AND BURSTS OPEN' },
   tug: { name: 'Tug', faction: 'lattice', hp: 16, r: 1.1, score: 150, scrap: 1, model: 'swarm', beast: false, scale: 0.9, tip: 'HAULING A STRONGBOX: SHOOT DOWN BOTH TUGS AND THE BOX DROPS AND BURSTS OPEN' },
 };
 
 export const isFoe = (a: string): a is Foe => a in FOES;
+
+/** Popcorn: dies to a burst, only grazes you if you run into it. Heavies: one at a time (see director.ts). */
+export const POPCORN = new Set<string>(['swarm', 'scrapling', 'dart', 'raker', 'puffball', 'tug']);
+export const HEAVY = new Set<string>(['gunboat', 'blimp', 'brute', 'carrier', 'manta', 'burrower', 'warden', 'hookjaw', 'ace', 'bomber', 'serpent']);
+/** How heavy a kind is, for the pace of a stage: popcorn, the rest, or a heavy. */
+export const weightOf = (arch: string): 'weak' | 'medium' | 'heavy' => (POPCORN.has(arch) ? 'weak' : HEAVY.has(arch) ? 'heavy' : 'medium');
 
 /**
  * Faction colours: body, trim, accent (the accent is what its attacks and bullets glow: one hue per
@@ -131,15 +144,20 @@ export function factionsIn(planet: Planet, biome: Biome): Faction[] {
 /** [foe, weight, from how far into the level (0..1)] per faction. */
 export const ROSTER: Record<Faction, [Foe, number, number][]> = {
   scrap: [
-    ['ramjack', 2.2, 0],
-    ['flakker', 2.5, 0.05],
-    ['rattler', 2, 0.1],
-    ['hookjaw', 1.4, 0.25],
-    ['rigger', 1.5, 0.2],
-    ['ace', 0.6, 0.45],
-    ['technical', 2, 0.05],
-    ['gunboat', 1.8, 0.1],
-    ['blimp', 0.9, 0.4],
+    // mostly popcorn and light fliers; the heavies now and then (and never two at once: see
+    // director.ts HEAVY)
+    ['scrapling', 4, 0],
+    ['potshot', 3, 0],
+    ['raker', 2.5, 0.05],
+    ['ramjack', 2, 0],
+    ['flakker', 1.8, 0.05],
+    ['rattler', 1.5, 0.1],
+    ['hookjaw', 0.9, 0.25],
+    ['rigger', 1, 0.2],
+    ['ace', 0.5, 0.45],
+    ['technical', 1.3, 0.05],
+    ['gunboat', 0.9, 0.1],
+    ['blimp', 0.5, 0.4],
   ],
   lattice: [
     ['warden', 2.6, 0],

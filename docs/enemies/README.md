@@ -44,6 +44,9 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 
 | Enemy | Faction / where | Role | P | Pt | M | A | S | Top need |
 |---|---|---|---|---|---|---|---|---|
+| [Scrapling](scrapling.md) | scrap | Popcorn, in formation | 2 | 2 | 2 | 1 | 1 | A sound for the string |
+| [Potshot](potshot.md) | scrap | Drop in, one shot, run | 2 | 2 | 2 | 1 | 1 | A charging glow and a thunk |
+| [Raker](raker.md) | scrap | Crosses and drops a slug | 2 | 2 | 2 | 1 | 1 | A propeller drone |
 | [Ramjack](ramjack.md) | scrap: Orutal, Kessra, Ashgrave, Vesh | Lunger | 2 | 3 | 2 | 1 | 1 | A rev on the tell |
 | [Rattler](rattler.md) | scrap | Chaser from behind | 2 | 2 | 2 | 1 | 1 | Longer ram tell |
 | [Hookjaw](hookjaw.md) | scrap | Harpoon, pins you | 2 | 3 | 2 | 1 | 1 | A winch sound |
@@ -83,6 +86,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 
 Metal you bolted together yourself: the Hesk, the Uukhvar, the Sankvi and the Lowtide Court. Each is to get one foe of its own on top of this shared roster ([scrap](../factions/scrap.md#each-powers-own-designed-not-built)). Tell grammar: **flare** (engines flare red, then they commit, `TELL` in `src/sim/factions.ts:188`). Roster and weights at `src/sim/factions.ts:131`. Their models are in `tools/models/enemies_scrap.py`.
 
+- [Scrapling](scrapling.md), [Potshot](potshot.md) and [Raker](raker.md): the popcorn, most of every scrap stage. Scraplings fly the classic formations, and also fill the gaps between the other waves (`FILL`, `src/sim/director.ts`).
 - [Ramjack](ramjack.md)
 - [Rattler](rattler.md)
 - [Hookjaw](hookjaw.md)

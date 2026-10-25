@@ -44,6 +44,9 @@ import { TIER_COLOR } from '../ui/widgets';
 import { HOT as HOT_TEXT } from '../ui/hud';
 import { EDGES, type Edge } from '../game/parts';
 
+/** How far the screen shakes at full trauma (world units), and how fast trauma fades (a second). */
+const SHAKE = 0.5;
+const SHAKE_FADE = 2.2;
 /** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
 /** A tug's tow line: a rod of hard light, stretched from the tug to its strongbox. */
 const TOW = new THREE.CylinderGeometry(0.08, 0.08, 1, 5);
@@ -2227,7 +2230,7 @@ export class LevelView {
     this.kick.y += this.kickV.y * dt;
     for (let i = 0; i < this.recoil.length; i++) this.recoil[i] = Math.max(0, this.recoil[i] - dt * 4);
     this.speed(dt, scrollDz);
-    this.trauma = Math.max(0, this.trauma - dt * 1.6);
+    this.trauma = Math.max(0, this.trauma - dt * SHAKE_FADE);
     this.flash = Math.max(0, this.flash - dt * 3);
     this.hurt = Math.max(0, this.hurt - dt * 2);
     this.impactT = Math.max(0, this.impactT - dt);
@@ -2288,8 +2291,8 @@ export class LevelView {
     // (the pixel renderer snaps the camera to whole art pixels and slides the picture by the rest)
     const t = this.time;
     const shake = this.trauma * this.trauma;
-    const sx = (Math.sin(t * 61) + Math.sin(t * 37) * 0.5) * shake * 0.9;
-    const sz = (Math.cos(t * 53) + Math.sin(t * 29) * 0.5) * shake * 0.9;
+    const sx = (Math.sin(t * 61) + Math.sin(t * 37) * 0.5) * shake * SHAKE;
+    const sz = (Math.cos(t * 53) + Math.sin(t * 29) * 0.5) * shake * SHAKE;
     const target = this.v.set(sx + this.kick.x, FLIGHT_Y, lv.scroll + sz + this.kick.y + MARGIN / 2 / Math.cos(TILT));
     // (zoomed in to look closely: the view follows the first ship, looking ahead of it)
     if (DEV_ZOOM < 1 && lv.players[0]) target.set(lv.players[0].x + sx, FLIGHT_Y, lv.players[0].z - 22 * DEV_ZOOM + sz);

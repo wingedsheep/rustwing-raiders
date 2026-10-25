@@ -162,6 +162,7 @@ The director builds stages from **wave cards** instead of free procedural waves:
 - **Each beat has a threat budget** and draws cards to fill it. The budget grows by sector.
 - **Sectors unlock harder cards.** Later sectors get new combinations and tighter timing, not more bullets.
 - **Each faction flies its own cards**, so how they come at you says who they are.
+- **Many weak foes, few heavies.** A beat is filled with fodder and mediums first; heavies and elites are rare and spaced out, never back to back. Even the first stage keeps you busy. (The first playtest: stage 1 was too sparse, and stage 2's run of high-HP ships was the wrong kind of hard.)
 - **Each stage has one idea** (ZeroRanger): a biome trick that stays for the whole stage. For example: crosswind, a dark stage lit by searchlights, a minefield lane, or a worm chasing from below.
 
 ### No bullet hell

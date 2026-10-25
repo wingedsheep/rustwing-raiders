@@ -147,6 +147,8 @@ export interface StageLog {
   inputs: string[];
   pilots: PilotLog[];
   kills: Record<string, Kills>;
+  /** Every foe that came, by kind: how many, and their hull (for the stage's pace and weight). */
+  foes?: Record<string, { n: number; hp: number }>;
   /** Damage dealt, by what dealt it (a part, a graft, a reaction). */
   dealt: Record<string, number>;
   warden: WardenLog | null;
@@ -173,6 +175,8 @@ export class StageRecorder {
   readonly log: StageLog;
   private tapes: Tape[];
   private foes = new Map<number, { kind: string; first: number }>();
+  /** Foes killed or away (a dead one stays on the list till the step's end: not to be counted again). */
+  private gone = new Set<number>();
   private lastBy: string[] = [];
 
   constructor(
@@ -185,6 +189,7 @@ export class StageRecorder {
       inputs: [],
       pilots: lv.players.map((p) => ({ hullStart: p.hp, hullEnd: p.hp, lost: {}, hits: {}, shielded: {}, downs: [], verbs: {}, grafts: {} })),
       kills: {},
+      foes: {},
       dealt: {},
       warden: null,
       end: null,
@@ -208,7 +213,14 @@ export class StageRecorder {
     const lv = this.lv;
     const t = lv.time;
     // (not every foe comes in with a spawn event: any new one is noted while it's still on the list)
-    for (const e of lv.enemies) if (!this.foes.has(e.id)) this.foes.set(e.id, { kind: e.boss ? 'boss' : e.elite ? `elite:${e.arch}` : e.arch, first: -1 });
+    for (const e of lv.enemies) {
+      if (this.foes.has(e.id) || this.gone.has(e.id)) continue;
+      const kind = e.boss ? 'boss' : e.elite ? `elite:${e.arch}` : e.arch;
+      this.foes.set(e.id, { kind, first: -1 });
+      const f = (this.log.foes![kind] ??= { n: 0, hp: 0 });
+      f.n++;
+      f.hp += e.max;
+    }
     for (const e of events) {
       const pl = 'id' in e && typeof e.id === 'number' ? this.log.pilots[e.id] : undefined;
       switch (e.type) {
@@ -224,13 +236,15 @@ export class StageRecorder {
           k.n++;
           k.ttk.push(+(t - (f.first < 0 ? t : f.first)).toFixed(2));
           this.foes.delete(e.enemy);
+          this.gone.add(e.enemy);
           break;
         }
         case 'escaped': {
           const f = this.foes.get(e.enemy);
-          const kind = f?.kind ?? kindOf(lv, e.enemy);
+          const kind = f?.kind ?? e.kind;
           (this.log.kills[kind] ??= { n: 0, ttk: [], escaped: 0 }).escaped++;
           this.foes.delete(e.enemy);
+          this.gone.add(e.enemy);
           break;
         }
         case 'playerHit': {

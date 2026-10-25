@@ -6,12 +6,12 @@ Done work is deleted from here; git and the design docs keep the record.
 
 ## Now
 
-### 1. The flight recorder: the first run by hand
-The recorder is in ([how to use it](simple-run.md#how-it-gets-to-me)). What's left:
-- **Fly one run by hand** on the dev server, and read its report together.
-- **Part drops in flight** still roll from the stage's own dice, so they change with how you fly. The site rewards of the first slice (2) are rolled from the site's seed, so the same run offers the same rewards.
+### 1. Run 7, round 2
+The recorder works ([how to use it](simple-run.md#how-it-gets-to-me)), and the first hand-flown runs said: stage 1 too sparse, stage 2 too many high-HP ships close together, four hits kill you, and only fire and dash get pressed. This build answers the first two with the scrap popcorn and its formations ([scrapling](enemies/scrapling.md), [potshot](enemies/potshot.md), [raker](enemies/raker.md)), popcorn between the beats, and heavies one at a time.
+- **Fly `?run=7` again** and compare: the report's pace column (foes a minute, % weak/medium/heavy) against round 1's 20–32 a minute, 19% weak.
+- **Part drops in flight** still roll from the stage's own dice, so they change with how you fly. The site rewards of the first slice (2) are rolled from the site's seed.
 
-**Done when** one run, played by hand, gives a report that answers: where did I die, what hurt me, what did I pick, and which buttons did I never press?
+**Done when** both stages feel busy with mostly weak foes, and the report agrees.
 
 ### 2. The simple run: first slice
 Get to something you can play. Unhook what goes, but don't delete it yet.
@@ -46,7 +46,7 @@ The most important point from earlier playtests, and it still holds: players cou
 Pulled into the run being polished as it needs them.
 
 ### 5. Stages built from wave cards
-See [stages that play well](simple-run.md#stages-that-play-well).
+See [stages that play well](simple-run.md#stages-that-play-well). A start is in: the scrap popcorn flies eight classic formations, popcorn fills between the beats, and heavies come one at a time (`src/sim/director.ts`). Cards are the next step.
 - **The stage shape**: intro, build-up, set piece, breather, peak, out. About 2½–3 minutes.
 - **Wave cards** in the wave lab's `ScriptWave` format, each with a faction, foes, entry, what it tests, and a threat cost. Start with six to eight per faction.
 - **The director draws cards** to a threat budget per beat (`src/sim/director.ts`). Harder cards unlock by sector.

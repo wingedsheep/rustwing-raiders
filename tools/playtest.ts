@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process';
 import type { RunLog } from '../src/game/recorder';
 import { charge, endOf, levelFrom, StageRecorder, Tape, type StageLog } from '../src/sim/recording';
 import { NEUTRAL } from '../src/sim/types';
+import { weightOf } from '../src/sim/factions';
 
 const DIR = 'playtests';
 const argv = process.argv.slice(2);
@@ -48,10 +49,27 @@ const lpad = (s: string | number, n: number) => String(s).padStart(n);
 const stageName = (s: StageLog) => `${s.setup.planet} ${s.setup.mode === 'boss' ? 'WARDEN' : s.setup.mode}`;
 
 /** The verbs a pilot ought to be pressing: any never pressed in a session is worth a look. */
-const VERBS = ['dash', 'perfect', 'heavy', 'special', 'aux', 'boost', 'focus_secs', 'weld_start', 'takedown', 'graze'];
+const VERBS: [key: string, name: string][] = [
+  ['dash', 'dash'], ['perfect', 'perfect dash'], ['heavy', 'heavy'], ['special', 'special'], ['aux', 'aux'], ['boost', 'boost'],
+  ['focus_secs', 'focus'], ['weld_start', 'weld'], ['takedown', 'takedown'], ['graze', 'graze'],
+];
 
 /** Time-to-kill targets (docs/simple-run.md#time-to-kill-the-target), for what the logs can tell apart. */
 const ELITE_TTK = [6, 10];
+/** A stage's pace: foes a minute, and the share of weak, medium and heavy (by count; see factions.ts weightOf). */
+function pace(s: StageLog) {
+  if (!s.foes) return '';
+  let n = 0;
+  const w = { weak: 0, medium: 0, heavy: 0 };
+  for (const [kind, f] of Object.entries(s.foes)) {
+    if (kind === 'boss') continue;
+    w[weightOf(kind.replace('elite:', ''))] += f.n;
+    n += f.n;
+  }
+  const mins = Math.max(1, s.end?.time ?? 60) / 60;
+  const pc = (k: keyof typeof w) => Math.round((w[k] / Math.max(1, n)) * 100);
+  return `${Math.round(n / mins)}/min ${pc('weak')}/${pc('medium')}/${pc('heavy')}`;
+}
 const PHASE_SECS = [30, 50];
 
 function report(files: string[]) {
@@ -70,7 +88,7 @@ function report(files: string[]) {
   }
 
   console.log('\nSTAGES');
-  console.log(`  ${pad('#', 4)}${pad('stage', 20)}${pad('result', 8)}${lpad('time', 6)}  ${pad('hull', 12)}${pad('rated', 8)}hurt by`);
+  console.log(`  ${pad('#', 4)}${pad('stage', 20)}${pad('result', 8)}${lpad('time', 6)}  ${pad('hull', 12)}${pad('rated', 8)}${pad('pace', 18)}hurt by`);
   const lost: Record<string, number> = {};
   const deaths: string[] = [];
   const kills: Record<string, { n: number; ttk: number[]; escaped: number }> = {};
@@ -81,8 +99,8 @@ function report(files: string[]) {
   for (const r of runs) {
     for (const s of r.stages) {
       n++;
-      const hullStart = s.pilots.reduce((a, p) => a + p.hullStart, 0);
-      const hullEnd = s.pilots.reduce((a, p) => a + p.hullEnd, 0);
+      const hullStart = Math.round(s.pilots.reduce((a, p) => a + p.hullStart, 0));
+      const hullEnd = Math.round(s.pilots.reduce((a, p) => a + p.hullEnd, 0));
       const stageLost: Record<string, number> = {};
       for (const p of s.pilots) {
         sum(p.lost, stageLost);
@@ -99,10 +117,10 @@ function report(files: string[]) {
       }
       ratings[s.rating ?? 'skipped'] = (ratings[s.rating ?? 'skipped'] ?? 0) + 1;
       const pct = hullStart ? Math.round(((hullStart - hullEnd) / hullStart) * 100) : 0;
-      console.log(`  ${pad(n, 4)}${pad(stageName(s), 20)}${pad(s.end?.state ?? '?', 8)}${lpad(Math.round(s.end?.time ?? 0) + 's', 6)}  ${pad(`${hullStart}→${hullEnd} -${pct}%`, 12)}${pad(s.rating ?? '-', 8)}${top(stageLost) || '-'}`);
+      console.log(`  ${pad(n, 4)}${pad(stageName(s), 20)}${pad(s.end?.state ?? '?', 8)}${lpad(Math.round(s.end?.time ?? 0) + 's', 6)}  ${pad(`${hullStart}→${hullEnd} ${pct >= 0 ? '-' : '+'}${Math.abs(pct)}%`, 12)}${pad(s.rating ?? '-', 8)}${pad(pace(s) || '-', 18)}${top(stageLost) || '-'}`);
     }
   }
-  console.log('  (hull target: 25-40% lost a stage, Wardens more)');
+  console.log('  (hull target: 25-40% lost a stage, Wardens more. pace: foes a minute, % weak/medium/heavy by kind)');
 
   console.log('\nDEATHS');
   console.log(deaths.length ? deaths.join('\n') : '  none');
@@ -130,7 +148,7 @@ function report(files: string[]) {
       console.log(`  ${w.name} (run ${r.seed}): ${w.killed ? 'down' : 'not down'}, welds at ${w.welds.join(', ') || '-'}s, rated ${s.rating ?? '-'}`);
       w.phases.forEach((ph, k) => {
         const off = ph.secs < PHASE_SECS[0] || ph.secs > PHASE_SECS[1] ? `  (target ${PHASE_SECS[0]}-${PHASE_SECS[1]}s)` : '';
-        console.log(`    phase ${k + 1}: ${ph.secs}s${off}, ${ph.hits} hits, -${ph.lost} hull${ph.hits ? `: ${top(ph.byMove, 5)}` : ''}`);
+        console.log(`    phase ${k + 1}: ${ph.secs}s${off}, ${ph.hits} hits, -${Math.round(ph.lost)} hull${ph.hits ? `: ${top(ph.byMove, 5)}` : ''}`);
       });
     }
   if (!any) console.log('  none met');
@@ -155,8 +173,10 @@ function report(files: string[]) {
   console.log('\nBUTTONS');
   console.log(`  ${Object.entries(verbs).filter(([k]) => !k.endsWith('_secs')).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v)}`).join(', ')}`);
   console.log(`  held: fire ${Math.round(verbs.fire_secs ?? 0)}s, focus ${Math.round(verbs.focus_secs ?? 0)}s, boost ${Math.round(verbs.boost_secs ?? 0)}s`);
-  const unused = VERBS.filter((v) => !verbs[v]);
+  const unused = VERBS.filter(([k]) => !verbs[k]).map(([, name]) => name);
   console.log(`  never pressed: ${unused.join(', ') || 'none'}`);
+  // (the weld filled, and was never used)
+  if (verbs.weld_ready && !verbs.weld_start) console.log(`  the weld was ready ${verbs.weld_ready} times and never used`);
 
   console.log('\nRATINGS');
   console.log(`  ${Object.entries(ratings).map(([k, v]) => `${k} ${v}`).join(', ')}\n`);
@@ -200,6 +220,8 @@ function replayStage(log: RunLog, k: number, timeline: boolean) {
     console.log(`  recorded: ${JSON.stringify(want)}`);
     console.log(`  replayed: ${JSON.stringify(got)}`);
   }
+  rec.finish(got.state);
+  console.log(`  pace ${pace(rec.log)} (foes a minute, % weak/medium/heavy): ${Object.entries(rec.log.foes ?? {}).map(([k, f]) => `${k} ${f.n}`).join(', ')}`);
   if (timeline) console.log(lines.join('\n'));
   return same;
 }

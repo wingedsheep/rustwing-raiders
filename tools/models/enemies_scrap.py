@@ -10,6 +10,10 @@ One family: rusty patched plates, yellow-and-soot hazard stripes, bolted-on junk
     flakker      a sandbagged flak pit with a quad-barrel gun (the whole model turns to aim)
     loot_runner  a glowing treasure chest between two oversized engines
     iron_crate   a flying riveted strongbox, a thruster on each corner, a glowing padlock seal
+  the popcorn, flown in numbers:
+    scrapling    a seat strapped to a stolen engine pod, two odd stub fins: a capsule with a big glow
+    potshot      a shell drum with a slug-gun through its lid: a round body and one long barrel
+    raker        a cargo glider, long straight wings, twin booms, a gun slung under it
 Seeds 9000-9999.
 """
 from __future__ import annotations
@@ -525,7 +529,120 @@ def iron_crate():
     osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0), (1, 0.04, 1, 0.25))
 
 
+# --- the popcorn ------------------------------------------------------------------------------
+
+def scrapling():
+    """A seat strapped to a stolen engine pod: clan kids fly them in strings, follow-the-leader."""
+    kind, clip, root = named("scrapling", "dart", "mech", "fly", preview=PAL)
+    T = 0.8
+    b = Model(f"{kind}_body", seed=9801)
+    # the engine pod: a fat drum along the ship, banded, the nozzle half its length
+    tube(b, 0.36, -0.62, 0.42, 0, 0.06, A, segs=7)
+    tube(b, 0.3, 0.42, 0.66, 0, 0.06, A.shade(0.85), segs=7, r_end=0.16)
+    for y in (-0.38, 0.1):
+        tube(b, 0.39, y, y + 0.1, 0, 0.06, B, segs=7)
+    _stripes(b, 0, -0.14, 0.4, 0.5, 0.22, n=3)
+    _patch(b, -0.16, 0.26, 0.38, 0.2, 0.2, 0.4)
+    # the seat on top, its rider's head and a scrap of windscreen
+    b.box((0.32, 0.3, 0.12), (0, 0.18, 0.46), B)
+    b.ball(0.14, (0, 0.14, 0.62), GLASS, subdiv=1, scale=(1.0, 1.1, 0.9))
+    b.box((0.3, 0.05, 0.16), (0, 0.38, 0.58), LITE, rot=(-0.5, 0, 0))
+    b.box((0.12, 0.1, 0.06), (0, 0.68, 0.08), C, glow=True)                              # headlamp
+    # mismatched stub fins: one long and thin, one short and square
+    flat(b, [(0.26, 0.2), (0.3, -0.3), (1.1, -0.62), (1.12, -0.32)], 0.24, 0.08, LITE)
+    b.box((0.14, 0.24, 0.1), (1.06, -0.47, 0.27), C, glow=True)
+    flat(b, mirror([(0.26, 0.14), (0.28, -0.5), (0.78, -0.56), (0.76, -0.04)]), 0.24, 0.09, A.shade(1.15))
+    _stripes(b, -0.52, -0.28, 0.29, 0.34, 0.3, n=2, rot=math.pi / 2)
+    _nozzle(b, 0, -0.64, 0.06, 0.26)
+    body = b.build(root)
+    flame(body, f"{kind}_flame", (0, -0.76, 0.06), 0.22, 0.7, clip, T, k=3)
+    marker(body, kind, "muzzle", (0, 0.72, 0.06))
+    # a wobbly kid's ride: a quick buzz over a slow lean
+    osc(body, clip, "location", T, (2, 0.05, 1, 0), (0, 0.025, 4, 0))
+    osc(body, clip, "rotation_euler", T, (1, 0.12, 1, 0.25), (0, 0.03, 3, 0))
+
+
+def potshot():
+    """A shell drum with a slug-gun through its lid: drops in, stops, takes its shot, runs."""
+    kind, clip, root = named("potshot", "dart", "mech", "fly", preview=PAL)
+    T = 1.2
+    b = Model(f"{kind}_body", seed=9811)
+    # the drum, stood on end: brass, two soot bands, a hazard-striped lid
+    b.cyl(0.74, 0.62, (0, 0, -0.2), A, segs=8)
+    for z in (-0.12, 0.24):
+        b.cyl(0.78, 0.1, (0, 0, z), B, segs=8)
+    b.cyl(0.66, 0.08, (0, 0, 0.42), LITE, segs=8)
+    _stripes(b, 0, -0.32, 0.5, 0.9, 0.26, n=4)
+    _patch(b, 0.38, 0.22, 0.5, 0.24, 0.22, 0.6)
+    _patch(b, -0.44, 0.06, 0.5, 0.18, 0.26, -0.3, col=LITE)
+    # the hatch, open, and the gunner's head
+    b.cyl(0.24, 0.1, (-0.2, 0.06, 0.5), DARK, segs=7)
+    b.box((0.36, 0.06, 0.3), (-0.2, -0.16, 0.66), B, rot=(0.6, 0, 0))
+    b.ball(0.15, (-0.2, 0.08, 0.62), GLASS, subdiv=1)
+    # the gun: a long barrel out through the lid, a muzzle brake, an ammo box
+    b.box((0.38, 0.5, 0.24), (0.22, 0.12, 0.6), DARK)
+    tube(b, 0.17, 0.2, 1.42, 0.22, 0.66, B, segs=6)
+    b.box((0.08, 1.0, 0.06), (0.22, 0.86, 0.84), YEL)                                  # a bright sight rail
+    tube(b, 0.22, 1.24, 1.5, 0.22, 0.66, DARK, segs=6)
+    b.box((0.16, 0.16, 0.1), (0.22, 0.3, 0.86), C, glow=True)                           # the sight's eye
+    b.box((0.26, 0.24, 0.18), (0.56, -0.18, 0.56), RUST)
+    # three lift jets round its foot: a glowing ring under the drum
+    b.cyl(0.6, 0.06, (0, 0, -0.24), C, segs=8, glow=True)
+    body = b.build(root)
+    for k in range(3):
+        a = TAU * k / 3 + 0.5
+        g = Model(f"{kind}_jet_{k}", seed=9812 + k)
+        g.cyl(0.18, 0.2, (0, 0, 0), B, segs=6)
+        g.cyl(0.13, 0.42, (0, 0, -0.42), C, segs=6, r_top=0.0, glow=True)
+        jet = g.build(body, loc=(math.cos(a) * 0.62, math.sin(a) * 0.62, -0.2))
+        pulse(jet, clip, T, 0.18, harm=3, phase=k / 3)
+    # the barrel's glowing tip: what flares before the shot
+    tip = Model(f"{kind}_tip", seed=9816)
+    tip.cyl(0.14, 0.06, (0, 0, 0), C, segs=6, rot=(-math.pi / 2, 0, 0), glow=True)
+    tip.build(body, loc=(0.22, 1.52, 0.66))
+    marker(body, kind, "muzzle", (0.22, 1.55, 0.66))
+    # hanging off its jets: a slow bob, a little sway
+    osc(body, clip, "location", T, (2, 0.09, 1, 0))
+    osc(body, clip, "rotation_euler", T, (0, 0.05, 1, 0.25), (1, 0.05, 1, 0))
+
+
+def raker():
+    """A cargo glider with a slug-thrower slung under it, for strafing convoys."""
+    kind, clip, root = named("raker", "dart", "mech", "fly", preview=PAL)
+    T = 1.0
+    b = Model(f"{kind}_body", seed=9821)
+    # a short fat fuselage
+    hull(b, [(0.26, -0.5), (0.3, 0.3), (0.16, 0.72), (-0.16, 0.72), (-0.3, 0.3), (-0.26, -0.5)], -0.12, 0.22, A,
+         inset=0.72)
+    b.ball(0.16, (0, 0.42, 0.26), GLASS, subdiv=1, scale=(1.0, 1.3, 0.7))
+    b.box((0.12, 0.1, 0.06), (0, 0.74, 0.04), C, glow=True)
+    # long straight wings of patched plate, a hazard band near each tip
+    for sx in (1, -1):
+        wing = [(0.2, 0.22), (0.2, -0.12), (1.62, -0.06), (1.62, 0.22)]
+        flat(b, wing if sx > 0 else mirror(wing), 0.14, 0.06, LITE if sx > 0 else A.shade(0.9))
+        _stripes(b, sx * 1.36, 0.08, 0.17, 0.3, 0.26, n=2, rot=math.pi / 2)
+        b.box((0.08, 0.3, 0.06), (sx * 1.62, 0.08, 0.16), C, glow=True)                 # wingtip lamps
+        _patch(b, sx * 0.72, 0.06, 0.18, 0.26, 0.2, 0.2 * sx)
+        # twin tail booms and a tailplane between them
+        tube(b, 0.06, -0.06, -1.06, sx * 0.48, 0.12, B, segs=5)
+        fin(b, [(-0.8, 0.12), (-1.06, 0.12), (-1.06, 0.46), (-0.94, 0.46)], sx * 0.48, 0.06, A.shade(0.8))
+    flat(b, [(0.56, -0.92), (0.56, -1.08), (-0.56, -1.08), (-0.56, -0.92)], 0.14, 0.05, A.shade(0.8))
+    # the gun slung under the belly, poking out ahead
+    tube(b, 0.09, -0.1, 0.98, 0, -0.18, DARK, segs=6)
+    b.box((0.24, 0.3, 0.14), (0, -0.04, -0.18), B)
+    body = b.build(root)
+    # a pusher prop at the back
+    rotor(body, f"{kind}_prop", (0, -0.58, 0.06), 0.42, 2, clip, T, 3, color=B, hub=DARK)
+    marker(body, kind, "muzzle", (0, 1.0, -0.18))
+    # gliding: a long slow roll
+    osc(body, clip, "location", T, (2, 0.05, 1, 0))
+    osc(body, clip, "rotation_euler", T, (1, 0.08, 1, 0), (0, 0.03, 1, 0.25))
+
+
 def build():
+    scrapling()
+    potshot()
+    raker()
     ramjack()
     rattler()
     pirate_ace()

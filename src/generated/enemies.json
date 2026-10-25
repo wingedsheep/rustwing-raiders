@@ -1084,6 +1084,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_potshot": {
+  "colliders": [],
+  "kind": "enemy_potshot",
+  "max": [
+   0.78,
+   0.984,
+   0.825
+  ],
+  "min": [
+   -0.78,
+   -0.679,
+   -1.552
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_prism": {
   "colliders": [],
   "kind": "enemy_prism",
@@ -1137,6 +1153,22 @@
    -0.719,
    -0.39,
    -0.749
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_raker": {
+  "colliders": [],
+  "kind": "enemy_raker",
+  "max": [
+   1.66,
+   0.489,
+   1.093
+  ],
+  "min": [
+   -1.66,
+   -0.302,
+   -0.988
   ],
   "mounts": [],
   "variant": 0
@@ -1386,6 +1418,22 @@
    -2.423,
    -0.923,
    -1.92
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "enemy_scrapling": {
+  "colliders": [],
+  "kind": "enemy_scrapling",
+  "max": [
+   1.211,
+   0.834,
+   1.46
+  ],
+  "min": [
+   -0.814,
+   -0.463,
+   -0.73
   ],
   "mounts": [],
   "variant": 0
