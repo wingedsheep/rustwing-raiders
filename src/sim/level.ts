@@ -173,6 +173,10 @@ export interface Player {
    * breaks plating). The dash's answer is the dash-strike; the guard's is this, longer.
    */
   riposte: number;
+  /** The Kestrel's FLY-BY: the foes this dash has passed close to (their ids), paid back as it ends. */
+  tagged: number[];
+  /** Grazes towards the next round a Graze Fins feeds. */
+  grazeFeed: number;
   /** Perfects in a row, each within PERFECT_CHAIN of the last (for the view's pitch and count), and the time since the last. */
   chain: number;
   chainT: number;
@@ -500,6 +504,11 @@ export type LevelEvent =
   /** `by`: the partner who brought it back (its jolt clears the bullets round it). */
   | { type: 'jumpstart'; id: number; by: number }
   | { type: 'graze'; id: number; x: number; z: number }
+  /** An Echo Coil's free volley, off a gun. */
+  | { type: 'echo'; id: number; x: number; z: number }
+  /** The Kestrel's FLY-BY: a foe tagged as the dash passes it, and the volley as the dash ends (at each tagged foe). */
+  | { type: 'tag'; id: number; enemy: number; x: number; z: number }
+  | { type: 'flyby'; id: number; x: number; z: number; to: { x: number; z: number }[] }
   /** The new kit (see kit.ts): the Bulwark, the Swap Beacon, the skins and the bombs. */
   | { type: 'kit'; id: number; what: KitWhat; x: number; z: number; n?: number; x2?: number; z2?: number }
   | { type: 'dash'; id: number; x: number; z: number; dx: number; dz: number }
@@ -560,7 +569,8 @@ export type LevelEvent =
   /** Blink Coil: the dash was a jump from (x, z) to (x2, z2). */
   | { type: 'blink'; id: number; x: number; z: number; x2: number; z2: number }
   /** Ram Prow: dashed through an enemy. */
-  | { type: 'ram'; id: number; x: number; z: number; enemy: number }
+  /** `heavy`: the Hammerhead's ram on something plated or elite (it breaks the plating). */
+  | { type: 'ram'; id: number; x: number; z: number; enemy: number; heavy?: boolean }
   /** Hair Trigger: crits on (after a perfect) or off. */
   /** A flare or an afterimage appeared (it lives in Level.decoys). */
   | { type: 'decoy'; id: number; kind: Decoy['kind']; x: number; z: number }
@@ -717,8 +727,8 @@ export class Level {
   private readonly tookPhase = new Set<number>();
   /** Inside a blast: its hits are blows (see isBlow). */
   private blowing = 0;
-  /** Blows cash in setups (see arsenal.ts): on in the lab's forge, for now. */
-  combos = false;
+  /** Blows cash in setups (see arsenal.ts). Off only for old recordings, and in the forge to compare. */
+  combos = true;
   /** Damage dealt, by what dealt it (a part's id, a reaction, a cash-in), and the cash-ins, by kind. */
   dealtBy: Record<string, number> = {};
   cashed: Record<string, number> = {};
@@ -814,6 +824,8 @@ export class Level {
         auxT: 0,
         parryT: 0,
         riposte: 0,
+        tagged: [],
+        grazeFeed: 0,
         chain: 0,
         chainT: 9,
         parried: 0,
@@ -1136,9 +1148,11 @@ export class Level {
       p.dashT -= DT;
       p.vx = p.dashX * DASH_SPEED;
       p.vz = p.dashZ * DASH_SPEED;
+      if (s.flyby) this.tagAlong(p);
       if (p.dashT <= 0) {
         p.vx *= 0.35;
         p.vz *= 0.35;
+        if (s.flyby) this.flyby(p);
         if (s.thunder > 0) this.thunderclap(p);
         this.grafting.dashEnd(p);
       }
@@ -1393,6 +1407,25 @@ export class Level {
     return 1;
   }
 
+  /** ECHO COIL: the guns it touches fire a free volley (a heavy, a round that costs none). */
+  private echo(p: Player) {
+    p.stats.guns.forEach((g, k) => {
+      if (!g.echo || p.down) return;
+      p.shotCount[k]++;
+      this.fire(p, g, p.x + g.x, p.z + g.z, g.dir, g.heavy ? 0 : 2);
+      this.emit({ type: 'echo', id: p.id, x: p.x + g.x, z: p.z + g.z });
+    });
+  }
+
+  /** A round in each heavy gun that `which` picks, up to its magazine. */
+  private feedRounds(p: Player, which: (g: Gun) => boolean) {
+    p.stats.guns.forEach((g, k) => {
+      if (!g.heavy || !which(g) || p.rounds[k] >= g.heavy) return;
+      p.rounds[k]++;
+      this.emit({ type: 'reload', id: p.id, gun: k, perfect: true, rounds: p.rounds[k] });
+    });
+  }
+
   /** A perfect puts a round back in every heavy gun. */
   private reloadHeavies(p: Player) {
     p.stats.guns.forEach((g, k) => {
@@ -1451,6 +1484,11 @@ export class Level {
       s.crit = hit.crit;
       s.marks = g.marks;
       s.markStr = g.markStr;
+      // the Rivet Gun's: every so many, a round that cracks
+      if (sp.crackEvery && p.shotCount[p.stats.guns.indexOf(g)] % sp.crackEvery === 0) {
+        s.marks |= CRACK;
+        s.markStr = Math.max(s.markStr, 0.6);
+      }
       if (g.flaw) s.flaw = true;
       if (g.volatile) s.volatile = true;
       if (g.split) s.split = true;
@@ -1773,6 +1811,8 @@ export class Level {
     e.hp -= dmg;
     this.grafting.share(e, dmg, dot);
     // EXECUTIONER: what's left that low is finished off
+    // CHARGED: its crits shock what they hit
+    if (af === 'charged' && crit && e.hp > 0) mark(this, e, SHOCK, 0.8, owner);
     if (af === 'executioner' && !e.boss && e.hp > 0 && e.hp < e.max * EXECUTE) {
       dmg += e.hp;
       e.hp = 0;
@@ -1786,6 +1826,10 @@ export class Level {
     if (!kill) return;
     // a VOLATILE gun's kill: its marks jump to the nearest
     if (s?.volatile) spread(this, e, owner);
+    // KINDLING: what's round its kill catches fire
+    if (af === 'kindling')
+      for (const o of this.enemies)
+        if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < KINDLE_R * KINDLE_R) mark(this, o, BURN, 0.8, owner);
     // up close: worth the danger
     const close = !dot && !!p && !p.down && (e.x - p.x) ** 2 + (e.z - p.z) ** 2 < POINT_BLANK * POINT_BLANK;
     if (close) {
@@ -1928,6 +1972,7 @@ export class Level {
     this.mind.takedown(p, e, big);
     if (e.dead) this.mind.takedownKill(p, e);
     p.dashes = Math.min(p.stats.dashes, p.dashes + 1);
+    this.echo(p);
     p.burn = Math.min(1, p.burn + BURN_TAKEDOWN);
     p.inv = Math.max(p.inv, 0.5);
     p.strike = Math.max(p.strike, STRIKE_TIME);
@@ -2383,7 +2428,7 @@ export class Level {
         const d2 = (b.x - p.x) ** 2 + (b.z - p.z) ** 2;
         const hitR = core + b.r;
         // in a dash's opening slip, a bullet that would have hit where you were (give or take) is a perfect
-        if (p.slip > 0 && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
+        if (p.slip > 0 && !p.stats.catch && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
         if (b.dead) continue;
         if (d2 < hitR * hitR) {
           if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind], b.from)) {
@@ -2398,6 +2443,11 @@ export class Level {
           p.burn = Math.min(1, p.burn + BURN_GRAZE);
           this.score += 5 * (1 + this.combo);
           this.emit({ type: 'graze', id: p.id, x: (b.x + p.x) / 2, z: (b.z + p.z) / 2 });
+          // Graze Fins: every few grazes, a round in the heavies they touch
+          if (++p.grazeFeed >= GRAZE_FEED) {
+            p.grazeFeed = 0;
+            this.feedRounds(p, (g) => g.grazeFed);
+          }
           this.mind.graze(p);
           kitGraze(this, p);
         }
@@ -2405,8 +2455,9 @@ export class Level {
       // ramming
       for (const e of this.enemies) {
         if (e.dead || e.ground || e.state === 'hidden') continue;
-        // a dash through anything staggered is a takedown (once a stagger)
-        if (p.dashT > 0 && e.state === 'stagger' && !e.d.td && e.t >= 0) {
+        // flying into (or dashing through) anything staggered is a takedown (once a stagger)
+        // (not the one this ram just knocked reeling: that takes a second ram)
+        if (e.state === 'stagger' && !e.d.td && e.t >= 0 && !(p.dashT > 0 && p.rammed.includes(e.id))) {
           const tr = e.r + core + TAKEDOWN_REACH;
           if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < tr * tr) this.credited('TAKEDOWN', () => this.takedown(p, e));
           continue;
@@ -2709,7 +2760,12 @@ export class Level {
           parried++;
           const dir = Math.atan2(-b.vx, b.vz);
           const dmg = PARRY_DMG * s.auxStr * (1 + p.burn);
-          for (let k = 0; k < (s.mirror ? 2 : 1); k++) this.addShot(p.id, 'slug', b.x, b.z, dir + k * 0.15, 55, dmg, 1, 0, 1).tag = 'reflect';
+          for (let k = 0; k < (s.mirror ? 2 : 1); k++) {
+            const shot = this.addShot(p.id, 'slug', b.x, b.z, dir + k * 0.15, 55, dmg, 1, 0, 1);
+            shot.tag = 'reflect';
+            // Catch Coil: it goes back carrying the touching guns' marks
+            shot.marks = s.catchMarks;
+          }
         } else if (p.parryT <= 0 && d2 < BLOCK_R * BLOCK_R) {
           this.cancel(b);
           p.blocked++;
@@ -2732,6 +2788,8 @@ export class Level {
         p.parries += parried;
         this.emit({ type: 'parry', id: p.id, x: p.x, z: p.z, count: parried, first });
         if (first) this.perfectParry(p, parried);
+        // THE CATCH (the Magpie's): every shot caught is a heavy round (the perfect's own comes first)
+        if (s.catch) for (let k = first ? 1 : 0; k < parried; k++) this.reloadHeavies(p);
       }
       if (blocked) this.emit({ type: 'block', id: p.id, x: p.x, z: p.z, count: blocked });
     } else if (s.aux === 'siphon') {
@@ -2757,6 +2815,42 @@ export class Level {
         }
       }
     }
+  }
+
+  /** FLY-BY (the Kestrel's): every foe the dash passes close to, without touching it, is tagged. */
+  private tagAlong(p: Player) {
+    const s = p.stats;
+    for (const e of this.enemies) {
+      if (p.tagged.length >= FLYBY_MAX) return;
+      if (e.dead || e.shielded || e.t < 0 || e.state === 'hidden' || !this.seen(e) || p.tagged.includes(e.id)) continue;
+      const d2 = (e.x - p.x) ** 2 + (e.z - p.z) ** 2;
+      const touch = e.r * 0.75 + s.core;
+      if (d2 > (e.r + FLYBY_R) ** 2 || d2 < touch * touch) continue;
+      p.tagged.push(e.id);
+      this.emit({ type: 'tag', id: p.id, enemy: e.id, x: e.x, z: e.z });
+    }
+  }
+
+  /**
+   * The dash is over: a volley from the guns at everything it tagged. Each one takes a blow (it
+   * breaks plating, and cashes in what's set up on it), then the trigger guns' marks.
+   */
+  private flyby(p: Player) {
+    const s = p.stats;
+    const hit = p.tagged.map((id) => this.enemies.find((e) => e.id === id)).filter((e): e is Enemy => !!e && !e.dead && !e.shielded);
+    p.tagged = [];
+    if (!hit.length) return;
+    const guns = s.guns.filter((g) => !g.heavy);
+    const dmg = Math.max(FLYBY_MIN, guns.reduce((a, g) => a + this.gunDamage(p, g).dmg * g.spec.count, 0) * FLYBY_K);
+    this.emit({ type: 'flyby', id: p.id, x: p.x, z: p.z, to: hit.map((e) => ({ x: e.x, z: e.z })) });
+    this.credited('FLY-BY', () => {
+      for (const e of hit) {
+        this.blowing++;
+        this.damage(e, dmg, p.id, true, { x: p.x, z: p.z });
+        this.blowing--;
+        if (!e.dead) for (const g of guns) if (g.marks) this.credited(g.part.id, () => mark(this, e, g.marks, g.markStr, p.id));
+      }
+    });
   }
 
   /** The first parry of a burst: the reward for the timing. A perfect, and the riposte. */
@@ -2796,21 +2890,15 @@ export class Level {
     return best;
   }
 
-  /** A gun's damage now: the lance's speed, the Kestrel's slipstream, SPITE, PRIMED. */
+  /** A gun's damage now: the lance's speed, SPITE, PRIMED. */
   private gunDamage(p: Player, g: Gun) {
     let dmg = g.spec.damage;
     if (g.spec.speedy) dmg *= 1 + p.boosting;
-    if (p.stats.swift) dmg *= 1 + p.stats.swift * this.pace(p);
     if (g.affix === 'spite' && p.spiteT > 0) dmg *= SPITE_DMG;
     if (g.primed && p.primeT > 0) dmg *= PRIMED_DMG;
     dmg *= this.mind.luckMul(p, g.heavy ? 'H' : 'T');
     if (p.riposte > 0) return { dmg: dmg * RIPOSTE_DMG, crit: true };
     return { dmg, crit: false };
-  }
-
-  /** How fast it's flying, 0..1: about half at full speed, 1 flat out on the boost or in a dash. */
-  pace(p: Player) {
-    return Math.min(1, Math.hypot(p.vx, p.vz) / (p.stats.speed * (1 + SURGE_SHIP)));
   }
 
   /** The dash just began: what the dash mods add. */
@@ -2819,6 +2907,7 @@ export class Level {
     const m = s.mod;
     p.rammed = [];
     p.sparked = [];
+    p.tagged = [];
     const x0 = p.x;
     const z0 = p.z;
     if (m.blink > 0) this.blink(p);
@@ -2881,20 +2970,36 @@ export class Level {
     }
   }
 
-  /** Ram Prow: a hit on everything along a bit of the dash (once each a dash). */
+  /**
+   * Ram Prow, and the Hammerhead's BATTERING RAM: a hit on everything along a bit of the dash (once
+   * each a dash). The Hammerhead's hits with the whole head, as a blow: it breaks plating (the
+   * next ram takes the reeling down), and every foe it hits gives the dash back sooner.
+   */
   private ramAlong(p: Player, x0: number, z0: number, x1: number, z1: number) {
+    const s = p.stats;
     const dx = x1 - x0;
     const dz = z1 - z0;
     const l2 = dx * dx + dz * dz || 1;
     for (const e of this.enemies) {
       if (e.dead || e.shielded || e.ground || e.t < 0 || p.rammed.includes(e.id)) continue;
+      // (something already reeling is a takedown's, not a ram's: see collide)
+      if (s.battering && e.state === 'stagger' && !e.d.td) continue;
       const t = clamp(((e.x - x0) * dx + (e.z - z0) * dz) / l2, 0, 1);
-      if ((x0 + dx * t - e.x) ** 2 + (z0 + dz * t - e.z) ** 2 > (e.r + p.stats.core + 0.6) ** 2) continue;
+      if ((x0 + dx * t - e.x) ** 2 + (z0 + dz * t - e.z) ** 2 > (e.r + s.ramW) ** 2) continue;
       p.rammed.push(e.id);
-      this.emit({ type: 'ram', id: p.id, x: e.x, z: e.z, enemy: e.id });
+      const plated = e.armour > 0;
+      this.emit({ type: 'ram', id: p.id, x: e.x, z: e.z, enemy: e.id, heavy: s.battering && (plated || e.elite) });
       e.stun = Math.max(e.stun, 0.3);
-      this.damage(e, p.stats.mod.ram * (p.perfect ? 1.5 : 1), p.id, p.perfect);
-      if (p.stats.affixes.barbed) this.barb(p, e);
+      if (s.battering) this.blowing++;
+      this.damage(e, s.mod.ram * (p.perfect ? 1.5 : 1), p.id, p.perfect);
+      // Ram Spurs: what's rammed takes the touching guns' marks (after the blow, so the next one cashes them)
+      if (s.ramMarks && !e.dead) this.credited('recoil', () => mark(this, e, s.ramMarks, 1, p.id));
+      if (s.battering) {
+        this.blowing--;
+        if (!e.dead && !e.boss && e.armour > 0) this.breakPlating(e, p.id);
+        p.dashCd = Math.max(0, p.dashCd - (e.dead ? RAM_BACK_KILL : RAM_BACK));
+      }
+      if (s.affixes.barbed) this.barb(p, e);
     }
   }
 
@@ -3187,6 +3292,7 @@ export class Level {
    */
   private perfect(p: Player, how: PerfectHow, absorbed: number) {
     p.perfects++;
+    this.echo(p);
     p.chain = p.chainT <= PERFECT_CHAIN ? p.chain + 1 : 1;
     p.chainT = 0;
     this.reloadHeavies(p);
@@ -3391,6 +3497,22 @@ const BLOCK_R = 1.9;
 export const BLOCK_MAX = 3;
 /** A parried small projectile's damage (more with Burn). */
 const PARRY_DMG = 14;
+/**
+ * FLY-BY (the Kestrel): how far past a foe's edge the dash tags it, how many one dash can tag, and
+ * the volley's hit on each: the trigger guns' damage (every pellet) this many times over, never
+ * under the least.
+ */
+const FLYBY_R = 3.5;
+const FLYBY_MAX = 8;
+const FLYBY_K = 2;
+const FLYBY_MIN = 10;
+/** KINDLING: how far round a kill the fire catches. */
+const KINDLE_R = 5;
+/** Graze Fins: grazes for a round. */
+const GRAZE_FEED = 3;
+/** BATTERING RAM (the Hammerhead): seconds of dash back for each foe rammed, and for each one it kills. */
+const RAM_BACK = 0.35;
+const RAM_BACK_KILL = 0.6;
 /** RIPOSTE: how long after a perfect parry the guns crit, and how much harder they hit in it. */
 export const RIPOSTE_TIME = 1.2;
 const RIPOSTE_DMG = 1.3;

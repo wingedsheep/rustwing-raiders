@@ -12,7 +12,7 @@
 import { PLANETS, type Planet } from '../world/planets';
 import { factionOf } from './factions';
 import { HULL_STEP, type LevelSpec, type Mode } from './level';
-import { LOOT, startBuild, stats, type Build } from './build';
+import { LOOT, lootable, startBuild, stats, type Build } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
@@ -370,8 +370,8 @@ export class Run {
     const m = this.market(n);
     // three parts: one of the planet's own line, cheap, and two of anything (a ship only has
     // so much room, so each one gets looked at)
-    const own = m.sells ? shuffle(r, PARTS.filter((p) => p.cls === m.sells).map((p) => p.id)).slice(0, 1) : [];
-    const rest = shuffle(r, PARTS.map((p) => p.id).filter((id) => !own.includes(id))).slice(0, SHOP_PARTS - own.length);
+    const own = m.sells ? shuffle(r, PARTS.filter((p) => p.cls === m.sells && lootable(p)).map((p) => p.id)).slice(0, 1) : [];
+    const rest = shuffle(r, PARTS.filter(lootable).map((p) => p.id).filter((id) => !own.includes(id))).slice(0, SHOP_PARTS - own.length);
     // dealers stock the odd tuned part, rarely anything finer
     return [...own, ...rest].map((id) => {
       const def = partById(id);

@@ -1055,11 +1055,42 @@ export class LevelView {
           audio.play('blink', { pan: e.x2 / HALF_W });
           break;
         case 'ram':
-          this.trauma = Math.min(1, this.trauma + 0.35);
-          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z - 1, 14, 0xffd060, 20, 0.3, 0.25);
-          this.shove(0, 1, 0.5);
-          audio.play('ram', { pan: e.x / HALF_W });
+          // popcorn crunches; something plated takes the whole weight of the head, and says so
+          this.trauma = Math.min(1, this.trauma + (e.heavy ? 0.3 : 0.1));
+          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z - 1, e.heavy ? 22 : 10, 0xffd060, e.heavy ? 26 : 18, 0.3, 0.25);
+          for (let k = 0; k < (e.heavy ? 8 : 3); k++)
+            this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z, vx: (Math.random() - 0.5) * 22, vz: -6 - Math.random() * 14, vy: 3 + Math.random() * 5, gravity: 24, size: 0.3 + Math.random() * 0.25, grow: 0, life: 0.45, drag: 1.5, color: RAM_DEBRIS, carried: true });
+          if (e.heavy) {
+            this.fx.ring(e.x, FLIGHT_Y, e.z, 4.5, 0.22, true, RAM_GLOW);
+            this.pop('RAMMED', e.x, e.z - 2.5, '#ffd060');
+          }
+          this.shove(0, 1, e.heavy ? 0.5 : 0.25);
+          audio.play('ram', { pan: e.x / HALF_W, pitch: e.heavy ? 0.8 : 1.1 + Math.random() * 0.15, vol: e.heavy ? 1 : 0.7 });
           break;
+        case 'echo':
+          // an Echo Coil's free volley: a ring off the gun, the coil's hum
+          this.fx.ring(e.x, FLIGHT_Y + 0.6, e.z, 2.4, 0.18, true, 0x9ae8ff);
+          audio.play('aux_ready', { pan: e.x / HALF_W, pitch: 1.5, vol: 0.4 });
+          break;
+        case 'tag':
+          // FLY-BY: a lock on the foe the dash went past, and a tick for each
+          this.fx.ring(e.x, FLIGHT_Y + 0.4, e.z, 2.6, 0.22, true, LIVERY[e.id][2]);
+          this.fx.ring(e.x, FLIGHT_Y + 0.4, e.z, 1.4, 0.3, true, 0xffffff);
+          audio.play('aux_ready', { pan: e.x / HALF_W, pitch: 1.8 + Math.random() * 0.2, vol: 0.35 });
+          break;
+        case 'flyby': {
+          // the volley: a tracer from the ship to every foe it tagged, sparks where each lands
+          const col = LIVERY[e.id][2];
+          this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 3, 0.18, true, 0xffffff);
+          for (const t of e.to) {
+            this.bolt([e.x, e.z, t.x, t.z], col);
+            this.fx.sparks(t.x, FLIGHT_Y + 0.5, t.z, 8, col, 16, 0.25, 0.22);
+          }
+          if (e.to.length >= 3) this.pop(`FLY-BY x${e.to.length}`, e.x, e.z - 3, '#8affe0');
+          audio.play('point_blank', { pan: e.x / HALF_W, pitch: 1 + Math.min(6, e.to.length) * 0.05 });
+          this.trauma = Math.min(1, this.trauma + 0.05 * Math.min(4, e.to.length));
+          break;
+        }
         case 'decoy':
           if (e.kind === 'flare') audio.play('flare', { pan: e.x / HALF_W });
           break;
@@ -1158,7 +1189,7 @@ export class LevelView {
           this.shards(e.x, e.z, elite ? 16 : 10, col);
           this.fx.ring(e.x, FLIGHT_Y, e.z, (en?.r ?? 2) * 2.4, 0.3, true, col);
           this.fx.add({ x: e.x, y: FLIGHT_Y + 1.2, z: e.z, size: 5, grow: 1.4, life: 0.1, color: HOT, carried: true });
-          this.pop(elite ? 'ARMOUR BROKEN' : 'OPEN', e.x, e.z - 3, elite ? '#ffd04a' : '#e8eef8', elite);
+          this.pop(elite ? 'ARMOUR BROKEN: RAM IT' : 'OPEN', e.x, e.z - 3, elite ? '#ffd04a' : '#e8eef8', elite);
           this.trauma = Math.min(1, this.trauma + (elite ? 0.35 : 0.2));
           audio.play('shield_break', { pan: e.x / HALF_W, pitch: 0.6 });
           audio.play('explode_small', { pan: e.x / HALF_W, pitch: 0.7, vol: 0.6 });
@@ -2496,6 +2527,12 @@ export class LevelView {
           this.fx.add({ x: p.x + Math.cos(a) * 1.6, y: FLIGHT_Y + 0.6, z: p.z + Math.sin(a) * 1.6, vx: Math.cos(a) * 3, vz: Math.sin(a) * 3 + 4, size: 0.25, grow: 0.1, life: 0.3, color: RIPOSTE_GLOW, carried: true });
         }
       }
+      // BATTERING RAM (the Hammerhead's): the prow glows while a dash is ready; in the dash, a wedge of light leads it
+      if (p.stats.battering && !p.down) {
+        if (p.dashT > 0)
+          for (let k = -3; k <= 3; k++) this.fx.add({ x: p.x + k * 0.55 + p.dashX * 1.2, y: FLIGHT_Y + 0.6, z: p.z - 1.9 + Math.abs(k) * 0.45 + p.dashZ * 1.2, size: 0.55, grow: 0.4, life: 0.07, color: RAM_GLOW, carried: true });
+        else if (p.dashes > 0 && Math.random() < 0.3) this.fx.add({ x: p.x + (Math.random() - 0.5) * 3.6, y: FLIGHT_Y + 0.6, z: p.z - 1.5, vz: 2, size: 0.2, grow: 0.2, life: 0.22, color: RAM_GLOW, carried: true });
+      }
       // the dash's slip: a ghost left where it started, which is where fire has to land for a perfect
       if (p.slip > 0) this.fx.add({ x: p.slipX, y: FLIGHT_Y + 0.5, z: lv.scroll + p.slipZ, size: 2.2, grow: 0.6, life: 0.06, color: this.c.setHex(LIVERY[i][2]).multiplyScalar(0.8), carried: true });
       // trail
@@ -3641,6 +3678,9 @@ const EDGE_COLOR = '#ffa8d8';
 const EDGE_HOT = new THREE.Color(0xfff0f8).multiplyScalar(1.6);
 const EDGE_GLOW = new THREE.Color(0xff8ac8).multiplyScalar(1.3);
 const STRIKE_GLOW = new THREE.Color(0xffffff).multiplyScalar(1.4);
+/** The Hammerhead's ram: the light leading it, and what it knocks off. */
+const RAM_GLOW = new THREE.Color(0xffd060);
+const RAM_DEBRIS = new THREE.Color(0x6a5a4a);
 /** The riposte's gold (the HUD's bar is the same). */
 const RIPOSTE_HEX = '#ffd060';
 const RIPOSTE_GLOW = new THREE.Color(RIPOSTE_HEX).multiplyScalar(1.5);

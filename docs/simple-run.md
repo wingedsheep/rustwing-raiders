@@ -99,7 +99,23 @@ Three parts, a refit, a repair, a reroll, and selling. Scrap is the only money. 
 
 ## The build, simplified
 
-Two halves: **parts** (what your buttons do) and **grafts** (how your verbs change).
+Two halves: **parts** (what your buttons do) and **grafts** (how your verbs change). Both sit on one of three ships.
+
+### Three ships: past them, through them, back at them
+Every attack is one of three things: **small bullets**, **bodies** (and the plating on them), or **space** (beams, blasts, lanes, terrain). Each ship has one verb on one press, with a moment and a payoff you can see. (Decided 2026-10-25: the Wasp, Mule and Lattice are cut. The Kestrel's first verb, SLIPSTREAM pips from grazing, went the next day: a meter you build isn't a press, and its pay was percentages.)
+
+| | **Kestrel**: past them | **Hammerhead**: through them | **Magpie**: back at them |
+|---|---|---|---|
+| Its verb | FLY-BY: the dash tags every foe it passes close to without touching (up to eight). As it ends, the guns loose a volley at each one: a blow that carries their marks. A perfect dash gives the dash back at once. | BATTERING RAM: the dash hits with the whole head, as a blow. It breaks plating (the next ram takes the reeling down), and every foe rammed gives the dash back sooner. | THE CATCH: its own parry emitter. Every shot it catches loads a heavy round. Its perfect is the parry, not the dash. |
+| Feeds on | Weaving through formations | Bodies and plating | Small bullets |
+| Has to avoid | Bodies, being boxed in | Beams, blasts, snipers | Beams, heavy rounds, mines, bodies (nothing the parry can't take) |
+| Guns, hull | Long forward rivets; 60 hull, the smallest core, the fastest | Short wide scatter; 85 hull, the biggest core | Middle rivets; 72 hull, middle |
+| Hardpoints | 2 trigger, 1 heavy, 1 special | 2 trigger, 1 heavy, 1 special | 2 trigger, 1 heavy, 1 special, and the aux (its parry) |
+
+- **Only the Magpie has an aux button.** Aux parts are no longer loot.
+- **Balanced by the same targets**: 25–40% hull a stage and the same times to kill, benched per ship and split by frame in the recorder's report. A pilot who ignores the verb still clears sector 1; mastering it is worth about a third more.
+- **Every Warden mixes all three threats.** Tag each move bullets, bodies or space, none over about half. A ship may have a favourite Warden and a feared one, never a hopeless one.
+- **Co-op fits together**: the Magpie throws shots back into crowds, the Hammerhead opens elites, the Kestrel picks off what's left.
 
 ### Parts: loot the way Dead Cells does it
 In Dead Cells, every drop is a real choice: **keep what you have and make it stronger, or swap it for the new drop.** A favourite can last the whole run, and a lucky drop can change it. Rustwing's parts work the same way.
@@ -121,14 +137,15 @@ In Dead Cells, every drop is a real choice: **keep what you have and make it str
 Putting parts on your ship is one of the things Rustwing has that the others don't. It stays, with fewer rules and more feedback.
 
 - **Three rules, and only three:**
-  1. Each button has its hardpoints (trigger, heavy, aux, special).
+  1. Each button has its hardpoints (trigger, heavy, special; the Magpie's aux).
   2. Guns fire the way they sit.
-  3. Boosters help what they touch.
+  3. Fittings change what they touch.
+- **Every part makes something and wants something** ([the words](parts-variety.md#every-part-makes-something-and-wants-something)). A card says it, says what on your ship it works with, and the hangar draws the line.
 - **Go:** links, load classes, edges, arsenal states (CHILL becomes a mark if it's worth keeping), and the kit as a separate layer. Its good pieces become parts.
 - **A new part goes on in one press**: it lands where it does most, swapping with the part it beats. The hangar is for tinkering, never a chore after every stage.
 - **See it before you commit.** While you place a part, the ship fires in the hangar, and a booster's light runs to what it touches. A gun's arrow shows where it will shoot.
 - **Every part shows on the ship in flight**, and grows with its level.
-- **The arsenal's first slice** (Frost Sprayer, Charge Cannon, Saw Launcher) lands as plain parts with levels. Gun rolls aren't needed once guns have levels.
+- **The arsenal's first slice** (Frost Sprayer, Charge Cannon, Saw Launcher, Anchor Spike, Cryo Feed) is in the pool. Gun rolls aren't needed once guns have levels.
 - **About 30 parts** in the pool for Act I, each with its own personality ([parts variety](parts-variety.md)).
 
 ### Grafts
@@ -140,7 +157,8 @@ The core stays as the fiction: **the core copies what it beats.** That's what a 
 
 ### In the fight
 - **Keep:** fire, heavy, dash with perfects, the special, boost with Burn, the Weld, and Plating → Open → Takedown (it makes elites a fight, not a sponge).
-- **The aux is a frame's thing:** GUARD frames have the parry, and others get an aux from parts.
+- **The aux is the Magpie's:** its parry. The Kestrel and Hammerhead have no aux button.
+- **Combos are on**: a blow on a set-up enemy cashes the setup in (FLARE-UP, GROUND-OUT, BREACH, SMASH, NAILED). `&nocombos` switches them off.
 - **Check the verbs on the recorder** (below): a button nobody presses goes.
 
 ## Stages that play well

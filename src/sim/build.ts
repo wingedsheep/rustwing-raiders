@@ -51,6 +51,9 @@ export interface Gun {
   primed: boolean;
   /** A HEAVY gun's rounds (0: a main gun, on the held trigger). */
   heavy: number;
+  /** Relays touching it (see Relay in game/parts.ts): a perfect fires it (ECHO), grazes load it (GRAZE). */
+  echo: boolean;
+  grazeFed: boolean;
   /** Where it's bolted on. */
   at: Placement;
 }
@@ -80,12 +83,19 @@ export interface Stats {
   core: number;
   /** Burn back a second once the boost is let go (the frame's). */
   burnBack: number;
-  /** Kestrel: guns hit up to this much harder the faster it flies. */
-  swift: number;
+  /** Kestrel: FLY-BY, its dash tags and its guns pay back. Magpie: every shot caught loads a heavy round. */
+  flyby: boolean;
+  catch: boolean;
   /** The aux verb, and how strong it runs (1 = 100%). */
   aux: AuxKind | null;
   auxStr: number;
-  /** What the dash does besides (each summed over the dash mods, at their strength); `refill`: the Wasp's. */
+  /**
+   * The Hammerhead's ram: how far either side of its line the dash hits (its whole head; a Ram
+   * Prow's is the hull's core), and whether it's a blow that breaks plating and gives the dash back.
+   */
+  ramW: number;
+  battering: boolean;
+  /** What the dash does besides (each summed over the dash mods, at their strength); `refill`: the Kestrel's. */
   mod: Required<DashMod> & { refill: boolean };
   /** Reflector Plates: shots each bullet the shield stops is thrown back as. */
   mirror: number;
@@ -93,6 +103,11 @@ export interface Stats {
   skin: 'ablative' | 'static' | null;
   /** Every mark the ship can leave (its guns, and what else it has that marks: bits). */
   marks: number;
+  /** What a ram leaves (Ram Spurs) and what a caught shot carries (Catch Coil): the touching guns' marks. */
+  ramMarks: number;
+  catchMarks: number;
+  /** A Spark Gap joining two guns: the reactions they make jump on to the nearest. */
+  spark: boolean;
   /** Legendary traits off the guns: THUNDEROUS dashes (strength), a VENGEFUL hull, a RAVENOUS special. */
   thunder: number;
   vengeful: boolean;
@@ -182,6 +197,9 @@ export function gunDir(f: FrameDef, p: Placement) {
   return 0;
 }
 
+/** How strong the marks are that a Spark Gap hands across. */
+const SHARED_MARK = 1;
+
 /** Shield points a part's (or a frame's) shield cell is worth: about a plain hit mid-run. */
 export const SHIELD_CELL = 20;
 
@@ -209,7 +227,7 @@ export function stats(b: Build): Stats {
   let dashRecover = 1;
   let aux: AuxKind | null = null;
   let auxStr = 0;
-  // (the frame's own perk counts as a dash mod: the Hammerhead's ram, the Wasp's refill)
+  // (the frame's own perk counts as a dash mod: the Hammerhead's ram, the Kestrel's refill)
   const mod = { ram: f.ram ?? 0, blink: 0, mines: 0, ghost: 0, detonate: 0, strike: 0, refill: !!f.refill };
   let mirror = 0;
   let skin: Stats['skin'] = null;
@@ -275,8 +293,12 @@ export function stats(b: Build): Stats {
     let flaw = false;
     let edgeMul = 2;
     let primed = false;
+    let echo = p.affix === 'echoing';
+    let grazeFed = false;
     for (const { p: q, def: d, str } of parts) {
       if (!touching(p, q) || str <= 0) continue;
+      echo ||= d.boost?.relay === 'echo';
+      grazeFed ||= d.boost?.relay === 'graze' && !!spec.heavy;
       if (q.affix === 'hotwired') spec.pierce = (spec.pierce ?? 0) + 1;
       primed ||= q.affix === 'primed';
       if (d.boost) {
@@ -299,7 +321,7 @@ export function stats(b: Build): Stats {
     const g: Gun = {
       part: def, spec, x: pos.x, z: pos.z - CELL * 0.5, dir, cool,
       marks, markStr, flaw, edgeMul, volatile: p.trait === 'volatile', split: p.trait === 'splitting',
-      sentinel: p.trait === 'sentinel', boomerang: p.trait === 'boomerang', frenzied: p.trait === 'frenzied', affix: p.affix, primed, heavy, at: p,
+      sentinel: p.trait === 'sentinel', boomerang: p.trait === 'boomerang', frenzied: p.trait === 'frenzied', affix: p.affix, primed, heavy, echo, grazeFed, at: p,
     };
     guns.push(g);
     // twinned: a mirror copy from the other side of the hull (both off the middle, if it's there)
@@ -310,8 +332,25 @@ export function stats(b: Build): Stats {
     }
   }
 
+  // Spark Gap: the guns touching one carry each other's marks; Ram Spurs and the Catch Coil hand
+  // theirs on to the ram and the catch
+  let ramMarks = 0;
+  let catchMarks = 0;
+  let spark = false;
+  for (const { p: q, def: d, str } of parts) {
+    if (!d.boost || str <= 0 || (!d.boost.share && d.boost.relay !== 'ram' && d.boost.relay !== 'catch')) continue;
+    const near = guns.filter((g) => touching(g.at, q));
+    const bits = near.reduce((m, g) => m | g.marks, 0);
+    spark ||= !!d.boost.share && near.length >= 2;
+    if (d.boost.share) for (const g of near) if (g.marks !== bits) {
+      g.marks = bits;
+      g.markStr = Math.max(g.markStr, SHARED_MARK * str);
+    }
+    if (d.boost.relay === 'ram') ramMarks |= bits;
+    if (d.boost.relay === 'catch') catchMarks |= bits;
+  }
   // what the ship can mark with
-  const marks = guns.reduce((m, g) => m | g.marks, 0);
+  const marks = guns.reduce((m, g) => m | g.marks, 0) | ramMarks | catchMarks;
   const ratio = thrust / mass;
   return {
     frame: f,
@@ -333,13 +372,19 @@ export function stats(b: Build): Stats {
     specialRate: chargeRate,
     core: f.core,
     burnBack: f.burn,
-    swift: f.swift ?? 0,
+    ramW: f.ram ? (f.grid[0].length * CELL) / 2 : f.core + 0.6,
+    battering: !!f.ram,
+    flyby: !!f.flyby,
+    catch: !!f.catch,
     aux,
     auxStr,
     mod,
     mirror,
     skin,
     marks,
+    ramMarks,
+    catchMarks,
+    spark,
     thunder,
     vengeful,
     ravenous,
@@ -351,11 +396,14 @@ export function loadClassOf(load: number, capacity: number): LoadClass {
   return load <= capacity * LOAD.nimble + 1e-6 ? 'nimble' : load <= capacity + 1e-6 ? 'steady' : 'overloaded';
 }
 
+/** Whether a part can turn up as loot: not an aux (only the Magpie has the button, and its parry is its own). */
+export const lootable = (p: PartDef) => !p.aux;
+
 /** Parts that can turn up as loot, by rarity. */
 export const LOOT = {
-  common: PARTS.filter((p) => p.rarity === 'common'),
-  rare: PARTS.filter((p) => p.rarity === 'rare'),
-  epic: PARTS.filter((p) => p.rarity === 'epic'),
+  common: PARTS.filter((p) => p.rarity === 'common' && lootable(p)),
+  rare: PARTS.filter((p) => p.rarity === 'rare' && lootable(p)),
+  epic: PARTS.filter((p) => p.rarity === 'epic' && lootable(p)),
 };
 
 export { FRAMES };

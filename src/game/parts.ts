@@ -132,6 +132,8 @@ export interface GunSpec {
   homing?: number;
   /** Through shields and plating: it hits the hull underneath. */
   phase?: boolean;
+  /** Every this many shots, one CRACKS what it hits (the Rivet Gun's: a setup from the start). */
+  crackEvery?: number;
   /** A heavy round left in the chamber grows: up to this much harder (×1 + ripen) after 3 s. */
   ripen?: number;
   /** How big its shots are drawn and hit (×), and their colour. */
@@ -186,7 +188,12 @@ export interface PartDef {
   /** For the special ability parts. */
   special?: 'bomb' | 'phase' | 'emp' | 'overdrive' | 'carpet' | 'cryo' | 'gravity' | 'drones';
   /** Booster effects on touching guns: `mark` gives their hits a mark, `flaw` makes them crit marked enemies. */
-  boost?: { damage?: number; rate?: number; cool?: number; mark?: MarkKind; flaw?: boolean; hone?: boolean; rounds?: number; chill?: number };
+  /**
+   * What it does to the guns it touches. `share`: they carry each other's marks (Spark Gap).
+   * `relay`: a verb of the ship's feeds them (see RELAYS): a perfect or a takedown fires them, grazes
+   * load their rounds, a ram leaves their marks, a caught shot carries them.
+   */
+  boost?: { damage?: number; rate?: number; cool?: number; mark?: MarkKind; flaw?: boolean; hone?: boolean; rounds?: number; chill?: number; share?: boolean; relay?: Relay };
   /** Load it lets the ship carry, besides its own mass (Grav Keel). */
   carry?: number;
   mod?: DashMod;
@@ -196,14 +203,17 @@ export interface PartDef {
   text: string;
 }
 
+/** The ship's verbs a fitting can hand on to the guns it touches (see `boost.relay`). */
+export type Relay = 'echo' | 'graze' | 'ram' | 'catch';
+
 export const CELL = 0.8;
 
 export const PARTS: PartDef[] = [
   // --- guns --------------------------------------------------------------------------------
   {
     id: 'rivet', name: 'Rivet Gun', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1,
-    gun: { rate: 9, damage: 4, speed: 70, count: 1, spread: 0, life: 0.7, shot: 'slug', heat: 0.02, edge: 'reeling' },
-    text: 'Cheap, fast, reliable. Every scrapper starts with one.',
+    gun: { rate: 9, damage: 4, speed: 70, count: 1, spread: 0, life: 0.7, shot: 'slug', heat: 0.02, edge: 'reeling', crackEvery: 4 },
+    text: 'Cheap, fast, reliable. Every fourth rivet CRACKS what it hits: a heavy round on it breaches. Every scrapper starts with one.',
   },
   {
     id: 'scatter', name: 'Scattergun', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.2,
@@ -308,6 +318,52 @@ export const PARTS: PartDef[] = [
     id: 'autoloader', name: 'Autoloader', cls: 'booster', tags: ['kinetic', 'tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.9, boost: { rounds: 1, rate: 0.3 },
     text: 'A drum that feeds the heavy guns it touches: a round more each, and they reload a third faster.',
   },
+  // --- the arsenal (out of the forge): setups and the blows that cash them in --------------
+  {
+    id: 'frost', name: 'Frost Sprayer', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.1,
+    gun: { rate: 18, damage: 1.1, speed: 28, count: 1, spread: 0.32, life: 0.5, shot: 'flame', pierce: 2, heat: 0.016, edge: 'close', chill: 0.5, tint: 0x9ae8ff },
+    text: 'A wide, slow mist. It barely hurts, but four chills FREEZE it solid: a blow on the ice SMASHES it. Puts out fires.',
+  },
+  {
+    id: 'saw', name: 'Saw Launcher', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.3,
+    gun: { rate: 3.5, damage: 5, speed: 34, count: 1, spread: 0, life: 1.6, shot: 'slug', pierce: 1, heat: 0.05, edge: 'behind', bounce: 3, size: 1.5, tint: 0xd8e0e8 },
+    text: 'Spinning blades that bounce off the edges of the screen three times. The bounce comes at them from behind.',
+  },
+  {
+    id: 'charge', name: 'Charge Cannon', cls: 'gun', tags: ['energy', 'explosive'], rarity: 'epic', shape: [[0, 0], [0, 1]], mass: 2.4,
+    gun: { rate: 0.5, damage: 28, speed: 80, count: 1, spread: 0, life: 0.7, shot: 'rail', pierce: 2, heat: 0, edge: 'reeling', heavy: 2, ripen: 2, tint: 0xd0a0ff },
+    text: 'HEAVY. A round left in the chamber charges: after 3 s it hits three times as hard. The smasher for frozen things.',
+  },
+  {
+    id: 'anchor', name: 'Anchor Spike', cls: 'gun', tags: ['kinetic'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 2,
+    gun: { rate: 0.7, damage: 18, speed: 110, count: 1, spread: 0, life: 0.5, shot: 'rail', heat: 0, edge: 'pinned', heavy: 3, pin: 3, tint: 0xb0a090 },
+    text: 'HEAVY. A spike on a chain: what it hits is PINNED for 3 s. A blow on it is NAILED: all of it lands, and the plating goes.',
+  },
+  {
+    id: 'cryofeed', name: 'Cryo Feed', cls: 'booster', tags: ['energy'], rarity: 'common', shape: [[0, 0]], mass: 0.7, boost: { chill: 0.35 },
+    text: 'Coolant on touching guns’ rounds: what they hit is chilled, and four chills freeze it.',
+  },
+  // --- relays: a fitting that changes what the guns it touches do, not how hard ---------------
+  {
+    id: 'conduit', name: 'Spark Gap', cls: 'booster', tags: ['arc', 'tech'], rarity: 'epic', shape: [[0, 0]], mass: 0.6, boost: { share: true },
+    text: 'The guns it touches carry each other’s marks, so two that mark differently make REACTIONS. Their reactions jump to the two nearest enemies, and set them off in turn.',
+  },
+  {
+    id: 'echo', name: 'Echo Coil', cls: 'booster', tags: ['tech'], rarity: 'rare', shape: [[0, 0]], mass: 0.6, boost: { relay: 'echo' },
+    text: 'On a PERFECT or a TAKEDOWN, the guns it touches fire a free volley (a heavy, a free round).',
+  },
+  {
+    id: 'grazer', name: 'Graze Fins', cls: 'booster', tags: ['drive'], rarity: 'common', shape: [[0, 0]], mass: 0.5, boost: { relay: 'graze' },
+    text: 'Every three GRAZES load a round into the heavy guns it touches. Fly close.',
+  },
+  {
+    id: 'recoil', name: 'Ram Spurs', cls: 'booster', tags: ['kinetic', 'armor'], rarity: 'rare', shape: [[0, 0]], mass: 1, boost: { relay: 'ram' },
+    text: 'What you RAM takes the marks of the guns it touches. The ram is a blow: the next one cashes them in.',
+  },
+  {
+    id: 'magnet', name: 'Catch Coil', cls: 'booster', tags: ['energy'], rarity: 'rare', shape: [[0, 0]], mass: 0.6, boost: { relay: 'catch' },
+    text: 'Shots you CATCH go back carrying the marks of the guns it touches.',
+  },
   {
     id: 'keel', name: 'Grav Keel', cls: 'engine', tags: ['drive', 'tech'], rarity: 'common', shape: [[0, 0]], mass: 0.4, carry: 3,
     text: 'Lift rings under a keel blade. It pushes nothing, but the ship carries 3 more load: a socket for a lighter ship.',
@@ -345,7 +401,7 @@ export const PARTS: PartDef[] = [
   },
   // --- aux (the defensive button) ---------------------------------------------------------
   {
-    id: 'parry', name: 'Parry Emitter', cls: 'defense', tags: ['energy', 'tech'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.4, shield: 1,
+    id: 'parry', name: 'Parry Emitter', cls: 'defense', tags: ['energy', 'tech'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 1.4,
     aux: 'parry', link: { want: { gun: true }, side: 'n', cell: 0, text: 'A GUN IN FRONT' },
     text: 'AUX: parry small shots for a PERFECT and RIPOSTE. Late, block small shots only. Beams, heavy rounds, blasts and bodies bypass it. Up on nothing, a long wait.',
   },
@@ -421,10 +477,12 @@ export interface FrameDef {
   shield?: number;
   /** Its dash rams, this hard (as a Ram Prow). */
   ram?: number;
-  /** A perfect dash gives every dash back. */
+  /** A perfect dash gives the dash back at once, with no recovery. */
   refill?: boolean;
-  /** Guns hit up to this much harder the faster it flies (+, flat out on the boost). */
-  swift?: number;
+  /** Kestrel: the dash tags what it passes, and the guns pay them back as it ends (FLY-BY in sim/level.ts). */
+  flyby?: boolean;
+  /** Magpie: every shot the parry catches loads a heavy round. */
+  catch?: boolean;
   /** Linked parts run at this (150% elsewhere); a part that needs its link runs at a third of the extra. */
   linked?: number;
   /** Parts it comes with, as [part, col, row]. */
@@ -435,57 +493,35 @@ export const FRAMES: FrameDef[] = [
   {
     id: 'kestrel',
     name: 'Kestrel',
-    text: 'A stripped-down racer, made of tinfoil.',
-    perk: { name: 'SLIPSTREAM', text: 'Guns hit harder the faster you fly: +50% flat out. Its Burn comes back fastest.' },
-    weak: '60 HULL. LITTLE LOAD.',
+    text: 'A stripped-down racer, made of tinfoil. It flies past them.',
+    perk: { name: 'FLY-BY', text: 'Dash past foes, close but not into them: each one is tagged. As the dash ends, the guns loose a volley at every tagged foe, as blows that carry their marks.' },
+    weak: '60 HULL. NO ARMOUR FOR A RAM.',
     grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
-    mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 60, mass: 4, thrust: 15, grip: 1.25, dash: 1, dashCd: 1.6, load: 8, speed: 1.15, burn: 0.2, core: 0.3, swift: 0.5,
-    start: [['rivet', 1, 1], ['rivet', 3, 1], ['thruster', 1, 4], ['thruster', 3, 4]],
-  },
-  {
-    id: 'mule',
-    name: 'Mule',
-    text: 'A hauler with guns bolted on.',
-    perk: { name: 'IRONSIDES', text: 'Two heavy hardpoints, the biggest deck, and armour plate that soaks a hit, then grows back.' },
-    weak: 'MOVES LIKE A FRIDGE. NO SPECIAL.',
-    grid: ['#####', '#####', '#####', '.###.'],
-    mounts: { T: 1, H: 2, A: 1 },
-    hp: 100, mass: 7, thrust: 13, grip: 0.75, dash: 1, dashCd: 3, load: 12, speed: 0.85, burn: 0.07, core: 0.5, shield: 1,
-    start: [['seeker', 1, 0], ['rivet', 2, 0], ['thruster', 2, 3]],
-  },
-  {
-    id: 'wasp',
-    name: 'Wasp',
-    text: 'Twin booms like a pod racer.',
-    perk: { name: 'DARTER', text: 'The only frame with two dashes, and a perfect dash gives them all back: chain perfect into perfect.' },
-    weak: 'NO AUX. THIN PRONGS: LITTLE TOUCHES THE NOSE GUNS.',
-    grid: ['.#.#.', '.#.#.', '#####', '#####', '..#..'],
     mounts: { T: 2, H: 1, S: 1 },
-    hp: 80, mass: 4.5, thrust: 16, grip: 1.05, dash: 2, dashCd: 1.8, load: 8.5, speed: 1.05, burn: 0.14, core: 0.36, refill: true,
-    start: [['rivet', 1, 0], ['rivet', 3, 0], ['thruster', 2, 4]],
+    hp: 60, mass: 4, thrust: 15, grip: 1.25, dash: 1, dashCd: 1.6, load: 8, speed: 1.15, burn: 0.2, core: 0.3, flyby: true, refill: true,
+    start: [['rivet', 1, 1], ['rivet', 3, 1], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
   {
     id: 'hammer',
     name: 'Hammerhead',
-    text: 'A wide armoured head and a slim tail.',
-    perk: { name: 'BATTERING RAM', text: 'The dash rams: whatever you dash through takes a hard hit and can\'t hurt you.' },
-    weak: 'STIFF IN A TURN. SLOW TO BURN.',
+    text: 'A wide armoured head and a slim tail. It goes through them.',
+    perk: { name: 'BATTERING RAM', text: 'The dash rams with the whole head: it breaks plating, and a second ram takes the reeling down. Every foe rammed gives the dash back sooner.' },
+    weak: 'STIFF IN A TURN. BEAMS AND BLASTS GO THROUGH THE RAM.',
     grid: ['######', '######', '..##..', '..##..'],
-    mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 6, thrust: 14, grip: 0.8, dash: 1, dashCd: 2.5, load: 10.5, speed: 0.95, burn: 0.1, core: 0.42, ram: 22,
+    mounts: { T: 2, H: 1, S: 1 },
+    hp: 85, mass: 6, thrust: 14, grip: 0.95, dash: 1, dashCd: 2.2, load: 10.5, speed: 1.05, burn: 0.1, core: 0.42, ram: 22,
     start: [['scatter', 2, 0], ['scatter', 3, 0], ['thruster', 2, 3], ['thruster', 3, 3]],
   },
   {
-    id: 'lattice',
-    name: 'Lattice',
-    text: 'An open truss: sockets everywhere.',
-    perk: { name: 'TUNED TRUSS', text: 'Links pay double: a linked part runs at 200%, one that needs its link at 133%.' },
-    weak: 'FEW SOCKETS TOUCH.',
-    grid: ['#.#.#', '#.#.#', '#####', '#.#.#', '.#.#.'],
-    mounts: { T: 1, H: 1, A: 1, S: 1 },
-    hp: 80, mass: 4.5, thrust: 15, grip: 1, dash: 1, dashCd: 2.1, load: 10, speed: 1, burn: 0.12, core: 0.38, linked: 2,
-    start: [['rivet', 2, 1], ['parry', 2, 2], ['thruster', 1, 4], ['thruster', 3, 4]],
+    id: 'magpie',
+    name: 'Magpie',
+    text: 'A catcher\'s crescent on a split tail. It throws their fire back.',
+    perk: { name: 'THE CATCH', text: 'A parry emitter of its own. Every shot it catches loads a round into the heavy.' },
+    weak: 'A SLOW DASH. BEAMS, HEAVY ROUNDS, MINES AND BODIES CAN\'T BE CAUGHT.',
+    grid: ['#...#', '##.##', '#####', '.###.', '.#.#.'],
+    mounts: { T: 2, H: 1, A: 1, S: 1 },
+    hp: 72, mass: 5, thrust: 15, grip: 1.05, dash: 1, dashCd: 2.4, load: 10, speed: 1.02, burn: 0.12, core: 0.38, catch: true,
+    start: [['rivet', 1, 1], ['rivet', 3, 1], ['parry', 2, 2], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
 ];
 
@@ -540,13 +576,16 @@ export function verbOf(d: PartDef): Verb {
   if (d.mod) return 'DASH MOD';
   return 'PASSIVE';
 }
-export const frameById = (id: string) => FRAMES.find((f) => f.id === id)!;
+/** (a frame that's been cut, in an old save or recording, flies as the Kestrel) */
+export const frameById = (id: string) => FRAMES.find((f) => f.id === id) ?? FRAMES[0];
 
 /**
- * How a frame comes at fire, as the ship card says it: a GUARD ship starts with a Parry Emitter
- * (its perfects are parries, and its guns riposte); the rest get theirs dashing out of fire.
+ * How a frame comes at fire, as the ship card says it: round it (the Kestrel's fly-by), through it
+ * (the Hammerhead's ram), or back at them (the Magpie's catch).
  */
 export const styleOf = (f: FrameDef) =>
-  f.start.some(([id]) => partById(id).aux === 'parry')
-    ? { name: 'GUARD', color: '#ffd060', text: 'PARRIES FIRE' }
-    : { name: 'DASH', color: '#8affe0', text: 'SLIPS FIRE' };
+  f.catch
+    ? { name: 'GUARD', color: '#ffd060', text: 'THROWS IT BACK' }
+    : f.ram
+      ? { name: 'RAM', color: '#ff9a4a', text: 'GOES THROUGH' }
+      : { name: 'FLY-BY', color: '#8affe0', text: 'FLIES PAST THEM' };

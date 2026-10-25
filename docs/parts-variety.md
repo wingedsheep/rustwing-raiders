@@ -107,6 +107,31 @@ Bosses take setups for less time and shrug off a second freeze or pin in a row. 
 - **Nail and hammer.** The Anchor Spike pins an elite. Hold the Charge Cannon to full while you dodge its fire, let go: NAILED. Its plating is gone, it reels, dash through for the takedown.
 - **The parry chain.** Freeze with Cryo Feed rounds, parry a Rook's shot: the riposte crits are blows, and every frozen enemy in the line is smashed.
 
+## Every part makes something and wants something
+
+Decided 2026-10-25. Parts barely talked to each other: the interesting rules came from random rolls, the boosters added numbers, nothing heard the ship's verb, and combos were switched off outside the forge. Now every card says, in a few shared words, what the part **makes** and what it **wants** (`src/game/combos.ts`):
+
+| Words | What they are | Made by |
+|---|---|---|
+| **BURN, SHOCK, CRACK, CHILL, PIN** | Setups. Two marks meeting react; a blow on one cashes it in. | Heat, arc and explosive guns; every fourth Rivet; the Frost Sprayer and Cryo Feed; the Anchor Spike; mark boosters |
+| **BLOW** | What cashes a setup in, and breaks plating | Heavy guns, the Hammerhead's ram, caught shots, bombs, reflections |
+| **PERFECT, GRAZE, RAM, CATCH** | The ships' verbs, which a relay hands on to guns | Every ship's perfects and grazes; the Hammerhead's ram; the Magpie's catch (the Kestrel's FLY-BY volley is a blow) |
+
+- A heavy **wants a setup**; a setup gun **wants a blow**; a relay **wants its verb**.
+- **A card says what on your ship it works with** ("WORKS WITH RIVET GUN, HAMMERHEAD"), and the hangar draws the line to it from anywhere on the deck when you look at a part.
+- **Fittings change what a gun does**, not only how hard. The relays:
+
+| Fitting | The guns it touches | Who loves it |
+|---|---|---|
+| **Spark Gap** (epic) | carry each other's marks: two that mark differently make a reaction of every hit | anyone with two setup guns |
+| **Echo Coil** | fire a free volley on a perfect or a takedown | anyone |
+| **Graze Fins** | heavies load a round every three grazes | whoever flies close |
+| **Ram Spurs** | what you ram takes their marks (and the next ram cashes them) | the Hammerhead |
+| **Catch Coil** | caught shots go back carrying their marks | the Magpie |
+
+- **Affixes connect too**: KINDLING (its kills set fire round them), CHARGED (its crits shock), ECHOING (a free volley on a perfect). GIANTSLAYER and SPITE are no longer rolled: percentages you can't feel.
+- **What makes picking hard**: opposites (fire thaws ice; a breach uses the crack up), setups and blows needing each other, the ship's lean (a torch on the Kestrel lights everything its fly-by tags; Ram Spurs only work on a ship that rams), and a hangar where a fitting can only touch so much.
+
 ## The pilots
 
 Eight ways of flying. Each slot has something for most of them, so whoever you are, a run can lean your way.

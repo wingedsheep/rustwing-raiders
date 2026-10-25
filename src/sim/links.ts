@@ -7,6 +7,7 @@
 import { STRENGTH, frameById, linkedStr, type FrameDef, type PartDef, type Side, type Want } from '../game/parts';
 import { cellsOf, rotOf, socket, type Build, type Placement } from './build';
 import { itemDef, type ItemDef } from '../game/loot';
+import { connects } from '../game/combos';
 
 const STEP: Record<Side, [number, number]> = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 const SIDES: Side[] = ['n', 'e', 's', 'w'];
@@ -33,7 +34,8 @@ export interface PartLinks {
 export interface Edge {
   a: Placement;
   b: Placement;
-  kind: 'boost' | 'link';
+  /** `combo`: one makes what the other wants (see game/combos.ts), anywhere on the ship. */
+  kind: 'boost' | 'link' | 'combo';
   /** Shared edges (c, r, c2, r2) between touching cells (none for a WIRELESS part's reach). */
   edges: [number, number, number, number][];
 }
@@ -137,5 +139,13 @@ export function links(b: Build): Links {
     if (def.boost) for (const q of parts) if (defs.get(q)!.gun && touch(p, q)) edge(p, q, 'boost');
     for (const q of pl.partners) edge(p, q, 'link');
   }
+  // and what works together from anywhere on the ship: a setup and the blow that cashes it in
+  for (let i = 0; i < parts.length; i++)
+    for (let j = i + 1; j < parts.length; j++) {
+      const a = parts[i];
+      const c = parts[j];
+      if (edges.some((e) => (e.a === a && e.b === c) || (e.a === c && e.b === a))) continue;
+      if (connects(defs.get(a)!, defs.get(c)!)) edge(a, c, 'combo');
+    }
   return { parts: out, edges, of: (p) => out.find((x) => x.p === p), touch };
 }

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import { CARGO, Run, crewHull } from '../sim/run';
 import { cellsOf, fits, gunDir, mountFree, mountsUsed, partAt, room, rotOf, socket, stats, type Build, type Placement, type Stats } from '../sim/build';
-import { CELL, EDGES, frameById, hardpointOf, HARDPOINTS, linkedStr, LOAD_CLASS, partById, verbOf, type FrameDef, type Hardpoint, type PartDef } from '../game/parts';
+import { CELL, EDGES, frameById, hardpointOf, HARDPOINTS, linkedStr, LOAD_CLASS, partById, verbOf, type FrameDef, type Hardpoint, type PartDef, type Relay } from '../game/parts';
+import { worksWith } from '../game/combos';
 import { bestFit, deltas } from '../sim/fit';
 import { links, type Edge, type Links } from '../sim/links';
 import { audio } from '../audio';
@@ -14,7 +15,7 @@ import { Stage } from '../view/stage';
 import { bayFloor } from '../view/bay-floor';
 import { backdrop, button, hullGauge, hints, loadGauge, partStats, shapeIcon, TIER_COLOR } from '../ui/widgets';
 import { AFFIX_COLOR, AFFIXES, itemDef, itemName, MODS, modValue, tierOf, toItem, TRAITS, type Item } from '../game/loot';
-import { TIER_WORD, VERB_COLOR, verbLabel } from '../ui/loot-card';
+import { COMBO, TIER_WORD, VERB_COLOR, verbLabel } from '../ui/loot-card';
 import { portraits } from '../view/portraits';
 import { gunLoop, loopShare } from '../ui/gun-loop';
 import type { DeviceId } from '../input';
@@ -71,7 +72,7 @@ const RULES = [
   'EVERY PART IS LOAD. LIGHT IS NIMBLE (QUICKER DASH, EASIER PERFECTS); PAST FULL IS OVERLOADED. ENGINES CARRY MORE.',
 ];
 
-const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', link: GREEN };
+const EDGE_COLOR: Record<Edge['kind'], string> = { boost: '#d08aff', link: GREEN, combo: COMBO };
 
 /** One beat of the placement replay: a cell to light, and what it means. */
 interface Step {
@@ -83,10 +84,15 @@ interface Step {
 const STEP_T = 0.45;
 
 /** What a booster does, in a few words, at a strength. */
+const RELAY_WORD: Record<Relay, string> = { echo: 'ECHOES', graze: 'GRAZE-FED', ram: 'RAM MARKS', catch: 'CATCH MARKS' };
+
 function boostText(d: PartDef, str: number) {
   const b = d.boost!;
   const pc = (n: number) => `+${Math.round(n * str * 100)}%`;
-  return [b.damage && `${pc(b.damage)} DMG`, b.rounds && `+${b.rounds} ROUND`, b.rate && !b.rounds && `${pc(b.rate)} RATE`, b.cool && 'COOLER'].filter(Boolean).join(' ');
+  return [
+    b.damage && `${pc(b.damage)} DMG`, b.rounds && `+${b.rounds} ROUND`, b.rate && !b.rounds && `${pc(b.rate)} RATE`, b.cool && 'COOLER',
+    b.mark && b.mark.toUpperCase(), b.chill && 'CHILL', b.share && 'SHARES MARKS', b.relay && RELAY_WORD[b.relay],
+  ].filter(Boolean).join(' ');
 }
 
 /**
@@ -108,7 +114,7 @@ function explain(b: Build, p: Placement, before: Stats): Step[] {
     const [c, r] = cellsOf(q)[0];
     const by = lk.of(e.a)!;
     const text =
-      e.kind === 'boost' ? boostText(by.def, by.str) : by.def.link?.need ? 'LINKED: ON' : `LINKED: ${linkedPct(b.frame)}`;
+      e.kind === 'boost' ? boostText(by.def, by.str) : e.kind === 'combo' ? 'WORKS WITH IT' : by.def.link?.need ? 'LINKED: ON' : `LINKED: ${linkedPct(b.frame)}`;
     out.push({ c, r, text: `${partById(q.id).name.split(' ')[0]} ${text}`, color: EDGE_COLOR[e.kind] });
   }
   const def = partById(p.id);
@@ -827,6 +833,9 @@ export class Hangar implements Screen {
         const giving = mine.some((e) => e.a === pl.p);
         lines.push([`${giving ? 'BOOSTS' : 'BOOSTED BY'} ${[...new Set(other)].join(', ')}`.slice(0, 50), EDGE_COLOR.boost]);
       }
+      // what it works with from anywhere on the ship, the frame too
+      const mates = worksWith(def, this.run.crew[who].build, frameById(this.run.crew[who].build.frame));
+      if (mates.length) lines.push([`WORKS WITH ${mates.join(', ')}`.slice(0, 50), COMBO]);
       if (pl.str !== 1 && !pl.idle) lines.push([`RUNNING AT ${Math.round(pl.str * 100)}%`, pl.str > 1 ? GREEN : pl.str > 0 ? GOLD : RED]);
     } else if (def.link) lines.push([`${def.link.need ? 'NEEDS' : `LINK FOR ${lp}:`} ${def.link.text}`, DIM]);
     // and its numbers, if there's room
@@ -1084,6 +1093,8 @@ export class Hangar implements Screen {
     const focus = view.focus;
     for (const e of lk.edges) {
       const on = !focus || e.a === focus || e.b === focus;
+      // (combos only for the part in focus: the deck would be a web of them)
+      if (e.kind === 'combo' && (!focus || !on)) continue;
       ctx.globalAlpha = on ? 1 : 0.35;
       for (const [c, r, c2, r2] of e.edges) {
         const mx = Math.round(x0 + mid((c + c2) / 2));

@@ -39,7 +39,7 @@ async function boot() {
     const { replay } = await import('./game/replay');
     await replay(game, q.get('replay')!, Number(q.get('stage') ?? 1));
   } else if (q.has('planet') || q.has('mode') || q.has('tour')) {
-    // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=mule&biomes=prism,jade
+    // straight into a level, for testing: ?planet=orutal&mode=raid&seed=1&coop&autopilot&frame=magpie&biomes=prism,jade
     // ?tour: the autopilot flies level after level, every planet × mode and then the next seed (narrowed by &planet= and &mode=)
     const tour = q.has('tour');
     const planets = q.has('planet') ? PLANETS.filter((p) => p.id === q.get('planet')) : tour ? PLANETS : [PLANETS[0]];

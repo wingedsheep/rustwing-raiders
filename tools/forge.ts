@@ -4,7 +4,8 @@
  *
  *   just forge --frame kestrel --a rivet,flak --b frost,anchor,cryofeed --target plated --seeds 6 --combos
  *
- * --a, --b, --c ...: a build each (part ids, comma-separated; `id:tier` for a tier)
+ * --a, --b, --c ...: a build each (part ids, comma-separated; `id:tier` for a tier; `id@c,r` to
+ *   place it yourself, e.g. --a torch@1/1,arc@3/1,conduit@2/1: the frame's guns go, its engines stay)
  * --target: a preset (crowd, plated, shielded, elites, mixed) or waves (`gunship@30,brute@80`)
  * --combos: blows cash in setups (both ways if --combos=both)
  * --difficulty, --planet, --tough, --keep (keep the frame's own engines and aux; on by default)
@@ -15,6 +16,8 @@ import { kitBuild, TARGETS, type KitPart } from '../src/lab/forge-kit';
 import { registerLabParts } from '../src/game/lab-parts';
 import { parseWaves } from '../src/sim/director';
 import type { Tier } from '../src/game/loot';
+import { fits, startBuild } from '../src/sim/build';
+import { partById } from '../src/game/parts';
 
 const args = new Map<string, string>();
 for (let i = 2; i < process.argv.length; i++) {
@@ -37,6 +40,21 @@ const waves = parseWaves(TARGETS.find((t) => t.id === tq)?.waves ?? tq);
 const combosArg = args.get('combos');
 const comboModes = combosArg === 'both' ? [false, true] : [combosArg !== undefined];
 
+/** A build placed by hand: `id@c/r` (and `/rot`), on the frame with only its engines kept. */
+function handBuild(list: string) {
+  const b = startBuild(frame);
+  b.parts = b.parts.filter((p) => !partById(p.id).gun);
+  const left: string[] = [];
+  for (const s of list.split(',')) {
+    const [id, at] = s.split('@');
+    const [c, r, rot] = at.split('/').map(Number);
+    const p = { id, c, r, rot: rot || 0 };
+    if (fits(b, p)) b.parts.push(p);
+    else left.push(s);
+  }
+  return { build: b, left };
+}
+
 const builds = [...args.entries()].filter(([k]) => /^[a-z]$/.test(k) && k !== 'x');
 if (!builds.length) {
   console.error('give at least one build: --a rivet,flak');
@@ -53,7 +71,8 @@ for (const [k, list] of builds) {
     const [id, tier] = s.split(':');
     return { id, tier: tier as Tier | undefined };
   });
-  const { build, left } = kitBuild({ frame, parts, keepStart });
+  const placed = list.split(',').every((s) => s.includes('@'));
+  const { build, left } = placed ? handBuild(list) : kitBuild({ frame, parts, keepStart });
   if (left.length) console.warn(`${k}: no room for ${left.join(', ')}`);
   for (const combos of comboModes) {
     const runs: FlyResult[] = [];

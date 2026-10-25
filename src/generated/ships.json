@@ -31,50 +31,18 @@
   "mounts": [],
   "variant": 0
  },
- "frame_lattice": {
+ "frame_magpie": {
   "colliders": [],
-  "kind": "frame_lattice",
+  "kind": "frame_magpie",
   "max": [
-   2.7,
-   0.77,
-   2.09
+   2.15,
+   0.628,
+   3.0
   ],
   "min": [
-   -2.7,
-   -0.113,
-   -2.865
-  ],
-  "mounts": [],
-  "variant": 0
- },
- "frame_mule": {
-  "colliders": [],
-  "kind": "frame_mule",
-  "max": [
-   2.7,
-   1.46,
-   2.25
-  ],
-  "min": [
-   -2.7,
-   -0.42,
-   -3.178
-  ],
-  "mounts": [],
-  "variant": 0
- },
- "frame_wasp": {
-  "colliders": [],
-  "kind": "frame_wasp",
-  "max": [
-   2.91,
-   0.85,
-   2.97
-  ],
-  "min": [
-   -2.91,
-   -0.56,
-   -3.24
+   -2.15,
+   -0.3,
+   -2.62
   ],
   "mounts": [],
   "variant": 0
@@ -139,6 +107,22 @@
    -0.33,
    0.0,
    -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_anchor": {
+  "colliders": [],
+  "kind": "part_anchor",
+  "max": [
+   0.37,
+   0.585,
+   1.18
+  ],
+  "min": [
+   -0.37,
+   0.0,
+   -0.94
   ],
   "mounts": [],
   "variant": 0
@@ -271,18 +255,50 @@
   "mounts": [],
   "variant": 0
  },
+ "part_charge": {
+  "colliders": [],
+  "kind": "part_charge",
+  "max": [
+   0.337,
+   0.48,
+   1.15
+  ],
+  "min": [
+   -0.337,
+   0.0,
+   -0.88
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_conduit": {
   "colliders": [],
   "kind": "part_conduit",
   "max": [
-   0.4,
-   0.32,
+   0.41,
+   0.623,
    0.4
   ],
   "min": [
-   -0.4,
+   -0.41,
    0.0,
    -0.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_cryofeed": {
+  "colliders": [],
+  "kind": "part_cryofeed",
+  "max": [
+   0.35,
+   0.68,
+   0.33
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.425
   ],
   "mounts": [],
   "variant": 0
@@ -307,12 +323,12 @@
   "colliders": [],
   "kind": "part_echo",
   "max": [
-   0.33,
-   0.9,
+   0.356,
+   0.815,
    0.33
   ],
   "min": [
-   -0.33,
+   -0.356,
    0.0,
    -0.33
   ],
@@ -415,6 +431,22 @@
   "mounts": [],
   "variant": 0
  },
+ "part_frost": {
+  "colliders": [],
+  "kind": "part_frost",
+  "max": [
+   0.35,
+   0.64,
+   0.344
+  ],
+  "min": [
+   -0.35,
+   0.0,
+   -0.764
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "part_gambler": {
   "colliders": [],
   "kind": "part_gambler",
@@ -451,14 +483,14 @@
   "colliders": [],
   "kind": "part_grazer",
   "max": [
-   0.375,
-   0.72,
-   0.375
+   0.471,
+   0.332,
+   0.419
   ],
   "min": [
-   -0.375,
+   -0.471,
    0.0,
-   -0.375
+   -0.4
   ],
   "mounts": [],
   "variant": 0
@@ -563,14 +595,14 @@
   "colliders": [],
   "kind": "part_magnet",
   "max": [
-   0.33,
-   0.465,
+   0.351,
+   0.48,
    0.33
   ],
   "min": [
-   -0.33,
+   -0.351,
    0.0,
-   -0.39
+   -0.33
   ],
   "mounts": [],
   "variant": 0
@@ -724,13 +756,13 @@
   "kind": "part_recoil",
   "max": [
    0.33,
-   0.47,
-   0.42
+   0.37,
+   0.36
   ],
   "min": [
    -0.33,
    0.0,
-   -0.43
+   -0.74
   ],
   "mounts": [],
   "variant": 0
@@ -763,6 +795,22 @@
    -0.33,
    0.0,
    -0.33
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "part_saw": {
+  "colliders": [],
+  "kind": "part_saw",
+  "max": [
+   0.356,
+   0.5,
+   0.38
+  ],
+  "min": [
+   -0.356,
+   0.0,
+   -0.589
   ],
   "mounts": [],
   "variant": 0

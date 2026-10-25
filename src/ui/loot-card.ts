@@ -14,6 +14,7 @@ import { AFFIX_COLOR, AFFIXES, itemDef, MODS, modValue, tierOf, TRAITS, type Ite
 import { cellsOf, socket, type Build } from '../sim/build';
 import type { Fit } from '../sim/fit';
 import { portraits } from '../view/portraits';
+import { wordLine, worksWith } from '../game/combos';
 import { gunLoop, loopShare } from './gun-loop';
 
 export const VERB_COLOR: Record<Verb, string> = {
@@ -160,6 +161,25 @@ export function fitSchematic(ctx: CanvasRenderingContext2D, b: Build, fit: Fit, 
  * Draws the card. `x, y` the top-left, `w, h` its size; it lays itself out to fit, dropping the
  * flavour text first when it's short of room.
  */
+/** The combo words' colour for "works with" (the hangar's combo lines are the same). */
+export const COMBO = '#ffb05a';
+
+/** Coloured words in a row, wrapping inside `w`, at most `rows` rows. */
+export function words(ctx: CanvasRenderingContext2D, ws: [string, string][], x: number, y: number, w: number, rows: number) {
+  let cx = x;
+  let row = 0;
+  for (const [t, col] of ws) {
+    const tw = textWidth(t);
+    if (cx > x && cx + tw > x + w) {
+      if (++row >= rows) return;
+      cx = x;
+      y += 9;
+    }
+    drawText(ctx, t, cx, y, col);
+    cx += tw + 5;
+  }
+}
+
 export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | null, x: number, y: number, w: number, h: number, o: CardOpts = {}) {
   const t = o.t ?? 0;
   const tier = tierOf(it);
@@ -248,9 +268,20 @@ export function lootCard(ctx: CanvasRenderingContext2D, it: Item, b: Build | nul
     drawText(ctx, l, nx, ny, INK);
     ny += 9;
   }
-  const tags = base.tags.join(' ').toUpperCase() || 'NO TAGS';
-  drawText(ctx, tags.length * 6 > nw ? tags.slice(0, Math.floor(nw / 6)) : tags, nx, ny + 3, '#a890d0');
+  // what it makes and wants (the combo words), in place of its tags
+  const said = wordLine(base);
+  if (said.length) words(ctx, said, nx, ny + 3, nw, 2);
+  else drawText(ctx, base.tags.join(' ').toUpperCase() || 'NO TAGS', nx, ny + 3, '#a890d0');
   let ty = y + box + 24;
+  // and on this ship, what it would work with
+  const mates = b ? worksWith(base, b, frameById(b.frame)) : [];
+  if (mates.length) {
+    const ls = wrap(`WORKS WITH ${mates.join(', ')}`, w - 14);
+    for (const l of ls.slice(0, 2)) {
+      drawText(ctx, l, x + 7, ty, COMBO);
+      ty += 9;
+    }
+  }
 
   // the foot: what it would do on the ship
   const footH = o.fit && b ? footHeight(o.fit) : 0;

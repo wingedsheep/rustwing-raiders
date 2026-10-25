@@ -38,7 +38,7 @@ export type TraitId =
   | 'sentinel' | 'boomerang' | 'frenzied' | 'thunderous' | 'vengeful' | 'ravenous';
 
 export type AffixId =
-  | 'blasting' | 'shrapnel' | 'executioner' | 'giantslayer' | 'spite' | 'ricochet' | 'scavenger'
+  | 'blasting' | 'shrapnel' | 'executioner' | 'giantslayer' | 'spite' | 'ricochet' | 'scavenger' | 'kindling' | 'charged' | 'echoing'
   | 'deflecting' | 'afterburn' | 'adrenal'
   | 'secondwind' | 'barbed' | 'reactive'
   | 'hotwired' | 'primed'
@@ -141,8 +141,13 @@ export const AFFIXES: Record<AffixId, AffixSpec> = {
   blasting: { name: 'BLASTING', text: 'Its crits burst: a blast round what they hit.', fits: gun },
   shrapnel: { name: 'SHRAPNEL', text: 'Its kills burst into five splinters that fly on.', fits: gun },
   executioner: { name: 'EXECUTIONER', text: 'Finishes off what it leaves below 15% hull. On a Warden, +50% below a quarter.', fits: gun },
-  giantslayer: { name: 'GIANTSLAYER', text: '+60% on elites, Wardens and anything big.', fits: gun },
-  spite: { name: 'SPITE', text: '+70% for 5 s after you are hit.', fits: gun },
+  // (no longer rolled: a percentage you can't feel. Old parts keep theirs.)
+  giantslayer: { name: 'GIANTSLAYER', text: '+60% on elites, Wardens and anything big.', fits: () => false },
+  spite: { name: 'SPITE', text: '+70% for 5 s after you are hit.', fits: () => false },
+  // connections: a setup or a verb it hands on (see game/combos.ts)
+  kindling: { name: 'KINDLING', text: 'Its kills set fire to what is round them: BURN for the next blow.', fits: gun },
+  charged: { name: 'CHARGED', text: 'Its crits SHOCK what they hit: a blow on it grounds out through every shocked enemy.', fits: gun },
+  echoing: { name: 'ECHOING', text: 'On a PERFECT or a TAKEDOWN, it fires a free volley.', fits: gun },
   ricochet: { name: 'RICOCHET', text: 'Its shots glance off what they hit to the nearest other enemy.', fits: (d) => projectile(d) && !['mine', 'flame', 'flak'].includes(d.gun!.shot) },
   scavenger: { name: 'SCAVENGER', text: 'Its kills shake loose more scrap, and now and then a repair kit.', fits: gun },
   // engines and dash mods

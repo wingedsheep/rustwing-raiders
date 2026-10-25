@@ -104,6 +104,11 @@ export function partStats(def: PartDef): string[] {
       b.flaw && 'CRIT ANYTHING MARKED',
       b.hone && `CRITS HIT ×${num(2 + k)}, NOT ×2`,
       b.rounds && `HEAVIES +${b.rounds} ROUND, RELOAD ${pc(b.rate ?? 0)}% FASTER`,
+      b.share && 'CARRY EACH OTHER’S MARKS; THEIR REACTIONS JUMP ON',
+      b.relay === 'echo' && 'A FREE VOLLEY ON A PERFECT OR TAKEDOWN',
+      b.relay === 'graze' && 'HEAVIES: A ROUND EVERY 3 GRAZES',
+      b.relay === 'ram' && 'WHAT YOU RAM TAKES THEIR MARKS',
+      b.relay === 'catch' && 'CAUGHT SHOTS CARRY THEIR MARKS',
     ].filter(Boolean);
     out.push(`GUNS IT TOUCHES: ${bits.join(', ')}`);
   }

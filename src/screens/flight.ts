@@ -106,8 +106,8 @@ export class Flight implements Screen {
       builds, hull, grafts, kits, call,
       // &tough=8: enemies take eight times the beating (for looking at hits and marks while testing)
       tough: Number(game.params.get('tough') ?? 1) || 1,
-      // &combos: blows cash in setups (see sim/arsenal.ts)
-      combos: game.params.has('combos'),
+      // blows cash in setups (see sim/arsenal.ts); &nocombos switches it off
+      combos: !game.params.has('nocombos'),
       charged: game.params.has('charged'),
     });
     this.lv = new Level(spec, builds, hull, grafts, kits, call);

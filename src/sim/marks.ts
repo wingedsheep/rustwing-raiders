@@ -192,6 +192,9 @@ export function react(lv: Level, e: Enemy, kind: ReactionKind, owner: number) {
   const dmg = reactDmg(lv, pow);
   const x = e.x;
   const z = e.z;
+  // a Spark Gap's: the pair jumps on to the two nearest (and they go off in turn: a chain through a wave)
+  const jump = lv.players[owner]?.stats.spark ? marksOn(e) : 0;
+  if (jump) spread(lv, e, owner);
   clear(e);
   lv.reactions++;
   lv.emit({ type: 'reaction', kind, enemy: e.id, x, z, owner });
@@ -200,8 +203,9 @@ export function react(lv: Level, e: Enemy, kind: ReactionKind, owner: number) {
 
 function reactHits(lv: Level, e: Enemy, kind: ReactionKind, owner: number, dmg: number, pow: number, x: number, z: number) {
   if (kind === 'overload') {
-    // the lightning runs out from it to its neighbours, and leaves them shocked
-    lv.damage(e, dmg, owner, false, null);
+    // a blow where it starts (like every reaction), and the lightning runs out from it to its
+    // neighbours, and leaves them shocked
+    lv.damage(e, dmg, owner, true, null);
     lv.arc(owner, x, z, dmg * 0.8, OVERLOAD_JUMPS, { from: e, reach: OVERLOAD_REACH, bits: SHOCK, pow });
   } else if (kind === 'cookoff') {
     // it goes up, and what's round it catches

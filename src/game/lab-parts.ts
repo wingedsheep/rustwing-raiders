@@ -10,19 +10,9 @@ import { PARTS, type PartDef } from './parts';
 
 export const LAB_PARTS: PartDef[] = [
   {
-    id: 'frost', name: 'Frost Sprayer', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.1,
-    gun: { rate: 18, damage: 1.1, speed: 28, count: 1, spread: 0.32, life: 0.5, shot: 'flame', pierce: 2, heat: 0.016, edge: 'close', chill: 0.5, tint: 0x9ae8ff },
-    text: 'A wide, slow mist. It barely hurts, but what it soaks is chilled, and four chills freeze it solid. Puts out fires.',
-  },
-  {
     id: 'wave', name: 'Wave Emitter', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0], [1, 0]], mass: 1.8,
     gun: { rate: 2.4, damage: 9, speed: 17, count: 1, spread: 0, life: 1.7, shot: 'pellet', pierce: 99, heat: 0.05, edge: 'crowd', shove: 0.35, size: 3.2, tint: 0x7af0d0 },
     text: 'Slow rippling waves that pass through everything, shoving it back. Thrown into each other, enemies take a blow.',
-  },
-  {
-    id: 'saw', name: 'Saw Launcher', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.3,
-    gun: { rate: 3.5, damage: 5, speed: 34, count: 1, spread: 0, life: 1.6, shot: 'slug', pierce: 1, heat: 0.05, edge: 'behind', bounce: 3, size: 1.5, tint: 0xd8e0e8 },
-    text: 'Spinning blades that bounce off the edges of the screen three times. The bounce comes at them from behind.',
   },
   {
     id: 'hive', name: 'Hive Darts', cls: 'gun', tags: ['tech'], rarity: 'common', shape: [[0, 0]], mass: 1,
@@ -35,23 +25,9 @@ export const LAB_PARTS: PartDef[] = [
     text: 'Needles that go through shields and plating to the hull. They never break plating, so nothing reels: it just dies.',
   },
   {
-    id: 'charge', name: 'Charge Cannon', cls: 'gun', tags: ['energy', 'explosive'], rarity: 'epic', shape: [[0, 0], [0, 1]], mass: 2.4,
-    gun: { rate: 0.5, damage: 28, speed: 80, count: 1, spread: 0, life: 0.7, shot: 'rail', pierce: 2, heat: 0, edge: 'reeling', heavy: 2, ripen: 2, tint: 0xd0a0ff },
-    text: 'A round left in the chamber charges: after 3 s it hits three times as hard, and swells. Patience, or two quick ones.',
-  },
-  {
-    id: 'anchor', name: 'Anchor Spike', cls: 'gun', tags: ['kinetic'], rarity: 'rare', shape: [[0, 0], [0, 1]], mass: 2,
-    gun: { rate: 0.7, damage: 18, speed: 110, count: 1, spread: 0, life: 0.5, shot: 'rail', heat: 0, edge: 'pinned', heavy: 3, pin: 3, tint: 0xb0a090 },
-    text: 'A spike on a chain: what it hits is pinned where it is for 3 s. It still shoots; it can’t get away.',
-  },
-  {
     id: 'bumper', name: 'Bumper Charge', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.6,
     gun: { rate: 0.9, damage: 14, speed: 40, count: 1, spread: 0, life: 0.8, shot: 'slug', heat: 0, edge: 'airborne', heavy: 3, shove: 1.2, size: 2.6, tint: 0xff9a4a },
     text: 'A fat, slow round that barely hurts, and hurls what it hits until it hits something: a blow on both.',
-  },
-  {
-    id: 'cryofeed', name: 'Cryo Feed', cls: 'booster', tags: ['energy'], rarity: 'common', shape: [[0, 0]], mass: 0.7, boost: { chill: 0.35 },
-    text: 'Coolant on touching guns’ rounds: what they hit is chilled, and four chills freeze it.',
   },
 
   // --- the new kit: aux, skins, bombs (see sim/kit.ts) ---------------------------------------

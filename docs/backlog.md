@@ -75,11 +75,10 @@ See [the build, simplified](simple-run.md#the-build-simplified).
   - The ship fires while you place a part, and boosters light what they touch.
   - Every part shows on the ship in flight and grows with its level.
 - **Remove** links, load classes, edges, arsenal states and the kit as a layer. Good kit pieces become parts.
-- **The arsenal's first slice**: Frost Sprayer, Charge Cannon and Saw Launcher as plain parts, with models and cards.
 - **The best knacks come back as grafts** or legendary traits: Cold Blood, Follow Through, Hot Rivets.
-- **The aux becomes a frame's thing**: parry on GUARD frames, and from parts for the rest.
 - **Cut the verbs** the recorder shows nobody presses.
-- Bench every part on every frame.
+- Bench every part on every frame: the Kestrel, the Hammerhead and the Magpie.
+- **Fly the three ships by hand**: does the Kestrel's FLY-BY tag enough to be worth weaving for, does the Hammerhead's ram feel quick now, does the Magpie's catch keep its heavy fed? Do the cards' WORKS WITH lines make picks easier?
 
 ### 8. Wardens: the Silksong pass
 Against [Wardens that are fun](simple-run.md#wardens-that-are-fun) and [what a finished boss has](bosses/README.md#what-a-finished-boss-has). Take them one at a time, and fly each by hand before moving on.

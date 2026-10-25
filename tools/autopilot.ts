@@ -9,7 +9,7 @@
  *   just autopilot --planet orutal --mode hunt --seeds 20
  *   just autopilot --planet kessra --mode boss --seed 4 --verbose
  *   just autopilot --coop                         two ships
- *   just autopilot --frame mule --difficulty 1.2  a later sector
+ *   just autopilot --frame magpie --difficulty 1.2 a later sector
  *   just autopilot --loadout strong               a well-built ship instead of the starter
  *   just autopilot --loadout parry                an archetype: parry, speed, assassin, turret, alchemist (each picks its frame)
  *   just autopilot --loadout gun:rail             the starter ship with only that gun (a bench)

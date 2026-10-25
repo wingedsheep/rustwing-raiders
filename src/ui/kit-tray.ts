@@ -391,6 +391,8 @@ export class KitTray {
     const now = slotsOf(p, dryT, whiffT);
     ctx.globalAlpha = alpha * (p.down || p.out ? 0.4 : 1);
     for (const id of ['special', 'heavy', 'aux', 'dash', 'weld'] as SlotId[]) {
+      // (no aux socket on a ship without the button: only the Magpie has it)
+      if (id === 'aux' && !p.stats.frame.mounts.A) continue;
       const sl = now[id];
       const key = `${p.id}:${id}`;
       const was = this.was[key];
