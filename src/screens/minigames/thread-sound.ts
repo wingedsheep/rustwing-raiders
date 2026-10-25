@@ -176,3 +176,60 @@ defineSfx('mini_thread_clear', (t, p, o) => {
   tone(o, t + 0.3, 'sine', 110, 55, 0.35, 0.25, 0.002);
   return 0.3 + notes.length * 0.06 + 0.7;
 }, 0.5, 1, { tuned: true, rev: 0.45 });
+
+/** A wall scraped: grit and a rasp of hull on rock. */
+defineSfx('mini_thread_scrape', (t, p, o) => {
+  noise(o, t, 0.18, 'bandpass', 1800 * p, 900 * p, 2.5, 0.16, 0.005);
+  crackle(o, t, 0.15, 6, 0.06);
+  metal(o, t, 410 * p, 0.03, 0.2);
+  return 0.22;
+}, 0.1, 1);
+
+/** A tripwire caught: the cable twangs, then a fizz runs off along it. */
+defineSfx('mini_thread_trip', (t, p, o) => {
+  o = level(o, 1.2);
+  tone(o, t, 'sine', 330 * p, 300 * p, 0.25, 0.08, 0.001);
+  tone(o, t, 'triangle', 660 * p, 590 * p, 0.12, 0.03, 0.001);
+  noise(o, t + 0.04, 0.35, 'bandpass', 3000 * p, 6000 * p, 4, 0.08, 0.02);
+  crackle(o, t + 0.05, 0.3, 10, 0.05);
+  return 0.4;
+}, 0.1, 2, { rev: 0.2 });
+
+/** Salvage picked up: a bright clink, a step up the scale with each one. */
+defineSfx('mini_thread_salvage', (t, p, o) => {
+  metal(o, t, 1500 * p, 0.05, 0.25);
+  const f = mtof(84) * p;
+  tone(o, t + 0.02, 'sine', f, f, 0.18, 0.05, 0.002);
+  return 0.25;
+}, 0.04, 3, { tuned: true, rev: 0.2 });
+
+/** The cache taken: a heavy clamp shutting, and a chord swelling under it. */
+defineSfx('mini_thread_grab', (t, p, o) => {
+  metal(o, t, 220 * p, 0.12, 0.6);
+  noise(o, t, 0.06, 'lowpass', 900, 400, 1, 0.25);
+  for (const [i, n] of [0, 4, 7, 12].entries()) tone(o, t + 0.08 + i * 0.05, 'triangle', mtof(64 + n), mtof(64 + n), 0.6, 0.05, 0.01);
+  return 0.9;
+}, 0.5, 1, { tuned: true, rev: 0.4 });
+
+/** The field wakes: a deep struck bell, and a siren of air rising under it. */
+defineSfx('mini_thread_alarm', (t, p, o) => {
+  metal(o, t, 160 * p, 0.14, 1.4);
+  for (let k = 0; k < 3; k++) noise(o, t + k * 0.35, 0.32, 'bandpass', 500, 1600, 6, 0.12, 0.1);
+  tone(o, t, 'sine', 55, 45, 1.2, 0.2, 0.01);
+  return 1.4;
+}, 1, 1, { rev: 0.45, duck: [0.8, 0.5] });
+
+/** The fire rolling on behind you: a low, uneven rumble. */
+defineSfx('mini_thread_rumble', (t, p, o) => {
+  noise(o, t, 0.6, 'lowpass', 160 * p, 260 * p, 1, 0.14, 0.15);
+  boom(level(o, 0.35), t + Math.random() * 0.2, 0.8 * p, 0.3, 0.2);
+  return 0.6;
+}, 0.3, 2, { low: true });
+
+/** A hunter coming loose from the wall: a crack of rock and a rocket's hiss lighting. */
+defineSfx('mini_thread_hunter', (t, p, o) => {
+  crackle(o, t, 0.08, 6, 0.07);
+  noise(o, t + 0.04, 0.4, 'bandpass', 900 * p, 3200 * p, 1.5, 0.12, 0.03);
+  tone(o, t + 0.04, 'sine', 300 * p, 600 * p, 0.35, 0.04, 0.02);
+  return 0.45;
+}, 0.15, 2, { rev: 0.2 });

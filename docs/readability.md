@@ -95,7 +95,7 @@ A first guess at the families, to be changed as the rows get written:
 | 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap (laid out: `src/sim/layouts/glowcap.ts`; its caps' light moved off lime and their warts unlit in `tools/models/props_a_mirefall.py`; the moss a dim grey teal so the violet caps stand off it by hue; the *Tamsin Lowe* modelled as `mirefall_tamsin_lowe` in `tools/models/set_mirefall.py`), fernwood, whitewood, orchards, jade |
-| 17 | Rises, bowls and craters | glass, sporevents, springs, prism |
+| 17 | Rises, bowls and craters | glass, sporevents (laid out: `src/sim/layouts/sporevents.ts`; its vent cones, rim crust, chimneys, low stacks, tufts and the maar's throat modelled in `tools/models/set_mirefall_vents.py`; a `pocks` ground pattern; fog banks and breathing vents in `src/view/life.ts`; the spore clouds come up out of its live vents), springs, prism |
 | 18 | Monuments and giants | titans, monoliths (laid out: `src/sim/layouts/monoliths.ts`; its Tonkva ledger-beacons, sunk faces, fallen beacons, count stones and the reading ring's hearth modelled in `tools/models/set_kessra_monoliths.py`), temple, arkbones |
 | 19 | Sky and ice | stormwall, shelf |
 
@@ -109,13 +109,12 @@ Each family push passes push 11's checks for every biome in it, and the generato
 New models and light come after a biome's layout passes. A good layout in plain grey is worth more than new art on a bad one. Red Mesa Run goes first and sets the routine; each later biome runs push 20's checks, plus its own.
 
 ### Push 20: Red Mesa Run's own look
-The models and light. Codex paints the biome's pieces on flat grey from the in-flight angle and the side (cliff pieces, the broken arch, scrub, rock stacks, the depot dug into the wall), with the painting as a reference for grain, cleanness and contrast, not a model sheet to copy. They are modelled in Blender (`tools/models/`), with dusk light: only the tops lit, a warm key and a cool fill.
+The models and light. The biome's pieces (cliff pieces, the broken arch, scrub, rock stacks, the depot dug into the wall) are modelled straight in Blender (`tools/models/`), with the painting as a reference for grain, cleanness and contrast, not a model sheet to copy, and dusk light: only the tops lit, a warm key and a cool fill.
 
-- **Pass, preview:** `just preview` of each model next to its sheet.
+- **Pass, preview:** `just preview` of each model reads at in-flight size.
 - **Pass, screenshots:** a full set (seeds, moments, the strip) passes every principle. Beside the painting it is as clean, as contrasted and as well grouped, in its own palette. The new models keep the balance of big forms and small details the layout set up.
 - **Pass, squint:** the thumbnail reads as Red Mesa next to every other biome's.
 - **Pass, detail ratio:** at least the painting's lower bound, the lane calmer than the edges.
-- **Pass, paint-over:** Codex repaints a still in the game's style without moving anything. What it changes is the to-do list, and the push is done when that list is small.
 - **Re-run:** bullet contrast, saturation, look-alikes and squint, and the checks from pushes 10 and 11.
 - **Keep:** the final set's best still as `art-direction/planets/kessra-mesarun-game.png`.
 
@@ -134,7 +133,7 @@ Flat overcast and ash. The bones are the titans' fallen bodies; wrecks and scave
 ## The foes
 
 ### Pushes 23–26: one faction each (scrap, lattice, wild, bloom)
-Codex paints a sheet of the faction's foes from the in-flight angle, kept in [`art-direction/enemies/`](art-direction/enemies/), and the models are rebuilt from it. The faction is in the material and hue, the job in the shape ([shapes](art-direction.md#shapes)). Each foe's sheet says what ground it needs (water, road, wall, open sky) and how it moves along it.
+The faction's foes are remodelled in Blender. The faction is in the material and hue, the job in the shape ([shapes](art-direction.md#shapes)). Each foe's brief says what ground it needs (water, road, wall, open sky) and how it moves along it.
 
 - **Pass, silhouettes:** every foe as a black shape at 32 pixels. Each one is told apart from its faction's others.
 - **Pass, ring:** a crisp one-texel dark ring on every foe, in Look on three biomes' grounds.
@@ -143,7 +142,7 @@ Codex paints a sheet of the faction's foes from the in-flight angle, kept in [`a
 
 ## Then: a planet at a time
 
-Each planet is a push, all four biomes together, starting with Kessra, Mirefall, Ashgrave, then Glacis and Vesh. Each planet picks its own style and palette, and its sides can differ (a day side and a night side, a sea coast and an ice cap). Oru-Tal, Halcyon and Cinder have no paintings yet, so each starts by painting its four biomes and judging them against the questions in [AGENTS.md](../AGENTS.md).
+Each planet is a push, all four biomes together, starting with Kessra, Mirefall, Ashgrave, then Glacis and Vesh. Each planet picks its own style and palette, and its sides can differ (a day side and a night side, a sea coast and an ice cap). Oru-Tal, Halcyon and Cinder have no paintings; they are modelled straight away and judged on screenshots against the questions in [AGENTS.md](../AGENTS.md).
 
 - **Pass:** each biome's layout already through the generator (pushes 12–19), then push 20's checks for each biome.
 - **Pass, blind test:** thumbnails of the planet's four biomes, shuffled with two other planets' thumbnails. People sort them by planet.

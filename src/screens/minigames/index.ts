@@ -26,7 +26,7 @@ export function minigame(kind: MiniKind, level: number, seed: number, setup: Set
     case 'dock':
       return new Dock(level, seed);
     case 'thread':
-      return new Thread(level, seed);
+      return new Thread(level, seed, setup);
     case 'haggle':
       return new Haggle(level, seed, setup);
     case 'shake':

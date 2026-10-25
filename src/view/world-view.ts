@@ -158,6 +158,18 @@ const PATTERN_GLSL = /* glsl */ `
       float n = aFbm(vec2(p.x * 0.35 + p.y * 0.15, p.y * 2.6 - p.x * 0.6));
       return smoothstep(0.58, 0.72, n);
     }
+    if (kind == 8) {
+      // pocks: little pits in the crust, each with a pale lip, big ones and a finer scatter
+      float m = 0.0;
+      for (int o = 0; o < 2; o++) {
+        vec3 v = gVor(p * (o == 0 ? 1.0 : 2.3) + float(o) * 13.7);
+        float rad = 0.13 + fract(v.z * 3.71) * 0.17;
+        float on = step(0.35, fract(v.z * 7.13));
+        m = max(m, (1.0 - smoothstep(rad * 0.7, rad, v.x)) * on * (o == 0 ? 1.0 : 0.7));
+        shade = max(shade, 1.0 + (1.0 - smoothstep(0.0, 0.06, abs(v.x - rad * 1.18))) * on * 0.1);
+      }
+      return m;
+    }
     return 0.0;
   }
 `;

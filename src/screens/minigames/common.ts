@@ -1,8 +1,8 @@
 /**
- * Little games inside events: a stick (or d-pad, or arrows) and one button. Each takes fifteen to
- * forty seconds and ends with a score, 0..1, that the event turns into what you get. You don't pick
- * how hard it is: the event rolls a level, 1 (easy) to 5 (deadly), rising through the run, shows
- * it, and you take it on or run. From level 3 up it pays the bold rewards.
+ * Little games inside events: a stick (or d-pad, or arrows) and one button. Each takes fifteen
+ * seconds to a minute and ends with a score, 0..1, that the event turns into what you get. You
+ * don't pick how hard it is: the event rolls a level, 1 (easy) to 5 (deadly), rising through the
+ * run, shows it, and you take it on or run. From level 3 up it pays the bold rewards.
  *
  * They draw themselves into a rectangle of the 640 × 360 UI canvas. Pixels stay whole, but light
  * is soft: glows, haze and vignettes, a modern game in a retro jacket.

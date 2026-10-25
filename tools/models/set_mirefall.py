@@ -1902,3 +1902,6 @@ def build():
     great_vent(2)
     vent_mound(1)
     tamsin_lowe(3)
+    # the Spore Vents' crust, cones, chimneys and tufts (set_mirefall_vents.py)
+    import set_mirefall_vents
+    set_mirefall_vents.build()

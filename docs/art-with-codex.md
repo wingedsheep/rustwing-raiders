@@ -20,14 +20,16 @@ Then the image prompt (the skeleton in §5), then a line of what it must not hav
 
 ## Getting the composition right: a rough sketch
 
-Codex follows a picture better than a paragraph of where things go. When the layout matters (who's in front, who faces whom, what fills the left two-thirds), make a rough sketch first and pass it with the references:
+Codex follows a picture better than a paragraph of where things go. Drawing a crude shape first and having Codex fill it in with detail works well, so start from a sketch whenever the layout or a silhouette matters (who's in front, who faces whom, what fills the left two-thirds). The sketch can be very rough: flat blobs for the masses, a line for the horizon, a dark shape for each thing. Codex keeps the placement, sizes and outlines and paints the detail in. Pass it with the references:
 
 - **A blockout in Blender** with the game's own models (`public/models/*.glb`: the ship frames, the enemies, the bosses) over a flat background. Grey shapes are enough; it's for placement, not looks.
 - **Or a quick drawing**: coloured blobs and arrows in any paint program, or a few shapes drawn with PIL.
 
 Say what the sketch is for, so the rough look doesn't leak into the painting:
 
-> The attached sketch.png is a rough layout: use it for the composition only (placement, size and facing of each thing), not for style. Take the style from the two paintings.
+> The attached sketch.png is a rough layout: use it for the composition only (placement, size, outline and facing of each thing), not for style. Keep its shapes where they are and fill them in with full detail. Take the style from the two paintings.
+
+If the result drifts from the sketch, make the sketch's shapes bolder and simpler rather than writing more about placement in the prompt.
 
 ## Keeping a set consistent
 

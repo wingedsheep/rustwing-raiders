@@ -158,6 +158,8 @@ const HOT = 6;
 const BITE = 0.02;
 const SIP = 0.032;
 const FULL = 4.5;
+/** The last gulp each one still on takes when time's up. */
+const GULP = 0.06;
 /** A shellback's cycle: shut, then the seams glow, then it's open for the last stretch. */
 const CYCLE = 2.3;
 const OPENING = 1.25;
@@ -267,9 +269,9 @@ export class Shake implements Minigame {
     this.r = rng(seed);
     this.vr = rng(seed ^ 0x5a5a);
     const d = (this.d = hardness(level));
-    this.tell = byLevel(d, 1.3, 0.8);
-    this.speed = byLevel(d, 2.7, 3.2);
-    this.hunger = byLevel(d, 1.15, 0.6);
+    this.tell = byLevel(d, 1.5, 0.8);
+    this.speed = byLevel(d, 2.4, 3.2);
+    this.hunger = byLevel(d, 0.6, 0.5);
     for (let k = 0; k < 4; k++) this.lanterns.push({ x: k % 2 ? 2.4 : -2.4, y: 0.9, z: 4 + k * 4.6, broken: 0, seed: this.vr() * 99 });
     for (let k = 0; k < 130; k++) this.stars.push({ x: (this.vr() - 0.5) * 60, y: (this.vr() - 0.5) * 36, z: 1 + this.vr() * 39 });
     this.plan();
@@ -972,7 +974,7 @@ export class Shake implements Minigame {
       audio.play('boost', { vol: 0.6 });
       return;
     }
-    const gulp = 0.035 * THIRST[c.kind];
+    const gulp = GULP * this.hunger * THIRST[c.kind];
     this.fuel = Math.max(0, this.fuel - gulp);
     this.fx.word(`-${Math.round(gulp * 100)}%`, c.x, c.y - 14, '#ff5a4a', 1, { pop: true });
     this.fx.burst(c.x, c.y, 10, 60, ['#ffd04a', '#ff8a3a']);

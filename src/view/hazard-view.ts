@@ -779,6 +779,17 @@ export class HazardView {
           fx.add({ x: h.x + Math.cos(a) * d, y: FLIGHT_Y + Math.random() * 2, z: h.z + Math.sin(a) * d, vx: Math.cos(a) * 1.5, vz: Math.sin(a) * 1.5, vy: 0.5 + Math.random(), life: 1.4 + Math.random(), size: 0.18, grow: 0.5, color: mote, to: moteEnd });
         }
         for (let i = emit(5 * grow, dt); i > 0; i--) fx.add({ x: h.x + (Math.random() - 0.5) * r * 1.4, y: FLIGHT_Y, z: h.z + (Math.random() - 0.5) * r, vy: -2, life: 1.6, size: 0.6, grow: 2, color: spore, to: sporeEnd, glow: false });
+        // out of a vent: while it warns, the vent swells and a column of spores climbs out of it to
+        // where the cloud will be, rising like smoke
+        if (h.from !== undefined && h.t < h.warn) {
+          const zg = fromFlight(h.z, h.from);
+          const k = h.t / h.warn;
+          if (Math.random() < dt * 3) fx.ring(h.x, h.from + 0.3, zg, 1.5 + k * 2.5, 0.5, false, 0xe8ff70);
+          for (let i = emit(26, dt); i > 0; i--) {
+            const up = 5 + Math.random() * 3;
+            fx.add({ x: h.x + (Math.random() - 0.5) * 1.2, y: h.from + 0.5, z: zg + (Math.random() - 0.5) * 1.2, vx: (Math.random() - 0.5) * 0.8, vy: up, vz: (h.z - zg) * (up / (FLIGHT_Y - h.from)), life: (FLIGHT_Y - h.from) / up, size: 0.9 + k, grow: 2.2, color: outerM.color, to: spore, glow: false });
+          }
+        }
       },
     };
   }

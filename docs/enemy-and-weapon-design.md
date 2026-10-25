@@ -15,7 +15,7 @@ The rules for designing an enemy, a boss or a weapon: read these before working 
 
 ## Modelling
 
-Model whatever an enemy, boss or weapon needs to look great: its body, its moving parts, the pieces it breaks into. For new art, paint the target first ([AGENTS.md](../AGENTS.md)); enemy and boss sheets go in [`art-direction/enemies/`](art-direction/enemies/) and [`art-direction/bosses/`](art-direction/bosses/). Use of the Blender MCP (`mcp__blender__*`) is encouraged: build and shape the model in the live Blender with `execute_blender_code`, see it with `look`, and iterate until it's beautiful. Keep the result as a script in `tools/models/`, so it builds with `just models <module>`.
+Model whatever an enemy, boss or weapon needs to look great: its body, its moving parts, the pieces it breaks into. Use of the Blender MCP (`mcp__blender__*`) is encouraged: build and shape the model in the live Blender with `execute_blender_code`, see it with `look`, and iterate until it's beautiful. Keep the result as a script in `tools/models/`, so it builds with `just models <module>`.
 
 Where it works better, generate procedurally: a swarm or a brood that needs many different bodies, a planet's versions of a foe, wreck chunks and debris, barrels, fins and plating on a weapon's variants, a bullet's or a beam's shape. A seeded generator in a `tools/models/` script, or in the game itself (`src/view/`) for things built at run time like effects and shots. Procedural parts follow the same brief and are judged the same way.
 

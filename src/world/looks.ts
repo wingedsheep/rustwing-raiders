@@ -33,10 +33,11 @@ export interface SetPiece {
  * - rings: rings round scattered centres (chemical stains, fairy rings, coral)
  * - streaks: long smears along the wind (ash, glass, scorched ground)
  * - plates: big riveted panels (metal decks, machine city)
+ * - pocks: little pits with pale lips, scattered thick (a vent field's crust)
  */
-export type GroundPattern = 'cells' | 'cracks' | 'veins' | 'tiles' | 'ripples' | 'rings' | 'streaks' | 'plates';
+export type GroundPattern = 'cells' | 'cracks' | 'veins' | 'tiles' | 'ripples' | 'rings' | 'streaks' | 'plates' | 'pocks';
 
-export const PATTERNS: GroundPattern[] = ['cells', 'cracks', 'veins', 'tiles', 'ripples', 'rings', 'streaks', 'plates'];
+export const PATTERNS: GroundPattern[] = ['cells', 'cracks', 'veins', 'tiles', 'ripples', 'rings', 'streaks', 'plates', 'pocks'];
 
 export interface Look {
   sets: SetPiece[];
@@ -217,8 +218,9 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'mirefall_vent_crater', role: 'giant', w: 1 },
     ],
     setChance: 0.2,
-    haze: { color: 0x9a60b8, glow: true, alpha: 0.4, rate: 0.3 },
-    pattern: { kind: 'veins', color: 0x3a2040, scale: 5, amount: 0.25, patchy: 0.5 },
+    // (the fog: grey-green, unlit; the spores' yellow-green is the danger's)
+    haze: { color: 0xd4dccc, alpha: 0.45, rate: 0.3 },
+    pattern: { kind: 'pocks', color: 0x4a5448, scale: 2.2, amount: 0.55, patchy: 0.55, below: 2 },
   },
   // ── GLACIS ─────────────────────────────────────────────────────────────────────────────────
   shelf: {

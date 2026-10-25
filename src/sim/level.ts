@@ -463,6 +463,8 @@ export interface Hazard {
   dead: boolean;
   /** Moves with the screen rather than with the ground. */
   air: boolean;
+  /** Where it comes up out of the ground (a spore cloud out of its vent), the ground's height there. */
+  from?: number;
 }
 
 export type LevelEvent =

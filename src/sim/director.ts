@@ -60,6 +60,8 @@ export class Director {
   readonly planned: ScriptWave[] = [];
   private r: Rng;
   private hazardT = 4;
+  /** The vents that have let a cloud go already (each breathes once as you pass). */
+  private breathed = new Set<string>();
   bossSpawned = false;
 
   constructor(private lv: Level) {
@@ -574,9 +576,11 @@ export class Director {
     if (this.hazardT > 0) return;
     const kind = pick(this.r, biome.hazards) as HazardKind;
     this.hazardT = HAZARD_GAP[kind] * lerp(0.95, 0.55, Math.min(lv.spec.difficulty, 1)) * (0.7 + this.r() * 0.6);
-    this.spawnHazard(kind);
+    // (nowhere for it to come from just now: look again shortly)
+    if (!this.spawnHazard(kind)) this.hazardT = 0.5;
   }
 
+  /** A hazard just ahead (false if there was nowhere for it). */
   private spawnHazard(kind: HazardKind) {
     const lv = this.lv;
     const r = this.r;
@@ -593,23 +597,36 @@ export class Director {
       case 'falling_rocks': {
         // near where someone is, so it has to be dodged
         const target = pick(r, lv.living());
-        if (!target) return;
+        if (!target) return false;
         lv.hazard(kind, target.x + (r() - 0.5) * 6, target.z - 4 - r() * 4, { r: 1.7, warn: 1.1, active: 0.25, air: true });
         break;
       }
       case 'lightning': {
         const target = pick(r, lv.living());
-        if (!target) return;
+        if (!target) return false;
         lv.hazard(kind, target.x + (r() - 0.5) * 8, target.z + (r() - 0.5) * 8, { r: 2.2, warn: 1.0, active: 0.3, air: true });
         break;
       }
-      case 'spore_cloud':
+      case 'spore_cloud': {
+        // in a laid-out place the clouds come up out of its live vents (sim/layout.ts), each vent
+        // bulging first, and nowhere else: a cold stretch is quiet
+        if (lv.terrain.plan(lv.terrain.biomeIndex(lv.top - 20))) {
+          const vents = lv.terrain.emitters(lv.top + 14, lv.top + 2).filter((e) => e.kind === 'vent' && e.z <= lv.top + 14 && e.z > lv.top + 2 && Math.abs(e.x) < HALF_W - 2 && !this.breathed.has(`${e.x},${e.z}`));
+          const v = pick(r, vents);
+          if (!v) return false;
+          this.breathed.add(`${v.x},${v.z}`);
+          const gy = lv.terrain.height(v.x, v.z);
+          lv.hazard(kind, v.x, toFlight(v.z, gy), { r: v.side > 0 ? 4.5 : 3.2, warn: 1.4, active: 12, from: gy });
+          break;
+        }
         lv.hazard(kind, x, lv.top - 2, { r: 3.5, warn: 0.6, active: 14 });
         break;
+      }
       case 'laser_gate':
         lv.hazard(kind, 0, lv.top - 2, { r: HALF_W, warn: 0, active: 30, period: 2.2 });
         break;
     }
+    return true;
   }
 }
 

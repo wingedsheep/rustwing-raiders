@@ -32,7 +32,7 @@ with its briefing card first. Leave off `&level` to get the level the event woul
 | Haggle (with Tobbo) | `tobbo` | [link](http://localhost:5190/?crew=kestrel&screen=event&ev=tobbo&mini&level=3) |
 | Shake Them Off (hull leeches) | `leeches` | [link](http://localhost:5190/?crew=kestrel&screen=event&ev=leeches&mini&level=3) |
 | Grab and Go (a dark hold) | `derelict` | [link](http://localhost:5190/?crew=kestrel&screen=event&ev=derelict&mini&level=3) |
-| Thread It (a minefield) | `minefield` | [link](http://localhost:5190/?crew=kestrel&screen=event&ev=minefield&mini&level=3) |
+| Thread It (a minefield heist) | `minefield` | [link](http://localhost:5190/?crew=kestrel&screen=event&ev=minefield&mini&level=3) |
 
 Some events use the same game too: `tanker` (Keep It Taut), `ghost` (Match and Dock), `relay` and
 `calf` (Tune In), `lastride` and `hunter` (Thread It).

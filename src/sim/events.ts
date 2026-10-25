@@ -106,6 +106,9 @@ export interface Setup {
   ask?: number;
   floor?: number;
   purse?: number;
+  /** THREAD IT: what waits at the heart of the field (a cache, unless said): its name over it,
+   *  the line the heart opens with, the word when you reach it, and whether you carry it out. */
+  heart?: { label: string; goal: string; got: string; carry: boolean };
 }
 
 export interface Choice {
@@ -886,7 +889,7 @@ export const EVENTS: RunEvent[] = [
         label: 'THREAD THE FIELD',
         game: 'thread',
         chips: (_, bold) => [c.range(0, bold ? 90 : 50), ...c.on('s', c.part(bold ? 'AN EPIC PART' : 'A RARE PART')), ...c.on('fail', c.hull(bold ? -2 : -1))],
-        note: (_, bold) => (bold ? 'THE DEEP CACHE. THE FURTHER IN, THE MORE SCRAP' : 'THE NEAR CACHE. THE FURTHER IN, THE MORE SCRAP'),
+        note: (_, bold) => (bold ? 'THE DEEP CACHE. GET OUT WITH IT FOR THE PART; SALVAGE ON THE WAY PAYS SCRAP' : 'THE NEAR CACHE. GET OUT WITH IT FOR THE PART; SALVAGE ON THE WAY PAYS SCRAP'),
         outcome: (run, p) => {
           const got = Math.round(p.score * (p.bold ? 90 : 50));
           run.scrap += got;
@@ -899,7 +902,7 @@ export const EVENTS: RunEvent[] = [
             run.give(id);
             return { text: `All the way in. The cache holds ${got} scrap and a ${name(id)}, and a note: "TELL MY WIFE".` };
           }
-          return { text: got ? `You get ${Math.round(p.score * 100)}% of the way in and scoop up ${got} scrap before you lose your nerve.` : 'You lose your nerve at the first mine. Wise, probably.' };
+          return { text: got ? `You come out singed, ${got} scrap rattling in the hold, and the field going up behind you.` : 'You lose your nerve at the first mine. Wise, probably.' };
         },
       },
       {
@@ -1938,6 +1941,7 @@ export const EVENTS: RunEvent[] = [
           ...c.on('fail', c.hull(bold ? -2 : -1)),
         ],
         note: (_, bold) => (bold ? 'THE HEART OF THE STORM, WHERE SHE LOST HER FIRST' : 'THE EDGE OF THE STORM'),
+        setup: () => ({ heart: { label: 'THE EYE', goal: 'THREAD THE RINGS AND OPEN THE HATCH IN THE EYE', got: 'ASHES AWAY!', carry: false } }),
         outcome: (run, p) => {
           const t = tier(p.score);
           if (t === 0) {

@@ -6,6 +6,9 @@ import { toon } from '../render/toon';
 import { weather } from '../render/alive';
 import type { Fx } from './fx';
 import { library, type Instance } from '../render/assets';
+import { PUFF } from './near';
+import type { Emitter } from '../sim/layout';
+import { smoothstep } from '../util';
 
 /**
  * The small things that make a place look lived in, none of which the sim knows about: flocks of
@@ -70,6 +73,8 @@ export class Life {
   private sprayT = 0;
   /** The clock the placed effects turn on. */
   private placeT = 0;
+  /** The fog banks on screen, by their emitter: when each was last seen in range. */
+  private fogs = new Map<Emitter, { g: THREE.Group; mat: THREE.SpriteMaterial; puffs: { s: THREE.Sprite; x: number; z: number; ph: number }[]; born: number; seen: number }>();
 
   constructor(
     private scene: THREE.Scene,
@@ -163,6 +168,24 @@ export class Life {
           this.fx.add({ x: e.x + (Math.random() - 0.5) * 2, y, z: e.z + (Math.random() - 0.5) * 2, vx: wind.x * 0.9, vy: 0.5, vz: wind.y * 0.9, size: 1.1, grow: 3, life: 3, glow: false, color: SPORE, to: tone(b.ground[2]) });
           break;
         }
+        case 'vent': {
+          // a live vent breathing: a pale warm haze welling out of its throat and leaning off with
+          // the wind, in breaths (a great one a slow tall column). Never the cloud's yellow-green:
+          // that's the danger, and only comes up when a vent lets one go
+          const great = e.side > 0;
+          const lung = 0.5 + 0.5 * Math.sin(this.placeT * (great ? 0.9 : 1.4) + e.x * 0.7 + e.z * 0.3);
+          if (!roll((great ? 5 : 1.6) * (0.3 + lung))) break;
+          const y = t.height(e.x, e.z) + (great ? 0.8 : 0.4);
+          const sz = great ? 2.2 : 0.9;
+          this.fx.add({ x: e.x + (Math.random() - 0.5) * sz, y, z: e.z + (Math.random() - 0.5) * sz, vx: wind.x * 0.9, vy: great ? 2.2 : 1.3, vz: wind.y * 0.9, size: sz, grow: great ? 3.2 : 2.6, life: great ? 3.4 : 2.4, glow: false, color: VENT, to: tone(b.ground[2], 1.05) });
+          break;
+        }
+        case 'fog': {
+          // fog lying low in a hollow or a bank at the side: a few big soft puffs, there for as
+          // long as it's on screen (see bank())
+          this.bank(e, t.height(e.x, e.z), b.ground[2]);
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -175,6 +198,43 @@ export class Life {
         }
       }
     }
+    // the fog: thinner while a fight's on, gone once it's off the screen
+    for (const [e, f] of this.fogs) {
+      if (f.seen < this.placeT) {
+        this.scene.remove(f.g);
+        f.mat.dispose();
+        this.fogs.delete(e);
+        continue;
+      }
+      f.mat.opacity = 0.42 * smoothstep(0, 2.5, this.placeT - f.born) * (1 - 0.4 * busy(lv));
+      for (const p of f.puffs) p.s.position.set(p.x + Math.sin(this.placeT * 0.13 + p.ph) * 1.2, p.s.position.y, p.z + Math.cos(this.placeT * 0.11 + p.ph) * 0.8);
+    }
+  }
+
+  /** A fog bank where an emitter is: made the first time it's in range, kept while it is. */
+  private bank(e: Emitter, gy: number, ground: number) {
+    const f = this.fogs.get(e);
+    if (f) {
+      f.seen = this.placeT;
+      return;
+    }
+    const g = new THREE.Group();
+    const mat = new THREE.SpriteMaterial({ map: PUFF, color: FOG.clone().lerp(new THREE.Color(ground), 0.15), transparent: true, opacity: 0, depthWrite: false });
+    const puffs = [];
+    for (let k = 0; k < 4 + Math.floor(Math.random() * 3); k++) {
+      const s = new THREE.Sprite(mat);
+      const sz = 5 + Math.random() * 3.5;
+      s.scale.set(sz * 1.5, sz, 1);
+      const x = e.x + (Math.random() - 0.5) * 9;
+      const z = e.z + (Math.random() - 0.5) * 6;
+      // (high enough that the ground doesn't cut into it)
+      s.position.set(x, gy + 2.4 + Math.random() * 1.2, z);
+      s.renderOrder = 2;
+      g.add(s);
+      puffs.push({ s, x, z, ph: Math.random() * 6 });
+    }
+    this.scene.add(g);
+    this.fogs.set(e, { g, mat, puffs, born: this.placeT, seen: this.placeT });
   }
 
   private birds(dt: number, lv: Level, b: Biome, halfW: number) {
@@ -320,6 +380,11 @@ export class Life {
   }
 
   dispose() {
+    for (const f of this.fogs.values()) {
+      this.scene.remove(f.g);
+      f.mat.dispose();
+    }
+    this.fogs.clear();
     for (const g of this.giants) {
       this.scene.remove(g.inst.obj);
       g.inst.dispose();
@@ -345,3 +410,5 @@ const FOAM = new THREE.Color(0xa8c8d0);
 const BREATH = new THREE.Color(0xf4e8d8);
 const FLAKE = new THREE.Color(0xf6f2ea);
 const SPORE = new THREE.Color(0xb4a4dc);
+const VENT = new THREE.Color(0xd8d2b4);
+const FOG = new THREE.Color(0xdce4d6);
