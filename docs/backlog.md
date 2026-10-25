@@ -1,91 +1,133 @@
 # Backlog
 
-The goal for now: **finish Act I.** The three-sector run, complete and tight: a screen you can read at a glance, stages you want to fly again, every Warden fighting its own fight, the arsenal's first new guns, and every biome a place you came to see. Act II stays a design ([endgame](endgame.md)).
+The goal for now: **one run that feels absolutely perfect, then the next.** Flying stages, picking up parts, making a build, fighting Wardens, and every one of those done really well. A run is a fixed seed, polished build by build: you play it, the flight recorder logs it, and the logs say what to tune next ([one run at a time](simple-run.md#one-run-at-a-time)). The design is in [the simple run](simple-run.md). Act II stays a design ([endgame](endgame.md)).
 
 Done work is deleted from here; git and the design docs keep the record.
 
 ## Now
 
-### 1. Readability: what can hurt you, what you can take
-The most important point from playtesting. The screen is crowded and low on contrast, and players can't tell enemy fire, pickups and things you crash into apart. The fix comes in small pushes, each finished and checked on its own before the next, and each judged on many screenshots against the [level design](level-design.md) rules; the pushes are in [readability](readability.md). The paintings in [`art-direction/planets/`](art-direction/planets/) are the reference for the cleanness and contrast we want, not a look to copy: each planet keeps its own style.
-- **The level generator** (8–11): walls that read as walls, colliders that look solid, a layout per biome on a shared toolkit, foes on their routes.
-- **Every biome through the generator** (12–19): a family of biomes at a time, judged and improved from screenshots.
-- **The look, the foes, then a planet at a time** (20 on).
+### 1. The flight recorder
+This comes first, so the first playtest already gives data. See [the recorder](simple-run.md#you-play-i-tune-the-flight-recorder).
+- **A run log**: route, rewards offered and picked, and dealer buys.
+- **Stage logs**: the build at the start, time, hull lost by source, time to kill per enemy kind, damage per part and graft, verbs used.
+- **Warden logs**: time and hits per phase and per move.
+- **A fixed run**: `?run=<seed>` gives the same chart, stages, Warden and reward offers every time, so one build compares with the next.
+- **Inputs, frame by frame**, for replays. Check first that a replay of a recorded stage ends where the stage did.
+- **A one-tap rating** after each stage and Warden (fun / meh / unfair), skippable.
+- **Saving**: a Vite endpoint that writes to `playtests/` (gitignored), with a download button when there's no dev server.
+- **`just playtest-report`** sums up a session, and **`just replay <file> --stage n`** replays a stage or records it to video.
 
-### 2. Shmup stages are the game
-Plain fly-and-shoot stages, with the feel of Raptor and Baryon, should be by far the biggest part of the game. Escorts and heists are spice.
+**Done when** one run, played by hand, gives a report that answers: where did I die, what hurt me, what did I pick, and which buttons did I never press?
 
-**Problem.** Today raid and hunt are only 44–49% of planet sites, escort and heist about 22%, and each sector has about 7 events. A route is about 4 stops on a sector's fuel, and plays only 1–2 plain fights. Those fights also don't vary much: every raid is the director's procedural waves and differs only in danger pips, elite and reward.
+### 2. The simple run: first slice
+Get to something you can play. Unhook what goes, but don't delete it yet.
+- **The chart**: keep the orbiting solar system. A sector is five stops, then the gate; each jump still turns the planets.
+  - Site kinds are stage, elite stage and dealer, and every site shows its reward.
+  - Drop fuel, the Sweep, danger pips, markets, intel, events, escorts, heists and boarding from the run (`src/sim/chart.ts`, `src/sim/run.ts`, `src/game/flow.ts`).
+- **Rewards, one of three**: PART, GRAFT (from the faction you just fought), REFIT, SCRAP, REPAIR.
+  - Rarity odds are by site, with the bad-luck build-up ([the table](simple-run.md#good-rewards-anywhere-better-from-elites-and-wardens)).
+  - Grafts come with the results; the wreck screen and the core screen leave the flow.
+- **The dealer**: three parts, a refit, a repair, a reroll, selling. One cast member per sector, with a line or two.
+- **Staying alive**: one hull bar carried over, the Weld, REPAIR, the dealer, and a big repair after a Warden. Drop the shield, the +20 a level, and the run's affairs (debt, policy, bounty, reputation, favours, passengers, contracts, markets, cargo).
+- **The core** stays in the fiction only. Veins, knots, imprints, waking and the Engine's call are switched off.
 
-**Change.**
-- **Reweight the chart** (`make` in `src/sim/chart.ts`): raids and hunts make up about 75% of planet sites. At most one escort or heist per sector, and fewer drifting events, so a route is mostly flying.
-- **A stage shape**: build-up, peak, breather, peak, with a mid-stage elite set piece.
-- **Faction formations**: each faction flies its own patterns, so how they come at you says who they are.
-- **Terrain set pieces**: a canyon run, a span to break, guns dug into the cliffs.
-- **Ground targets to strafe**: emplacements, depots and masts that blow up with debris and pay scrap. A FUEL DEPOT or LISTENING POST raid should play like one; today they are only names.
+**Done when** a full three-sector run plays from title to ending with only stages, rewards, dealers and Wardens, solo and in local co-op.
 
-Borrow those games' feel, not their mechanics: build from Rustwing's verbs.
+### 3. Run 1, until it's perfect
+Pick the seed together: one frame, three planets, three Wardens. Then loop:
+- **A build with a note**: what changed, and what to watch.
+- **You fly it**, as often as you like.
+- **I read the reports and replays**, and tune.
+- **Pull in work from Next only when run 1 needs it**: the wave cards for its stages, the scaling for its builds, the Silksong pass for its Wardens, the readability and looks of its biomes.
+- Answer [the open questions](simple-run.md#open-questions) from what the runs show: the shield, five stages or four.
+- Recalibrate the bench's verdict bands so the autopilot's hull loss tracks yours.
 
-**Done when** about 3 of a route's ~4 stops are plain fights (check by rolling the chart over many seeds), and two raids on the same planet are easy to tell apart.
+**Done when** you say it's perfect: every stage and Warden rated fun, nothing rated unfair, and hull lost and times to kill inside [the targets](simple-run.md#scaling-with-the-ships-power). Then run 2: a new seed that keeps what run 1 taught us. Every few builds, a random seed checks that the polish carries over.
 
-**Order.** The reweight is a small change to the weights table: ship it first and playtest. Then stage shape and formations, then terrain and ground targets. Decide on length (~100 s today) last, once the stages are richer.
-
-### 3. Co-op jumpstart: obvious and loud
-Players like reviving each other, but they don't see that they can, and the moment is flat.
-- **Bug:** `hud.ts:574` keeps showing `DOWN! PARTNER: FLY CLOSE` after the 20 s run out and the ship has crashed (`p.down` stays set with `p.out`). It should say it's out.
-- **Show the reach.** A pulsing ring at `JUMP_REACH` around the downed ship, in the overlay, and a countdown for `JUMP_WAIT` like the one boarding has.
-- **Tell the one who has to act.** A `P2 DOWN: FLY TO THEM` banner by the healthy pilot, shown large the first time in a run.
-- **Charging.** In reach, current arcs between the two ships, a ring fills, and a rising hum plays. As the timer runs low, the beeps quicken.
-- **The jolt.** A flash, a shockwave that clears the nearby bullets, the engines relighting in a burst, and a `JUMPSTART!` pop with the grease the reviver earns. Use boarding's own `revive` sound instead of `shield_up`.
-
-### 4. Boss rebuilds
-Three Wardens still fight the old fight. Take them one at a time to a full score (personality, dance, model, animation, music: see [what a finished boss has](bosses/README.md#what-a-finished-boss-has)), and fly each by hand before moving on.
-- **Warlord Khet** (Ashgrave): rebuilt; fly it by hand before moving on (does the false tell read, is the Glassing's way through clear, is going round the Kneel the answer) ([khet](bosses/khet.md)).
-- **Harbourmaster Oko** (Halcyon): the three phases, the record, the paint off, *Patience* ([oko](bosses/oko.md)).
-- **The Sandking** (Kessra): THE PRICE, a haggle under fire, in place of the Vote ([sandking](bosses/sandking.md)).
-- **The Mother-of-Spores** (Mirefall): her pods' Hold and the Lines; her dance needs the most work ([mother-of-spores](bosses/mother-of-spores.md)).
-- **Glacis comes last**: never in the first sector, always the third sector's Warden when it's in a run (`make` in `src/sim/chart.ts`).
-
-### 5. Arsenal: the first slice
-Already under way on the forge's bench (`src/game/lab-parts.ts`, `src/sim/arsenal.ts`). Finish the slice from [the arsenal](parts-variety.md#a-first-slice), then decide the rest.
-- CHILL and FROZEN, in the loot pool.
-- The gun rolls RAPID, HEAVY, WIDE, SEEKING: each a trade, changing how the gun fires.
-- Frost Sprayer, Charge Cannon, Saw Launcher out of the forge and into `PARTS`, with models and cards.
-- Bench them with the autopilot against every frame.
-- Then answer the draft's open questions: the roster's size, and whether rolls replace the flat damage and rate mods.
+### 4. Readability (ongoing)
+The most important point from earlier playtests, and it still holds: players couldn't tell enemy fire, pickups and things you crash into apart. It keeps going in small pushes, as in [readability](readability.md), each judged on many screenshots against the [level design](level-design.md) rules. The pushes are: the level generator (8–11), every biome through it (12–19), then the look, the foes, and a planet at a time (20 on).
 
 ## Next
 
-### 6. Say what things do
-Event outcomes, keywords (INFO button), first-time intros, the core's guide and gun loops on cards are in. What's left:
-- **Keywords on the results and dealer cards** (`results.ts`, `stops.ts`): the INFO panel is on events, the hangar and the core only.
-- **An intro for the first graft** (`wreck.ts`).
-- **A loop for the AUX and SPECIAL**, as the guns have (`ui/gun-loop.ts`), and boosters lighting the guns they touch.
-- **Count the layers.** A player meets about a dozen build systems (frames, grid, hardpoints, links, load, edges, marks, tiers and affixes, kit, grafts and bonds, the core's veins and imprints). Decide which ones Act I really needs before teaching all of them.
+Pulled into the run being polished as it needs them.
 
-### 7. Biomes: places worth seeing
+### 5. Stages built from wave cards
+See [stages that play well](simple-run.md#stages-that-play-well).
+- **The stage shape**: intro, build-up, set piece, breather, peak, out. About 2½–3 minutes.
+- **Wave cards** in the wave lab's `ScriptWave` format, each with a faction, foes, entry, what it tests, and a threat cost. Start with six to eight per faction.
+- **The director draws cards** to a threat budget per beat (`src/sim/director.ts`). Harder cards unlock by sector.
+- **One idea per stage**, from the biome.
+- **A bullet cap** per sector.
+- **Ground targets to strafe** in the breather: emplacements, depots and masts that blow up with debris and pay scrap.
+
+**Done when** two stages on the same planet are easy to tell apart, and the recorder shows no stage where most of the hull is lost to one card.
+
+### 6. Scaling to the ship's power
+- **The expected build per stage**: the autopilot takes random picks from real reward offers over many seeds, and the bench measures each build's damage per second.
+- **Enemy hull and Warden HP** set from the time-to-kill targets, replacing today's `hullGrowth` curve. Enemy damage barely scales.
+- **A floor**: the dealer always offers a trigger gun when the build's damage falls below the band.
+- Check against round 1's real builds.
+
+### 7. The build, collapsed
+See [the build, simplified](simple-run.md#the-build-simplified).
+- **Loot the way Dead Cells does it** ([parts](simple-run.md#parts-loot-the-way-dead-cells-does-it)):
+  - Each part has a level from where it dropped, and a rarity that sets its affixes and trait.
+  - The flat mods go, and about eight affixes are kept, each a rule you can feel.
+  - Every part card compares against the part it would replace, in green and red.
+  - A REFIT keeps a favourite up to date.
+- **The hangar, clearer** ([parts on the ship](simple-run.md#parts-on-the-ship-kept-made-clearer)):
+  - Three rules: hardpoints, facing, touching.
+  - A new part goes on in one press, at its best spot.
+  - The ship fires while you place a part, and boosters light what they touch.
+  - Every part shows on the ship in flight and grows with its level.
+- **Remove** links, load classes, edges, arsenal states and the kit as a layer. Good kit pieces become parts.
+- **The arsenal's first slice**: Frost Sprayer, Charge Cannon and Saw Launcher as plain parts, with models and cards.
+- **The best knacks come back as grafts** or legendary traits: Cold Blood, Follow Through, Hot Rivets.
+- **The aux becomes a frame's thing**: parry on GUARD frames, and from parts for the rest.
+- **Cut the verbs** the recorder shows nobody presses.
+- Bench every part on every frame.
+
+### 8. Wardens: the Silksong pass
+Against [Wardens that are fun](simple-run.md#wardens-that-are-fun) and [what a finished boss has](bosses/README.md#what-a-finished-boss-has). Take them one at a time, and fly each by hand before moving on.
+- **For every Warden**: four to six moves, each with a tell; pick a move, then move into position; no filler patterns; an opening after every big move; 90–150 s at the sector's expected power.
+- **Warlord Khet** (Ashgrave): fly it by hand. Does the false tell read? Is the Glassing's way through clear? Is going round the Kneel the answer? ([khet](bosses/khet.md)).
+- **Harbourmaster Oko** (Halcyon): the three phases, the record, the paint off, *Patience* ([oko](bosses/oko.md)).
+- **The Sandking** (Kessra): THE PRICE, a haggle under fire ([sandking](bosses/sandking.md)).
+- **The Mother-of-Spores** (Mirefall): her pods' Hold and the Lines; her dance needs the most work ([mother-of-spores](bosses/mother-of-spores.md)).
+- **The Waking Engine** stays the third sector's Warden whenever it's in a run. Its fight no longer calls the cores.
+- **A Warden rematch** on the title screen, once you've met it.
+- **Mid-bosses**: each planet's set-piece elite gets a small dance of two or three moves.
+
+### 9. Delete what wasn't missed
+- Once run 1 is perfect, **delete**: fuel and the Sweep, run affairs, events and minigames, escort, heist, boarding, the core's systems, and the build layers removed in 7. Bring the design docs in line ([combat and builds](combat-and-builds.md), [endgame](endgame.md), [boarding](boarding.md), [design research](design-research.md)).
+
+### 10. Co-op jumpstart: obvious and loud
+Players like reviving each other, but they don't see that they can, and the moment is flat.
+- **Bug:** `hud.ts` keeps showing `DOWN! PARTNER: FLY CLOSE` after the 20 s run out and the ship has crashed (`p.down` stays set with `p.out`). It should say the ship is out.
+- **Show the reach**: a pulsing ring at `JUMP_REACH` round the downed ship, and a countdown for `JUMP_WAIT`.
+- **Tell the one who has to act**: a `P2 DOWN: FLY TO THEM` banner by the healthy pilot, large the first time in a run.
+- **Charging**: arcs between the ships, a filling ring, a rising hum, and beeps that quicken as the timer runs low.
+- **The jolt**: a flash, a shockwave that clears nearby bullets, a `JUMPSTART!` pop, and boarding's `revive` sound.
+
+### 11. Biomes: places worth seeing
 Every biome should feel like discovering somewhere new: its own look, its own life, its own light. Hollow Knight and Silksong are the bar.
-- Every pass follows the readability rules (1): scenery frames the lane, it never fills it, and foes fit the ground they're on.
-- The look of each planet comes in the [readability](readability.md) pushes, a planet at a time.
-- **Scripted moments**: one or two rare set pieces per biome that make it memorable. A titan walking past in the Titan Graveyard, drift-calves letting their gas go and climbing out of the Calving Haze, the Stormwall lighting up, Engine City's lamps waking, a temple bell under the Drowned Temple's water.
-- Each planet a theme of its own voice (only Oru-Tal's boss has one).
+- Every pass follows the readability rules: scenery frames the lane, it never fills it, and foes fit the ground they're on.
+- **Scripted moments**: one or two rare set pieces per biome that make it memorable. For example: a titan walking past in the Titan Graveyard, the Stormwall lighting up, Engine City's lamps waking, or a temple bell under the Drowned Temple's water.
+- **Each planet gets a theme** in its own voice.
 
-### 8. What every boss still lacks
-From [bosses](bosses/README.md#across-the-run-designed-not-built), once the four are rebuilt:
-- Their own themes (four share the one `boss` track) and their own horns.
-- Poses for every boss (only Vask, the Engine, Istra and ARU-0 have them).
-- How each one goes: none of them explodes (a per-boss end in `level.ts`).
-- A line as each comes and goes, and read lines that change by phase.
-- Moves on the beat timed by the music, not the sim.
-- Barks from `tools/voices/` for the bosses with people aboard.
+### 12. What every Warden still lacks
+- Their own themes and horns: four share the one `boss` track.
+- Poses for every Warden.
+- How each one goes: a per-Warden end in `level.ts`.
+- A line as each comes and goes.
+- Moves on the beat timed by the music.
 
 ## Later
 
-- **Run-wide bosses**: Captain Quist, the rival met three times ([quist](bosses/quist.md)); Sweepwright Imre when the Sweep catches you ([sweep](bosses/sweep.md)); *Evenhand* ([evenhand](bosses/evenhand.md)); Weight-Captain Orrel at the Throat ([orrel](bosses/orrel.md)).
-- A second signature for each boss's last phase; a boss rush or rematch event.
+- **Medals**: three small goals per stage, shown on its node, each paying scrap.
+- **Cross grafts**: a graft that mixes two factions, unlocked by holding grafts from both.
+- **Pressure**: difficulty notches after a win, each one plain rule.
+- **Meta unlocks**: a beaten Warden's parts join the pool. Only once the run itself is fun.
+- **Captain Quist**, the rival met three times ([quist](bosses/quist.md)).
 - The rest of the arsenal, once the first slice is judged.
-- Grafts from the remaining elites; a second agreement per vein; imprints from the derelict, the refugees and the customs cutter.
-- Parts that play on edges (a second edge, a frame whose dash always strikes) and on the load class (a dash mod that only works NIMBLE, armour that's better OVERLOADED).
-- Enemies from the lore: each scrap power's own foe, lattice foes that listen to the Engine, woken elites that yield, the Port Authority's navy under the customs paint.
-- The Rook's own model; field-guide tips for darts, gunships and bombers.
-- Planet-specific events.
+- Enemies from the lore: each faction's own new foes.
