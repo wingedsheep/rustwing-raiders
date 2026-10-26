@@ -1159,3 +1159,6 @@ def build():
     # the Glass Craters' ejecta, spires, masts, convoy, cutters, barges and the gunship (set_ashgrave_glass.py)
     import set_ashgrave_glass
     set_ashgrave_glass.build()
+    # the Scav Camp's crawlers, tents, berm, claims, stalls, banners, berth and forge (set_ashgrave_camp.py)
+    import set_ashgrave_camp
+    set_ashgrave_camp.build()

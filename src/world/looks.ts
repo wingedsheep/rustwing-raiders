@@ -267,8 +267,9 @@ export const LOOKS: Record<string, Look> = {
   scavcamp: {
     sets: [{ kind: 'ashgrave_scrap_gantry', role: 'span', w: 3 }, { kind: 'ashgrave_scrap_wall', role: 'gate', w: 2 }, { kind: 'ashgrave_crawler_town', role: 'giant', w: 2 }],
     setChance: 0.2,
-    haze: { color: 0x4a3a30, alpha: 0.5, rate: 0.28 },
-    pattern: { kind: 'streaks', color: 0x5a4430, scale: 5, amount: 0.35, patchy: 0.6 },
+    // (its ash trodden and sooty; the crawlers' ruts are painted where they run by its layout)
+    haze: { color: 0x4a3a40, alpha: 0.45, rate: 0.25 },
+    pattern: { kind: 'ripples', color: 0x4e4036, scale: 5, amount: 0.22, patchy: 0.6 },
   },
   whitewood: {
     sets: [{ kind: 'ashgrave_white_canopy', role: 'span', w: 3 }, { kind: 'ashgrave_white_trunks', role: 'gate', w: 2 }, { kind: 'ashgrave_overgrown_mech', role: 'giant', w: 2 }],

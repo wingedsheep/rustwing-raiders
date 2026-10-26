@@ -11,8 +11,9 @@ import { monoliths } from './monoliths';
 import { oasis } from './oasis';
 import { peat } from './peat';
 import { saltpans } from './saltpans';
+import { scavcamp } from './scavcamp';
 import { sporevents } from './sporevents';
 import { temple } from './temple';
 import { titans } from './titans';
 
-export const LAYOUTS: Record<string, Layout> = { glass, glowcap, mesarun, monoliths, oasis, peat, saltpans, sporevents, temple, titans };
+export const LAYOUTS: Record<string, Layout> = { glass, glowcap, mesarun, monoliths, oasis, peat, saltpans, scavcamp, sporevents, temple, titans };

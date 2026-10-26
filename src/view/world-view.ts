@@ -684,9 +684,8 @@ function groundColor(b: Biome, h: number, steep: number, x: number, z: number, w
       if (r < 0.6) out.multiplyScalar(0.88);
       break;
     }
-    case 'scavcamp':
     case 'refinery': {
-      // tracks and concrete
+      // tracks and concrete (the Scav Camp's tracks are its layout's, see sim/layouts/scavcamp.ts)
       if (Math.abs(Math.sin(x * 0.15 + z * 0.03)) < 0.08) out.lerp(tmpB.setHex(0x3a3430), 0.8);
       break;
     }
