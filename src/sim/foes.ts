@@ -1682,15 +1682,18 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'windup') {
         if (over(e)) {
           d.fire = 0;
-          go(lv, e, 'attack', 2.4, 'spin');
+          d.shots = 0;
+          go(lv, e, 'attack', 2.0, 'spin');
         }
       } else if (e.state === 'attack') {
         d.a += (d.dir ?? 1) * 1.25 * DT * slow;
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
           const k = pattern(lv, e, 'spiral', SHARE.mid);
-          d.fire = Math.max(0.13, k.every);
-          volleyArms(lv, e.x, e.z, d.a, { arms: Math.min(4, k.arms), speed: k.speed }, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+          d.fire = Math.max(0.15, k.every);
+          // the arms come in dashes: every fourth beat it holds fire, a gap to slip through an arm
+          d.shots = (d.shots ?? 0) + 1;
+          if (d.shots % 4) volleyArms(lv, e.x, e.z, d.a, { arms: Math.min(4, k.arms), speed: k.speed }, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
         }
         if (over(e)) go(lv, e, 'recover', 1.5);
       } else if (over(e)) go(lv, e, 'idle');
