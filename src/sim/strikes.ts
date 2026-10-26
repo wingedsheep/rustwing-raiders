@@ -163,7 +163,7 @@ function touch(lv: Level, s: Strike, p: Player) {
   switch (s.effect) {
     case 'hurt':
       // a ring or a gate is passed once, hit or not; the rest burn while you're in them
-      if (lv.hurt(p, p.x, p.z, s.kind) || s.kind === 'wave' || s.kind === 'gate' || s.kind === 'slam') s.hit |= s.kind === 'puddle' || s.kind === 'shell' || s.kind === 'ball' || s.kind === 'plate' ? 0 : bit;
+      if (lv.hurt(p, p.x, p.z, s.kind) || s.kind === 'wave' || s.kind === 'gate' || s.kind === 'slam') s.hit |= s.kind === 'puddle' || s.kind === 'spore' || s.kind === 'shell' || s.kind === 'ball' || s.kind === 'plate' ? 0 : bit;
       break;
     case 'slow':
       p.slow = Math.max(p.slow, 0.9);

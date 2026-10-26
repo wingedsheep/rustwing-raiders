@@ -85,7 +85,7 @@ export const FOES: Record<Foe, FoeDef> = {
   prism: { name: 'Prism', faction: 'lattice', hp: 70, r: 1.6, score: 600, scrap: 4, model: 'lancer', beast: false, scale: 1.2, tip: 'CLOSED, IT THROWS SHOTS BACK: HIT IT WHEN IT OPENS TO SWEEP, OR FIRE IN FOCUS' },
   gatekeeper: { name: 'Gatekeeper', faction: 'lattice', hp: 60, r: 1.5, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.2, ground: true , tip: 'TWO PYLONS, A CLOSING GATE: FLY THE GAP, OR DROP A PYLON' },
   heartpod: { name: 'Heartpod', faction: 'bloom', hp: 50, r: 1.8, score: 600, scrap: 4, model: 'heartpod', beast: true, scale: 1.1, tip: 'BINDS ITS FRIENDS AND HEALS THEM: KILL THE POD FIRST' },
-  puffball: { name: 'Puffball', faction: 'bloom', hp: 6, r: 0.9, score: 60, scrap: 0, model: 'swarm', beast: true, scale: 0.9, tip: 'SPORE MINES: BOOST NEAR ONE AND IT COMES AFTER YOU' },
+  puffball: { name: 'Puffball', faction: 'bloom', hp: 6, r: 0.9, score: 60, scrap: 0, model: 'swarm', beast: true, scale: 0.9, tip: 'SPORE MINES: TOO CLOSE AND THEY BURST, BOOST AND THEY CHASE' },
   gunboat: { name: 'Gunboat', faction: 'scrap', hp: 120, r: 2.4, score: 900, scrap: 6, model: 'gunboat', beast: false, scale: 1.1, ground: true, water: true, tip: 'BROADSIDES OUT OF ITS FLANK: KEEP OFF ITS BEAM, AHEAD OR ASTERN' },
   technical: { name: 'Technical', faction: 'scrap', hp: 50, r: 1.6, score: 400, scrap: 3, model: 'technical', beast: false, scale: 1.1, ground: true, tip: 'IT SKIDS TO A STOP TO FIRE: SLIDE OFF ITS LINE, HIT IT WHILE IT STANDS' },
   blimp: { name: 'Dreadnought', faction: 'scrap', hp: 260, r: 3.6, score: 1400, scrap: 10, model: 'blimp', beast: false, scale: 1, tip: 'HEAVY: A BROADSIDE EACH WAY AND MINES BELOW. GET ABOVE IT' },

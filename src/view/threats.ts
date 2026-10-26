@@ -427,6 +427,21 @@ export class Threats {
   /** A strike going off: a hot disc that fades over its active time. */
   private blast(s: Strike, col: number) {
     const f = s.active > 0 ? clamp((s.t - s.warn) / s.active, 0, 1) : 1;
+    // a puffball's burst: a cloud that burns while it lasts, boiling, its edge drawn, thinning at the end
+    if (s.kind === 'spore' && s.effect === 'hurt') {
+      const fade = clamp((1 - f) * 4, 0, 1);
+      const boil = Math.sin(this.time * 9 + s.x * 3);
+      const d = this.discs.take(0xa8ff3a, (0.32 + 0.1 * boil) * fade);
+      d.position.set(s.x, Y - 0.02, s.z);
+      d.scale.setScalar(s.r * (0.94 + 0.05 * boil));
+      const core = this.discs.take(0xe4ff8a, (0.25 + 0.12 * Math.sin(this.time * 14 + s.z)) * fade);
+      core.position.set(s.x, Y - 0.01, s.z);
+      core.scale.setScalar(s.r * 0.5);
+      const edge = this.rings.take(0xc8ff5a, 0.7 * fade);
+      edge.position.set(s.x, Y, s.z);
+      edge.scale.setScalar(s.r);
+      return;
+    }
     const hot = s.kind === 'puddle' ? 0.5 + 0.15 * Math.sin(this.time * 12 + s.x) : 0.85 * (1 - f);
     const d = this.discs.take(s.kind === 'puddle' ? (GLASSY.has(s.color) ? s.color : 0x9aff4a) : s.kind === 'spore' ? 0xc8a0ff : f < 0.3 ? 0xffffff : col, hot);
     d.position.set(s.x, Y - 0.02, s.z);

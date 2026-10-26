@@ -126,6 +126,8 @@ function ease(lv: Level, e: Enemy, x: number, s: number, k = 3, max = 18) {
 export const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun <= 0 && lv.state !== 'clear' && lv.state !== 'failed';
 
 /** Quicker tells later in the run (never by much). */
+/** Puffballs: how fast they sink, how close sets one off, the swell, the blast and the cloud it leaves (radius, seconds). */
+const PUFF = { sink: 6, near: 4.5, swell: 0.55, blast: 4.5, cloud: 4, linger: 3 };
 const quick = (lv: Level) => 1 / (1 + Math.min(lv.spec.difficulty, 1.5) * 0.15);
 
 /** A line tell from the enemy along its aim. */
@@ -1129,17 +1131,39 @@ export function updateFoe(lv: Level, e: Enemy): void {
       break;
     }
     case 'puffball': {
-      // drifting spore mines; boost near them and they come after you
+      // spore mines sinking down the screen; come too close and one swells and bursts, a blast and
+      // then a cloud that burns a while; boost near them and they come after you to do it
+      const near = lv.players.some((o) => !o.down && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < PUFF.near ** 2);
+      const swell = () => {
+        d.prey = undefined;
+        go(lv, e, 'windup', PUFF.swell, 'swell', { shape: 'circle', x: e.x, z: e.z, r: PUFF.cloud, ground: false });
+      };
       if (e.state === 'idle') {
-        moveTo(lv, e, e.x + Math.sin(e.t * 1.3 + e.id) * 2 * DT, s + 2.5 * DT, true);
+        moveTo(lv, e, e.x + Math.sin(e.t * 1.3 + e.id) * 2 * DT, s + PUFF.sink * DT, true);
         const q = lv.players.find((o) => !o.down && o.boosting > 0.2 && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < 20 * 20);
-        if (q && e.t > 0.5 && ok) {
+        if (near && e.t > 0.3 && ok) swell();
+        else if (q && e.t > 0.5 && ok) {
           d.prey = q.id;
           go(lv, e, 'windup', 0.4, 'swell', { shape: 'circle', x: e.x, z: e.z, r: 1.6, ground: false });
         }
       } else if (e.state === 'windup') {
-        moveTo(lv, e, e.x, s, true);
-        if (over(e)) go(lv, e, 'attack', 3.5, 'swell');
+        // it stops to swell: shoot it now and it only puffs
+        moveTo(lv, e, e.x, s + DT, true);
+        const t = e.tele;
+        if (t && t.shape === 'circle') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          // (swelling to chase a boost, or to burst)
+          if (d.prey !== undefined) go(lv, e, 'attack', 3.5, 'swell');
+          else {
+            strike(lv, 'shell', e.x, e.z, { r: PUFF.blast, warn: 0, active: 0.15, color: e.skin.colors[2], air: true, owner: e.id });
+            strike(lv, 'spore', e.x, e.z, { r: PUFF.cloud, warn: 0, active: PUFF.linger, color: e.skin.colors[2], effect: 'hurt', air: true, vz: PUFF.sink * 0.4, owner: e.id });
+            lv.escape(e);
+            lv.emit({ type: 'explode', x: e.x, z: e.z, y: e.y, size: 2.2, color: e.skin.colors[2], enemy: e.id });
+          }
+        }
       } else if (e.state === 'attack') {
         const q = lv.players[d.prey ?? 0];
         if (q && !q.down) {
@@ -1150,7 +1174,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
           e.vz = clamp((e.vz ?? 0) + (dz / dl) * 30 * DT, -15, 15);
         }
         moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT, true);
-        if (over(e)) go(lv, e, 'idle');
+        if (near && ok) swell();
+        else if (over(e)) go(lv, e, 'idle');
       }
       break;
     }
