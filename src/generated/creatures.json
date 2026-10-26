@@ -15,22 +15,6 @@
   "mounts": [],
   "variant": 0
  },
- "camel_strider": {
-  "colliders": [],
-  "kind": "camel_strider",
-  "max": [
-   1.173,
-   5.145,
-   1.38
-  ],
-  "min": [
-   -1.03,
-   -0.011,
-   -2.418
-  ],
-  "mounts": [],
-  "variant": 0
- },
  "crawler": {
   "colliders": [],
   "kind": "crawler",
@@ -43,6 +27,38 @@
    -2.267,
    -0.168,
    -2.05
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "grova": {
+  "colliders": [],
+  "kind": "grova",
+  "max": [
+   2.984,
+   5.495,
+   2.579
+  ],
+  "min": [
+   -2.704,
+   -0.175,
+   -3.189
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "grova_standing": {
+  "colliders": [],
+  "kind": "grova_standing",
+  "max": [
+   2.97,
+   5.481,
+   2.547
+  ],
+  "min": [
+   -2.647,
+   0.0,
+   -2.902
   ],
   "mounts": [],
   "variant": 0

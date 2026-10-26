@@ -204,6 +204,7 @@ const TAKEN: Partial<Record<string, [number, number, number]>> = {
   flakker: [1, 1.6, 2],
   swooper: [1, 2, 2.5],
   burrower: [1, 1.5, 2],
+  eel: [1, 1.8, 2.2],
   spitter: [1, 1.6, 2],
   warden: [1, 1.5, 2],
   prism: [1, 2, 2.5],

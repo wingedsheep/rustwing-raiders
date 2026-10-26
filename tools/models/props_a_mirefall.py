@@ -37,7 +37,8 @@ TEMPLE_STEP = ("#d4c6d0", "#c2b4c2")
 TEMPLE_MOSS = ["#5a8a3a", "#6a9a40"]
 ZIG = ["#6a7062", "#5e6458", "#767c6a"]
 ZIG_TOP = ("#8e9480", "#7c826e")
-TEMPLE_GLOW = "#8aff8a"
+# (warm, a kept hearth: lime is the bloom's fire)
+TEMPLE_GLOW = "#ffc27a"
 TEMPLE_GLOW2 = "#c08aff"
 VENT = ["#7a5a80", "#8a6a90", "#6a4a70"]
 VENT_TOP = "#b898c0"

@@ -40,6 +40,8 @@ export type Foe =
   | 'halo'
   | 'manta'
   | 'rook'
+  // the bloom's channel-keeper: swims the water routes a layout lays down
+  | 'eel'
   // the scrap popcorn: cheap, many, in formation
   | 'scrapling'
   | 'potshot'
@@ -90,6 +92,7 @@ export const FOES: Record<Foe, FoeDef> = {
   spindle: { name: 'Spindle', faction: 'lattice', hp: 90, r: 1.8, score: 650, scrap: 4, model: 'spindle', beast: false, scale: 1.1, ground: true, tip: 'ITS ARMS SPIN THE WAY THE ARROWS SHOW: CIRCLE WITH THEM' },
   halo: { name: 'Halo', faction: 'lattice', hp: 70, r: 1.7, score: 600, scrap: 4, model: 'halo', beast: false, scale: 1.1, tip: 'TWO RINGS: THE FIRST GAP IS WHERE YOU ARE, THE SECOND IS NOT' },
   manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
+  eel: { name: 'Mire Eel', faction: 'bloom', hp: 130, r: 2.2, score: 900, scrap: 6, model: 'serpent', beast: true, scale: 1.4, ground: true, water: true, tip: 'IT SWIMS THE CHANNEL AHEAD. WHEN ITS BACK SWELLS IT FIRES DOWN BOTH FLANKS: GET AHEAD OF ITS HEAD, THEN HIT IT WHILE IT LIES OUT' },
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
   scrapling: { name: 'Scrapling', faction: 'scrap', hp: 9, r: 1.1, score: 80, scrap: 1, model: 'dart', beast: false, scale: 1.35, tip: 'THEY FLY IN STRINGS: SIT IN THEIR PATH AND SWEEP THE LOT FOR A BONUS' },
   potshot: { name: 'Potshot', faction: 'scrap', hp: 22, r: 1.3, score: 160, scrap: 1, model: 'dart', beast: false, scale: 1.25, tip: 'DROPS IN, STOPS, TAKES ONE SHOT: KILL IT BEFORE IT FIRES, OR STEP OFF ITS LINE' },
@@ -103,7 +106,7 @@ export const isFoe = (a: string): a is Foe => a in FOES;
 
 /** Popcorn: dies to a burst, only grazes you if you run into it. Heavies: one at a time (see director.ts). */
 export const POPCORN = new Set<string>(['swarm', 'scrapling', 'dart', 'raker', 'puffball', 'tug']);
-export const HEAVY = new Set<string>(['gunboat', 'blimp', 'brute', 'carrier', 'manta', 'burrower', 'warden', 'hookjaw', 'ace', 'bomber', 'serpent']);
+export const HEAVY = new Set<string>(['eel', 'gunboat', 'blimp', 'brute', 'carrier', 'manta', 'burrower', 'warden', 'hookjaw', 'ace', 'bomber', 'serpent']);
 /** How heavy a kind is, for the pace of a stage: popcorn, the rest, or a heavy. */
 export const weightOf = (arch: string): 'weak' | 'medium' | 'heavy' => (POPCORN.has(arch) ? 'weak' : HEAVY.has(arch) ? 'heavy' : 'medium');
 
@@ -179,6 +182,8 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
     ['swooper', 1, 0.1],
     ['spitter', 1.4, 0],
     ['manta', 0.8, 0.25],
+    // (only where a layout lays down water to swim: see director.ts)
+    ['eel', 1.4, 0.1],
   ],
 };
 

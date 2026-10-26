@@ -28,11 +28,13 @@ import type { Read } from '../sim/boss';
 import { BossPose } from './boss-pose';
 import { CarRig } from './car-rig';
 import { WormRig } from './worm-rig';
+import { EelRig } from './eel-rig';
 import { clamp, damp, lerp } from '../util';
 import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
 import { MARK_HEX, REACTION_COLOR, REACTION_HEX } from '../ui/mark-icons';
 import { BURN, CRACK, SHOCK, REACTIONS } from '../sim/marks';
+import { eelAt } from '../sim/foes';
 import { ConvoyView } from './convoy-view';
 import { HeistView } from './heist-view';
 import { TraitsView, type TraitHost } from './traits';
@@ -123,6 +125,7 @@ interface EnemyView {
   /** A wheeled foe: driven from how it moves rather than by its clip. */
   car?: CarRig;
   worm?: WormRig;
+  eel?: EelRig;
   /** A tug: the hard-light line it hauls its strongbox on. */
   tow?: THREE.Mesh;
   /** A strongbox: how many tugs held it last frame, and whether it's been cut loose. */
@@ -2635,6 +2638,8 @@ export class LevelView {
       }
       // a burrower lays itself out along its arch out of the ground
       if (v.worm) v.obj.visible = v.worm.update(e, v.obj, base, v.punch, lv.nearest(e.x, e.z), this.fx, this.fx.ground, (k) => (this.trauma = Math.min(1, this.trauma + k)), dt);
+      // an eel lays itself out back down its channel
+      if (v.eel) v.obj.visible = v.eel.update(e, v.obj, base, v.punch, (k) => eelAt(lv, e, k), this.fx, (k) => (this.trauma = Math.min(1, this.trauma + k)), dt);
       if (e.shielded && e.boss) v.inst?.flash(0.25 + 0.2 * Math.sin(this.time * 20));
       if (v.ring) {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
@@ -2665,6 +2670,7 @@ export class LevelView {
     for (const [id, v] of this.enemies)
       if (!alive.has(id)) {
         if (v.worm && v.worm.u > 0.2) v.worm.burst(this.fx, v.skin[2]);
+        if (v.eel) v.eel.burst(this.fx, v.skin[2]);
         this.scene.remove(v.obj);
         if (v.ring) this.scene.remove(v.ring);
         if (v.tow) this.scene.remove(v.tow);
@@ -3034,7 +3040,8 @@ export class LevelView {
     }
     const car = e.ground && inst ? (CarRig.of(obj, head) ?? undefined) : undefined;
     const worm = e.arch === 'burrower' && inst ? (WormRig.of(obj) ?? undefined) : undefined;
-    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold, car, worm, tow, held: e.arch === 'vault' ? 2 : undefined };
+    const eel = e.arch === 'eel' && inst ? (EelRig.of(obj) ?? undefined) : undefined;
+    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold, car, worm, eel, tow, held: e.arch === 'vault' ? 2 : undefined };
   }
 
   /** It folds to dive (fast) and opens as it climbs away; its idle spins up through the windup and runs fast out of the dive. */

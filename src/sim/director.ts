@@ -5,14 +5,14 @@
 
 import type { Archetype, EnemySkin } from '../world/planets';
 import { COOP_HULL, type Enemy, type HazardKind, type Level } from './level';
-import { HALF_H, HALF_W, toFlight } from './types';
+import { HALF_H, HALF_W, fromFlight, toFlight } from './types';
 import { LOOT } from './build';
 import { bossHull, makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
 import { BOUNTIES, FOES, HEAVY, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
 import { CHAIN } from './combat';
-import { afloat, road, type Form } from './foes';
+import { afloat, channel, road, type Form } from './foes';
 import { routeX } from './layout';
 import { boarderSkin } from './convoy';
 
@@ -339,6 +339,11 @@ export class Director {
         for (let k = 0; k < n; k++) lv.spawn(foe, skin, lerp(-HALF_W + 4, HALF_W - 4, (k + r() * 0.8) / n), top - r() * 10, {}, opts);
         break;
       }
+      case 'eel': {
+        // up a channel ahead (a layout's water route), under the water; with none, a sower instead
+        if (!this.channel(skin, opts)) this.spawnFoe('swooper', elite, bounty);
+        break;
+      }
       case 'gunboat': {
         // on water ahead, with room to patrol; with none, a gun truck comes instead
         if (!this.water(skin, opts)) this.spawnFoe('technical', elite, bounty);
@@ -525,6 +530,19 @@ export class Director {
     }
   }
 
+  /** A Mire Eel under the water of the channel nearest you, just ahead (false if there's none). */
+  private channel(skin: EnemySkin, opts: Partial<Enemy>) {
+    const lv = this.lv;
+    const p = lv.nearest(0, lv.bottom);
+    const water = lv.terrain.water(fromFlight(lv.top, 0));
+    const zg = fromFlight(lv.top + 2, water);
+    const rt = channel(lv, p?.x ?? 0, zg);
+    if (!rt || lv.enemies.some((e) => e.arch === 'eel' && !e.dead)) return false;
+    const x = routeX(rt, zg);
+    lv.spawn('eel', skin, x, toFlight(zg, water), { tz: zg }, { ...opts, y: water, heading: Math.PI });
+    return true;
+  }
+
   /** A gunboat on open water just ahead (false if there's none). */
   private water(skin: EnemySkin, opts: Partial<Enemy>) {
     const lv = this.lv;
@@ -640,6 +658,8 @@ export class Director {
         lv.spawn('brute', skin, 0, top, { hx: lerp(-14, 14, r()) }, opts);
         break;
       case 'serpent': {
+        // Mirefall's eel keeps to the water where a layout lays a channel down (the Drowned Temple's)
+        if (lv.spec.planet.id === 'mirefall' && this.channel(foeSkin(lv.spec.planet, 'eel'), opts)) break;
         const x0 = lerp(-12, 12, r());
         const phase = r() * 6;
         const head = lv.spawn('serpent', skin, x0, top, { x0, phase, amp: 12 + r() * 9 }, opts);

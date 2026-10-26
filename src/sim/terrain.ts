@@ -57,6 +57,11 @@ export interface Wildlife {
   heading: number;
   speed: number;
   biome: number;
+  /** A closed trail it walks round instead of wandering, and how far along it it starts (see Kit.walk). */
+  trail?: { x: number; z: number }[];
+  at?: number;
+  /** Its scale (default 1). */
+  s?: number;
 }
 
 /** A pillar of rock standing on a canyon's floor (an ellipse, `len` along z over `r` across). */
@@ -130,6 +135,8 @@ const WATERBORNE = new Set([
   'vesh_reef_head', 'vesh_kelp_mat', 'vesh_bone_tip', 'vesh_skiff', 'cinder_slick_boom', 'cinder_sludge_raft',
   // (the drowned temple's columns and stones stand in the shallows as well as on land)
   'mirefall_colonnade', 'vine_pillar', 'mirefall_stele',
+  // (and its lamps, columns, the Rang's huts on their stilts, their punts, the fallen bell)
+  'mirefall_hearth_lamp', 'mirefall_lamp_pylon', 'mirefall_column', 'mirefall_rang_hut', 'mirefall_punt', 'mirefall_bell',
 ]);
 /** How far up the shore a waterborne kind may stand (above the water line; 1.5 if not said): kelp stays in the sea. */
 const SHORE: Record<string, number> = {
@@ -137,6 +144,7 @@ const SHORE: Record<string, number> = {
   vesh_reef_head: 0.2, vesh_kelp_mat: 0.05, vesh_bone_tip: 0.3, vesh_skiff: 0.4,
   cinder_slick_boom: 0.05, cinder_sludge_raft: 0.05,
   mirefall_colonnade: Infinity, vine_pillar: Infinity, mirefall_stele: Infinity,
+  mirefall_hearth_lamp: Infinity, mirefall_lamp_pylon: Infinity, mirefall_column: Infinity, mirefall_rang_hut: Infinity, mirefall_punt: 0.05, mirefall_bell: 0.4,
 };
 /**
  * Farmland, by biome: these kinds aren't scattered but laid in a grid of plots (cell w × d), all
@@ -293,7 +301,7 @@ export class Terrain {
         this.planCache.set(i, null);
         layout.plan(kit, bones);
         kit.props.sort((a, b) => b.z - a.z);
-        p = { beats: kit.beats, props: kit.props, posts: kit.posts, routes: [...(bones.routes ?? []), ...kit.routes], fx: kit.fx };
+        p = { beats: kit.beats, props: kit.props, posts: kit.posts, routes: [...(bones.routes ?? []), ...kit.routes], fx: kit.fx, walkers: kit.walkers };
       }
       this.planCache.set(i, p);
     }
@@ -609,6 +617,7 @@ export class Terrain {
       const s = this.segments[i];
       if (s.z1 > zNear || s.z0 <= zNear - CHUNK) continue;
       for (const p of this.plan(i)?.props ?? []) if (p.z <= zNear && p.z > zNear - CHUNK) props.push(p);
+      for (const w of this.plan(i)?.walkers ?? []) if (w.z <= zNear && w.z > zNear - CHUNK) wildlife.push(w);
     }
     if (LAYOUTS[biome.id]) return { index, props, wildlife };
 

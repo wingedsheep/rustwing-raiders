@@ -188,6 +188,34 @@ export function road(lv: Level, x: number, zg: number): Route | null {
   return best;
 }
 
+/** The water route through ground z nearest x (a channel, an aisle: what an eel swims along), if any. */
+export function channel(lv: Level, x: number, zg: number): Route | null {
+  let best: Route | null = null;
+  let far = Infinity;
+  for (const rt of lv.terrain.routes(zg)) {
+    if (rt.kind !== 'water' || zg > rt.pts[0].z || zg < rt.pts[rt.pts.length - 1].z) continue;
+    const d = Math.abs(routeX(rt, zg) - x);
+    if (d < far) {
+      far = d;
+      best = rt;
+    }
+  }
+  return best;
+}
+
+/**
+ * The Mire Eel's body: how many segments trail its head and how far apart (ground units, back down
+ * its channel), how long it swims under between surfacings, and how far ahead of you it keeps.
+ */
+export const EEL = { segs: 10, gap: 2.3, under: 2.2, ahead: 20 };
+
+/** Where an eel's segment k lies (its head is -1): x, ground z (k from the head back down its channel). */
+export function eelAt(lv: Level, e: Enemy, k: number): [number, number] {
+  const zg = (e.d.tz ?? fromFlight(e.z, e.y)) + (k + 1) * EEL.gap;
+  const rt = channel(lv, e.x, zg);
+  return [rt ? routeX(rt, zg) : e.x, zg];
+}
+
 /** Is there water to float on at (x, ground z)? */
 export const afloat = (lv: Level, x: number, zg: number) => lv.terrain.height(x, zg) < lv.terrain.water(zg) - 0.25;
 
@@ -856,6 +884,85 @@ export function updateFoe(lv: Level, e: Enemy): void {
           d.n = (d.n ?? 0) + 1;
           go(lv, e, 'hidden', 1.6 + BURROW_SINK);
         }
+      }
+      break;
+    }
+    case 'eel': {
+      // a Tonkva channel-keeper, the bloom grown over its back: it swims up its channel under the
+      // water, keeping ahead of you (untouchable, its back breaking the surface); it surfaces, its
+      // back arching out of the water and the sacs on it swelling; then it fires out of both flanks
+      // down its length, head to tail, a fence of spores slanting back at you; it lies out on the
+      // water, open; it sinks and goes on. After three it swims off up its channel.
+      const t = lv.terrain;
+      let zg = d.tz ?? fromFlight(e.z, e.y);
+      const water = t.water(zg);
+      if (e.state === 'idle' && e.t < 0.1) go(lv, e, 'hidden', EEL.under * 0.6);
+      const rt = channel(lv, e.x, zg);
+      // off its channel's end, or done: it goes, under and away ahead
+      if (!rt && e.state === 'hidden') d.n = 3;
+      const gone = (d.n ?? 0) >= 3 && e.state === 'hidden';
+      e.shielded = e.state === 'hidden';
+      // a stretch ahead of you up its channel; surfaced, it barely swims (and drifts down to you)
+      const pz = p ? fromFlight(p.z, water) : zg;
+      const want = pz - (gone ? 80 : EEL.ahead);
+      const lim = e.state === 'hidden' ? lv.speedNow + 9 : lv.speedNow * 0.45;
+      zg += clamp((want - zg) * 2, -lim, lim) * DT * slow;
+      d.tz = zg;
+      const x = rt ? routeX(rt, zg) : e.x;
+      e.heading = Math.PI + clamp((x - e.x) * 2, -0.6, 0.6);
+      e.vx = (x - e.x) / DT;
+      e.x = lerp(e.x, x, 0.2);
+      e.y = water;
+      e.z = toFlight(zg, water);
+      // its tail, for what hits it (see Level.updateShots): the body lies back down the channel
+      const [tx, tz] = eelAt(lv, e, EEL.segs - 1);
+      d.bx = tx;
+      d.bz = toFlight(tz, water);
+      if (gone) break;
+      const deep = (k: number) => {
+        const [sx, sz2] = eelAt(lv, e, k);
+        return t.height(sx, sz2) < water - 0.15;
+      };
+      if (e.state === 'hidden') {
+        // (it comes up only on open water, on the screen, ahead of you)
+        if (over(e) && ok && p && s < -4 && s > -HALF_H + 3 && deep(-1) && deep(4) && deep(EEL.segs - 1)) {
+          d.side = Math.sign(p.x - e.x) || 1;
+          const [mx, mz] = eelAt(lv, e, EEL.segs / 2);
+          const out = d.side * (Math.PI / 2 - 0.3);
+          go(lv, e, 'windup', 1.1 * quick(lv), 'broadside', { shape: 'sweep', x: mx, z: toFlight(mz, water), a0: out - 0.45, a1: out + 0.45, len: 34, w: 0 });
+        }
+      } else if (e.state === 'windup') {
+        const tl = e.tele;
+        if (tl && tl.shape === 'sweep') {
+          const [mx, mz] = eelAt(lv, e, EEL.segs / 2);
+          tl.x = mx;
+          tl.z = toFlight(mz, water);
+        }
+        if (over(e)) {
+          // the head spits first, at you; then the flanks, down the body
+          if (p) {
+            const a = lv.aim(e.x, e.z);
+            for (let j = -1; j <= 1; j++) lv.bullet(e.x, e.z, a + j * 0.22, 11, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          }
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          d.k = 0;
+          d.fire = 0.12;
+          go(lv, e, 'attack', 0.9, 'broadside');
+        }
+      } else if (e.state === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        while (d.fire <= 0 && (d.k ?? 0) < EEL.segs) {
+          d.fire += 0.08;
+          const [sx, sz2] = eelAt(lv, e, d.k ?? 0);
+          const fz = toFlight(sz2, water);
+          for (const side of [-1, 1]) lv.bullet(sx, fz, side * (Math.PI / 2 - 0.3), 9, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: sx, z: fz, color: e.skin.colors[2], look: lookOf(lv, e) });
+          d.k = (d.k ?? 0) + 2;
+        }
+        if (over(e)) go(lv, e, 'recover', 1.9);
+      } else if (over(e)) {
+        d.n = (d.n ?? 0) + 1;
+        go(lv, e, 'hidden', EEL.under);
       }
       break;
     }

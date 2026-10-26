@@ -1905,3 +1905,6 @@ def build():
     # the Spore Vents' crust, cones, chimneys and tufts (set_mirefall_vents.py)
     import set_mirefall_vents
     set_mirefall_vents.build()
+    # the Drowned Temple's lamps, columns, shrines, the Rang's huts and punts (set_mirefall_temple.py)
+    import set_mirefall_temple
+    set_mirefall_temple.build()

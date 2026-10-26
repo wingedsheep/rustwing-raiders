@@ -18,7 +18,7 @@
  *   strips, flooded basins, fallow), dovecotes at the corners;
  * - the market: Bluepalm itself, a street between rows of stalls, alleys off it, the square with
  *   the windcatcher cistern, mud houses behind, the caravanserai near the far gate;
- * - the camp: the caravans drawn up in rings round their fires, striders in lines, cargo set
+ * - the camp: the caravans drawn up in rings round their fires, grova walked round them, cargo set
  *   down, a crawler parked, the cartel's tax tent on the road;
  * - the dry garden: a palmery whose qanat failed, its dead crowns still in their rows, its
  *   channels dry, the dunes coming in over the bunds from one side.
@@ -47,6 +47,8 @@ const ROAD_OFF = 4.4;
 const ROAD = 2.3;
 /** Half the market street. */
 const STREET = 6;
+/** How far out from a camp's ring its grova are walked round. */
+const LEAD = 4.5;
 
 type Year = 'low' | 'full' | 'flood';
 type Ground = 'qanats' | 'springs' | 'gardens' | 'market' | 'camp' | 'dry';
@@ -553,8 +555,10 @@ export const oasis: Layout = {
           return [0xc49a6c, 0.35];
         }
         case 'camp': {
-          // trampled round the rings
+          // trampled round the rings, and the grova's trail round them
           for (const l of laagers) {
+            const t = Math.abs(Math.hypot(x - l.x, z - l.z) - l.r - LEAD);
+            if (t < 1.1) return [0x9a6e48, (0.25 + 0.3 * noise2(x * 0.15, z * 0.15, 57)) * (1 - smoothstep(0.4, 1.1, t))];
             const d = Math.hypot(x - l.x, z - l.z) / l.r;
             if (d < 1.6) return [0xa47a54, 0.45 * (1 - smoothstep(1.1, 1.6, d))];
           }
@@ -679,8 +683,8 @@ function plan(kit: Kit, b: Oasis) {
             for (const sd of [-1, 1]) kit.post(sx(gz) + sd * (STREET + 1.2), gz + inward * 1.5, 0, 'gate');
             if (inward < 0) kit.put('kessra_toll_hut', sx(gz) + mk.side * (STREET + 3.5), gz - 2, { s: 1, rot: 0, overlap: true });
           }
-          // striders at the caravanserai's gate, in a line
-          for (let k = 0; k < 4; k++) kit.put('camel_strider', sx(zc) + mk.side * (STREET + 4.5), zc + 9 + k * 2.6, { s: 0.9, rot: (r() - 0.5) * 0.4, overlap: true });
+          // grova at the caravanserai's gate, in a line
+          for (let k = 0; k < 3; k++) kit.put('grova_standing', sx(zc) + mk.side * (STREET + 5), zc + 8 + k * 4.4, { s: 0.8, rot: r() * Math.PI * 2, overlap: true });
         }
         break;
       }
@@ -831,8 +835,8 @@ function plan(kit: Kit, b: Oasis) {
       case 'camp': {
         for (const l of b.laagers) {
           if (l.z > bt.z0 || l.z < bt.z1) continue;
-          // a ring: haulers and tents round the fire, facing in, cargo between, the striders
-          // hobbled in a line outside
+          // a ring: haulers and tents round the fire, facing in, cargo between, the grova
+          // walked round outside
           const n = 6 + Math.floor(r() * 2);
           const a0 = r() * Math.PI * 2;
           for (let k = 0; k < n; k++) {
@@ -847,8 +851,13 @@ function plan(kit: Kit, b: Oasis) {
           }
           kit.put('kessra_bales', l.x + (r() - 0.5) * 2, l.z + (r() - 0.5) * 2, { s: 0.8, overlap: true });
           kit.emit('smoke', l.x, l.z);
-          const out = l.x > 0 ? 1 : -1;
-          for (let k = 0; k < 4; k++) kit.put('camel_strider', l.x + out * (l.r + 4), l.z - 4 + k * 2.6, { s: 0.9, rot: Math.PI / 2 * out + (r() - 0.5) * 0.4, overlap: true });
+          // the grova led round the ring in file, on the trail they've worn (see stain)
+          const way = r() < 0.5 ? 1 : -1;
+          const trail = Array.from({ length: 48 }, (_, k) => {
+            const a = (k / 48) * Math.PI * 2 * way;
+            return { x: l.x + Math.cos(a) * (l.r + LEAD), z: l.z + Math.sin(a) * (l.r + LEAD) };
+          });
+          kit.walk('grova', trail, 3 + Math.floor(r() * 2), 5.5, 0.8);
         }
         // the tax tent on the road, guns either side of it; a crawler parked out at the edge
         const z = bt.z0 - len * range(r, 0.3, 0.6);

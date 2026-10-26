@@ -972,6 +972,22 @@
   ],
   "variant": 0
  },
+ "enemy_mire_eel": {
+  "colliders": [],
+  "kind": "enemy_mire_eel",
+  "max": [
+   2.307,
+   0.982,
+   18.092
+  ],
+  "min": [
+   -2.307,
+   -0.617,
+   -1.95
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_mire_eel_body": {
   "colliders": [],
   "kind": "enemy_mire_eel_body",

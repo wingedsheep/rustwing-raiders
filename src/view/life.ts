@@ -186,6 +186,30 @@ export class Life {
           this.bank(e, t.height(e.x, e.z), b.ground[2]);
           break;
         }
+        case 'spill': {
+          // water let down through a sluice: a pale skein falling off the lip toward `side`, a
+          // breath of spray where it lands, a ring spreading on the water below
+          if (!roll(3)) break;
+          const top = t.height(e.x - e.side * 0.8, e.z);
+          const w = Math.max(t.water(e.z), t.height(e.x + e.side * 1.6, e.z));
+          this.fx.add({ x: e.x, y: top + 0.1, z: e.z + (Math.random() - 0.5) * 0.8, vx: e.side * (1.2 + Math.random() * 0.6), vy: 0.2, gravity: 9, size: 0.35, grow: 0.6, life: 0.45, glow: false, color: SPILL, to: tone(b.waterColor ?? 0x2a5a58, 1.6) });
+          if (Math.random() < 0.3) this.fx.add({ x: e.x + e.side * 1.4, y: w + 0.2, z: e.z, vx: e.side * 0.4, vy: 0.5, size: 0.7, grow: 1.6, life: 0.9, glow: false, color: SPILL, to: tone(b.ground[2]) });
+          if (Math.random() < 0.15) this.fx.ring(e.x + e.side * 1.6, w + 0.04, e.z, 0.9, 1.0, false, 0xd8ece6);
+          break;
+        }
+        case 'toll': {
+          // the drowned temple's bell, struck by the swamp's slow swell: now and then a wide ring
+          // goes out over the water from it, and a second after it, and bubbles come up
+          const beat = (this.placeT + e.x * 0.37) % 9;
+          const prev = (this.placeT - dt + e.x * 0.37) % 9;
+          if (prev > beat || (prev < 0.8 && beat >= 0.8)) {
+            const w = t.water(e.z);
+            this.fx.ring(e.x, w + 0.05, e.z, 7, 3.2, false, 0xcfe8de);
+            this.fx.ring(e.x, w + 0.05, e.z, 4, 2.4, false, 0xcfe8de);
+          }
+          if (roll(1.2)) this.fx.ring(e.x + (Math.random() - 0.5) * 3, t.water(e.z) + 0.04, e.z + (Math.random() - 0.5) * 3, 0.8, 1.2, false, 0xd8f4f0);
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -412,3 +436,4 @@ const FLAKE = new THREE.Color(0xf6f2ea);
 const SPORE = new THREE.Color(0xb4a4dc);
 const VENT = new THREE.Color(0xd8d2b4);
 const FOG = new THREE.Color(0xdce4d6);
+const SPILL = new THREE.Color(0xe4f0ea);

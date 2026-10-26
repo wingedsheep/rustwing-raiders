@@ -8,6 +8,8 @@ pattern in its B slot and lots of glowing C: glow is this moon's signature.
     bog_shellback   brute    a rhino bog beetle, mossy striped elytra sprouting glowcaps, buzzing wings
     brood_sac       carrier  a bloated hive queen: banded egg-swollen abdomen, glowing brood, rear bay
     mire_eel        serpent  a lure-headed swamp eel: pale saddles, magenta photophores, ribbon fins
+    channel_keeper  (eel)    the Mire Eel on the water: a Tonkva-grown dredger, ceramic back plates,
+                             paddle vanes, the bloom's sacs on its back; rigged by src/view/eel-rig.ts
 Seeds 4000-4999.
 """
 from __future__ import annotations
@@ -361,6 +363,76 @@ def mire_eel():
     osc(tail, clip, "rotation_euler", T, (2, 0.1, 1, 0.25))
 
 
+# --- The Mire Eel on the water: a channel-keeper, rigged at run time ------------------------------
+
+CER = "#d8cec2"        # the Tonkva's ceramic, grown over its back
+CER_DARK = "#8a8090"
+GLAZE = "#7aa89a"      # its glazed band (a celadon stripe, dull: never a lit speck)
+
+
+def channel_keeper():
+    """The Tonkva grew these to keep the grow-beds' channels clear: a long low body that swims flat,
+    a plate of their pale ceramic over each ring of it, a pair of paddle vanes at every ring to push
+    the water, and a broad dredge-scoop for a head, combed like their own antennae. A thousand years
+    with no ledger to tell it what to clear, and the bloom has grown over its back in sacs that it
+    fires. Rigged by the runtime (src/view/eel-rig.ts), not clips: `_head`, `_seg_<n>` (head end
+    toward +y, each built round its own middle) and `_sac_<n>` on some segments (swelling in the
+    tell). Laid out flat here for the previews. ~2.4 across the head."""
+    kind, clip, root = named("mire_eel", "serpent", "beast", "swim", preview=("#5a3a7a", "#d8c0ff", "#b0ff4a"))
+    N = 10
+    gap = 1.7
+    for k in range(N):
+        t = k / (N - 1)
+        r = 0.85 + (0.42 - 0.85) * t
+        sg = Model(f"{kind}_seg_{k}", seed=4300 + k)
+        sg.ball(r, (0, 0, 0), A.shade(0.55), subdiv=1, scale=(1.05, 1.3, 0.55))                  # wet skin
+        sg.ball(r, (0, -r * 0.1, r * 0.22), CER, subdiv=1, scale=(0.95, 1.05, 0.4))                # the ceramic plate
+        sg.box((r * 1.5, r * 0.22, r * 0.12), (0, r * 0.15, r * 0.52), GLAZE)                    # its glazed band
+        sg.ball(r, (0, -r * 0.55, r * 0.12), CER_DARK, subdiv=1, scale=(0.9, 0.3, 0.3))           # the lap under the next
+        for sd in (1, -1):                                                                     # paddle vanes
+            v = [(sd * r * 0.8, r * 0.35), (sd * r * 2.1, r * 0.1), (sd * r * 2.25, -r * 0.35), (sd * r * 0.8, -r * 0.45)]
+            sg.slab(v[::-1] if sd > 0 else v, -0.05, 0.07, A.shade(0.75))
+            # (its leading edge ceramic)
+            e = [(sd * r * 0.8, r * 0.35), (sd * r * 2.1, r * 0.1), (sd * r * 2.1, -r * 0.05), (sd * r * 0.8, r * 0.18)]
+            sg.slab(e[::-1] if sd > 0 else e, 0.07, 0.1, CER)
+            sg.ball(r * 0.17, (sd * r * 0.85, 0, r * 0.15), C, subdiv=0, glow=True)               # a spore port at its root
+        # the bloom over its back, more of it toward the tail: violet sponge, and on every other ring a swollen sac
+        for j in range(1 + k // 3):
+            sx = (-1) ** (j + k) * r * (0.3 + 0.15 * j)
+            sg.ball(r * (0.5 - 0.06 * j), (sx, -r * 0.25 + j * r * 0.2, r * 0.5), A.shade(1.05 - 0.1 * j), subdiv=1, scale=(1.2, 1, 0.6), jitter=0.06)
+        if k % 2 == 0 and k < N - 1:
+            sc = Model(f"{kind}_sac_{k}", seed=4320 + k)
+            sc.ball(r * 0.42, (0, 0, 0), B, subdiv=1, scale=(1, 1, 0.85))
+            sc.ball(r * 0.18, (0, 0, r * 0.32), C, subdiv=0, glow=True)
+        if k == N - 1:                                                                         # the tail fluke
+            sg.slab([(0, -r * 0.4), (r * 1.6, -r * 2.6), (0, -r * 1.9), (-r * 1.6, -r * 2.6)][::-1], -0.04, 0.06, CER)
+        seg = sg.build(root, loc=(0, -(k + 1) * gap, 0))
+        if k % 2 == 0 and k < N - 1:
+            sc.build(seg, loc=(-r * 0.2, r * 0.1, r * 0.62))
+
+    hd = Model(f"{kind}_head", seed=4310)
+    hd.ball(0.95, (0, -0.2, 0), A.shade(0.55), subdiv=2, scale=(1.05, 1.0, 0.5))                # the skull, low and wide
+    hd.ball(0.95, (0, -0.3, 0.2), CER, subdiv=1, scale=(0.95, 0.85, 0.4))                     # its brow plate
+    hd.box((1.5, 0.22, 0.12), (0, -0.1, 0.55), GLAZE)
+    # the dredge-scoop: a broad flat lip of ceramic, its edge combed into teeth
+    hd.slab([(-1.25, 0.3), (1.25, 0.3), (1.05, 1.15), (-1.05, 1.15)], -0.15, 0.05, CER)
+    hd.slab([(-1.0, 0.45), (1.0, 0.45), (0.85, 1.0), (-0.85, 1.0)], 0.05, 0.08, DARK)           # the maw under the lip
+    hd.box((1.4, 0.18, 0.06), (0, 0.75, 0.1), C, glow=True)                                    # glowing deep in it
+    for i in range(9):
+        x = -1.0 + i * 0.25
+        hd.box((0.09, 0.4, 0.08), (x, 1.3, -0.05), CER)
+    for sd in (1, -1):
+        hd.ball(0.16, (sd * 0.55, 0.2, 0.42), C, subdiv=1, glow=True)                           # eyes, set in the brow
+        # the combs: two feathered crests swept back off the brow, the Tonkva's own antennae
+        for j in range(5):
+            a = 0.35 + j * 0.16
+            hd.box((0.13, 0.7 - j * 0.08, 0.07), (sd * (0.78 + j * 0.2), -0.55 - j * 0.3, 0.52 + j * 0.05), CER, rot=(0, 0, sd * a))
+        hd.box((0.2, 1.9, 0.12), (sd * 1.0, -1.05, 0.5), CER_DARK, rot=(0.15, 0, sd * 0.45))
+    head = hd.build(root, loc=(0, 0, 0))
+    head.scale = (1.3, 1.3, 1.3)   # (the rig keeps it)
+    marker(head, kind, "muzzle", (0, 1.3, 0))
+
+
 def build():
     glowmoth()
     hive_needle()
@@ -368,3 +440,4 @@ def build():
     bog_shellback()
     brood_sac()
     mire_eel()
+    channel_keeper()

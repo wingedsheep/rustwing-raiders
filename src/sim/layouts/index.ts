@@ -10,5 +10,6 @@ import { monoliths } from './monoliths';
 import { oasis } from './oasis';
 import { saltpans } from './saltpans';
 import { sporevents } from './sporevents';
+import { temple } from './temple';
 
-export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, monoliths, oasis, saltpans, sporevents };
+export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, monoliths, oasis, saltpans, sporevents, temple };

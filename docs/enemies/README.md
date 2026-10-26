@@ -68,6 +68,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Rook](rook.md) | lattice | Square-turning seekers | 2 | 3 | 2 | 1 | 2 | A death of its own |
 | [Heartpod](heartpod.md) | bloom: Mirefall, spore vents | Healer, linker | 2 | 2 | 2 | 1 | 1 | Tune the heal and toughness |
 | [Puffball](puffball.md) | bloom | Spore mine (fodder) | 2 | 2 | 2 | 1 | 1 | A wet pop and a spore sound |
+| [Mire Eel](serpent.md#the-mire-eel-on-the-water) | bloom, water routes | Channel swimmer, flank fence | 2 | 2 | 2 | 2 | 1 | Its own sounds |
 | [Loot Runner](loot-runner.md) | bounty | Escaping target | 1 | 1 | 2 | 1 | 1 | A tell on its jink |
 | [Strongbox](strongbox.md) | bounty | Hauled by two tugs: cut them loose | 2 | 2 | 2 | 1 | 1 | A model for the tug |
 | [Dart](dart.md) | old guard, every planet | Formation fodder | 1 | 1 | 2 | 1 | 1 | Tells on the non-dive paths |
@@ -123,6 +124,7 @@ The fungal rot of Mirefall (and spore-vent biomes). Tell grammar: **swell** (it 
 
 - [Heartpod](heartpod.md)
 - [Puffball](puffball.md)
+- [Mire Eel](serpent.md#the-mire-eel-on-the-water): swims a layout's water routes
 
 ## Bounties
 

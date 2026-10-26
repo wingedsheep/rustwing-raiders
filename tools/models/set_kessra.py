@@ -3188,7 +3188,7 @@ def house_block(variants):
 def wagon(variants):
     """Scenery, in the camp's rings: a caravan's wagon, long along +x, on big iron-shod wheels,
     its hood of striped cloth on hoops (the second open, piled with cargo), the shafts the
-    striders are put to lying on the sand."""
+    grova are put to lying on the sand."""
     for i in range(variants):
         r = root("kessra_wagon", i)
         rng = random.Random(3920 + i)
@@ -3265,7 +3265,7 @@ def caravanserai(variants):
                 x = nx * (inner + 0.03) - ny * t
                 y = ny * (inner + 0.03) + nx * t
                 m.box((1.2 if ny else 0.12, 0.12 if ny else 1.2, 1.8), (x, y, 1.0), MUD_DARK)
-        # the courtyard: paving, a pool, a bluecrown, striders' troughs, cargo
+        # the courtyard: paving, a pool, a bluecrown, the grova's troughs, cargo
         m.box((2 * inner, 2 * inner, 0.08), (0, 0, 0.04), "#d8b88a")
         for k in range(8):
             a = k * math.tau / 8

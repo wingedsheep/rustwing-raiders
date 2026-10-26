@@ -10,7 +10,7 @@
  * The layouts themselves, one per biome, are in sim/layouts/.
  */
 
-import type { Pillar, Placed } from './terrain';
+import type { Pillar, Placed, Wildlife } from './terrain';
 import type { SetRole } from '../world/looks';
 import { metaOf, variants, height as metaHeight, type Meta } from './meta';
 import { FLIGHT_Y, HALF_H, HALF_W } from './types';
@@ -47,7 +47,7 @@ export interface Route {
  * out in the open, smoke over a camp. `side` is which way it leans (a rim's dust blows off it).
  */
 export interface Emitter {
-  kind: 'dust' | 'devil' | 'smoke' | 'trickle' | 'bubble' | 'breath' | 'flakes' | 'spores' | 'vent' | 'fog';
+  kind: 'dust' | 'devil' | 'smoke' | 'trickle' | 'bubble' | 'breath' | 'flakes' | 'spores' | 'vent' | 'fog' | 'spill' | 'toll';
   x: number;
   z: number;
   /** How far it runs along z (a rim's length), 0 for a point. */
@@ -83,6 +83,8 @@ export interface Plan {
   posts: Post[];
   routes: Route[];
   fx: Emitter[];
+  /** Beasts walking their trails (see Kit.walk). */
+  walkers: Wildlife[];
 }
 
 /** What the toolkit needs of the land (the terrain, without importing it). */
@@ -142,6 +144,7 @@ export class Kit {
   readonly posts: Post[] = [];
   readonly routes: Route[] = [];
   readonly fx: Emitter[] = [];
+  readonly walkers: Wildlife[] = [];
   private taken: { x: number; z: number; r: number }[] = [];
 
   constructor(
@@ -277,6 +280,15 @@ export class Kit {
     this.fx.push({ kind, x, z, len, side });
   }
 
+  /** `n` of a kind walking a closed trail in file, `gap` apart, at scale s: a caravan's beasts led round its camp. */
+  walk(kind: string, trail: { x: number; z: number }[], n: number, gap: number, s = 1) {
+    for (let k = 0; k < n; k++) {
+      const p = along(trail, k * gap);
+      if (p.z > this.z0 || p.z <= this.z1) continue;
+      this.walkers.push({ kind, x: p.x, z: p.z, heading: 0, speed: 0, biome: this.biome, trail, at: k * gap, s });
+    }
+  }
+
   /** A post worth guarding. */
   post(x: number, z: number, face: number, guards: string) {
     this.posts.push({ x, z, y: this.ground.height(x, z), face, guards });
@@ -288,6 +300,23 @@ function turned(m: Meta, x: number, z: number, rot: number, s: number) {
   const c = Math.cos(rot);
   const sn = Math.sin(rot);
   return m.colliders.map((k) => ({ x: x + (k.x * c + k.z * sn) * s, z: z + (-k.x * sn + k.z * c) * s, r: k.r * s }));
+}
+
+/** The point `d` along a closed trail (round and round), and the way on from it (radians, as Wildlife.heading). */
+export function along(trail: { x: number; z: number }[], d: number) {
+  let len = 0;
+  for (let i = 0; i < trail.length; i++) len += Math.hypot(trail[(i + 1) % trail.length].x - trail[i].x, trail[(i + 1) % trail.length].z - trail[i].z);
+  d = ((d % len) + len) % len;
+  for (let i = 0; ; i++) {
+    const a = trail[i];
+    const b = trail[(i + 1) % trail.length];
+    const l = Math.hypot(b.x - a.x, b.z - a.z);
+    if (d <= l || i === trail.length - 1) {
+      const t = l > 0 ? Math.min(1, d / l) : 0;
+      return { x: lerp(a.x, b.x, t), z: lerp(a.z, b.z, t), heading: Math.atan2(b.x - a.x, b.z - a.z) };
+    }
+    d -= l;
+  }
 }
 
 /**

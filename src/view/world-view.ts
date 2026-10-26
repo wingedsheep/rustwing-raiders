@@ -11,6 +11,7 @@ import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
 import type { Fx } from './fx';
 import { FLIGHT_Y } from '../sim/types';
+import { along } from '../sim/layout';
 
 /**
  * The land as you see it, a chunk at a time: soft-shaded ground painted in the biome's colours,
@@ -32,10 +33,13 @@ interface ChunkView {
   index: number;
   group: THREE.Group;
   instances: Instance[];
-  wildlife: { inst: Instance | null; obj: THREE.Object3D; w: Wildlife; x: number; z: number; y: number; t: number }[];
+  wildlife: { inst: Instance | null; obj: THREE.Object3D; w: Wildlife; x: number; z: number; y: number; t: number; at: number }[];
   geos: THREE.BufferGeometry[];
   emitters: Emitter[];
 }
+
+/** Units a second a walker covers at its stride (see the gait's numbers by each in creatures.py). */
+const STRIDE: Record<string, number> = { grova: 1.15 };
 
 /** Something that breathes out into the air: steam, smoke, sparks, spores. */
 interface Emitter {
@@ -379,8 +383,9 @@ export class WorldView {
       const inst = library.clone(w.kind, 0);
       const obj = inst ? inst.obj : part(GEO.box, toon(0x8a6a4a), [0, 0.6, 0], [1, 1, 2]);
       obj.traverse((o) => ((o as THREE.Mesh).isMesh ? ((o.castShadow = true), (o.receiveShadow = true)) : 0));
+      obj.scale.setScalar(w.s ?? 1);
       group.add(obj);
-      wildlife.push({ inst, obj, w, x: w.x, z: w.z, y: 0, t: Math.random() * 10 });
+      wildlife.push({ inst, obj, w, x: w.x, z: w.z, y: 0, t: Math.random() * 10, at: w.at ?? 0 });
     }
     group.updateMatrixWorld(true);
     return { index: chunk.index, group, instances, wildlife, geos, emitters };
@@ -390,11 +395,22 @@ export class WorldView {
     const w = c.w;
     c.t += dt;
     const flyer = w.kind === 'pterosaur_flock' || w.kind === 'sky_whale' || w.kind === 'moth_swarm' || w.kind === 'jellyfish';
-    const sp = w.speed * (flyer ? 2.2 : 1);
-    // a wandering heading
-    const h = w.heading + Math.sin(c.t * 0.3 + w.x) * 0.6;
-    c.x += Math.sin(h) * sp * dt;
-    c.z += Math.cos(h) * sp * dt;
+    // a walker whose feet must not slide goes at its stride's pace (see creatures.py)
+    const sp = (STRIDE[w.kind] ?? w.speed * (flyer ? 2.2 : 1)) * (w.s ?? 1);
+    let h: number;
+    if (w.trail) {
+      // round its trail
+      c.at += sp * dt;
+      const p = along(w.trail, c.at);
+      c.x = p.x;
+      c.z = p.z;
+      h = p.heading;
+    } else {
+      // a wandering heading
+      h = w.heading + Math.sin(c.t * 0.3 + w.x) * 0.6;
+      c.x += Math.sin(h) * sp * dt;
+      c.z += Math.cos(h) * sp * dt;
+    }
     const ground = this.terrain.height(c.x, c.z);
     const water = this.terrain.water(c.z);
     let y = Math.max(ground, water);

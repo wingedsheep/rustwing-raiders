@@ -208,8 +208,8 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'mirefall_pillar_gate', role: 'gate', w: 2 },
     ],
     setChance: 0.2,
+    // (no pattern: its paving is painted where it was laid, by its layout)
     haze: { color: 0xc8dcd0, rate: 0.22 },
-    pattern: { kind: 'tiles', color: 0x6a5a6a, scale: 3, amount: 0.4, patchy: 0.6 },
   },
   sporevents: {
     sets: [

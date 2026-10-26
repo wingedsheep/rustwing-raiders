@@ -13,7 +13,7 @@
 | The Salt Pans | White to the horizon. Salt pillars, cracked in hexes. | flats | — |
 | Red Mesa Run | The old race course. Arches and drops, no rules. | canyon, sand | — |
 | Monolith Field | Their faces are a thousand years older than the cartel. Their eyes still glow. | dunes, sand | sandworms |
-| Bluepalm Oasis | Turquoise pools ringed with brine-reed and bluecrowns, and a market that sells anything. | rolling | camel striders |
+| Bluepalm Oasis | Turquoise pools ringed with brine-reed and bluecrowns, and a market that sells anything. | rolling | [grova](../lore/peoples.md#creatures) |
 
 The Monolith Field fights as **lattice**, not scrap: the vanished people's machines still guard it (`factionsIn`).
 

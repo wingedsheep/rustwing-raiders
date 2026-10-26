@@ -1,4 +1,116 @@
 {
+ "mirefall_bell#0": {
+  "colliders": [],
+  "kind": "mirefall_bell",
+  "max": [
+   2.008,
+   5.02,
+   2.473
+  ],
+  "min": [
+   -4.363,
+   -0.098,
+   -2.473
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_bloom_mat#0": {
+  "colliders": [],
+  "kind": "mirefall_bloom_mat",
+  "max": [
+   2.22,
+   0.605,
+   1.487
+  ],
+  "min": [
+   -1.696,
+   -0.318,
+   -2.678
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_bloom_mat#1": {
+  "colliders": [],
+  "kind": "mirefall_bloom_mat",
+  "max": [
+   3.04,
+   0.637,
+   2.009
+  ],
+  "min": [
+   -1.912,
+   -0.315,
+   -1.13
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_bloom_mat#2": {
+  "colliders": [],
+  "kind": "mirefall_bloom_mat",
+  "max": [
+   2.961,
+   0.633,
+   2.788
+  ],
+  "min": [
+   -2.602,
+   -0.34,
+   -2.918
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_bloom_row#0": {
+  "colliders": [],
+  "kind": "mirefall_bloom_row",
+  "max": [
+   3.785,
+   0.753,
+   0.687
+  ],
+  "min": [
+   -3.756,
+   -0.268,
+   -0.653
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_bloom_row#1": {
+  "colliders": [],
+  "kind": "mirefall_bloom_row",
+  "max": [
+   3.425,
+   0.68,
+   0.425
+  ],
+  "min": [
+   -3.425,
+   0.0,
+   -0.425
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_bloom_row#2": {
+  "colliders": [],
+  "kind": "mirefall_bloom_row",
+  "max": [
+   3.599,
+   1.093,
+   0.598
+  ],
+  "min": [
+   -3.515,
+   -0.232,
+   -0.649
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "mirefall_bog_beast#0": {
   "colliders": [],
   "kind": "mirefall_bog_beast",
@@ -302,6 +414,70 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "mirefall_column#0": {
+  "colliders": [],
+  "kind": "mirefall_column",
+  "max": [
+   0.874,
+   5.539,
+   0.743
+  ],
+  "min": [
+   -0.743,
+   -0.025,
+   -0.743
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_column#1": {
+  "colliders": [],
+  "kind": "mirefall_column",
+  "max": [
+   2.168,
+   2.941,
+   1.438
+  ],
+  "min": [
+   -1.033,
+   -0.025,
+   -0.854
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_column#2": {
+  "colliders": [],
+  "kind": "mirefall_column",
+  "max": [
+   2.953,
+   1.441,
+   1.421
+  ],
+  "min": [
+   -1.205,
+   -0.025,
+   -1.161
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_column#3": {
+  "colliders": [],
+  "kind": "mirefall_column",
+  "max": [
+   5.432,
+   1.405,
+   0.75
+  ],
+  "min": [
+   -0.75,
+   -0.105,
+   -1.572
+  ],
+  "mounts": [],
+  "variant": 3
  },
  "mirefall_courtyard#0": {
   "colliders": [],
@@ -646,6 +822,54 @@
   "mounts": [],
   "variant": 1
  },
+ "mirefall_hearth_lamp#0": {
+  "colliders": [],
+  "kind": "mirefall_hearth_lamp",
+  "max": [
+   2.13,
+   6.005,
+   0.95
+  ],
+  "min": [
+   -2.132,
+   -0.05,
+   -0.95
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_hearth_lamp#1": {
+  "colliders": [],
+  "kind": "mirefall_hearth_lamp",
+  "max": [
+   2.13,
+   6.005,
+   0.95
+  ],
+  "min": [
+   -2.132,
+   -0.05,
+   -0.95
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_hearth_lamp#2": {
+  "colliders": [],
+  "kind": "mirefall_hearth_lamp",
+  "max": [
+   3.927,
+   2.4,
+   1.443
+  ],
+  "min": [
+   -0.8,
+   -0.392,
+   -2.958
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "mirefall_hummock#0": {
   "colliders": [],
   "kind": "mirefall_hummock",
@@ -805,6 +1029,50 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "mirefall_lamp_pylon#0": {
+  "colliders": [
+   {
+    "r": 1.2,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_lamp_pylon",
+  "max": [
+   5.472,
+   17.226,
+   2.1
+  ],
+  "min": [
+   -5.477,
+   -0.9,
+   -2.1
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_lamp_pylon#1": {
+  "colliders": [
+   {
+    "r": 1.2,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "mirefall_lamp_pylon",
+  "max": [
+   5.472,
+   17.226,
+   2.1
+  ],
+  "min": [
+   -5.477,
+   -0.9,
+   -2.1
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "mirefall_lattice#0": {
   "colliders": [],
@@ -1067,6 +1335,86 @@
   "mounts": [],
   "variant": 2
  },
+ "mirefall_punt#0": {
+  "colliders": [],
+  "kind": "mirefall_punt",
+  "max": [
+   0.68,
+   1.51,
+   2.398
+  ],
+  "min": [
+   -0.68,
+   -0.125,
+   -2.798
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_punt#1": {
+  "colliders": [],
+  "kind": "mirefall_punt",
+  "max": [
+   0.842,
+   1.51,
+   2.398
+  ],
+  "min": [
+   -0.842,
+   -0.125,
+   -2.798
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_rang_hut#0": {
+  "colliders": [],
+  "kind": "mirefall_rang_hut",
+  "max": [
+   2.08,
+   4.606,
+   2.36
+  ],
+  "min": [
+   -2.085,
+   -0.6,
+   -1.825
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_rang_hut#1": {
+  "colliders": [],
+  "kind": "mirefall_rang_hut",
+  "max": [
+   2.375,
+   4.431,
+   1.778
+  ],
+  "min": [
+   -2.785,
+   -0.6,
+   -1.77
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_rang_hut#2": {
+  "colliders": [],
+  "kind": "mirefall_rang_hut",
+  "max": [
+   3.704,
+   4.431,
+   2.085
+  ],
+  "min": [
+   -3.885,
+   -0.6,
+   -2.052
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "mirefall_rim_crust#0": {
   "colliders": [],
   "kind": "mirefall_rim_crust",
@@ -1159,6 +1507,118 @@
    -3.51,
    -0.632,
    -6.865
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "mirefall_shrine#0": {
+  "colliders": [],
+  "kind": "mirefall_shrine",
+  "max": [
+   3.5,
+   4.095,
+   1.967
+  ],
+  "min": [
+   -1.967,
+   -0.025,
+   -3.5
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_shrine#1": {
+  "colliders": [],
+  "kind": "mirefall_shrine",
+  "max": [
+   3.5,
+   3.095,
+   1.967
+  ],
+  "min": [
+   -1.8,
+   -0.025,
+   -3.721
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_sluice#0": {
+  "colliders": [],
+  "kind": "mirefall_sluice",
+  "max": [
+   1.55,
+   1.325,
+   0.8
+  ],
+  "min": [
+   -1.55,
+   -0.1,
+   -0.8
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_sluice#1": {
+  "colliders": [],
+  "kind": "mirefall_sluice",
+  "max": [
+   1.55,
+   1.325,
+   0.966
+  ],
+  "min": [
+   -1.55,
+   -0.166,
+   -0.8
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_socket_root#0": {
+  "colliders": [],
+  "kind": "mirefall_socket_root",
+  "max": [
+   4.016,
+   2.095,
+   1.475
+  ],
+  "min": [
+   -0.967,
+   -0.85,
+   -1.333
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "mirefall_socket_root#1": {
+  "colliders": [],
+  "kind": "mirefall_socket_root",
+  "max": [
+   4.458,
+   2.338,
+   1.482
+  ],
+  "min": [
+   -1.08,
+   -0.88,
+   -2.554
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "mirefall_socket_root#2": {
+  "colliders": [],
+  "kind": "mirefall_socket_root",
+  "max": [
+   4.147,
+   2.848,
+   1.276
+  ],
+  "min": [
+   -0.995,
+   -0.741,
+   -1.562
   ],
   "mounts": [],
   "variant": 2

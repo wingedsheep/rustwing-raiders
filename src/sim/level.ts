@@ -2611,7 +2611,8 @@ export class Level {
         }
         if (s.hit.includes(e.id)) continue;
         const r = e.r + s.r;
-        if ((e.x - s.x) ** 2 + (e.z - s.z) ** 2 > r * r) continue;
+        const [nx, nz] = nearOn(e, s.x, s.z);
+        if ((nx - s.x) ** 2 + (nz - s.z) ** 2 > r * r) continue;
         if (s.kind === 'mine') {
           s.t = s.life + 1; // goes off next update
           continue;
@@ -3768,3 +3769,12 @@ const SCRAP: Record<Archetype | 'boss', number> = {
   carrier: 14,
   boss: 60,
 };
+
+/** The nearest point of a foe to (x, z): its middle, or along its body for an eel lying down its channel. */
+function nearOn(e: Enemy, x: number, z: number): [number, number] {
+  if (e.arch !== 'eel' || e.d.bx === undefined || e.d.bz === undefined) return [e.x, e.z];
+  const dx = e.d.bx - e.x;
+  const dz = e.d.bz - e.z;
+  const t = clamp(((x - e.x) * dx + (z - e.z) * dz) / (dx * dx + dz * dz || 1), 0, 1);
+  return [e.x + dx * t, e.z + dz * t];
+}

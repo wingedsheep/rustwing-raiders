@@ -99,7 +99,7 @@ The Vhossk of Kessra traded with the Tonkva for centuries and borrowed hundreds 
 | \*Kʷēl-tōr | Khvell-tohr | taker-back (a recovery unit) |
 | \*Tāl-tōr | Tall-tohr | hold-keeper (a gate's keeper) |
 
-The Vhossk's own words in the cant: **khesk**, a net (**Hesk**); **ghrissk**, "buzzers", their name for the winged Bahwoh (**Grisk**); **Vhoss**, one of them, **Vhossk**, all of them.
+The Vhossk's own words in the cant: **khesk**, a net (**Hesk**); **ghrissk**, "buzzers", their name for the winged Bahwoh (**Grisk**); **ghrohva**, "shade-carrier", their pack beast (**grova**); **Vhoss**, one of them, **Vhossk**, all of them.
 
 ## The cant: the pilots' speech
 
@@ -131,6 +131,7 @@ That's why **Vesh** and **Hesk** don't rhyme: *Vesk* was borrowed early and beca
 | Tall-tohr | early | **talter** | 4, 5 |
 | khesk | late | **Hesk** | *kh → h*, *sk* kept |
 | ghrissk | late | **Grisk** | *gh → g*, 4 |
+| ghrohva | late | **grova** | *gh → g*, 3 |
 | Vantohr | late | **Vantorr** | see below |
 
 **Vantorr** breaks the rules on purpose. By the cant it should be *Vanter* (rule 5), and that is what pilots call the company when they're being rude. The company, founded in 250 L, had the terrace inscription read by Vhossk scholars and spelled its name their way, with a doubled *r* added for weight.

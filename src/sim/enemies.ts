@@ -90,9 +90,10 @@ export interface EnemyData {
   refl?: number;
   /** Wardens: damage its shield has stopped since it last cracked. */
   worn?: number;
-  /** Brutes: where it charged from. */
+  /** Brutes: where it charged from. Eels: where their tail lies (x, flight z: what hits it, along the body). */
   bx?: number;
   bs?: number;
+  bz?: number;
   /** Elites: how many attacks they chain, and which of them it's on (see combat.ts CHAIN). */
   chain?: number;
   combo?: number;

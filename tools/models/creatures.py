@@ -10,7 +10,8 @@ Templates (kind: clip):
     pterosaur_flock  pterosaur_flock_flap_idle
     jellyfish        jellyfish_0_pulse_idle, jellyfish_1_pulse_idle   (variants 0, 1)
     sandworm         sandworm_breach_idle
-    camel_strider    camel_strider_walk_idle
+    grova            grova_walk_idle
+    grova_standing   grova_standing_stand_idle   (the same beast, waiting in a line)
     beetle           beetle_crawl_idle
     moth_swarm       moth_swarm_flutter_idle
     mammoth          mammoth_walk_idle
@@ -330,52 +331,119 @@ def sandworm():
                                                                     math.sin(TAU * 2 * u), sway(u + i * 0.05), 0))
 
 
-def camel_strider():
-    """A tall-legged desert beast with a hump, loaded with a striped blanket, bags and a rolled rug."""
-    K, clip, T = "camel_strider", "camel_strider_walk_idle", 2.0
-    HIDE, DARK, BELLY, BLANKET, STRIPE, BAG, RUG, RUG2, BRASS = (
-        "#d0a26a", "#8a643e", "#ecd2a0", "#b8343a", "#f0d050", "#2f6aa8", "#e8e0c8", "#2fa098", "#e0b040")
+def grova(standing=False):
+    """The grova, Kessra's pack beast (docs/lore/peoples.md#creatures): no front and no head, a
+    dome of iron scales on five stilt legs with wide sand-pads, so it walks any way without turning.
+    Five wine-red heat vanes fan up between the legs and pump to shed the noon heat; the brine it
+    drinks dries on its crown as a salt crust; a feeding trunk hangs from its middle. Caravans sling
+    their packs under the vanes, in the shade. Standing, its legs keep still and only the vanes,
+    the trunk and its breath move."""
+    K, clip, T = ("grova_standing", "grova_standing_stand_idle", 4.0) if standing else ("grova", "grova_walk_idle", GROVA_T)
+    IRON, SCALE, RUST, SALT, SALT2, VANE, VEIN, EDGE, LEG, PAD, TRUNK, BAG, BRASS, ROPE = (
+        "#7a3424", "#4e2219", "#c25a2c", "#f2ede0", "#d8d2c2", "#b4405a", "#6a2434", "#f29a84",
+        "#5a3a2e", "#3a2620", "#c89a7a", "#2f6aa8", "#e0b040", "#d8c098")
     root = group(K, kind=K)
-    b = Model(f"{K}_body", seed=6)
-    b.ball(0.75, (0, 0, 0), HIDE, subdiv=2, scale=(0.85, 1.45, 0.7))
-    b.ball(0.55, (0, -0.1, 0.45), HIDE, subdiv=1, scale=(0.9, 1.1, 0.8))                        # hump
-    b.box((1.45, 1.0, 0.1), (0, -0.1, 0.62), BLANKET, rot=(0, 0, 0))                           # saddle blanket
-    for x in (-0.45, 0, 0.45):
-        b.box((0.12, 1.02, 0.12), (x, -0.1, 0.64), STRIPE)
-    for s in (1, -1):  # bags slung down each flank
-        b.box((0.4, 0.75, 0.7), (s * 0.82, -0.05, 0.1), BAG, rot=(0, s * 0.15, 0))
-        b.box((0.42, 0.2, 0.15), (s * 0.84, -0.05, 0.42), BRASS)
-        b.box((0.3, 0.45, 0.45), (s * 0.78, 0.65, 0.05), RUG2, rot=(0, s * 0.15, 0))
-    limb(b, (-0.75, -0.55, 0.85), (0.75, -0.55, 0.85), 0.24, 0.24, RUG, segs=7)                  # rolled rug
-    for x in (-0.4, 0.4):
-        limb(b, (x - 0.06, -0.55, 0.85), (x + 0.06, -0.55, 0.85), 0.26, 0.26, BLANKET, segs=7)
-    b.cyl(0.18, 0.4, (0.2, 0.35, 0.65), BRASS, segs=6, r_top=0.1)                               # a jar
-    limb(b, (0, -0.95, 0.1), (0, -1.35, -0.35), 0.12, 0.04, DARK, segs=4)                       # tail
-    body = b.build(root, loc=(0, 0, 3.2))
-    for tag, x, y, ph in (("fl", 0.42, 0.75, 0.0), ("fr", -0.42, 0.75, 0.5), ("bl", 0.42, -0.75, 0.5), ("br", -0.42, -0.75, 0.0)):
-        u = Model(f"{K}_thigh_{tag}")
-        limb(u, (0, 0, 0.1), (0, 0.15, -1.55), 0.2, 0.12, HIDE if y > 0 else DARK, segs=5)
-        u.ball(0.15, (0, 0.15, -1.55), DARK, subdiv=0)
-        thigh = u.build(body, loc=(x, y, -0.3))
-        l = Model(f"{K}_shin_{tag}")
-        limb(l, (0, 0, 0), (0, -0.05, -1.3), 0.1, 0.08, DARK, segs=5)
-        l.cyl(0.22, 0.12, (0, 0.02, -1.38), DARK, segs=6)
-        shin = l.build(thigh, loc=(0, 0.15, -1.55))
-        osc(thigh, clip, "rotation_euler", T, (0, 0.3, 1, ph))
-        sample(shin, clip, "rotation_euler", T, lambda v, ph=ph: (-0.45 * max(0.0, math.sin(TAU * (v + ph + 0.25))), 0, 0))
-    n = Model(f"{K}_neck")
-    chain(n, [(0, 0, 0), (0, 0.55, 0.65), (0, 0.75, 1.3)], [0.28, 0.2, 0.17], HIDE, segs=6)
-    n.ball(0.25, (0, 0.95, 1.35), HIDE, subdiv=1, scale=(0.75, 1.5, 0.75))
-    n.ball(0.18, (0, 1.2, 1.28), BELLY, subdiv=1, scale=(0.8, 1.1, 0.7))
-    for s in (1, -1):
-        n.box((0.08, 0.12, 0.28), (s * 0.15, 0.8, 1.6), DARK, rot=(0, s * 0.4, 0))
-        n.box((0.06, 0.06, 0.06), (s * 0.15, 1.2, 1.36), INK)
-        limb(n, (s * 0.2, 1.15, 1.3), (s * 0.24, 0.35, 0.3), 0.025, 0.025, BLANKET, segs=3)       # reins
-    n.box((0.3, 0.12, 0.3), (0, 0.4, 0.6), BRASS, rot=(0.5, 0, 0))                              # bell
-    neck = n.build(body, loc=(0, 1.05, 0.15))
-    osc(body, clip, "location", T, (2, 0.07, 2, 0.1), (0, 0.06, 1, 0.25))
-    osc(body, clip, "rotation_euler", T, (1, 0.04, 1, 0.25))
-    osc(neck, clip, "rotation_euler", T, (0, 0.1, 2, 0.0), (2, 0.06, 1, 0.0))
+    b = Model(f"{K}_body", seed=11)
+    b.ball(1.05, (0, 0, 0), IRON, subdiv=2, scale=(1, 1, 0.62), jitter=0.04)                      # the dome
+    b.cyl(0.95, 0.35, (0, 0, -0.45), SCALE, segs=10, r_top=1.05)                                  # its skirt
+    for k in range(10):  # iron scales, rust-bright on their edges
+        a = TAU * (k + 0.5) / 10
+        b.box((0.5, 0.36, 0.12), (math.cos(a) * 0.82, math.sin(a) * 0.82, 0.32), RUST if k % 2 else SCALE,
+              rot=(0, -0.55, a))
+    for k in range(9):  # the salt crust on the crown
+        a, d = TAU * k / 9, 0.18 + 0.2 * (k % 3)
+        b.ball(0.2 - 0.03 * (k % 3), (math.cos(a) * d, math.sin(a) * d, 0.58 - d * 0.25), SALT if k % 2 else SALT2,
+               subdiv=0, jitter=0.05)
+    b.ball(0.26, (0, 0, 0.66), SALT, subdiv=0, jitter=0.04)
+    for k in range(5):  # eye-pits round the rim, one over each leg
+        a = TAU * k / 5 + TAU / 4
+        b.ball(0.13, (math.cos(a) * 0.98, math.sin(a) * 0.98, -0.05), INK, subdiv=1)
+    # the packs: a rope girth round the skirt, and bags slung under each vane
+    b.cyl(1.0, 0.1, (0, 0, -0.32), ROPE, segs=10)
+    for k in range(5):
+        a = TAU * (k + 0.5) / 5 + TAU / 4
+        cx, cy = math.cos(a), math.sin(a)
+        b.box((0.55, 0.42, 0.7), (cx * 1.12, cy * 1.12, -0.75), BAG if k % 2 else ROPE, rot=(0, 0, a + TAU / 4))
+        b.box((0.58, 0.45, 0.14), (cx * 1.12, cy * 1.12, -0.42), BRASS, rot=(0, 0, a + TAU / 4))
+    body = b.build(root, loc=(0, 0, GROVA_HIP + 0.3))
+
+    # five legs, out and down from under the skirt, on pads
+    for k in range(5):
+        th = TAU * k / 5                       # the leg reaches out along (-sin th, cos th)
+        u = Model(f"{K}_thigh_{k}")
+        limb(u, (0, 0, 0), (0, GROVA_REACH - 0.35, -1.0), 0.2, 0.14, LEG, segs=5)
+        u.ball(0.18, (0, GROVA_REACH - 0.35, -1.0), SCALE, subdiv=0)
+        thigh = u.build(body, loc=(-math.sin(th) * 0.6, math.cos(th) * 0.6, -0.3), rot_z=th)
+        s = Model(f"{K}_shin_{k}")
+        limb(s, (0, 0, 0), (0, 0.35, -(GROVA_HIP - 1.0) + 0.05), 0.12, 0.07, LEG, segs=5)
+        s.cyl(0.32, 0.1, (0, 0.35, -(GROVA_HIP - 1.0)), PAD, segs=6, r_top=0.2)                  # the sand-pad
+        shin = s.build(thigh, loc=(0, GROVA_REACH - 0.35, -1.0))
+        if standing:
+            continue
+        ph = (2 * k / 5) % 1.0                 # a wave round the body: three feet always down
+        # the foot's way along +y in a step, sent into the hip's swing (pitch) and yaw
+        sample(thigh, clip, "rotation_euler", T, lambda v, th=th, ph=ph: (
+            _grova_step(v + ph) * math.cos(th) / GROVA_HIP, 0, -_grova_step(v + ph) * math.sin(th) / GROVA_REACH))
+        sample(shin, clip, "rotation_euler", T, lambda v, ph=ph: (-0.4 * _grova_lift(v + ph), 0, 0))
+
+    # the heat vanes, between the legs, tilted up off the dome's shoulder
+    vanes = []
+    for k in range(5):
+        th = TAU * (k + 0.5) / 5
+        v = Model(f"{K}_vane_{k}", seed=20 + k)
+        # a fan of spines, the membrane between them scalloped in; a flushed band along its edge
+        tips = [(math.sin(f) * 2.3, math.cos(f) * 2.3) for f in (-0.44, -0.22, 0, 0.22, 0.44)]
+        dips = [(math.sin(f) * 1.95, math.cos(f) * 1.95) for f in (-0.33, -0.11, 0.11, 0.33)]
+        edge = [tips[0]] + [q for pair in zip(dips, tips[1:]) for q in pair]
+        flat(v, [(0.25, 0.05)] + edge[::-1] + [(-0.25, 0.05)], 0, 0.08, VANE)
+        for (x0, y0), (x1, y1) in zip(edge, edge[1:]):
+            flat(v, [(x0 * 0.72, y0 * 0.72), (x1 * 0.72, y1 * 0.72), (x1, y1), (x0, y0)], 0.05, 0.03, EDGE)
+        for x, y in tips:  # the spines, out to the edge
+            limb(v, (0, 0, 0.06), (x, y, 0.06), 0.09, 0.04, VEIN, segs=4)
+        vane = v.build(body, loc=(-math.sin(th) * 0.7, math.cos(th) * 0.7, 0.25), rot_z=th)
+        vane.rotation_euler[0] = 0.55
+        vanes.append((vane, k))
+
+    t = Model(f"{K}_trunk")
+    chain(t, [(0, 0, 0), (0, 0.15, -0.8), (0, 0.45, -1.6), (0, 0.3, -2.2)], [0.2, 0.16, 0.11, 0.08], TRUNK, segs=6)
+    for a in range(4):  # the feeding fringe
+        x = math.cos(TAU * a / 4) * 0.12
+        y = 0.3 + math.sin(TAU * a / 4) * 0.12
+        limb(t, (x, y, -2.15), (x * 2.6, y + math.sin(TAU * a / 4) * 0.2, -2.5), 0.05, 0.02, VEIN, segs=3)
+    trunk = t.build(body, loc=(0, 0, -0.45))
+
+    if standing:
+        osc(body, clip, "location", T, (2, 0.03, 1, 0.0))                                           # breathing
+        for vane, k in vanes:  # the vanes pump, one after another round the dome
+            osc(vane, clip, "rotation_euler", T, (0, 0.18, 1, k / 5))
+        osc(trunk, clip, "rotation_euler", T, (0, 0.2, 1, 0.1), (1, 0.25, 1, 0.35), (0, 0.06, 3, 0.2))
+        return
+    osc(body, clip, "location", T, (2, 0.05, 5, 0.0))                                               # five steps a stride
+    osc(body, clip, "rotation_euler", T, (0, 0.04, 1, 0.0), (1, 0.03, 1, 0.25))
+    for vane, k in vanes:
+        osc(vane, clip, "rotation_euler", T, (0, 0.14, 1, k / 5))
+    osc(trunk, clip, "rotation_euler", T, (0, 0.15, 1, 0.3), (1, 0.12, 2, 0.0))
+
+
+# The grova's gait: each foot reaches GROVA_A forward of its rest and back in a stride of GROVA_T
+# seconds, on the ground for GROVA_DOWN of it, so it walks at 2 * A / (DOWN * T) units a second
+# (STRIDE in src/view/world-view.ts).
+GROVA_HIP, GROVA_REACH, GROVA_A, GROVA_T, GROVA_DOWN = 3.3, 1.75, 0.55, 1.6, 0.6
+
+
+def _grova_step(u):
+    """Where a foot is along the way it walks (+ ahead of its rest), at u of its stride."""
+    u %= 1.0
+    if u < GROVA_DOWN:  # planted: the body walks over it
+        return GROVA_A * (1 - 2 * u / GROVA_DOWN)
+    k = (u - GROVA_DOWN) / (1 - GROVA_DOWN)  # lifted and swung forward
+    k = k * k * (3 - 2 * k)
+    return GROVA_A * (-1 + 2 * k)
+
+
+def _grova_lift(u):
+    u %= 1.0
+    return 0.0 if u < GROVA_DOWN else math.sin(math.pi * (u - GROVA_DOWN) / (1 - GROVA_DOWN))
 
 
 # --- Mirefall --------------------------------------------------------------------------------
@@ -605,7 +673,8 @@ def build():
     jellyfish(0)
     jellyfish(1)
     sandworm()
-    camel_strider()
+    grova()
+    grova(standing=True)
     beetle()
     moth_swarm()
     mammoth()
