@@ -35,6 +35,8 @@ export interface Biome {
   waterGlow?: number;
   /** The water lies still (a mire): no surf or streaks on it, only a faint line at the bank. */
   still?: boolean;
+  /** How much what glows on the land brightens as a ship goes over it (0 or unset: not at all). */
+  pass?: number;
   /** Ground from low to high: shore, low, mid, high. */
   ground: [number, number, number, number];
   /** Steep faces. */
@@ -441,6 +443,7 @@ export const PLANETS: Planet[] = [
         id: 'glowcap',
         name: 'Glowcap Forest',
         line: 'Mushrooms the size of towers. They glow brighter when you pass.',
+        pass: 1,
         shape: 'rolling',
         relief: 3,
         water: 0.5,
@@ -468,21 +471,24 @@ export const PLANETS: Planet[] = [
         name: 'Peat Marsh',
         line: 'Fog, reeds and the hollow trunks of trees that drowned standing.',
         shape: 'marsh',
+        // (still black bog water; its moss, cut banks, drains and burn are painted by its layout,
+        // sim/layouts/peat.ts)
+        still: true,
         relief: 1.5,
         water: 0.3,
-        waterColor: 0x1a2a28,
-        ground: [0x6a5c44, 0x5e6e3e, 0x6a6458, 0x7e8a52],
-        cliff: 0x4a4030,
+        waterColor: 0x36342e,
+        ground: [0x6e6644, 0x76683e, 0x7a6a48, 0x847a52],
+        cliff: 0x3a2a22,
         props: [['mirefall_drowned_trunk', 2], ['reed_clump', 4], ['mirefall_pitcher', 3], ['mirefall_hummock', 3], ['mirefall_bog_lantern', 1], ['lily_pad', 3]],
         density: 3.2,
         creatures: [['beetle', 2]],
         particles: 'spores',
-        sun: 0xc8b0e0,
-        sky: 0x8a8aa8,
-        bounce: 0x3a4a28,
+        sun: 0xd0c4e0,
+        sky: 0x9a9ab0,
+        bounce: 0x5a5448,
         clouds: 0x8a8aa0,
-        shade: 0x4a4a88,
-        light: 0xd8d0f0,
+        shade: 0x585870,
+        light: 0xdcd6ec,
         hazards: [],
       },
       {

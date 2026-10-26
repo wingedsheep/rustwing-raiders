@@ -198,8 +198,9 @@ export const LOOKS: Record<string, Look> = {
       { kind: 'mirefall_bog_beast', role: 'giant', w: 2 },
     ],
     setChance: 0.2,
-    haze: { color: 0xb8c8a0, alpha: 0.5, rate: 0.3 },
-    pattern: { kind: 'ripples', color: 0x8aa850, scale: 2.4, amount: 0.3, patchy: 0.7 },
+    // (no pattern: its moss, banks and drains are painted where they lie, by its layout; the haze
+    // grey, the fog's)
+    haze: { color: 0xc4c6c0, alpha: 0.45, rate: 0.3 },
   },
   temple: {
     sets: [

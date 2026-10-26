@@ -8,9 +8,10 @@ import { glowcap } from './glowcap';
 import { mesarun } from './mesarun';
 import { monoliths } from './monoliths';
 import { oasis } from './oasis';
+import { peat } from './peat';
 import { saltpans } from './saltpans';
 import { sporevents } from './sporevents';
 import { temple } from './temple';
 import { titans } from './titans';
 
-export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, monoliths, oasis, saltpans, sporevents, temple, titans };
+export const LAYOUTS: Record<string, Layout> = { glowcap, mesarun, monoliths, oasis, peat, saltpans, sporevents, temple, titans };

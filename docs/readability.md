@@ -92,7 +92,7 @@ A first guess at the families, to be changed as the rows get written:
 |---|---|---|
 | 12 | Gorges and walls | mesarun, tidecaves, bonearch, basalt |
 | 13 | Open flats | saltpans (laid out: `src/sim/layouts/saltpans.ts`, its own props in `tools/models/set_kessra.py`), tundra, coralflats, oasis (laid out: `src/sim/layouts/oasis.ts`; its qanat shafts, sand fences, garden walls, dovecotes, windcatcher cistern, noria, dead crowns, mud houses and house blocks, caravanserai, wagons and cargo modelled in `tools/models/set_kessra.py`) |
-| 14 | Water and channels | kelp, whalelagoon, peat, chemlake, stiltport |
+| 14 | Water and channels | kelp, whalelagoon, peat (laid out: `src/sim/layouts/peat.ts`; its snags, elders, poplars, logs, moss cushions, cotton-grass, turves, trackway, lit poles, turf huts, cutters' tools, cabins, wind-pump, silo, tractor and fences modelled in `tools/models/set_mirefall_peat.py`), chemlake, stiltport |
 | 15 | Roads, grids and built places | enginecity, refinery, pipeline, scavcamp |
 | 16 | Fields and forests | glowcap (laid out: `src/sim/layouts/glowcap.ts`; its caps' light moved off lime and their warts unlit in `tools/models/props_a_mirefall.py`; the moss a dim grey teal so the violet caps stand off it by hue; the *Tamsin Lowe* modelled as `mirefall_tamsin_lowe` in `tools/models/set_mirefall.py`), fernwood, whitewood, orchards, jade |
 | 17 | Rises, bowls and craters | glass, sporevents (laid out: `src/sim/layouts/sporevents.ts`; its vent cones, rim crust, chimneys, low stacks, tufts and the maar's throat modelled in `tools/models/set_mirefall_vents.py`; a `pocks` ground pattern; fog banks and breathing vents in `src/view/life.ts`; the spore clouds come up out of its live vents), springs, prism |

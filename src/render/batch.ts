@@ -51,16 +51,17 @@ export function warmBatches(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   for (const side of [THREE.FrontSide, THREE.DoubleSide] as THREE.Side[])
     for (const sway of [false, true])
       for (const see of seen)
-        for (const glow of [false, true]) {
-          const alive: Alive = { sway, grain: 0.07, see: !!see.see, hole: !!see.see && see.hole !== false };
-          const look: Look = { key: `${JSON.stringify(alive)}|${side}|${glow ? 1 : 0}`, alive, side, glow, sway };
-          const geo = new THREE.BufferGeometry();
-          for (const [name, n] of [['position', 3], ['normal', 3], ['color', 3], ...(glow ? [['aGlow', 3]] : []), ...(sway ? [['aSway', 1]] : [])] as [string, number][])
-            geo.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3 * n), n));
-          const mesh = new THREE.Mesh(geo, batchMaterial(look));
-          mesh.castShadow = mesh.receiveShadow = true;
-          group.add(mesh);
-        }
+        for (const glow of [false, true])
+          for (const pass of [false, true]) {
+            const alive: Alive = { sway, grain: 0.07, see: !!see.see, hole: !!see.see && see.hole !== false, ...(pass ? { pass: true } : {}) };
+            const look: Look = { key: `${JSON.stringify(alive)}|${side}|${glow ? 1 : 0}`, alive, side, glow, sway };
+            const geo = new THREE.BufferGeometry();
+            for (const [name, n] of [['position', 3], ['normal', 3], ['color', 3], ...(glow ? [['aGlow', 3]] : []), ...(sway ? [['aSway', 1]] : [])] as [string, number][])
+              geo.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3 * n), n));
+            const mesh = new THREE.Mesh(geo, batchMaterial(look));
+            mesh.castShadow = mesh.receiveShadow = true;
+            group.add(mesh);
+          }
   const was = renderer.getRenderTarget();
   renderer.setRenderTarget(target);
   void renderer.compileAsync(group, camera, scene).finally(() => group.traverse((o) => (o as THREE.Mesh).geometry?.dispose()));

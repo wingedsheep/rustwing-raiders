@@ -6,7 +6,8 @@ import { lookOf, PATTERNS } from '../world/looks';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
 import { batchStatic } from '../render/batch';
-import { enliven, weather, NOISE_GLSL, WASH, SEE } from '../render/alive';
+import { xray } from './xray';
+import { enliven, weather, NOISE_GLSL, WASH, SEE, type Alive } from '../render/alive';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
 import type { Fx } from './fx';
@@ -370,9 +371,11 @@ export class WorldView {
         const k = Math.round(clamp(noise2(p.x * 0.03, p.z * 0.03, 9) * 4.4 - 0.2 + (hash(p.x, p.z * 2.3) - 0.5) * 1.4, 0, TINTS - 1));
         if (k !== MID) tint(obj, k);
       }
+      if (PASS_LIT.has(p.kind)) passLit(obj);
       group.add(obj);
       if (inst?.mixer) instances.push(inst);
       else still.push(obj);
+      if (p.obstacle) collar(group, p);
       const e = EMITS[p.kind];
       if (e) emitters.push({ kind: e, x: p.x, y: p.y + (e === 'stack' ? metaTop(p) : 0.4 * p.s), z: p.z, s: p.s, t: hash(p.x, p.z) * 3 });
     }
@@ -553,6 +556,30 @@ function tint(obj: THREE.Object3D, k: number) {
  */
 const LIFT = { span: 1.6, gate: 1.35 };
 
+/** What lights up from within as a ship goes over it, where the biome says (see weather.uPass): the glowing mushrooms. */
+const PASS_LIT = new Set(['glowcap', 'glowcap_tall', 'mirefall_inkcap', 'mirefall_puffball', 'fungus_coral']);
+const lit = new WeakMap<THREE.Material, THREE.Material>();
+function passLitMat(m: THREE.Material): THREE.Material {
+  const t = m as THREE.MeshToonMaterial;
+  const alive = t.userData.alive as Alive | null | undefined;
+  if (!t.isMeshToonMaterial || !alive) return m;
+  let n = lit.get(m);
+  if (!n) {
+    n = t.clone();
+    n.userData = { ...t.userData };
+    enliven(n, { ...alive, pass: true });
+    lit.set(m, n);
+  }
+  return n;
+}
+function passLit(obj: THREE.Object3D) {
+  obj.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(passLitMat) : passLitMat(mesh.material);
+  });
+}
+
 /** The see-through twin of a material (see weather.uSee), or with no `hole`, just drawn with depth. */
 const seen = [new WeakMap<THREE.Material, THREE.Material>(), new WeakMap<THREE.Material, THREE.Material>()];
 function seeThroughMat(m: THREE.Material, hole: boolean): THREE.Material {
@@ -574,6 +601,31 @@ export function seeThrough(obj: THREE.Object3D, hole = true) {
     if (!mesh.isMesh) return;
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => seeThroughMat(m, hole)) : seeThroughMat(mesh.material, hole);
   });
+}
+
+/**
+ * What you'd hit wears the collider's band: a lit cream ring with a dark edge either side, round
+ * each of its colliders at the height you fly, its true size. A cap or a crown you pass under
+ * covers its stem, so the band shows through what's over it as a silhouette (as the ship does):
+ * a band is a thing you'll hit, and nothing without one is.
+ */
+const bandLit = new THREE.MeshBasicMaterial({ color: LIP, side: THREE.DoubleSide, fog: false });
+const bandInk = new THREE.MeshBasicMaterial({ color: 0x140e1c, side: THREE.DoubleSide, fog: false });
+/** A flat ring from radius r0 to r1 at height y. */
+function ring(group: THREE.Group, x: number, y: number, z: number, r0: number, r1: number, mat: THREE.Material) {
+  const geo = new THREE.RingGeometry(r0, r1, 32, 1).rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  group.add(m);
+  return m;
+}
+function collar(group: THREE.Group, p: Placed) {
+  const y = FLIGHT_Y - 0.5;
+  for (const c of p.cols) {
+    ring(group, c.x, y - 0.02, c.z, c.r + 0.55, c.r + 0.8, bandInk);
+    const lit = ring(group, c.x, y, c.z, c.r, c.r + 0.55, bandLit);
+    xray(lit, LIP, 0.85);
+  }
 }
 
 function placeholder(p: Placed) {

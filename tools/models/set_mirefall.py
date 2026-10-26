@@ -1908,3 +1908,6 @@ def build():
     # the Drowned Temple's lamps, columns, shrines, the Rang's huts and punts (set_mirefall_temple.py)
     import set_mirefall_temple
     set_mirefall_temple.build()
+    # the Peat Marsh's snags, poplars, moss, the Rang's turves and trackways, the Compact's farm (set_mirefall_peat.py)
+    import set_mirefall_peat
+    set_mirefall_peat.build()

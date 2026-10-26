@@ -2296,6 +2296,13 @@ export class LevelView {
       .sort((a, b) => a.d - b.d);
     for (const { e } of near) if (k < see.length) see[k++].set(e.x, toFlight(e.z, e.y), Math.max(3.5, e.r * 2.2), 0.85);
     for (; k < see.length; k++) see[k].w = 0;
+    // what glows on the land lights up under the ships going over it
+    const pass = weather.uPass.value;
+    for (let i = 0; i < pass.length; i++) {
+      const p = lv.players[i];
+      if (p && !p.down) pass[i].set(p.x, p.z, 0, 1);
+      else pass[i].w = 0;
+    }
     this.updateEnemies(dt);
     this.updateWrecks(dt, scrollDz);
     this.convoy?.update(dt, scrollDz);
@@ -2451,6 +2458,7 @@ export class LevelView {
     const cloudy = (bi: Biome) => (bi.clouds !== null ? 0.6 : 0.3) + (bi.particles === 'rain' ? 0.3 : 0);
     weather.uWind.value = lerp(windy(a), windy(b), k);
     weather.uCloud.value = lerp(cloudy(a), cloudy(b), k);
+    weather.uPassGlow.value = lerp(a.pass ?? 0, b.pass ?? 0, k);
     this.scene.background = mix(a.ground[0], b.ground[0]).clone().multiplyScalar(0.5);
     const idx = k < 0.5 ? bl.a : bl.b;
     if (idx !== this.biomeIdx) {

@@ -52,11 +52,22 @@ export const weather = {
   uSee: { value: Array.from({ length: SEE }, () => new THREE.Vector4()) },
   /** The middle of the screen on the flight plane (x, z), for the depth (see DEPTH). */
   uView: { value: new THREE.Vector2() },
+  /**
+   * Where the ships are (x, z on the flight plane, strength 0..1 in w; 0 a free slot): what glows
+   * below them brightens as they go over, and fades back slowly behind them, a wave of light
+   * following each ship down the land (see uPassGlow).
+   */
+  uPass: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+  /** How much the land's glows answer a ship going over (0 not at all: the biome says). */
+  uPassGlow: { value: 0 },
+  /** The clock again, for the fragment side (the pass's ripple). */
+  uPassClock: { value: 0 },
 };
 
 /** Steps the clock and the clouds along. */
 export function tickWeather(dt: number) {
   weather.uTime.value += dt;
+  weather.uPassClock.value = weather.uTime.value;
   const w = weather.uWindDir.value;
   const s = 1.5 + weather.uWind.value * 4;
   weather.uCloudOffset.value.x += w.x * s * dt;
@@ -94,6 +105,30 @@ const CLOUD_GLSL = /* glsl */ `
 `;
 
 // (the flight line's height and the camera's lean, as in sim/types.ts)
+const PASS_GLSL = /* glsl */ `
+  uniform vec4 uPass[2];
+  uniform float uPassGlow;
+  uniform float uPassClock;
+  // 0 … 1: how lit up a glowing point on the land is by the ships going over it: a little ahead
+  // of each, most just behind, fading back down the screen behind it, a ripple running back
+  float passGlow(vec3 w) {
+    if (uPassGlow <= 0.0 || w.y > 9.0) return 0.0;
+    // slid along the camera's line of sight onto the flight plane: where it shows under the ship
+    float zf = w.z + (10.0 - w.y) * 0.57735;
+    float g = 0.0;
+    for (int i = 0; i < 2; i++) {
+      vec4 k = uPass[i];
+      if (k.w <= 0.0) continue;
+      float dx = w.x - k.x;
+      float dz = zf - k.y;
+      float side = exp(-dx * dx / 1800.0);
+      float along = dz < 0.0 ? smoothstep(-10.0, 0.0, dz) : exp(-dz / 22.0);
+      g = max(g, k.w * side * along);
+    }
+    return uPassGlow * g * (0.8 + 0.2 * sin(uPassClock * 5.0 - zf * 0.5));
+  }
+`;
+
 const SEE_GLSL = /* glsl */ `
   uniform vec4 uSee[${SEE}];
   // 0 … 1: how far to thin out a point over the flight line, for whatever is under it on screen
@@ -180,6 +215,8 @@ export interface Alive {
   grain?: number;
   see?: boolean;
   hole?: boolean;
+  /** It lights up as a ship goes over it (a glowcap: see uPass), in its own colour. */
+  pass?: boolean;
 }
 
 /**
@@ -193,7 +230,7 @@ export function enliven<T extends THREE.Material>(mat: T, opts: Alive = {}): T {
   const hole = opts.see && opts.hole !== false;
   const prev = mat.onBeforeCompile;
   // what it was enlivened with, for merging meshes drawn alike (see batch.ts); patched twice over, it's its own
-  mat.userData.alive = prev === THREE.Material.prototype.onBeforeCompile ? { sway: !!opts.sway, grain, see: !!opts.see, hole: !!hole } : null;
+  mat.userData.alive = prev === THREE.Material.prototype.onBeforeCompile ? { sway: !!opts.sway, grain, see: !!opts.see, hole: !!hole, ...(opts.pass ? { pass: true } : {}) } : null;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
     Object.assign(shader.uniforms, weather);
@@ -233,7 +270,7 @@ export function enliven<T extends THREE.Material>(mat: T, opts: Alive = {}): T {
         #endif`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${NOISE_GLSL}\n${CLOUD_GLSL}\n${opts.see ? SEE_GLSL : ''}`)
+      .replace('#include <common>', `#include <common>\nvarying vec3 vAliveW;\n${NOISE_GLSL}\n${CLOUD_GLSL}\n${PASS_GLSL}\n${opts.see ? SEE_GLSL : ''}`)
       .replace(
         '#include <color_fragment>',
         /* glsl */ `#include <color_fragment>
@@ -241,6 +278,17 @@ export function enliven<T extends THREE.Material>(mat: T, opts: Alive = {}): T {
         // brushwork: the colour wanders a little, in strokes longer one way than the other
         float stroke = aFbm(vAliveW.xz * vec2(0.9, 2.2) + vAliveW.y * 0.7) - 0.5;
         diffuseColor.rgb *= 1.0 + stroke * ${grain.toFixed(3)} * 2.0 * uGrain;`,
+      )
+      .replace(
+        '#include <lights_fragment_begin>',
+        opts.pass
+          ? /* glsl */ `{
+            // lit from within as a ship goes over: its own colour, and its glowing bits brighter
+            float pg = passGlow(vAliveW);
+            totalEmissiveRadiance = totalEmissiveRadiance * (1.0 + 2.5 * pg) + diffuseColor.rgb * 1.15 * pg;
+          }
+          #include <lights_fragment_begin>`
+          : '#include <lights_fragment_begin>',
       )
       .replace(
         '#include <opaque_fragment>',
