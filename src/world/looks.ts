@@ -251,8 +251,8 @@ export const LOOKS: Record<string, Look> = {
   titans: {
     sets: [{ kind: 'ashgrave_fallen_titan', role: 'giant', w: 3 }, { kind: 'ashgrave_titan_spine', role: 'span', w: 3 }],
     setChance: 0.22,
-    haze: { color: 0x6a6a64, alpha: 0.5 },
-    pattern: { kind: 'streaks', color: 0x4a4038, scale: 7, amount: 0.35, patchy: 0.5 },
+    haze: { color: 0xb4b0a8, alpha: 0.45 },
+    pattern: { kind: 'ripples', color: 0x7a766e, scale: 6, amount: 0.25, patchy: 0.6 },
   },
   glass: {
     sets: [{ kind: 'ashgrave_fulgurite', role: 'gate', w: 3 }, { kind: 'ashgrave_glass_ship', role: 'giant', w: 3 }],

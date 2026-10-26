@@ -47,9 +47,11 @@ export interface Route {
  * out in the open, smoke over a camp. `side` is which way it leans (a rim's dust blows off it).
  */
 export interface Emitter {
-  kind: 'dust' | 'devil' | 'smoke' | 'trickle' | 'bubble' | 'breath' | 'flakes' | 'spores' | 'vent' | 'fog' | 'spill' | 'toll';
+  kind: 'dust' | 'devil' | 'smoke' | 'trickle' | 'bubble' | 'breath' | 'flakes' | 'spores' | 'vent' | 'fog' | 'spill' | 'toll' | 'cut';
   x: number;
   z: number;
+  /** How high it is, if not on the ground (a cut on a titan's back). */
+  y?: number;
   /** How far it runs along z (a rim's length), 0 for a point. */
   len: number;
   /** Which way it leans; a vent's size (1 a great one). */

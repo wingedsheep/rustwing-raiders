@@ -482,7 +482,54 @@ def glass_sniper():
     osc(body, clip, "rotation_euler", T, (1, 0.03, 1, 0.25))
 
 
+# --- Tender: swarm, ~1.0 ----------------------------------------------------------------------------
+
+def tender():
+    """A fallen titan's welder, the brood that lived in its core housing and kept it whole in the
+    war: a squat six-sided puck in its titan's paint, a core lens on its back, and two jointed torch
+    arms reaching forward round a gap (a horseshoe at 32 pixels). It still mends: you are the hole
+    in the plate. Seeds 6060-6069."""
+    kind, clip, root = named("tender", "swarm", "mech", "weld", preview=("#ddd3ba", "#7e2a22", "#4ae8ff"))
+    T = 1.2
+    b = Model(f"{kind}_body", seed=6060)
+    hexa = [(math.cos(TAU * k / 6 + TAU / 12) * 0.62, math.sin(TAU * k / 6 + TAU / 12) * 0.55 - 0.1) for k in range(6)]
+    hull(b, hexa, -0.22, 0.12, B, inset=0.85)                                           # dark underside
+    hull(b, [(x * 0.86, y * 0.86 - 0.02) for x, y in hexa], 0.12, 0.3, A.shade(1.3), inset=0.7)  # pale deck
+    b.cyl(0.22, 0.08, (0, -0.16, 0.3), DARK, segs=6)                                    # core housing
+    b.cyl(0.08, 0.08, (0, -0.16, 0.36), C, segs=6, glow=True)                           # core lens, a pinprick
+    for j in range(3):                                                                  # its shutter leaves
+        ang = TAU * j / 3 + 0.3
+        b.box((0.16, 0.07, 0.04), (math.cos(ang) * 0.13, -0.16 + math.sin(ang) * 0.13, 0.36), A.shade(0.8),
+              rot=(0, 0, ang + 1.2))
+    for s in (1, -1):
+        b.box((0.1, 0.34, 0.05), (s * 0.34, -0.22, 0.32), B)                            # paint stripes
+        b.box((0.22, 0.26, 0.2), (s * 0.6, -0.42, 0.0), DARK)                          # thruster pods
+        b.cyl(0.08, 0.04, (s * 0.6, -0.56, 0.0), C, segs=6, rot=(math.pi / 2, 0, 0), glow=True)
+        # folded legs underneath: it crawls the titan's plates as much as it flies
+        limb(b, (s * 0.38, 0.12, -0.18), (s * 0.66, 0.0, -0.36), 0.05, 0.035, DARK, segs=4)
+        limb(b, (s * 0.38, -0.32, -0.18), (s * 0.66, -0.48, -0.36), 0.05, 0.035, DARK, segs=4)
+    b.box((0.36, 0.1, 0.1), (0, -0.66, 0.05), B)                                        # rear grille
+    body = b.build(root)
+    # the two torch arms: a shoulder on the front corners, an elbow out, a forearm curling in to
+    # the nozzle; they work in turn, as if still welding
+    for s in (1, -1):
+        a = Model(f"{kind}_arm_{'r' if s > 0 else 'l'}", seed=6061 + (s > 0))
+        a.ball(0.16, (0, 0, 0), B, subdiv=0)
+        limb(a, (0, 0, 0), (s * 0.3, 0.36, 0.04), 0.14, 0.11, A.shade(1.1), segs=5)      # upper arm
+        a.ball(0.12, (s * 0.3, 0.36, 0.04), B, subdiv=0)
+        limb(a, (s * 0.3, 0.36, 0.04), (s * 0.08, 0.74, 0.0), 0.11, 0.08, A.shade(1.1), segs=5)  # forearm
+        a.box((0.06, 0.2, 0.05), (s * 0.22, 0.54, 0.1), B, rot=(0, 0, s * 0.5))         # its paint
+        limb(a, (s * 0.08, 0.74, 0.0), (s * 0.02, 0.9, -0.02), 0.08, 0.05, DARK, segs=4)  # nozzle
+        a.box((0.1, 0.1, 0.1), (s * 0.02, 0.93, -0.02), C, glow=True)                   # the torch
+        obj = a.build(body, loc=(s * 0.32, 0.32, 0.12))
+        osc(obj, clip, "rotation_euler", T, (2, -s * 0.18, 1, 0.0 if s > 0 else 0.5), (0, 0.08, 2, 0.25))
+    marker(body, kind, "emitter", (0, 1.0, 0.0))
+    osc(body, clip, "location", T, (2, 0.06, 1, 0))
+    osc(body, clip, "rotation_euler", T, (1, 0.05, 1, 0.25))
+
+
 def build():
+    tender()
     scav_kite()
     junk_flak()
     clan_rig()

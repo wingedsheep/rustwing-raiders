@@ -210,6 +210,22 @@ export class Life {
           if (roll(1.2)) this.fx.ring(e.x + (Math.random() - 0.5) * 3, t.water(e.z) + 0.04, e.z + (Math.random() - 0.5) * 3, 0.8, 1.2, false, 0xd8f4f0);
           break;
         }
+        case 'cut': {
+          // a clan crew cutting plate off a titan: in bursts, a cascade of dull sparks spilling off
+          // the cut and falling down its side, a wisp of smoke over it. Unlit and falling, never a
+          // bright point that hangs or flies: those are shots
+          const beat = (this.placeT + e.x * 0.61 + e.z * 0.23) % 6.5;
+          if (beat > 2.4) break;
+          const y = e.y ?? t.height(e.x, e.z) + 4;
+          for (let k = 0; k < 2; k++) {
+            if (!roll(16)) continue;
+            const a = Math.random() * Math.PI * 2;
+            const v = 1 + Math.random() * 2.2;
+            this.fx.add({ x: e.x, y, z: e.z, vx: Math.cos(a) * v, vy: 1.5 + Math.random() * 2, vz: Math.sin(a) * v, gravity: 16, drag: 0.5, size: 0.11 + Math.random() * 0.06, grow: 0.5, life: 0.7 + Math.random() * 0.3, glow: false, color: CUT, to: CUT_END });
+          }
+          if (roll(1.5)) this.fx.add({ x: e.x, y: y + 0.3, z: e.z, vx: wind.x * 0.6, vy: 1.2, vz: wind.y * 0.6, size: 0.5, grow: 2.4, life: 1.6, glow: false, color: SMOKE_END, to: tone(b.ground[2]) });
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -432,6 +448,9 @@ const SMOKE = new THREE.Color(0x4a3a34);
 const SMOKE_END = new THREE.Color(0x8a7a70);
 const FOAM = new THREE.Color(0xa8c8d0);
 const BREATH = new THREE.Color(0xf4e8d8);
+/** A crew's cutting sparks: a dull straw-white cooling to rust as they fall (never a shot's hot glow). */
+const CUT = new THREE.Color(0xe8d4b0);
+const CUT_END = new THREE.Color(0x7a5038);
 const FLAKE = new THREE.Color(0xf6f2ea);
 const SPORE = new THREE.Color(0xb4a4dc);
 const VENT = new THREE.Color(0xd8d2b4);

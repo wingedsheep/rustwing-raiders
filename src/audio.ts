@@ -40,6 +40,8 @@ export type Sfx =
   | 'notice' | 'printer' | 'claw' | 'winch' | 'plate_on' | 'plate_tear' | 'clang'
   // Warlord Khet and his titan: his shout, its thrusters and joints, the light's tone, its glass
   | 'khet_yell' | 'thruster' | 'titan_servo' | 'titan_land' | 'light_tone' | 'glass_fall' | 'glass_burst'
+  // a fallen titan's Tenders: the core waking under them, and a seam welded across the air
+  | 'brood_wake' | 'weld'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
@@ -987,6 +989,26 @@ const SFX: Record<Sfx, SfxDef> = {
     metal(o, t + 0.62, 140 * p, 0.07, 0.6);
     return 1.3;
   }, 0.3, 2, { rev: 0.3 }),
+
+  // a fallen titan's core waking: a deep hum climbing under a hiss, its housing's plates knocking
+  // open, and the brood's motors catching one after another
+  brood_wake: S((t, p, o) => {
+    tone(o, t, 'sine', 38 * p, 76 * p, 1.1, 0.2, 0.3);
+    tone(o, t + 0.2, 'sine', 152 * p, 228 * p, 0.8, 0.04, 0.3);
+    noise(o, t, 0.9, 'bandpass', 500 * p, 1400 * p, 2, 0.08, 0.3);
+    for (let k = 0; k < 4; k++) metal(o, t + 0.25 + k * 0.17, (300 + k * 70) * p, 0.05, 0.35);
+    noise(o, t + 0.6, 0.5, 'bandpass', 2600 * p, 3400 * p, 6, 0.05, 0.1);
+    return 1.3;
+  }, 0.5, 1, { rev: 0.35 }),
+
+  // a seam welded across the air: the arc's spitting hiss, bright and short, and a tick as it strikes
+  weld: S((t, p, o) => {
+    metal(o, t, 1900 * p, 0.04, 0.08);
+    noise(o, t, 0.45, 'highpass', 4200 * p, 2600 * p, 0.8, 0.12, 0.01);
+    noise(o, t, 0.4, 'bandpass', 1300 * p, 900 * p, 3, 0.07, 0.01);
+    crackle(o, t + 0.02, 0.4, 30, 0.16);
+    return 0.5;
+  }, 0.08, 3, { rev: 0.1 }),
 
   // the titan coming down: the ground taking it, and the head ringing like a struck bell
   titan_land: S((t, p, o) => {

@@ -13,6 +13,10 @@ import { BOUNTIES, FOES, HEAVY, ROSTER, factionOf, factionsIn, foeSkin, isFoe, t
 import { strike } from './strikes';
 import { CHAIN } from './combat';
 import { afloat, channel, road, type Form } from './foes';
+
+/** A Tender's body and trim, in its titan's trim colours (tools/models/props_b_ashgrave.py), so it stands out from the body it came out of. */
+const TENDER_COMPACT: [number, number] = [0xa83a2e, 0x2a2220];
+const TENDER_UUKHVAR: [number, number] = [0xd6a632, 0x22262e];
 import { routeX } from './layout';
 import { boarderSkin } from './convoy';
 
@@ -503,7 +507,8 @@ export class Director {
     if (!lv.terrain.plan(lv.terrain.biomeIndex(lv.top - 20))) return false;
     let placed = 0;
     for (const p of lv.terrain.posts(lv.top - 8, lv.top - 70)) {
-      if (p.used || placed >= most) continue;
+      // (a titan's core is its welders', not a gun's)
+      if (p.used || placed >= most || p.guards.startsWith('core')) continue;
       p.used = true;
       lv.spawn(foe as Foe, skin, p.x, toFlight(p.z, p.y), {}, { ...opts, y: p.y });
       placed++;
@@ -706,6 +711,7 @@ export class Director {
       lv.closeWave();
     }
     if (lv.state !== 'flying') return;
+    this.broods();
     // the biome's own dangers
     const biome = lv.terrain.biome(lv.top);
     if (!biome.hazards.length) return;
@@ -715,6 +721,31 @@ export class Director {
     this.hazardT = HAZARD_GAP[kind] * lerp(0.95, 0.55, Math.min(lv.spec.difficulty, 1)) * (0.7 + this.r() * 0.6);
     // (nowhere for it to come from just now: look again shortly)
     if (!this.spawnHazard(kind)) this.hazardT = 0.5;
+  }
+
+  /**
+   * A fallen titan's Tenders, woken as its lit core comes onto the top of the screen (a laid-out
+   * graveyard's 'core' posts, see sim/layouts/titans.ts): one brood at a time (a core passed while
+   * one's out sleeps on).
+   */
+  private broods() {
+    const lv = this.lv;
+    const r = this.r;
+    if (lv.enemies.some((e) => e.arch === 'tender' && !e.dead)) return;
+    for (const p of lv.terrain.posts(lv.top + 30, lv.top - 20)) {
+      if (p.used || !p.guards.startsWith('core')) continue;
+      const s = toFlight(p.z, p.y) - lv.scroll;
+      if (s < -HALF_H + 4 || s > -6) continue;
+      p.used = true;
+      const n = 4 + (r() < 0.3 + lv.spec.difficulty * 0.4 ? 1 : 0) + (lv.spec.difficulty > 0.6 && r() < 0.5 ? 1 : 0);
+      // in its own titan's paint: the Compact's ivory and oxblood, or the Uukhvar's gunmetal and hazard yellow
+      const def = foeSkin(lv.spec.planet, 'tender');
+      const skin: EnemySkin = { ...def, colors: [...(p.guards === 'core:1' ? TENDER_UUKHVAR : TENDER_COMPACT), def.colors[2]] };
+      const a0 = r() * Math.PI * 2;
+      for (let k = 0; k < n; k++) lv.spawn('tender', skin, p.x, toFlight(p.z, p.y), { tx: p.x, tz: p.z, gz: p.y, a: a0 + (k / n) * Math.PI * 2, index: k }, { y: p.y + 0.6 });
+      lv.emit({ type: 'brood', x: p.x, z: toFlight(p.z, p.y), y: p.y });
+      return;
+    }
   }
 
   /** A hazard just ahead (false if there was nowhere for it). */

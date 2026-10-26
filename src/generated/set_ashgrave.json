@@ -1,4 +1,96 @@
 {
+ "ashgrave_boundary_plate#0": {
+  "colliders": [
+   {
+    "r": 2.8,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "ashgrave_boundary_plate",
+  "max": [
+   2.81,
+   16.601,
+   3.302
+  ],
+  "min": [
+   -3.452,
+   -0.086,
+   -3.629
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_boundary_plate#1": {
+  "colliders": [
+   {
+    "r": 2.8,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "ashgrave_boundary_plate",
+  "max": [
+   3.681,
+   16.4,
+   2.614
+  ],
+  "min": [
+   -3.82,
+   -0.141,
+   -1.53
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_cable_spill#0": {
+  "colliders": [],
+  "kind": "ashgrave_cable_spill",
+  "max": [
+   6.19,
+   1.177,
+   0.86
+  ],
+  "min": [
+   -1.963,
+   -0.726,
+   -6.396
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_cable_spill#1": {
+  "colliders": [],
+  "kind": "ashgrave_cable_spill",
+  "max": [
+   6.216,
+   1.208,
+   5.681
+  ],
+  "min": [
+   -1.877,
+   -0.726,
+   -6.023
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_cable_spill#2": {
+  "colliders": [],
+  "kind": "ashgrave_cable_spill",
+  "max": [
+   6.243,
+   1.23,
+   1.394
+  ],
+  "min": [
+   -0.324,
+   -0.726,
+   -5.204
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "ashgrave_crawler_town#0": {
   "colliders": [],
   "kind": "ashgrave_crawler_town",
@@ -256,6 +348,112 @@
   "mounts": [],
   "variant": 1
  },
+ "ashgrave_kneel#0": {
+  "colliders": [
+   {
+    "r": 3.4,
+    "x": -30.845,
+    "z": 5.426
+   },
+   {
+    "r": 3.4,
+    "x": -30.845,
+    "z": -5.426
+   },
+   {
+    "r": 3.0,
+    "x": 19.269,
+    "z": 10.938
+   },
+   {
+    "r": 3.0,
+    "x": 19.269,
+    "z": -10.938
+   }
+  ],
+  "kind": "ashgrave_kneel",
+  "max": [
+   30.869,
+   20.33,
+   14.902
+  ],
+  "min": [
+   -50.0,
+   -2.154,
+   -15.177
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_kneel#1": {
+  "colliders": [
+   {
+    "r": 3.4,
+    "x": -30.845,
+    "z": 5.426
+   },
+   {
+    "r": 3.4,
+    "x": -30.845,
+    "z": -5.426
+   },
+   {
+    "r": 3.0,
+    "x": 19.269,
+    "z": 10.938
+   },
+   {
+    "r": 3.0,
+    "x": 19.269,
+    "z": -10.938
+   }
+  ],
+  "kind": "ashgrave_kneel",
+  "max": [
+   31.355,
+   20.33,
+   15.243
+  ],
+  "min": [
+   -50.0,
+   -1.952,
+   -15.078
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_lean_to#0": {
+  "colliders": [],
+  "kind": "ashgrave_lean_to",
+  "max": [
+   3.114,
+   3.8,
+   2.125
+  ],
+  "min": [
+   -3.09,
+   0.0,
+   -2.397
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_lean_to#1": {
+  "colliders": [],
+  "kind": "ashgrave_lean_to",
+  "max": [
+   2.2,
+   3.8,
+   2.125
+  ],
+  "min": [
+   -2.273,
+   0.0,
+   -2.272
+  ],
+  "mounts": [],
+  "variant": 1
+ },
  "ashgrave_moon_fungus#0": {
   "colliders": [],
   "kind": "ashgrave_moon_fungus",
@@ -335,6 +533,54 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "ashgrave_plate_stack#0": {
+  "colliders": [],
+  "kind": "ashgrave_plate_stack",
+  "max": [
+   3.503,
+   3.83,
+   2.715
+  ],
+  "min": [
+   -3.03,
+   0.025,
+   -2.527
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_plate_stack#1": {
+  "colliders": [],
+  "kind": "ashgrave_plate_stack",
+  "max": [
+   3.6,
+   3.71,
+   1.85
+  ],
+  "min": [
+   -3.6,
+   0.0,
+   -1.6
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_plate_stack#2": {
+  "colliders": [],
+  "kind": "ashgrave_plate_stack",
+  "max": [
+   2.336,
+   3.7,
+   1.871
+  ],
+  "min": [
+   -2.315,
+   -0.8,
+   -1.871
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "ashgrave_scrap_gantry#0": {
   "colliders": [
@@ -512,6 +758,70 @@
   "mounts": [],
   "variant": 2
  },
+ "ashgrave_shed_plate#0": {
+  "colliders": [],
+  "kind": "ashgrave_shed_plate",
+  "max": [
+   2.569,
+   1.25,
+   3.285
+  ],
+  "min": [
+   -2.719,
+   -0.578,
+   -3.169
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_shed_plate#1": {
+  "colliders": [],
+  "kind": "ashgrave_shed_plate",
+  "max": [
+   3.024,
+   0.77,
+   2.217
+  ],
+  "min": [
+   -1.83,
+   -0.501,
+   -2.65
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_shed_plate#2": {
+  "colliders": [],
+  "kind": "ashgrave_shed_plate",
+  "max": [
+   2.499,
+   1.2,
+   1.35
+  ],
+  "min": [
+   -2.203,
+   -0.649,
+   -1.357
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_shed_plate#3": {
+  "colliders": [],
+  "kind": "ashgrave_shed_plate",
+  "max": [
+   1.924,
+   0.77,
+   2.708
+  ],
+  "min": [
+   -2.047,
+   -0.42,
+   -1.447
+  ],
+  "mounts": [],
+  "variant": 3
+ },
  "ashgrave_shell_casing#0": {
   "colliders": [],
   "kind": "ashgrave_shell_casing",
@@ -543,6 +853,632 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "ashgrave_titan_arm#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_arm",
+  "max": [
+   7.736,
+   4.34,
+   2.331
+  ],
+  "min": [
+   -5.596,
+   -0.724,
+   -2.331
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_arm#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_arm",
+  "max": [
+   7.736,
+   4.374,
+   2.127
+  ],
+  "min": [
+   -5.5,
+   -0.724,
+   -2.127
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_arm#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_arm",
+  "max": [
+   6.521,
+   3.9,
+   2.119
+  ],
+  "min": [
+   -5.061,
+   -0.34,
+   -2.119
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_arm#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_arm",
+  "max": [
+   6.521,
+   3.79,
+   1.9
+  ],
+  "min": [
+   -5.0,
+   -0.085,
+   -1.9
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_titan_arm_up#0": {
+  "colliders": [
+   {
+    "r": 2.3,
+    "x": 0.826,
+    "z": -0.31
+   }
+  ],
+  "kind": "ashgrave_titan_arm_up",
+  "max": [
+   3.806,
+   24.54,
+   2.891
+  ],
+  "min": [
+   -3.746,
+   -1.347,
+   -3.547
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_arm_up#1": {
+  "colliders": [
+   {
+    "r": 2.3,
+    "x": 0.826,
+    "z": -0.31
+   }
+  ],
+  "kind": "ashgrave_titan_arm_up",
+  "max": [
+   3.789,
+   24.54,
+   3.41
+  ],
+  "min": [
+   -3.623,
+   -1.668,
+   -3.52
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_body#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   6.74,
+   10.152
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.152
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_body#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   6.873,
+   10.4
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.4
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_body#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   6.609,
+   10.152
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.152
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_body#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   6.609,
+   10.4
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.4
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_titan_body#4": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   6.3,
+   10.152
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.152
+  ],
+  "mounts": [],
+  "variant": 4
+ },
+ "ashgrave_titan_body#5": {
+  "colliders": [],
+  "kind": "ashgrave_titan_body",
+  "max": [
+   10.3,
+   5.81,
+   10.4
+  ],
+  "min": [
+   -14.0,
+   -1.21,
+   -10.4
+  ],
+  "mounts": [],
+  "variant": 5
+ },
+ "ashgrave_titan_foot#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_foot",
+  "max": [
+   5.0,
+   4.0,
+   2.8
+  ],
+  "min": [
+   -2.4,
+   -0.1,
+   -2.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_foot#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_foot",
+  "max": [
+   4.6,
+   3.4,
+   2.8
+  ],
+  "min": [
+   -2.4,
+   -0.1,
+   -2.6
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_gun#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_gun",
+  "max": [
+   13.0,
+   3.3,
+   2.1
+  ],
+  "min": [
+   -11.77,
+   -0.1,
+   -2.1
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_gun#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_gun",
+  "max": [
+   11.3,
+   3.67,
+   2.85
+  ],
+  "min": [
+   -11.766,
+   -0.004,
+   -2.85
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_hand#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_hand",
+  "max": [
+   8.026,
+   2.862,
+   5.949
+  ],
+  "min": [
+   -3.0,
+   -0.062,
+   -3.421
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_hand#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_hand",
+  "max": [
+   8.026,
+   2.862,
+   5.949
+  ],
+  "min": [
+   -3.0,
+   -0.062,
+   -3.421
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_hand#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_hand",
+  "max": [
+   4.16,
+   3.72,
+   3.629
+  ],
+  "min": [
+   -3.0,
+   -0.062,
+   -2.6
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_hand#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_hand",
+  "max": [
+   4.16,
+   3.72,
+   3.629
+  ],
+  "min": [
+   -3.0,
+   -0.062,
+   -2.6
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_titan_head#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_head",
+  "max": [
+   3.687,
+   5.189,
+   3.0
+  ],
+  "min": [
+   -3.4,
+   -0.1,
+   -3.0
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_head#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_head",
+  "max": [
+   3.635,
+   5.938,
+   2.8
+  ],
+  "min": [
+   -3.4,
+   0.2,
+   -2.8
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_head#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_head",
+  "max": [
+   3.687,
+   5.189,
+   3.0
+  ],
+  "min": [
+   -3.4,
+   -0.1,
+   -3.0
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_head#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_head",
+  "max": [
+   3.635,
+   5.938,
+   2.8
+  ],
+  "min": [
+   -3.4,
+   0.2,
+   -2.8
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_titan_knee_up#0": {
+  "colliders": [
+   {
+    "r": 5.091,
+    "x": 6.545,
+    "z": -0.6
+   }
+  ],
+  "kind": "ashgrave_titan_knee_up",
+  "max": [
+   17.5,
+   18.709,
+   2.5
+  ],
+  "min": [
+   -2.367,
+   -1.024,
+   -4.606
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_knee_up#1": {
+  "colliders": [
+   {
+    "r": 5.091,
+    "x": 6.545,
+    "z": -0.6
+   }
+  ],
+  "kind": "ashgrave_titan_knee_up",
+  "max": [
+   17.5,
+   18.709,
+   2.5
+  ],
+  "min": [
+   -2.367,
+   -1.626,
+   -4.224
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_legpart#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_legpart",
+  "max": [
+   8.504,
+   5.265,
+   2.861
+  ],
+  "min": [
+   -6.073,
+   -0.62,
+   -2.861
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_legpart#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_legpart",
+  "max": [
+   8.504,
+   5.1,
+   2.565
+  ],
+  "min": [
+   -6.0,
+   -0.62,
+   -2.565
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_legpart#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_legpart",
+  "max": [
+   7.878,
+   4.68,
+   2.543
+  ],
+  "min": [
+   -6.073,
+   -0.408,
+   -2.543
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_titan_legpart#3": {
+  "colliders": [],
+  "kind": "ashgrave_titan_legpart",
+  "max": [
+   7.878,
+   4.53,
+   2.28
+  ],
+  "min": [
+   -6.0,
+   -0.162,
+   -2.28
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_titan_reach#0": {
+  "colliders": [
+   {
+    "r": 1.805,
+    "x": 6.911,
+    "z": 4.75
+   },
+   {
+    "r": 1.805,
+    "x": 6.712,
+    "z": 1.615
+   },
+   {
+    "r": 1.805,
+    "x": 6.712,
+    "z": -1.615
+   },
+   {
+    "r": 1.805,
+    "x": 7.532,
+    "z": -4.75
+   }
+  ],
+  "kind": "ashgrave_titan_reach",
+  "max": [
+   16.191,
+   15.992,
+   14.384
+  ],
+  "min": [
+   -9.88,
+   -0.294,
+   -6.555
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_reach#1": {
+  "colliders": [
+   {
+    "r": 1.805,
+    "x": 6.911,
+    "z": 4.75
+   },
+   {
+    "r": 1.805,
+    "x": 6.712,
+    "z": 1.615
+   },
+   {
+    "r": 1.805,
+    "x": 6.712,
+    "z": -1.615
+   },
+   {
+    "r": 1.805,
+    "x": 7.532,
+    "z": -4.75
+   }
+  ],
+  "kind": "ashgrave_titan_reach",
+  "max": [
+   16.191,
+   15.992,
+   14.384
+  ],
+  "min": [
+   -9.88,
+   -0.294,
+   -6.555
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_shell#0": {
+  "colliders": [],
+  "kind": "ashgrave_titan_shell",
+  "max": [
+   3.15,
+   1.804,
+   2.709
+  ],
+  "min": [
+   -2.977,
+   -0.594,
+   -2.979
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_titan_shell#1": {
+  "colliders": [],
+  "kind": "ashgrave_titan_shell",
+  "max": [
+   3.075,
+   2.57,
+   3.007
+  ],
+  "min": [
+   -2.953,
+   -0.547,
+   -3.132
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_titan_shell#2": {
+  "colliders": [],
+  "kind": "ashgrave_titan_shell",
+  "max": [
+   3.107,
+   1.831,
+   3.165
+  ],
+  "min": [
+   -3.651,
+   -0.462,
+   -3.596
+  ],
+  "mounts": [],
+  "variant": 2
  },
  "ashgrave_titan_spine#0": {
   "colliders": [

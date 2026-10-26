@@ -128,6 +128,8 @@ export const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun
 /** Quicker tells later in the run (never by much). */
 /** Puffballs: how fast they sink, how close sets one off, the swell, the blast and the cloud it leaves (radius, seconds). */
 const PUFF = { sink: 6, near: 4.5, swell: 0.55, blast: 4.5, cloud: 4, linger: 3 };
+/** Tenders: the climb out of the core and the ring they circle in, the gap between turns in a brood, then each one's windup and lock, its dart's speed, how long its seam burns on, how long it's open, how many darts before it goes home, and the wait between them. */
+const TEND = { rise: 1.4, ring: 4.5, turn: 0.55, wind: 0.75, lock: 0.45, speed: 34, burn: 1.3, open: 1.0, darts: 2, again: 1.6 };
 const quick = (lv: Level) => 1 / (1 + Math.min(lv.spec.difficulty, 1.5) * 0.15);
 
 /** A line tell from the enemy along its aim. */
@@ -1176,6 +1178,105 @@ export function updateFoe(lv: Level, e: Enemy): void {
         moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT, true);
         if (near && ok) swell();
         else if (over(e)) go(lv, e, 'idle');
+      }
+      break;
+    }
+    case 'tender': {
+      // a fallen titan's welder, woken in its lit core: the brood climbs out of the crack, round
+      // and round; then each in turn draws its line at you and darts down it, welding a seam that
+      // burns on behind it, and hangs there cooling, open; after a couple it goes home to the core
+      const zg = d.tz ?? fromFlight(e.z, e.y);
+      const gy = d.gz ?? 0;
+      const ph = d.ph ?? 0;
+      if (ph === 0) {
+        const k = clamp(e.t / TEND.rise, 0, 1);
+        const rad = lerp(0.8, TEND.ring, smooth(k));
+        d.a = (d.a ?? 0) + DT * lerp(5, 2.5, k);
+        e.y = lerp(gy + 0.6, FLIGHT_Y, smooth(k));
+        const x = (d.tx ?? e.x) + Math.cos(d.a) * rad;
+        const z = toFlight(zg + Math.sin(d.a) * rad * 0.7, e.y);
+        e.vx = (x - e.x) / DT;
+        e.vz = (z - e.z) / DT;
+        e.heading = Math.atan2(e.vx, e.vz - lv.speedNow);
+        e.x = x;
+        e.z = z;
+        e.aim = e.heading;
+        if (k >= 1) {
+          d.ph = 1;
+          d.hx = e.x;
+          d.hz = clamp(s, -HALF_H + 5, -8);
+          d.fire = 0.25 + (d.index ?? 0) * TEND.turn;
+          go(lv, e, 'idle');
+        }
+        break;
+      }
+      if (ph === 2) {
+        // home: down into the core, if it's still on the screen; else away off the top
+        const cs = toFlight(zg, gy) - lv.scroll;
+        if (cs > HALF_H - 2) {
+          leave(lv, e);
+          break;
+        }
+        ease(lv, e, d.tx ?? e.x, cs, 4, 20);
+        e.y = Math.max(gy + 0.6, e.y - DT * 6);
+        if (Math.hypot(e.x - (d.tx ?? e.x), s - cs) < 1.5) lv.escape(e);
+        break;
+      }
+      if (e.state === 'idle') {
+        // hanging about its station above the core, waiting its turn
+        const w = e.t * 1.7 + (d.index ?? 0);
+        ease(lv, e, (d.hx ?? 0) + Math.cos(w) * 2, (d.hz ?? -12) + Math.sin(w * 1.3) * 1.2, 3, 16);
+        e.heading = lerpAngle(e.heading, lv.aim(e.x, e.z), 0.08);
+        d.fire = (d.fire ?? 1) - DT * slow;
+        if ((d.n ?? 0) >= TEND.darts && d.fire <= 0) d.ph = 2;
+        else if (d.fire <= 0 && ok && p && ps(lv, p) - s > 6) {
+          e.aim = lv.aim(e.x, e.z);
+          d.len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 6, 14, 30);
+          go(lv, e, 'windup', TEND.wind * quick(lv), 'lunge', line(e, d.len, 0.9, TEND.lock * quick(lv), true));
+        }
+      } else if (e.state === 'windup') {
+        // the torch lit, drawing back on its line
+        track(lv, e, 0.15);
+        e.heading = e.aim;
+        moveTo(lv, e, e.x - Math.sin(e.aim) * 1.5 * DT, s - Math.cos(e.aim) * 1.5 * DT, true);
+        if (over(e)) {
+          d.gone = 0;
+          lv.lasers.push({ x: e.x, z: e.z, x2: e.x, z2: e.z, warn: 0, on: 99, color: e.skin.colors[2], owner: e.id, seam: true, grow: true });
+          go(lv, e, 'attack', 0, 'lunge');
+        }
+      } else if (e.state === 'attack') {
+        const sp = TEND.speed * slow;
+        moveTo(lv, e, e.x + Math.sin(e.aim) * sp * DT, s + Math.cos(e.aim) * sp * DT, true);
+        e.heading = e.aim;
+        d.gone = (d.gone ?? 0) + sp * DT;
+        const seam = lv.lasers.find((l) => l.seam && l.grow && l.owner === e.id);
+        if (seam) {
+          seam.x2 = e.x;
+          seam.z2 = e.z;
+        }
+        const crash = crashes(lv, e);
+        if (crash || d.gone >= (d.len ?? 20) || s > HALF_H - 3 || Math.abs(e.x) > HALF_W - 2) {
+          if (seam) {
+            seam.grow = false;
+            seam.on = TEND.burn;
+          }
+          if (crash) {
+            lv.emit({ type: 'strike', kind: 'crash', x: e.x, z: e.z, r: e.r });
+            lv.damage(e, e.max, -1, false);
+          } else go(lv, e, 'recover', TEND.open);
+        }
+      } else {
+        // cooling at the end of its seam, open; then back up to its station for another go
+        e.vx *= 0.9;
+        e.vz *= 0.9;
+        moveTo(lv, e, e.x + e.vx * DT * 0.2, s - 1 * DT, true);
+        if (over(e)) {
+          if (e.state === 'recover') d.n = (d.n ?? 0) + 1;
+          d.hx = clamp(e.x + (lv.rand() - 0.5) * 8, -HALF_W + 6, HALF_W - 6);
+          d.hz = -HALF_H + 6 + lv.rand() * 6;
+          d.fire = TEND.again + lv.rand() * 0.8;
+          go(lv, e, 'idle');
+        }
       }
       break;
     }

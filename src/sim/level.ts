@@ -58,6 +58,8 @@ const BODY = 0.7;
 const RIM = Array.from({ length: 12 }, (_, k) => [Math.cos((k / 12) * Math.PI * 2), Math.sin((k / 12) * Math.PI * 2)]);
 /** A kill this close is point-blank: a little Burn. */
 const POINT_BLANK = 7;
+/** A Tender's seam: its last seconds, cooling, harmless (and drawn dull). */
+export const SEAM_COOL = 0.3;
 /*
  * The dash (its speed, length and recovery are the frame's: see stats): a burst, and not a safe one:
  * what it runs into still hits you (unless a Slip Field makes it untouchable). Fire that would have
@@ -529,6 +531,8 @@ export type LevelEvent =
   | { type: 'telegraph'; x: number; z: number; x2: number; z2: number; t: number }
   | { type: 'beam'; x: number; z: number; x2: number; z2: number; color: number }
   | { type: 'spawn'; enemy: number }
+  /** A titan's core waking, its Tenders climbing out (y: the core's height). */
+  | { type: 'brood'; x: number; z: number; y: number }
   | { type: 'bossWarning'; name: string; title: string }
   /** The boss read how you fly, and is answering it (`side`: the side you hug, for 'side'). */
   | { type: 'bossRead'; read: Read; side: number }
@@ -667,7 +671,12 @@ export class Level {
   /** Lasers being aimed (lancers), for drawing and for dodging. */
   /** Beams from their owner to (x2, z2); `r0`: it starts that far out (nothing nearer is hit). */
   /** `tow`: a tow line, not a beam (ARU-0's Lien: drawn as a cable, hurts the same). */
-  readonly lasers: { x: number; z: number; x2: number; z2: number; warn: number; on: number; color: number; owner: number; r0?: number; tow?: boolean }[] = [];
+  /**
+   * Beams from their owners. `seam`: a weld line a Tender draws as it darts (sim/foes.ts), left
+   * where it was drawn (riding the screen), narrow, and burning on after its welder's gone; `grow`:
+   * still being drawn, its far end on the welder.
+   */
+  readonly lasers: { x: number; z: number; x2: number; z2: number; warn: number; on: number; color: number; owner: number; r0?: number; tow?: boolean; seam?: boolean; grow?: boolean }[] = [];
   /** What isn't bullets: shells, rings, gates, harpoons (see strikes.ts). */
   readonly strikes: Strike[] = [];
   /** A chase boss on its chase: the screen keeps going, though there's a boss. */
@@ -974,7 +983,7 @@ export class Level {
     }
     this.updateShots();
     this.updateBullets(dz);
-    this.updateLasers();
+    this.updateLasers(dz);
     updateStrikes(this, dz);
     this.grafting.update(dz);
     tickCombat(this);
@@ -2342,23 +2351,31 @@ export class Level {
     this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'halt', n: g.n });
   }
 
-  private updateLasers() {
+  private updateLasers(scrolled: number) {
     for (let i = this.lasers.length - 1; i >= 0; i--) {
       const l = this.lasers[i];
       // (a read can stagger a boss mid-loop, and that puts its beams out)
       if (!l) continue;
       const owner = this.enemies.find((e) => e.id === l.owner);
-      if (!owner || owner.dead) {
+      if (l.seam) {
+        // a seam stays where it was welded, on the screen; its welder shot down, it's done growing
+        l.z -= scrolled;
+        l.z2 -= scrolled;
+        if (!owner || owner.dead) l.grow = false;
+      } else if (!owner || owner.dead) {
         this.lasers.splice(i, 1);
         continue;
+      } else {
+        // the laser comes from its owner, wherever it is now
+        const ox = l.x2 - l.x;
+        const oz = l.z2 - l.z;
+        l.x = owner.x;
+        l.z = owner.z;
+        l.x2 = l.x + ox;
+        l.z2 = l.z + oz;
       }
-      // the laser comes from its owner, wherever it is now
       const dx = l.x2 - l.x;
       const dz = l.z2 - l.z;
-      l.x = owner.x;
-      l.z = owner.z;
-      l.x2 = l.x + dx;
-      l.z2 = l.z + dz;
       if (l.warn > 0) {
         l.warn -= DT;
         continue;
@@ -2369,11 +2386,14 @@ export class Level {
         continue;
       }
       const len = Math.hypot(dx, dz);
+      // (a seam only just struck: nothing to it yet; cooling, its last moments are harmless)
+      if (len < 0.3 || (l.seam && l.on < SEAM_COOL)) continue;
       const ux = dx / len;
       const uz = dz / len;
+      const half = l.seam ? 0.45 : 1.0;
       const inBeam = (x: number, z: number, r: number) => {
         const along = (x - l.x) * ux + (z - l.z) * uz;
-        return along >= (l.r0 ?? 0) && along <= len && Math.abs((x - l.x) * uz - (z - l.z) * ux) < 1.0 + r;
+        return along >= (l.r0 ?? 0) && along <= len && Math.abs((x - l.x) * uz - (z - l.z) * ux) < half + r;
       };
       for (const p of this.players) {
         if (p.slip > 0 && !p.down && inBeam(p.slipX, this.scroll + p.slipZ, p.stats.core)) this.perfectDash(p);

@@ -1761,6 +1761,22 @@
   ],
   "variant": 0
  },
+ "enemy_tender": {
+  "colliders": [],
+  "kind": "enemy_tender",
+  "max": [
+   0.744,
+   0.475,
+   0.71
+  ],
+  "min": [
+   -0.729,
+   -0.423,
+   -1.31
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_toll_barge": {
   "colliders": [],
   "kind": "enemy_toll_barge",

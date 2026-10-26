@@ -14,7 +14,7 @@ import { BulletArt, SOFT } from './bullets';
 import { ShotArt } from './shots';
 import { Guards, Shields } from './shields';
 import { FOES, type Faction } from '../sim/factions';
-import { HOT_BOLTS, HOT_CRACK, JUMP_JOLT, TORPEDO, WELD } from '../sim/level';
+import { HOT_BOLTS, HOT_CRACK, JUMP_JOLT, SEAM_COOL, TORPEDO, WELD } from '../sim/level';
 import { ShipModel, LIVERY } from './ship-model';
 import { cloneEnemy } from './enemy-model';
 import { library, type Instance } from '../render/assets';
@@ -45,6 +45,14 @@ import { VEIN_COLOR, FEED } from '../game/core';
 import { AFFIXES, AFFIX_COLOR, TRAITS, itemName, tierOf, type AffixId, type Tier } from '../game/loot';
 import { TIER_COLOR } from '../ui/widgets';
 import { HOT as HOT_TEXT } from '../ui/hud';
+
+/** A Tender's weld: sparks white-hot to orange; the drips off a cooling torch; the ash its core blows off waking. */
+const WELD_SPARK = new THREE.Color(0xfff4dc);
+const WELD_SPARK_END = new THREE.Color(0xffa040);
+const WELD_DRIP = new THREE.Color(0xffd8a0);
+const WELD_DRIP_END = new THREE.Color(0x6a4030);
+const BROOD_ASH = new THREE.Color(0xbab6ae);
+const BROOD_ASH_END = new THREE.Color(0x8a867e);
 import { EDGES, type Edge } from '../game/parts';
 
 /** How far the screen shakes at full trauma (world units), and how fast trauma fades (a second). */
@@ -1519,10 +1527,39 @@ export class LevelView {
             audio.play('hit_armor', { pan: e.x / HALF_W, vol: 0.18, pitch: 1.6 + Math.random() * 0.4 });
           }
           break;
+        case 'brood': {
+          // a titan's core waking under its welders: the housing blown clear in a puff of ash, a
+          // pale flash off the core, and the hum climbing
+          const gz = fromFlight(e.z, e.y);
+          this.fx.ring(e.x, e.y + 0.4, gz, 7, 0.6, false, 0xe8fff0);
+          for (let k = 0; k < 14; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const v = 2 + Math.random() * 4;
+            this.fx.add({ x: e.x, y: e.y + 0.5, z: gz, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 3 + Math.random() * 3, life: 1 + Math.random() * 0.8, size: 0.9 + Math.random() * 0.6, grow: 2.2, color: BROOD_ASH, to: BROOD_ASH_END, drag: 2.5, glow: false });
+          }
+          this.fx.sparks(e.x, e.y + 0.6, gz, 10, 0xfff4dc, 9, 0.5, 0.16, false);
+          audio.play('brood_wake', { pan: e.x / HALF_W, vol: 0.7 });
+          break;
+        }
         case 'beam':
         case 'spawn':
           break;
       }
+    }
+  }
+
+  /**
+   * A Tender's torch: lit through its windup (a white point flickering at its nose), spraying sparks
+   * behind it down the seam as it darts, and dripping them as it hangs there cooling.
+   */
+  private torch(e: Enemy, gz: number, dt: number) {
+    const nx = e.x + Math.sin(e.heading) * 0.9;
+    const nz = gz + Math.cos(e.heading) * 0.9;
+    if (e.state === 'windup' && Math.random() < dt * 20) this.fx.sparks(nx, e.y + 0.3, nz, 1, 0xfff8e8, 4, 0.12, 0.14);
+    else if (e.state === 'attack' && Math.random() < dt * 40) {
+      this.fx.add({ x: nx, y: e.y + 0.2, z: nz, vx: (Math.random() - 0.5) * 6 - Math.sin(e.aim) * 8, vz: (Math.random() - 0.5) * 6 - Math.cos(e.aim) * 8, vy: Math.random() * 3, life: 0.35, size: 0.16, grow: 0.3, color: WELD_SPARK, to: WELD_SPARK_END, drag: 3, gravity: 18, carried: true });
+    } else if (e.state === 'recover' && Math.random() < dt * 10) {
+      this.fx.add({ x: nx, y: e.y, z: nz, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, vy: 1, life: 0.6, size: 0.13, grow: 0.4, color: WELD_DRIP, to: WELD_DRIP_END, drag: 1, gravity: 14, carried: true });
     }
   }
 
@@ -2589,7 +2626,8 @@ export class LevelView {
       if (v.fold) this.fold(e, v.fold, dt);
       // frozen solid, it doesn't so much as twitch
       if (!(e.ax && e.ax.frozen > 0) && !v.car) v.inst?.update(dt);
-      const groundZ = e.ground ? fromFlight(e.z, e.y) : e.z;
+      // (a Tender still climbing out of its core: where it is under the flight plane)
+      const groundZ = e.ground || e.arch === 'tender' ? fromFlight(e.z, e.y) : e.z;
       const bob = e.ground || (e.ax && e.ax.frozen > 0) ? 0 : Math.sin(this.time * 3 + e.id) * 0.15;
       v.punch = Math.max(0, v.punch - dt * 7);
       v.knock = Math.max(0, v.knock - dt * 6);
@@ -2645,6 +2683,7 @@ export class LevelView {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      if (e.arch === 'tender') this.torch(e, groundZ, dt);
       if (v.held !== undefined) this.strongbox(e, v);
       if (v.tow) this.towLine(e, v);
       this.trail(e, groundZ);
@@ -3251,7 +3290,12 @@ export class LevelView {
       // and not a lane only drawn for a blink)
       const now = l.warn > 0 ? 'warn' : 'on';
       const heard = this.laserHeard.get(l);
-      if (heard !== now && !l.tow) {
+      if (l.seam) {
+        if (!heard) {
+          this.laserHeard.set(l, now);
+          audio.play('weld', { pan: Math.max(-1, Math.min(1, l.x / HALF_W)), vol: 0.5, pitch: 0.9 + Math.random() * 0.2 });
+        }
+      } else if (heard !== now && !l.tow) {
         this.laserHeard.set(l, now);
         const pan = Math.max(-1, Math.min(1, l.x / HALF_W));
         if (now === 'warn') audio.play('laser_charge', { pan, vol: 0.45 });
@@ -3268,6 +3312,19 @@ export class LevelView {
         m.visible = on;
         m.scale.set(0.18, 0.1, len);
         mat.color.setHex(l.color);
+      } else if (l.seam) {
+        // a seam welded across the air: white-hot and spitting while it's drawn, its colour coming up
+        // through it as it burns, then dull and thin as it cools (harmless by then)
+        const cool = !l.grow && l.on < SEAM_COOL;
+        const hot = l.grow || (l.on > 0.9 && Math.floor(this.time * 24) % 3 === 0);
+        m.scale.set(cool ? 0.18 : 0.62 + Math.sin(this.time * 50 + k) * 0.1, 0.2, len);
+        mat.color.setHex(cool ? 0x5a5650 : hot ? 0xffffff : l.color);
+        m.children[0].visible = !cool;
+        // sparks spitting off it here and there along its length, falling away
+        if (!cool && Math.random() < 0.35) {
+          const u = Math.random();
+          this.fx.add({ x: x0 + dx * u, y: FLIGHT_Y + 0.7, z: z0 + dz * u, vx: (Math.random() - 0.5) * 4, vz: (Math.random() - 0.5) * 4, vy: 1 + Math.random() * 2, life: 0.4, size: 0.14, grow: 0.3, color: WELD_SPARK, to: WELD_SPARK_END, drag: 2, gravity: 16, carried: true });
+        }
       } else if (l.tow) {
         // a tow line, taut: a steady cable of hard light humming as it hauls, a pulse running home
         // along it now and then, sparks where it holds

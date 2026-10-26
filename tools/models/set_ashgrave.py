@@ -1153,3 +1153,6 @@ def build():
         glass_bubble(v)
         shack(v)
         moon_fungus(v)
+    # the Titan Graveyard's titans, posed by the layout, and the clans' things (set_ashgrave_titans.py)
+    import set_ashgrave_titans
+    set_ashgrave_titans.build()
