@@ -561,15 +561,28 @@ export class Terrain {
     for (const c of this.chunksBetween(z - 30, z + 30))
       for (const p of c.props) {
         for (const k of p.cols) if ((k.x - x) ** 2 + (k.z - z) ** 2 < (k.r + pad) ** 2) return true;
-        if (p.obstacle || p.role === 'span') continue;
-        let foot = p.foot;
-        if (foot === undefined) {
-          const m = metaOf(p.kind, p.variant);
-          foot = m ? Math.min(m.max[0] - m.min[0], m.max[2] - m.min[2]) * p.s * 0.4 : 0;
-        }
-        if ((p.x - x) ** 2 + (p.z - z) ** 2 < (foot + pad) ** 2) return true;
+        // and all the ground under it, not just where its columns stand (a fallen titan's body, a
+        // gantry's deck), if it stands up off the ground at all
+        if (this.under(p, x, z, pad)) return true;
       }
     return false;
+  }
+
+  /** Is (x, z) within `pad` of the ground under a prop (its model's bounds, turned and scaled as placed)? */
+  private under(p: Placed, x: number, z: number, pad: number) {
+    const m = metaOf(p.kind, p.variant);
+    if (!m) return (p.x - x) ** 2 + (p.z - z) ** 2 < ((p.foot ?? 0) + pad) ** 2;
+    // (a crater or a crust lies flat: a turret can sit on it)
+    if (m.max[1] * p.s < 1) return false;
+    // (back into its own frame: the turn in `place`, undone)
+    const dx = x - p.x;
+    const dz = z - p.z;
+    const c = Math.cos(p.rot);
+    const s = Math.sin(p.rot);
+    const lx = (dx * c - dz * s) / p.s;
+    const lz = (dx * s + dz * c) / p.s;
+    const k = pad / p.s;
+    return lx > m.min[0] - k && lx < m.max[0] + k && lz > m.min[2] - k && lz < m.max[2] + k;
   }
 
   /** Every obstacle collider near (x, z). */

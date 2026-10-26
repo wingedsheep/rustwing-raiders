@@ -1004,6 +1004,11 @@ export class LevelView {
           audio.play('parry', { pan: e.x / HALF_W, pitch: 1 + Math.min(4, e.count - 1) * 0.06 });
           break;
         }
+        case 'plough':
+          // a shot shattering on the head: a spit of sparks, and a dull knock
+          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 6, 0xffd060, 14, 0.18, 0.2);
+          audio.play('block', { pan: e.x / HALF_W, vol: 0.45, pitch: 0.9 + Math.random() * 0.2 });
+          break;
         case 'block':
           this.guards.hit(e.id, e.x, e.z - 2);
           this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z - 1, 4 + e.count * 2, 0xc8c0d8, 12, 0.2, 0.2);

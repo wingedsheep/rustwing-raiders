@@ -527,13 +527,13 @@ export const FRAMES: FrameDef[] = [
     id: 'hammer',
     name: 'Hammerhead',
     text: 'A wide armoured head and a slim tail. It goes through them.',
-    perk: { name: 'BATTERING RAM', text: 'The dash rams with the whole head: it breaks plating, and a second ram takes the reeling down. Every foe rammed gives the dash back sooner.' },
-    weak: 'HEAVY: SLOW TO GET GOING, SLOW TO STOP. BEAMS AND BLASTS GO THROUGH THE RAM.',
+    perk: { name: 'BATTERING RAM', text: 'The dash rams with the whole head: it breaks plating, and a second ram takes the reeling down. Every foe rammed gives the dash back sooner. In a dash, small shots break on the head; popcorn always does.' },
+    weak: 'HEAVY: SLOW TO STOP. BEAMS AND BLASTS GO THROUGH THE RAM.',
     grid: ['######', '######', '..##..', '..##..'],
     mounts: { T: 2, H: 1, S: 1 },
-    hp: 85, mass: 6, thrust: 14, grip: 0.95, dash: 1, dashCd: 2.2, load: 10.5, speed: 1.05, burn: 0.1, core: 0.42, ram: 22,
-    // it charges: slow to get going, it glides on its weight, and its dash is a long, low run it ploughs on out of
-    move: { accel: 0.8, stop: 0.88, dashTime: 1.3, dashSpeed: 0.9, exit: 0.5, lean: 0.55 },
+    hp: 85, mass: 6, thrust: 14, grip: 0.95, dash: 1, dashCd: 2.2, load: 10.5, speed: 1.1, burn: 0.1, core: 0.42, ram: 22,
+    // it charges: it glides on its weight, and its dash is a long, low run it ploughs on out of
+    move: { stop: 0.88, dashTime: 1.3, dashSpeed: 0.9, exit: 0.5, lean: 0.55 },
     start: [['scatter', 2, 0], ['scatter', 3, 0], ['thruster', 2, 3], ['thruster', 3, 3]],
   },
   {

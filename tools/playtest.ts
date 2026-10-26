@@ -191,6 +191,9 @@ function replayStage(log: RunLog, k: number, timeline: boolean) {
   const lines: string[] = [];
   const at = () => `${lpad(lv.time.toFixed(1), 6)}s ${pad(`${lv.terrain.biome(lv.scroll).id} ${Math.round(lv.progress * 100)}%`, 18)}`;
   const len = tapes[0]?.length ?? 0;
+  // when each pilot last dashed (to tell a crash out of a dash from one flown into)
+  const dashed: number[] = [];
+  const since = (id: number) => (dashed[id] === undefined ? '' : lv.time - dashed[id] < 1 ? ` (${(lv.time - dashed[id]).toFixed(2)}s after a dash)` : '');
   for (let t = 0; t < len; t++) {
     const intents = tapes.map((tp) => tp[t] ?? NEUTRAL);
     rec.input(intents);
@@ -201,7 +204,8 @@ function replayStage(log: RunLog, k: number, timeline: boolean) {
       for (const e of lv.events) {
         if (e.type === 'playerHit') lines.push(`${at()} P${e.id + 1} hit by ${e.by ?? e.cause}${e.shield ? ' (shield)' : ` -${e.dmg}`}  hull ${lv.players[e.id].hp}`);
         else if (e.type === 'down') lines.push(`${at()} P${e.id + 1} DOWN`);
-        else if (e.type === 'crash') lines.push(`${at()} P${e.id + 1} crashed into the land`);
+        else if (e.type === 'dash') dashed[e.id] = lv.time;
+        else if (e.type === 'crash') lines.push(`${at()} P${e.id + 1} crashed into the land${since(e.id)}`);
         else if (e.type === 'bossWarning') lines.push(`${at()} the Warden: ${e.name}`);
         else if (e.type === 'bossPhase') lines.push(`${at()} Warden phase ${e.phase + 1}`);
         else if (e.type === 'biome') lines.push(`${at()} into ${s.setup.biomes[e.index] ?? e.index}`);

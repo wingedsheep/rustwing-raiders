@@ -551,6 +551,8 @@ export type LevelEvent =
   | { type: 'parry'; id: number; x: number; z: number; count: number; first: boolean }
   /** The guard burst ran out with nothing in it (a long wait), or a block gave out under fire. */
   | { type: 'guardOut'; id: number; x: number; z: number; how: 'whiff' | 'broke' }
+  /** A small shot broken on the Hammerhead's head in a dash. */
+  | { type: 'plough'; id: number; x: number; z: number }
   /** A late press: the burst only blocked these. */
   | { type: 'block'; id: number; x: number; z: number; count: number }
   /** The aux can be used again. */
@@ -2435,6 +2437,12 @@ export class Level {
         // in a dash's opening slip, a bullet that would have hit where you were (give or take) is a perfect
         if (p.slip > 0 && !p.stats.catch && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
         if (b.dead) continue;
+        // the Hammerhead's head ploughs through small fire in a dash (beams and blasts still go through)
+        if (p.stats.battering && p.dashT > 0 && canParryProjectile(b) && d2 < (p.stats.ramW + b.r) ** 2 && (b.x - p.x) * p.dashX + (b.z - p.z) * p.dashZ > -core) {
+          b.dead = true;
+          this.emit({ type: 'plough', id: p.id, x: b.x, z: b.z });
+          continue;
+        }
         if (d2 < hitR * hitR) {
           if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind], b.from)) {
             b.dead = true;
@@ -2473,8 +2481,13 @@ export class Level {
         if ((e.x - p.x) ** 2 + (e.z - p.z) ** 2 < r * r) {
           // a Ram Prow dashing through: the dash does the hitting (see ramAlong)
           if (p.dashT > 0 && (p.stats.mod.ram > 0 || this.grafting.rams(p))) continue;
-          // (popcorn only grazes you, and breaks on you)
+          // (popcorn only grazes you, and breaks on you; on the Hammerhead's head it just breaks)
           const pop = POPCORN.has(e.arch);
+          if (pop && p.stats.battering) {
+            this.emit({ type: 'ram', id: p.id, x: e.x, z: e.z, enemy: e.id });
+            this.damage(e, 999, p.id, false);
+            continue;
+          }
           if (this.hurt(p, p.x, p.z, 'ram:' + e.arch, pop ? 'graze' : undefined)) {
             this.damage(e, pop ? 999 : 20, p.id, false);
             if (p.stats.affixes.barbed) this.barb(p, e);

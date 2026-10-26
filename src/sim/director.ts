@@ -512,7 +512,8 @@ export class Director {
     const r = this.r;
     if (this.posted(foe, skin, opts, count)) return;
     let placed = 0;
-    for (let tries = 0; tries < 30 && placed < count; tries++) {
+    // (as many tries again where the props leave little open ground: a wood, a camp)
+    for (let tries = 0; tries < 60 && placed < count; tries++) {
       const x = lerp(-HALF_W + 4, HALF_W - 4, r());
       const zg = lv.top - 14 - r() * 10;
       const h = lv.terrain.height(x, zg);
@@ -608,7 +609,7 @@ export class Director {
         // else on the ground ahead, somewhere solid and dry
         const count = 3 + Math.floor(r() * 4);
         let placed = 0;
-        for (let tries = 0; tries < 30 && placed < count; tries++) {
+        for (let tries = 0; tries < 60 && placed < count; tries++) {
           const x = lerp(-HALF_W + 3, HALF_W - 3, r());
           const zg = lv.top - 14 - r() * 10;
           const h = lv.terrain.height(x, zg);
