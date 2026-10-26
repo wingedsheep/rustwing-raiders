@@ -128,6 +128,8 @@ export const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun
 /** Quicker tells later in the run (never by much). */
 /** Puffballs: how fast they sink, how close sets one off, the swell, the blast and the cloud it leaves (radius, seconds). */
 const PUFF = { sink: 6, near: 4.5, swell: 0.55, blast: 4.5, cloud: 4, linger: 3 };
+/** Hookjaws: the harpoon's speed, how far ahead of you it aims (of your flight), the reel's pull, how long until it drags you onto its hull, and how squarely a dash must pull away to snap the line, and how far a wrong-way dash is yanked back. */
+const HOOK = { speed: 58, lead: 0.85, reel: 10, hold: 1.8, snap: 0.35, yank: 0.7 };
 /** Tenders: the climb out of the core and the ring they circle in, the gap between turns in a brood, then each one's windup and lock, its dart's speed, how long its seam burns on, how long it's open, how many darts before it goes home, and the wait between them. */
 const TEND = { rise: 1.4, ring: 4.5, turn: 0.55, wind: 0.75, lock: 0.45, speed: 34, burn: 1.3, open: 1.0, darts: 2, again: 1.6 };
 const quick = (lv: Level) => 1 / (1 + Math.min(lv.spec.difficulty, 1.5) * 0.15);
@@ -583,14 +585,23 @@ export function updateFoe(lv: Level, e: Enemy): void {
         const dx = e.x - q.x;
         const dz = e.z - q.z;
         const dl = Math.hypot(dx, dz) || 1;
-        q.x += (dx / dl) * 7 * DT;
-        q.z += (dz / dl) * 7 * DT;
+        q.x += (dx / dl) * HOOK.reel * DT;
+        q.z += (dz / dl) * HOOK.reel * DT;
         q.vx *= 0.85;
         q.vz *= 0.85;
         e.aim = Math.atan2(-dx, -dz);
         e.heading = e.aim;
-        if (q.dashT > 0) release(lv, e, true);
-        else if (dl < 3 + e.r || d.held > 2.2) {
+        d.taut = Math.max(0, (d.taut ?? 0) - DT);
+        // only a dash that pulls against the line snaps it: across it, or towards the hookjaw, the line
+        // jerks taut, cuts the dash short and yanks you back a little (and the reel goes on)
+        if (q.dashT > 0 && (q.dashX * -dx + q.dashZ * -dz) / dl > HOOK.snap) release(lv, e, true);
+        else if (q.dashT > 0 && d.held > 0.15) {
+          q.dashT = Math.min(q.dashT, 0.001);
+          q.x += (dx / dl) * HOOK.yank;
+          q.z += (dz / dl) * HOOK.yank;
+          d.taut = 0.4;
+          lv.emit({ type: 'hookStrain', id: q.id, enemy: e.id, x: q.x, z: q.z, dx: dx / dl, dz: dz / dl });
+        } else if (dl < 3 + e.r || d.held > HOOK.hold) {
           lv.hurt(q, q.x, q.z, 'harpoon');
           release(lv, e, false);
         }
@@ -606,11 +617,16 @@ export function updateFoe(lv: Level, e: Enemy): void {
         e.heading = e.aim;
         if (e.stateT > 1.1 && ok) go(lv, e, 'windup', 0.9 * quick(lv), 'harpoon', line(e, 50, 0.6, 0.6 * quick(lv)));
       } else if (e.state === 'windup') {
-        track(lv, e, 0.1);
+        // it leads you: keep flying the same way and the iron meets you; turn after the line locks
+        if (p && e.tele?.shape === 'line' && e.stateT < e.tele.lock) {
+          const fly = (e.stateDur - e.stateT + Math.hypot(p.x - e.x, p.z - e.z) / HOOK.speed) * HOOK.lead;
+          e.aim = lerpAngle(e.aim, Math.atan2(p.x + p.vx * fly - e.x, p.z + p.vz * fly - e.z), 0.12);
+        }
+        track(lv, e, 0);
         e.heading = e.aim;
         if (over(e)) {
           d.n = (d.n ?? 0) + 1;
-          strike(lv, 'harpoon', e.x, e.z, { vx: Math.sin(e.aim) * 40, vz: Math.cos(e.aim) * 40, active: 1.3, warn: 0, owner: e.id, effect: 'latch', air: true, color: e.skin.colors[2] });
+          strike(lv, 'harpoon', e.x, e.z, { vx: Math.sin(e.aim) * HOOK.speed, vz: Math.cos(e.aim) * HOOK.speed, active: 1.3, warn: 0, owner: e.id, effect: 'latch', air: true, color: e.skin.colors[2] });
           go(lv, e, 'attack', 0, 'harpoon');
         }
       } else if (e.state === 'attack') {

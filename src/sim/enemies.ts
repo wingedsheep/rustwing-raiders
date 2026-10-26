@@ -54,6 +54,8 @@ export interface EnemyData {
   gone?: number;
   ph?: number;
   held?: number;
+  /** A hookjaw's line, jerked taut by a dash the wrong way (counts down from 0.4 s). */
+  taut?: number;
   yank?: number;
   rollCd?: number;
   rollDir?: number;

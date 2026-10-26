@@ -9,7 +9,7 @@ import type { Biome, TerrainShape } from '../world/planets';
 import { lookOf, type SetRole } from '../world/looks';
 import { FLIGHT_Y, HALF_W } from './types';
 import { fbm, noise2, ridged, rng, smooth, smoothstep, weighted, clamp, lerp, type Rng } from '../util';
-import { metaOf, variants, height as metaHeight } from './meta';
+import { metaOf, variants, height as metaHeight, colsAt, type Meta } from './meta';
 import { Kit, type Bones, type Emitter, type Plan, type Post, type Route } from './layout';
 import { LAYOUTS } from './layouts';
 
@@ -156,6 +156,8 @@ const FIELDS: Record<string, { kinds: Set<string>; cell: [number, number]; fallo
 };
 const SWIMMERS = new Set(['plesiosaur', 'jellyfish']);
 const FLYERS = new Set(['pterosaur_flock', 'sky_whale', 'moth_swarm', 'jellyfish']);
+/** Beasts drawn bigger than built, so they stand over the trucks that drive among them (shrunk only to pass under you). */
+const GIANTS: Record<string, number> = { sauropod: 1.8, raptor_pack: 3, plesiosaur: 1.7 };
 /** Known obstacles, for when the models haven't been measured yet. */
 const TALL = new Set(['crystal_spire', 'sea_stack', 'crane', 'mesa', 'arch', 'monolith', 'glowcap_tall', 'ice_spire', 'alien_pylon', 'giant_rib', 'smokestack']);
 
@@ -744,8 +746,10 @@ export class Terrain {
       if (!FLYERS.has(kind) && ground > 7) continue;
       const herd = kind === 'mammoth' || kind === 'sauropod' ? 1 + Math.floor(r() * 3) : 1;
       const heading = r() * Math.PI * 2;
+      const s = GIANTS[kind] ? Math.min(GIANTS[kind], (FLIGHT_Y - 1.5 - Math.max(ground, 0)) / Math.max(metaHeight(metaOf(kind)), 0.3)) : 1;
+      const gap = 3.5 * s;
       for (let h = 0; h < herd; h++)
-        wildlife.push({ kind, x: x + h * 3.5 * Math.cos(heading + 1.4), z: z + h * 3.5 * Math.sin(heading + 1.4), heading, speed: 0.6 + r() * 1.2, biome: bi });
+        wildlife.push({ kind, x: x + h * gap * Math.cos(heading + 1.4), z: z + h * gap * Math.sin(heading + 1.4), heading, speed: 0.6 + r() * 1.2, biome: bi, s });
     }
 
     return { index, props, wildlife };
@@ -825,11 +829,9 @@ export class Terrain {
       s = Math.min(1, (FLIGHT_Y - 1.5 - y) / Math.max(m.max[1], 0.3));
       if (s < 0.5) return null;
     }
-    const c = Math.cos(rot);
-    const sn = Math.sin(rot);
     // a gate's columns hit a little inside what you see of them: threading one should feel tight, not cheat you
     const give = piece.role === 'gate' ? 0.85 : 1;
-    const cols = m.colliders.map((k) => ({ x: x + (k.x * c + k.z * sn) * s, z: z + (-k.x * sn + k.z * c) * s, r: k.r * s * give }));
+    const cols = colsAt(m, x, z, y, rot, s, give);
     const p: Placed = { kind: piece.kind, variant, x, z, y, rot, s, obstacle: cols.length > 0, cols, biome: bi, role: piece.role };
     return { p, foot: Math.max(wide, deep) * s * 0.5 };
   }
@@ -877,13 +879,10 @@ export class Terrain {
     // scenery that would poke up into the flight plane (on a high terrace) is left out
     const m = metaOf(kind, variant);
     if (!obstacle && y + metaHeight(m) * s > FLIGHT_Y - 1) return null;
-    const cols: Placed['cols'] = [];
+    let cols: Placed['cols'] = [];
     if (obstacle) {
-      const c = Math.cos(rot);
-      const sn = Math.sin(rot);
-      const src = m?.colliders.length ? m.colliders : [{ x: 0, z: 0, r: m ? Math.min(m.max[0] - m.min[0], m.max[2] - m.min[2]) * 0.4 : 1.5 }];
-      // (three turns (x, z) by θ about y to (x cos θ + z sin θ, -x sin θ + z cos θ))
-      for (const k of src) cols.push({ x: x + (k.x * c + k.z * sn) * s, z: z + (-k.x * sn + k.z * c) * s, r: k.r * s });
+      const src = m?.colliders.length ? m : { colliders: [{ x: 0, z: 0, r: m ? Math.min(m.max[0] - m.min[0], m.max[2] - m.min[2]) * 0.4 : 1.5 }] };
+      cols = colsAt(src as Meta, x, z, y, rot, s);
     }
     return { kind, variant, x, z, y, rot, s, obstacle, cols, biome };
   }

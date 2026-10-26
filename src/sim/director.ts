@@ -267,8 +267,10 @@ export class Director {
         break;
       }
       case 'hookjaw': {
+        // later, a pair: one each side, staggered, so dodging one line flies you into the other's
         const dir = r() < 0.5 ? -1 : 1;
-        lv.spawn(foe, skin, dir * (HALF_W + 5), lv.scroll - 6, { dir, hz: lerp(-12, 2, r()) }, opts);
+        const n = elite ? 1 : 1 + (r() < d * 0.6 ? 1 : 0);
+        for (let k = 0; k < n; k++) lv.spawn(foe, skin, (k ? -dir : dir) * (HALF_W + 5), lv.scroll - 6, { dir: k ? -dir : dir, hz: lerp(-12, 2, r()) }, { ...opts, t: -k * 1.1 });
         break;
       }
       case 'rigger': {

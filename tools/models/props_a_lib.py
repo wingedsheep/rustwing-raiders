@@ -19,8 +19,20 @@ def root(kind: str, variant: int = 0, **extras):
     return group(f"{kind}_{variant}", (0, 0, 0), kind=kind, variant=variant, **extras)
 
 
-def collider(parent, x, y, r):
-    return group("collider", (x, y, 0), parent=parent, collider=round(r, 3))
+def collider(parent, x, y, r, z=0.0, lean=None, top=None, over=False):
+    """A collider column at (x, y), its radius r. One on a leaning part says where it crosses height z,
+    which way it leans (the shift in x and y per unit up) and how high it reaches, so the game can find
+    where it crosses the flight line wherever it stands (raised on a terrace, grown bigger or smaller).
+    One `over` the flight line (a cap you'd fly under) is at height z, and hits where it's seen: the
+    game slides it down the line of sight to the flight line."""
+    props = {"collider": round(r, 3)}
+    if over:
+        props["over"] = 1
+    if lean is not None:
+        props["lean"] = [round(lean[0], 4), round(lean[1], 4)]
+    if top is not None:
+        props["top"] = round(top, 3)
+    return group("collider", (x, y, z), parent=parent, **props)
 
 
 def _finish(m: Model, faces, color, glow=False):

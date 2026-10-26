@@ -36,6 +36,8 @@ const FIRE = new THREE.Color(0xfff0a0);
 const FIRE_END = new THREE.Color(0xc0301a);
 const HOT = new THREE.Color(0xfff4d0);
 const IRON = new THREE.Color(0x3a3634);
+const STEAM = new THREE.Color(0xe8e8f0);
+const STEAM_END = new THREE.Color(0x8a8a9a);
 
 /** Every frame, for an enemy carrying any of it (the ice and the chain themselves: gun-looks.ts). */
 export function arsenalLook(fx: Fx, e: Enemy, lift: number, groundZ: number) {
@@ -74,9 +76,13 @@ export function arsenalEvent(h: ArsenalHooks, e: LevelEvent) {
       audio.play('frost_hit', { pan, pitch: 0.7 });
       break;
     case 'douse':
-      // fire out under ice: a hiss of steam
-      for (let k = 0; k < 3; k++) fx.add({ x: e.x + (Math.random() - 0.5) * 1.5, y: FLIGHT_Y + 0.8, z: e.z, vy: 3, vz: -1, size: 1, grow: 2.6, life: 0.7, color: new THREE.Color(0xe8e8f0), to: new THREE.Color(0x8a8a9a), glow: false, carried: true });
-      audio.play('frost_breath', { pan, vol: 0.4, pitch: 1.6 });
+      // fire and ice: a burst of steam, and the hull cracks (its CRACK mark shows the shards)
+      for (let k = 0; k < 6; k++) {
+        const a = Math.random() * Math.PI * 2;
+        fx.add({ x: e.x, y: FLIGHT_Y + 0.8, z: e.z, vx: Math.cos(a) * 6, vz: Math.sin(a) * 4, vy: 3, size: 1, grow: 2.8, life: 0.7, drag: 3, color: STEAM, to: STEAM_END, glow: false, carried: true });
+      }
+      h.pop('QUENCH', e.x, e.z - 3, '#e8f0ff');
+      audio.play('frost_breath', { pan, vol: 0.5, pitch: 1.6 });
       break;
     case 'pin':
       h.pop('PINNED', e.x, e.z - 3, '#ffd08a');

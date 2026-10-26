@@ -93,7 +93,9 @@ export class Threats {
       }
       if (e.grab >= 0) {
         const p = lv.players[e.grab];
-        if (p) this.line(e.x, e.z, p.x, p.z, 0.3, 0xffd890, 0.9);
+        // pulled the wrong way, it goes taut: thicker, white-hot, flickering, then back
+        const taut = (e.d.taut ?? 0) / 0.4;
+        if (p) this.line(e.x, e.z, p.x, p.z, 0.3 + 0.35 * taut, taut > 0 && Math.sin(this.time * 60) > -0.3 ? 0xffffff : 0xffd890, 0.9);
       }
     }
     for (const s of lv.strikes) if (!s.dead) this.strike(s, lv, halfW);

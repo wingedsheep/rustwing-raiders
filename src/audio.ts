@@ -31,7 +31,7 @@ export type Sfx =
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
   | 'core_hum' | 'core_feed' | 'core_grow' | 'core_wake' | 'imprint' | 'shaken' | 'engine_call' | 'core_refuse' | 'core_bark'
   | 'skid' | 'truck_rev'
-  | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank'
+  | 'kill' | 'perfect' | 'skim' | 'boost' | 'risk_up' | 'risk_lost' | 'point_blank' | 'flyby_round' | 'flyby_sweep'
   | 'parry' | 'block' | 'aux_ready' | 'guard_up' | 'guard_whiff' | 'dash_dry' | 'hook' | 'reel' | 'eat' | 'blink' | 'ram' | 'flare'
   | 'mark_burn' | 'mark_shock' | 'mark_crack' | 'react_overload' | 'react_cookoff' | 'react_shatter' | 'detonate'
   | 'hull_hit' | 'boarders' | 'boarded' | 'hauler_lost' | 'horn' | 'shriek' | 'wingbeat'
@@ -49,7 +49,7 @@ export type Sfx =
   | 'foot_shot' | 'foot_blast' | 'foot_shell' | 'foot_dry' | 'step' | 'slide' | 'takedown' | 'punch' | 'body_fall' | 'swing'
   | 'foot_hurt' | 'crew_hit' | 'plate_hit' | 'plate_break' | 'aim_tell' | 'crew_shot' | 'ricochet' | 'door' | 'alarm' | 'lockdown'
   | 'foot_mark' | 'crew_kill'
-  | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
+  | 'breach' | 'kelter_clamp' | 'hook_fire' | 'hook_snap' | 'hook_strain' | 'crack_tick' | 'crate_open' | 'strongbox_open' | 'core_pull' | 'airlock'
   | 'clock_tick' | 'turret_up' | 'charge' | 'slam' | 'canister' | 'pickup_tin' | 'heal_foot' | 'alert' | 'revive'
   // co-op downs: a down ship's distress ping, and its engines kicked back on
   | 'down_ping' | 'jolt'
@@ -1315,6 +1315,22 @@ const SFX: Record<Sfx, SfxDef> = {
     return 0.2;
   }, 0.05, 3),
 
+  // FLY-BY: each round of the volley a whip-crack and a struck ping, a step higher than the last
+  flyby_round: S((t, p, o) => {
+    noise(o, t, 0.05, 'bandpass', 7000 * p, 2200 * p, 1.4, 0.32, 0.001);
+    tone(o, t, 'sine', 140 * p, 55, 0.12, 0.3, 0.001, 0.08);
+    metal(o, t + 0.004, 620 * p, 0.07, 0.14);
+    return 0.16;
+  }, 0.035, 4, { tuned: true }),
+
+  // a volley that downed two or more: the air rushing back in behind it, and the dash ready again
+  flyby_sweep: S((t, p, o) => {
+    noise(o, t, 0.28, 'bandpass', 900 * p, 5200 * p, 1.8, 0.22, 0.02);
+    tone(o, t + 0.05, 'sine', 880 * p, 1320 * p, 0.22, 0.09, 0.003, 0.08);
+    metal(o, t + 0.08, 1320 * p, 0.06, 0.4);
+    return 0.5;
+  }, 0.15, 1, { tuned: true }),
+
   overheat: S((t, p, o) => {
     noise(o, t, 0.6, 'highpass', 2500, 1800, 0.7, 0.12, 0.04);
     tone(o, t, 'square', 880 * p, 880 * p, 0.08, 0.055, 0.003);
@@ -2082,6 +2098,17 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.01, 0.12, 'bandpass', 4000 * p, 800 * p, 1.5, 0.12);
     return 0.4;
   }, 0.06, 2, { rev: 0.15 }),
+
+  // a line pulled the wrong way: it jerks taut and holds, a low twang and the creak of the cable under load
+  hook_strain: S((t, p, o) => {
+    noise(o, t, 0.015, 'highpass', 3000, 3000, 0.7, 0.16);
+    tone(o, t, 'sine', 175 * p, 160 * p, 0.45, 0.16, 0.001);
+    tone(o, t, 'sine', 352 * p, 322 * p, 0.3, 0.07, 0.001);
+    tone(o, t, 'sine', 1240 * p, 1225 * p, 0.12, 0.04, 0.001);
+    noise(o, t + 0.04, 0.32, 'bandpass', 900 * p, 420 * p, 9, 0.11, 0.02);
+    noise(o, t + 0.08, 0.22, 'bandpass', 1500 * p, 700 * p, 12, 0.06, 0.02);
+    return 0.5;
+  }, 0.08, 2, { rev: 0.12 }),
 
   // working a lock: a soft tick, then a tock, over and over (the caller climbs the pitch)
   crack_tick: S((t, p, o) => {
@@ -2884,7 +2911,8 @@ function makeLoop(name: Loop): LoopVoice {
       lvl.gain.setTargetAtTime(0.12 * (0.6 + 0.4 * i), ctx.currentTime, 0.03);
     };
   } else if (name === 'flame') {
-    // plasma torch: roaring band of noise with a fast flutter, plus a low rumble
+    // plasma torch: roaring band of noise with a fast flutter, a low roar that licks in and out,
+    // and a crackle of burning on top
     const flutter = ctx.createGain();
     flutter.gain.value = 0.7;
     flutter.connect(lvl);
@@ -2892,10 +2920,21 @@ function makeLoop(name: Loop): LoopVoice {
     osc('sine', 17, flutter.gain, 0.3);
     const bp = bq('bandpass', 900, 0.7, flutter);
     nz(bp, 0.9);
-    nz(bq('lowpass', 260, 0.7, lvl), 0.8);
+    const roar = ctx.createGain();
+    roar.gain.value = 0.8;
+    roar.connect(lvl);
+    nodes.push(roar);
+    osc('sine', 5.5, roar.gain, 0.3);
+    nz(bq('lowpass', 200, 1.2, roar), 1.1);
+    const crackle = ctx.createGain();
+    crackle.gain.value = 0.15;
+    crackle.connect(lvl);
+    nodes.push(crackle);
+    osc('sine', 23, crackle.gain, 0.15);
+    nz(bq('bandpass', 3800, 2, crackle), 0.6);
     set = (i) => {
       bp.frequency.setTargetAtTime(700 + 900 * i, ctx.currentTime, 0.05);
-      lvl.gain.setTargetAtTime(0.16 * (0.5 + 0.5 * i), ctx.currentTime, 0.03);
+      lvl.gain.setTargetAtTime(0.18 * (0.5 + 0.5 * i), ctx.currentTime, 0.03);
     };
   } else if (name === 'frost') {
     // a frost sprayer: a cold hiss, glittering on top, with no roar in it at all

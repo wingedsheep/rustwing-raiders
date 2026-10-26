@@ -235,7 +235,7 @@ def glowcap(variants):
 
 
 def glowcap_tall(variants):
-    """Obstacles: mushrooms the size of towers, caps above where you fly. Collider on the stem."""
+    """Obstacles: mushrooms the size of towers, caps above where you fly. Each cap's collider hits where it's seen."""
     specs = [
         [(0, 0, 14.5, 5.0, 2.2, (0.9, 0.5), "violet")],
         [(-1.2, 0, 15.5, 4.2, 1.8, (-1.4, 0.6), "teal"), (1.6, 0.6, 13.2, 3.4, 1.5, (1.3, -0.4), "magenta")],
@@ -254,9 +254,9 @@ def glowcap_tall(variants):
             m.cyl(sr * 2.4, 0.2, (p.x, p.y, p.z - 0.55), CAPS[pal][2], segs=10, glow=True)
             top = pts[-1]
             _cap(m, top.x, top.y, top.z, R, H, CAPS[pal], "dome", spots=10, rng=rng)
-            # where the stem crosses flight height
-            t = 10.0 / h
-            collider(r, x + lean[0] * t * t, y + lean[1] * t * t, sr * 1.4)
+            # the cap is what you see, so it's what you hit: a wall where it's seen (the stem under it
+            # is inside that on the screen), not a stem hidden under it
+            collider(r, top.x, top.y, R * 0.85, z=top.z + H * 0.3, over=True)
         for k in range(5):                                                 # a ring of small ones at the foot
             a = rng.uniform(0, math.tau)
             d = rng.uniform(2.0, 3.0)

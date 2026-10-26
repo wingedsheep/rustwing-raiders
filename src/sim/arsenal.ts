@@ -4,8 +4,9 @@
  *
  * What a gun can leave on an enemy (set on its GunSpec):
  *
- * - CHILL: stacks; four and it's FROZEN solid: it can't act or move. Fire and ice put each other
- *   out (a chill douses a burn, a burn thaws the ice).
+ * - CHILL: stacks; four and it's FROZEN solid: it can't act or move. Fire and ice meeting put each
+ *   other out, and QUENCH it: the hull cracks (a chill on a burn; a burn on the ice cracks it while
+ *   it's still alight, and so it cooks off).
  * - SHOVE: knocked flying. A flung body that hits another enemy is a blow on both.
  * - PIN: nailed in place for a few seconds. It still shoots; it can't move.
  *
@@ -146,11 +147,12 @@ export function shotLanded(lv: Level, s: Shot, e: Enemy) {
 export function chill(lv: Level, e: Enemy, n: number, owner: number) {
   if (e.dead || e.shielded) return;
   const a = axOf(e);
-  // ice on fire: it douses it
+  // ice on fire: it douses it, and the hull cracks with the shock
   if (e.mk.burn > 0) {
     e.mk.burn = 0;
     e.mk.stacks = 0;
     lv.emit({ type: 'douse', enemy: e.id, x: e.x, z: e.z });
+    mark(lv, e, CRACK, 1, owner);
   }
   if (a.frozen > 0) return;
   a.chill += n;
@@ -207,10 +209,12 @@ export function tickAx(lv: Level, e: Enemy) {
   if (!a || e.dead) return;
   if (a.proof > 0) a.proof -= DT;
   if (a.bumped > 0) a.bumped -= DT;
-  // a burn thaws the ice
+  // a burn thaws the ice, and cracks the hull under it: still alight, it cooks off
   if (a.frozen > 0 && e.mk.burn > 0) {
     a.frozen = 0;
     lv.emit({ type: 'thaw', enemy: e.id, x: e.x, z: e.z });
+    lv.emit({ type: 'douse', enemy: e.id, x: e.x, z: e.z });
+    mark(lv, e, CRACK, 1, e.mk.by);
   }
   let hold = 1;
   if (a.chill > 0) {

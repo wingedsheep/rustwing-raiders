@@ -12,7 +12,7 @@
 
 import type { Pillar, Placed, Wildlife } from './terrain';
 import type { SetRole } from '../world/looks';
-import { metaOf, variants, height as metaHeight, type Meta } from './meta';
+import { metaOf, variants, height as metaHeight, colsAt } from './meta';
 import { FLIGHT_Y, HALF_H, HALF_W } from './types';
 import { lerp, smooth, weighted, type Rng } from '../util';
 
@@ -253,7 +253,7 @@ export class Kit {
     if (!vs.length || z > this.z0 || z <= this.z1) return null;
     variant = Math.min(variant, vs.length - 1);
     const m = vs[variant];
-    const cols = turned(m, x, z, rot, 1);
+    const cols = colsAt(m, x, z, 0, rot, 1);
     const p: Placed = { kind, variant, x, z, y: role === 'giant' ? this.ground.height(x, z) - 0.2 : 0, rot, s: 1, obstacle: cols.length > 0, cols, biome: this.biome, role };
     if (role !== 'span') {
       p.foot = Math.max(m.max[0] - m.min[0], m.max[2] - m.min[2]) * 0.5;
@@ -270,7 +270,7 @@ export class Kit {
     if (!p || !m) return null;
     p.s = s;
     p.rot = rot;
-    p.cols = turned(m, x, z, rot, s);
+    p.cols = colsAt(m, x, z, p.y, rot, s);
     this.claim(x, z, this.reach(kind, s, p.variant) * 0.9);
     this.props.push(p);
     return p;
@@ -297,12 +297,6 @@ export class Kit {
   }
 }
 
-/** A model's collider columns, placed: (three turns (x, z) by θ about y to (x cos θ + z sin θ, -x sin θ + z cos θ)). */
-function turned(m: Meta, x: number, z: number, rot: number, s: number) {
-  const c = Math.cos(rot);
-  const sn = Math.sin(rot);
-  return m.colliders.map((k) => ({ x: x + (k.x * c + k.z * sn) * s, z: z + (-k.x * sn + k.z * c) * s, r: k.r * s }));
-}
 
 /** The point `d` along a closed trail (round and round), and the way on from it (radians, as Wildlife.heading). */
 export function along(trail: { x: number; z: number }[], d: number) {

@@ -100,7 +100,8 @@ export function inStrike(lv: Level, s: Strike, x: number, z: number, m: number, 
     case 'gate':
       return Math.abs(z - s.z) < 0.7 + m && Math.abs(x - s.gx) > s.gap - m;
     case 'harpoon':
-      return d2 < (0.7 + m) ** 2;
+      // a barbed head, wider than it looks: a near miss catches
+      return d2 < (1.1 + m) ** 2;
     default:
       return t <= s.warn + s.active && d2 < (s.r + m) ** 2;
   }

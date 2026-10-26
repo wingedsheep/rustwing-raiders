@@ -35,7 +35,7 @@ The three marks stay, and one more joins them. That's all: a few states, each ea
 | **BURN** | heat | Damage every moment, more the longer it's kept lit |
 | **SHOCK** | arc | Everything it does runs slow; now and then it seizes up |
 | **CRACK** | explosive | Takes more from everything |
-| **CHILL** (new) | cold | Slows it. Four stacks and it's **FROZEN** solid for 2 s: it can't act, and a blow on it hits double and shatters the ice into shards. Burn thaws it. |
+| **CHILL** (new) | cold | Slows it. Four stacks and it's **FROZEN** solid for 2 s: it can't act, and a blow on it hits double and shatters the ice into shards. Fire and ice **QUENCH**: the burn or the ice is lost, and the hull cracks. |
 
 CHILL stays out of the reaction triangle (OVERLOAD, COOK-OFF, SHATTER), so the reactions don't grow from 3 to 6. Its combo is its own: stack it, freeze it, smash it. Fire is its enemy, so a cold build and a fire build pull apart, which is a choice to make.
 
@@ -83,7 +83,7 @@ Stream, blow, dash, perfect, stream. It's what the buttons already do; combos gi
 
 Some setups undo each other, so a build has to choose:
 
-- **Fire thaws ice.** Burn on a frozen enemy wastes the freeze.
+- **Fire and ice quench.** A chill on a burning enemy puts it out, and fire on the ice thaws it: either way that setup is lost, but the hull cracks (CRACK). Fire on the ice cracks it while it's still alight, so it cooks off at once. A frost and a torch on one ship lose their freezes and flare-ups, and live on cracks and COOK-OFFs instead.
 - **Shove and pin fight.** A pinned enemy can't be shoved: the shove turns into a blow instead (which cashes the pin).
 - **A payoff ends its setup.** You can't smash the same ice twice: wait for the next freeze, or chain it to the next enemy.
 
@@ -130,7 +130,7 @@ Decided 2026-10-25. Parts barely talked to each other: the interesting rules cam
 | **Catch Coil** | caught shots go back carrying their marks | the Magpie |
 
 - **Affixes connect too**: KINDLING (its kills set fire round them), CHARGED (its crits shock), ECHOING (a free volley on a perfect). GIANTSLAYER and SPITE are no longer rolled: percentages you can't feel.
-- **What makes picking hard**: opposites (fire thaws ice; a breach uses the crack up), setups and blows needing each other, the ship's lean (a torch on the Kestrel lights everything its fly-by tags; Ram Spurs only work on a ship that rams), and a hangar where a fitting can only touch so much.
+- **What makes picking hard**: opposites (fire and ice quench each other into a crack; a breach uses the crack up), setups and blows needing each other, the ship's lean (a torch on the Kestrel lights everything its fly-by tags; Ram Spurs only work on a ship that rams), and a hangar where a fitting can only touch so much.
 
 ## The pilots
 
@@ -158,7 +158,7 @@ Eight ways of flying. Each slot has something for most of them, so whoever you a
 | **Rivet Gun** | kept | Fast straight slugs | Nothing fancy: never jams, never surprises | PUNISHER | everyone's first |
 | **Scattergun** | kept | A short fan of pellets | Every pellet that lands shoves a little: point-blank it knocks them back | POINT-BLANK | Brawler |
 | **Ion Lance** | kept | Held beam, instant, through a line | Overheats fast; the longer on one target, the better | LOCK-ON | Sniper |
-| **Plasma Torch** | kept | A short cone of flame | Burns, and melts the bullets it touches | SEARING | Arsonist |
+| **Plasma Torch** | kept | A roaring cone of flame, about a quarter of the screen long | Burns, and melts the bullets it touches | SEARING | Arsonist |
 | **Arc Coil** | kept | Lightning that jumps enemy to enemy | Needs no aim: it finds them | GROUNDED | Commander |
 | **Sentry Pod** | kept | A turret that fires on its own | Picks its own targets, trigger or not | FINISHER | Commander |
 | **Frost Sprayer** | new | A mist, slow and wide | CHILLS; stacks to freeze | FROZEN (crits the frozen) | Controller |

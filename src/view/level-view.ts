@@ -606,6 +606,13 @@ export class LevelView {
         case 'bulletPop':
           this.pop1(e.x, e.z, e.color, e.look);
           break;
+        case 'melt':
+          // a bullet caught in the plasma: it flares white and boils away with a hiss
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.9, z: e.z, size: 1.6, grow: 0.4, life: 0.06, color: HOT, carried: true });
+          this.fx.ring(e.x, FLIGHT_Y + 0.6, e.z, 1.6, 0.14, true, 0xffc070);
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.8, z: e.z, vy: 2.5, vz: 1, size: 0.6, grow: 2.4, life: 0.4, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: true });
+          audio.play('frost_breath', { pan: e.x / HALF_W, vol: 0.25, pitch: 2.4 + Math.random() * 0.4 });
+          break;
         case 'torpedo':
           this.fx.explode(e.x, FLIGHT_Y, e.z, e.shot ? 0.55 : 0.4, e.color, false);
           this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 2.6, 0.22, false, e.shot ? 0xffffff : e.color);
@@ -936,6 +943,15 @@ export class LevelView {
           audio.play('hook', { pan: p.x / HALF_W, pitch: 0.7 });
           break;
         }
+        case 'hookStrain': {
+          // the wrong way: the line holds, the ship's jerked back along it
+          const p = lv.players[e.id];
+          this.trauma = Math.min(1, this.trauma + 0.22);
+          this.strokes.burst(e.x, e.z, 6, 0xffd890, 4, 0.14, 0.25);
+          if (p) this.pop('DASH AWAY!', p.x, p.z + 3, '#ffd890');
+          audio.play('hook_strain', { pan: e.x / HALF_W });
+          break;
+        }
         case 'breakFree':
           this.fx.ring(e.x, FLIGHT_Y, e.z, 4, 0.25, true, 0xffffff);
           this.strokes.burst(e.x, e.z, 8, 0xffffff, 5, 0.18, 0.35);
@@ -1099,19 +1115,49 @@ export class LevelView {
           // FLY-BY: a lock on the foe the dash went past, and a tick for each
           this.fx.ring(e.x, FLIGHT_Y + 0.4, e.z, 2.6, 0.22, true, LIVERY[e.id][2]);
           this.fx.ring(e.x, FLIGHT_Y + 0.4, e.z, 1.4, 0.3, true, 0xffffff);
-          audio.play('aux_ready', { pan: e.x / HALF_W, pitch: 1.8 + Math.random() * 0.2, vol: 0.35 });
+          this.strokes.star(e.x, e.z, 2, LIVERY[e.id][2], 0.3);
+          audio.play('aux_ready', { pan: e.x / HALF_W, pitch: 1.6 * 2 ** (PENTA_STEPS[clamp(lv.players[e.id].tagged.length - 1, 0, 7)] / 12), vol: 0.35 });
           break;
         case 'flyby': {
-          // the volley: a tracer from the ship to every foe it tagged, sparks where each lands
+          // the dash is done and the guns turn round: a wake of light back along the way it came,
+          // a flash off the ship, and the rounds go out one by one (flybyHit)
+          const p = lv.players[e.id];
           const col = LIVERY[e.id][2];
-          this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 3, 0.18, true, 0xffffff);
-          for (const t of e.to) {
-            this.bolt([e.x, e.z, t.x, t.z], col);
-            this.fx.sparks(t.x, FLIGHT_Y + 0.5, t.z, 8, col, 16, 0.25, 0.22);
+          this.strokes.slash(e.x - p.dashX * 11, e.z - p.dashZ * 11, e.x, e.z, col, 1.4, 0.32);
+          this.strokes.slash(e.x - p.dashX * 9, e.z - p.dashZ * 9, e.x, e.z, 0xffffff, 0.5, 0.22);
+          this.fx.ring(e.x, FLIGHT_Y + 0.5, e.z, 3.2, 0.2, true, col);
+          this.strokes.burst(e.x, e.z, 6, col, 4, 0.16, 0.3);
+          this.shove(-p.dashX, -p.dashZ, 0.25);
+          break;
+        }
+        case 'flybyHit': {
+          // a round of the volley: a needle of light from the ship, a glint and a crack where it
+          // bites, each a step higher than the last
+          const col = LIVERY[e.id][2];
+          const a = Math.atan2(e.z - e.fz, e.x - e.fx);
+          this.strokes.slash(e.fx, e.fz, e.x, e.z, col, 0.7, 0.2);
+          this.strokes.slash(e.fx, e.fz, e.x, e.z, 0xffffff, 0.25, 0.14);
+          this.strokes.star(e.x, e.z, 1.6 + e.n * 0.15, 0xffffff, 0.16);
+          this.strokes.burst(e.x, e.z, 5, col, 4, 0.16, 0.3, a);
+          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 12, col, 18, 0.28, 0.24);
+          this.fx.sparks(e.x, FLIGHT_Y + 0.5, e.z, 5, 0xffffff, 24, 0.14, 0.18);
+          this.shiver(e.enemy, 1.2);
+          this.shove(Math.cos(a), Math.sin(a), 0.12);
+          this.punch(0.06 + Math.min(5, e.n) * 0.03);
+          this.trauma = Math.min(1, this.trauma + 0.05);
+          audio.play('flyby_round', { pan: e.x / HALF_W, pitch: 2 ** ((PENTA_STEPS[clamp(e.n, 0, 7)]) / 12) });
+          if (e.n === e.of - 1 && e.of >= 3) this.pop(`FLY-BY x${e.of}`, e.x, e.z - 3, '#8affe0');
+          if (e.sweep) {
+            // downed two or more: the dash is back, the ship rings with it
+            const p = lv.players[e.id];
+            this.fx.ring(p.x, FLIGHT_Y + 0.4, p.z, 4, 0.3, true, col);
+            this.fx.ring(p.x, FLIGHT_Y + 0.4, p.z, 2, 0.22, true, 0xffffff);
+            this.strokes.star(p.x, p.z, 2.6, col, 0.26);
+            this.flash = Math.max(this.flash, 0.12);
+            this.flashColor.set(col);
+            this.pop('SWEEP: DASH BACK', p.x, p.z - 3.5, '#8affe0');
+            audio.play('flyby_sweep', { pan: p.x / HALF_W, pitch: 1 + Math.min(4, e.of - 2) * 0.06 });
           }
-          if (e.to.length >= 3) this.pop(`FLY-BY x${e.to.length}`, e.x, e.z - 3, '#8affe0');
-          audio.play('point_blank', { pan: e.x / HALF_W, pitch: 1 + Math.min(6, e.to.length) * 0.05 });
-          this.trauma = Math.min(1, this.trauma + 0.05 * Math.min(4, e.to.length));
           break;
         }
         case 'decoy':
@@ -2595,17 +2641,14 @@ export class LevelView {
       // beams and flame sounds
       const beaming = p.beam.some((b) => b > 0);
       audio.loop('beam', `p${i}`, beaming, 0.7);
-      audio.loop('flame', `p${i}`, p.firing && p.stats.guns.some((g) => g.spec.shot === 'flame' && g.part.id !== 'frost') && !p.down, 0.6);
+      audio.loop('flame', `p${i}`, p.firing && p.stats.guns.some((g) => g.spec.shot === 'flame' && g.part.id !== 'frost') && !p.down, 0.85);
       audio.loop('frost', `p${i}`, p.firing && p.stats.guns.some((g) => g.part.id === 'frost') && !p.down, 0.7);
       // a flame gun throws fire (a frost sprayer, cold mist)
       if (p.firing && !p.down)
         p.stats.guns.forEach((g, k) => {
           if (g.spec.shot !== 'flame' || p.jam[k] > 0) return;
           if (g.part.id === 'frost') return this.looks.spray(p, g);
-          for (let n = 0; n < 2; n++) {
-            const a = g.dir + (Math.random() - 0.5) * 0.4;
-            this.fx.add({ x: p.x + g.x, y: FLIGHT_Y + 0.4, z: p.z + g.z, vx: Math.sin(a) * 30, vz: -Math.cos(a) * 30, size: 0.4, grow: 3, life: 0.26, drag: 3, color: new THREE.Color(0xfff0a0), to: new THREE.Color(g.spec.tint ?? 0xd0301a), carried: true });
-          }
+          this.looks.flame(p, g);
         });
     });
   }
@@ -2694,6 +2737,11 @@ export class LevelView {
         const r = e.r * 0.7;
         this.fx.add({ x: e.x + (Math.random() - 0.5) * r * 2, y: lift + Math.random() * 0.5, z: groundZ + (Math.random() - 0.5) * r, vy: 3 + Math.random() * 2, vz: -1.5, size: 0.45 + 0.15 * mk.stacks, grow: 1.4, life: 0.3 + Math.random() * 0.15, color: FIRE_PETAL, to: FIRE_DARK, carried: !e.ground });
         if (Math.random() < 0.2) this.fx.add({ x: e.x, y: lift + 0.8, z: groundZ, vy: 2.5, vz: 2, size: 0.5, grow: 2.4, life: 0.7, color: HIT_SMOKE, to: SMOKE_END, glow: false, carried: !e.ground });
+      }
+      // three burns: white-hot and roaring, ready to FLARE UP under a blow
+      if (mk.burn > 0 && mk.stacks >= 3) {
+        if (Math.random() < 0.5) this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r * 0.6, y: lift + 0.6, z: groundZ, size: e.r * (0.9 + Math.random() * 0.4), grow: 0.7, life: 0.06, color: FIRE_WHITE, carried: !e.ground });
+        if (Math.random() < 0.5) this.fx.add({ x: e.x + (Math.random() - 0.5) * e.r * 1.2, y: lift + 0.3, z: groundZ + (Math.random() - 0.5) * e.r * 0.6, vy: 6 + Math.random() * 3, vz: -2.5, size: 0.7 + e.r * 0.25, grow: 2, life: 0.4, color: FIRE_PETAL, to: FIRE_DARK, carried: !e.ground });
       }
       if (mk.shock > 0 && Math.random() < 0.12) this.zap(e.x, e.z, e.r * 0.9, MARK_HEX.shock);
       if (mk.crack > 0 && Math.random() < 0.18)
@@ -3736,6 +3784,7 @@ const SPARK = new THREE.Color(0xffe0a0);
 const CRACK_GLINT = new THREE.Color(0xfff0b0).multiplyScalar(1.5);
 const GLINT = new THREE.Color(0xd8f8ff);
 const HIT_SMOKE = new THREE.Color(0x4a4040);
+const FIRE_WHITE = new THREE.Color(1.6, 1.4, 1.0);
 const SMOKE_END = new THREE.Color(0x2a2228);
 const SCORCH_END = new THREE.Color(0x3a3430);
 const AIR = new THREE.Color(0xe8f0f8);
@@ -3754,6 +3803,8 @@ const EDGE_GLOW = new THREE.Color(0xff8ac8).multiplyScalar(1.3);
 const STRIKE_GLOW = new THREE.Color(0xffffff).multiplyScalar(1.4);
 /** The Hammerhead's ram: the light leading it, and what it knocks off. */
 const RAM_GLOW = new THREE.Color(0xffd060);
+/** FLY-BY: the semitones its tags and rounds climb, one step each (a pentatonic run). */
+const PENTA_STEPS = [0, 2, 4, 7, 9, 12, 14, 16];
 const RAM_DEBRIS = new THREE.Color(0x6a5a4a);
 /** The riposte's gold (the HUD's bar is the same). */
 const RIPOSTE_HEX = '#ffd060';

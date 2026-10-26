@@ -75,6 +75,12 @@ export const INTEREST = 0.1;
 export const DANGER_HARDER = [-0.15, 0, 0.2, 0.42];
 export const DANGER_PAY = [1, 1, 1.4, 1.9];
 
+/**
+ * The difficulty at the `stop`th stop of a sector: the first as gentle as ever, then 0.09 more a
+ * stop (the middle of a sector played too easy).
+ */
+const stopDifficulty = (sector: number, stop: number) => sector * 0.55 + Math.max(0, Math.min(stop, 8) * 0.09 - 0.02);
+
 /** A threat (see Run.threat) as a word and a step on a five-step scale. */
 export function threatTier(t: number): { step: number; word: string } {
   const steps = [0.25, 0.55, 0.9, 1.3];
@@ -250,7 +256,7 @@ export class Run {
 
   /** Difficulty of the next level: rises through each sector and from sector to sector. */
   difficulty() {
-    return this.sector * 0.55 + Math.min(this.stops, 8) * 0.07;
+    return stopDifficulty(this.sector, this.stops);
   }
 
   nextSector() {
@@ -312,7 +318,7 @@ export class Run {
    */
   threat(n: ChartNode): number | null {
     if (!fights(n)) return null;
-    const next = this.sector * 0.55 + Math.min(this.stops + 1, 8) * 0.07;
+    const next = stopDifficulty(this.sector, this.stops + 1);
     return Math.max(0, next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]));
   }
 

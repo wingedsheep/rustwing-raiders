@@ -76,7 +76,7 @@ export interface FoeDef {
 export const FOES: Record<Foe, FoeDef> = {
   ramjack: { name: 'Ramjack', faction: 'scrap', hp: 40, r: 1.6, score: 300, scrap: 3, model: 'dart', beast: false, scale: 1.5, tip: 'LINES UP, LOCKS, LUNGES: SIDESTEP THE LANE, THEN HIT IT WHILE IT SPINS OUT' },
   rattler: { name: 'Rattler', faction: 'scrap', hp: 30, r: 1.4, score: 250, scrap: 2, model: 'dart', beast: false, scale: 1.25, tip: 'COMES UP FROM BEHIND: BOOST TO OUTRUN IT, OR LET IT BRAKE AND PUNISH IT' },
-  hookjaw: { name: 'Hookjaw', faction: 'scrap', hp: 70, r: 2, score: 500, scrap: 4, model: 'gunship', beast: false, scale: 1, tip: 'HARPOONS YOU AND REELS YOU IN: DASH TO SNAP THE LINE' },
+  hookjaw: { name: 'Hookjaw', faction: 'scrap', hp: 70, r: 2, score: 500, scrap: 4, model: 'gunship', beast: false, scale: 1, tip: 'LEADS ITS HARPOON AND REELS YOU IN: DASH AWAY TO SNAP THE LINE' },
   rigger: { name: 'Torpedo Rig', faction: 'scrap', hp: 65, r: 1.8, score: 550, scrap: 4, model: 'bomber', beast: false, scale: 1.05, tip: 'LOCKS ON, THEN TORPEDOES: TURN HARD, DASH THROUGH, OR SHOOT THEM DOWN' },
   ace: { name: 'Pirate Ace', faction: 'scrap', hp: 160, r: 1.5, score: 1500, scrap: 8, model: 'dart', beast: false, scale: 1.4, tip: 'A RIVAL: ROLLS AWAY FROM YOUR FIRE. BOOST PAST IT TO BEAT IT' },
   flakker: { name: 'Flakker', faction: 'scrap', hp: 45, r: 1.4, score: 300, scrap: 3, model: 'turret', beast: false, scale: 1.1, ground: true , tip: 'SHELLS LAND WHERE YOU WILL BE: CHANGE YOUR PACE' },

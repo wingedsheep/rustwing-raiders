@@ -94,7 +94,7 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
   if (p.dashes > 0 && p.dashLock <= 0) {
     const plan = dashPlan(lv, p, goal);
     // (never blind: a dash runs into whatever's in its way)
-    if (plan && plan.clear && (best > 400 || (plan.perfect && plan.safe))) {
+    if (plan && plan.clear && (best > 400 || (plan.perfect && plan.safe) || (plan.tags >= 2 && plan.safe))) {
       intent.dash = true;
       intent.x = DIRS[plan.k][0];
       intent.y = -DIRS[plan.k][1];
@@ -166,7 +166,7 @@ function reach(g: Gun) {
 const styles = new WeakMap<object, { standoff: number; mines: boolean }>();
 /**
  * How a ship wants to fight, from its guns: how far below its target to sit (most of its damage
- * has to reach: a scattergun's pellets die at 18, a torch's flame at 10, rivets carry 50), and
+ * has to reach: a scattergun's pellets die at 18, a torch's flame at 14, rivets carry 50), and
  * whether it's mine-led (it wants things behind it).
  */
 function style(p: Player) {
@@ -351,7 +351,7 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       }
     }
   }
-  let best: { k: number; perfect: boolean; safe: boolean; clear: boolean; score: number } | null = null;
+  let best: { k: number; perfect: boolean; safe: boolean; clear: boolean; tags: number; score: number } | null = null;
   for (let k = 1; k < DIRS.length; k++) {
     const [dx, dz] = DIRS[k];
     // where it comes out, held there with the screen a moment
@@ -400,10 +400,28 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       const along = ((ex - l.x) * lx + (ez - l.z) * lz) / len;
       if (along > (l.r0 ?? 0) && along < len && Math.abs((ex - l.x) * lz - (ez - l.z) * lx) / len < 2 + core && l.warn < 0.5) danger += 3;
     }
-    const score = danger * 100 - (perfect ? 50 : 0) + Math.hypot(ex - goal.x, ez - goal.z) * 0.5;
-    if (!best || score < best.score) best = { k, perfect, safe: danger === 0, clear: way === 0, score };
+    // a Kestrel's FLY-BY: the foes this way would pass close to, without touching
+    const tags = p.stats.flyby && way === 0 ? flybyTags(lv, p, dx, dz) : 0;
+    const score = danger * 100 - (perfect ? 50 : 0) - tags * 60 + Math.hypot(ex - goal.x, ez - goal.z) * 0.5;
+    if (!best || score < best.score) best = { k, perfect, safe: danger === 0, clear: way === 0, tags, score };
   }
   return best;
+}
+
+/** How many foes a dash this way would tag for a FLY-BY (passing within reach of their edge, not into them). */
+function flybyTags(lv: Level, p: Player, dx: number, dz: number) {
+  const reach = p.stats.dashSpeed * p.stats.dashTime;
+  const l = Math.hypot(dx, dz);
+  let n = 0;
+  for (const e of lv.enemies) {
+    if (e.dead || e.ground || e.t < 0 || e.shielded || e.state === 'hidden') continue;
+    const ex = e.x - p.x;
+    const ez = e.z - p.z;
+    const along = clamp((ex * dx + ez * dz) / l, 0, reach);
+    const off = Math.hypot(ex - (dx / l) * along, ez - (dz / l) * along);
+    if (off < e.r + 4 && off > e.r * 0.75 + p.stats.core + 0.6) n++;
+  }
+  return Math.min(8, n);
 }
 
 function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal: { x: number; z: number }) {

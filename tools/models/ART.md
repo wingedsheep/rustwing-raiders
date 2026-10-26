@@ -32,7 +32,13 @@ low resolution through banded toon lighting and dark depth outlines, so they rea
 - **Obstacles** are props tall enough to hit (top ≥ 13): spires, sea stacks, mesas, arches,
   smokestacks, pylons, cranes. Each needs collider markers: for every solid column that reaches
   flight height, `kit.group("collider", loc=(x, y, 0), parent=root, collider=<radius>)`. An arch
-  gets one collider per leg, none under its span (you fly through it).
+  gets one collider per leg, none under its span (you fly through it). A leaning part (a crystal's
+  shard, a bent stem) uses `collider(root, x, y, r, z=10, lean=(dx, dy), top=…)` from
+  `props_a_lib.py`: where it crosses 10, its shift per unit up and its top, so the game finds where
+  it crosses the flight line when it stands raised (a terrace) or scaled, and drops it when it no
+  longer reaches. Give every such part one, not only those that reach 10 on flat ground. A wide
+  thing over the flight line that hides what holds it up (a tower-cap) gets `over=True` at its own
+  height: it hits where it's seen, slid down the line of sight (`colsAt` in `src/sim/meta.ts`).
 - Blender +y is forward (up the screen); ships and creatures face **+y**. Ground props stand on
   z = 0 at the origin. Water props (buoys, kelp, lily pads) have z = 0 at the waterline.
 

@@ -43,7 +43,7 @@ export function threatCost(lv: Level, x: number, z: number, t: number, core: num
         break;
       }
       case 'harpoon':
-        if (d2 < (1.2 + m) ** 2) c += bad;
+        if (d2 < (1.6 + m) ** 2) c += bad;
         break;
       default: {
         // (a cloud the size of the Glassing's is worth leaving well before it bursts)

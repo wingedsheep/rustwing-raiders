@@ -136,7 +136,15 @@ def write_meta(name: str, objs):
         for c in o.children_recursive:
             p = o.matrix_world.inverted() @ c.matrix_world.translation
             if "collider" in c:
-                cols.append({"x": round(p.x, 3), "z": round(-p.y, 3), "r": round(float(c["collider"]), 3)})
+                col = {"x": round(p.x, 3), "z": round(-p.y, 3), "r": round(float(c["collider"]), 3)}
+                # (a leaning part's: the height its (x, z) is at, its lean per unit up, its top)
+                if "lean" in c:
+                    col.update(y=round(p.z, 3), lean=[round(float(c["lean"][0]), 4), round(-float(c["lean"][1]), 4)])
+                if "top" in c:
+                    col["top"] = round(float(c["top"]), 3)
+                if "over" in c:
+                    col.update(y=round(p.z, 3), over=True)
+                cols.append(col)
             if "mount" in c:
                 mounts.append({"type": str(c["mount"]), "p": game(p)})
         key = f"{o['kind']}" + (f"#{o['variant']}" if "variant" in o else "")

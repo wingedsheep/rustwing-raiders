@@ -72,6 +72,11 @@ const RUBBER = new THREE.Color(0xff7a2a);
 const RUBBER_BAND = new THREE.Color(0x2a1a14);
 const DUST = new THREE.Color(0xd8c8a8);
 const DUST_END = new THREE.Color(0x5a4a3a);
+const FLAME_HOT = new THREE.Color(0xfff6d8);
+const FLAME = new THREE.Color(0xffa838);
+const FLAME_RED = new THREE.Color(0xa82010);
+const FLAME_SMOKE = new THREE.Color(0x5a2c1c);
+const FLAME_SMOKE_END = new THREE.Color(0x26201e);
 
 // ── geometry ─────────────────────────────────────────────────────────────────────────────────
 
@@ -322,6 +327,7 @@ export class GunLooks {
 
   /** A hit by one of ours: what it looks like going in. */
   hit(e: Extract<LevelEvent, { type: 'hit' }>, en: Enemy | undefined): HitLook {
+    if (e.src === 'torch' && !e.dot && !e.kill) return this.licked(e, en);
     if (!e.src || !OWNED.has(e.src) || e.dot) return undefined;
     const { fx, strokes } = this.h;
     const pan = e.x / HALF_W;
@@ -455,6 +461,64 @@ export class GunLooks {
   }
 
   // ── every frame ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * A plasma torch at work: a roaring cone, white-hot at the nozzle, gold through its body and red
+   * at its ragged tips, with sooty smoke rolling off the end and embers thrown on past it. It's
+   * drawn as far as it reaches.
+   */
+  flame(p: Player, g: Gun) {
+    const { fx } = this.h;
+    const x = p.x + g.x;
+    const z = p.z + g.z;
+    const sp = g.spec;
+    const reach = sp.speed * sp.life;
+    // (with drag 1 a particle goes v·(1 − e^−life); this speed carries it to the flame's reach)
+    const v0 = reach / (1 - Math.exp(-sp.life));
+    const red = sp.tint !== undefined ? new THREE.Color(sp.tint) : FLAME_RED;
+    // the core: narrow, white-hot, burning down to gold
+    {
+      const a = g.dir + (Math.random() - 0.5) * sp.spread * 0.35;
+      const v = v0 * (0.8 + Math.random() * 0.25);
+      fx.add({ x, y: FLIGHT_Y + 0.6, z, vx: Math.sin(a) * v, vz: -Math.cos(a) * v, size: 0.35, grow: 2.6, life: sp.life * 0.5, drag: 1, color: FLAME_HOT, to: FLAME, carried: true });
+    }
+    // the body: wide licks of gold burning out red, swelling as they go
+    for (let n = 0; n < 3; n++) {
+      const a = g.dir + (Math.random() - 0.5) * sp.spread * 1.1;
+      const v = v0 * (0.75 + Math.random() * 0.35);
+      fx.add({ x, y: FLIGHT_Y + 0.5, z, vx: Math.sin(a) * v, vz: -Math.cos(a) * v, vy: Math.random() * 1.5, size: 0.5, grow: 5, life: sp.life * (0.85 + Math.random() * 0.2), drag: 1, color: FLAME, to: red, carried: true });
+    }
+    // the nozzle: a white flicker
+    fx.add({ x, y: FLIGHT_Y + 0.7, z: z - 0.5, size: 0.9 + Math.random() * 0.5, grow: 0.6, life: 0.04, color: FLAME_HOT, carried: true });
+    // soot rolling off the tips
+    if (Math.random() < 0.45) {
+      const a = g.dir + (Math.random() - 0.5) * sp.spread;
+      const d = reach * (0.7 + Math.random() * 0.2);
+      fx.add({ x: x + Math.sin(a) * d, y: FLIGHT_Y + 0.9, z: z - Math.cos(a) * d, vx: Math.sin(a) * 6, vz: -Math.cos(a) * 6, vy: 2.5, size: 0.9, grow: 2.6, life: 0.5, drag: 2, color: FLAME_SMOKE, to: FLAME_SMOKE_END, glow: false, carried: true });
+    }
+    // embers thrown on past the flame
+    if (Math.random() < 0.6) {
+      const a = g.dir + (Math.random() - 0.5) * sp.spread * 1.4;
+      const v = v0 * (1 + Math.random() * 0.4);
+      fx.add({ x, y: FLIGHT_Y + 0.8, z, vx: Math.sin(a) * v, vz: -Math.cos(a) * v, vy: 1 + Math.random() * 2, size: 0.14, grow: 0.3, life: sp.life * 1.3, drag: 1.2, color: SPARK, to: EMBER, carried: true });
+    }
+  }
+
+  /** The torch on a hull: the flame splashes over it and licks on round its sides, the plating glowing. */
+  private licked(e: Extract<LevelEvent, { type: 'hit' }>, en: Enemy | undefined): HitLook {
+    const { fx } = this.h;
+    const r = en?.r ?? 1;
+    const y = FLIGHT_Y + 0.8;
+    // a hot spot where it plays on the plating
+    fx.add({ x: e.x + (Math.random() - 0.5) * r * 0.8, y: y + 0.2, z: e.z + r * 0.4, size: 0.6 + r * 0.4, grow: 0.8, life: 0.06, color: FLAME_HOT, carried: true });
+    // the flame parting round it, on up past both its sides
+    if (Math.random() < 0.6) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      fx.add({ x: e.x + side * r * 0.6, y, z: e.z + r * 0.2, vx: side * (4 + Math.random() * 5), vz: -8 - Math.random() * 6, vy: 1.5, size: 0.5 + r * 0.2, grow: 3, life: 0.22, drag: 3, color: FLAME, to: FLAME_RED, carried: true });
+    }
+    if (Math.random() < 0.15) audio.play('mark_burn', { pan: e.x / HALF_W, vol: 0.14, pitch: 1.3 + Math.random() * 0.4 });
+    return 'own';
+  }
 
   /** A frost sprayer at work: pale cold mist, ice glinting in it. */
   spray(p: Player, g: Gun) {

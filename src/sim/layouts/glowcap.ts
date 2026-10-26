@@ -539,7 +539,8 @@ function plan(kit: Kit, b: Forest) {
       const z = g.z + Math.sin(a) * g.r;
       if (!b.band(g, x, z) || !clear(x, z) || Math.abs(x) > HALF_W + 12) continue;
       if (g.tall) {
-        kit.solid('glowcap_tall', x, z, range(r, 0.95, 1.15), r() * Math.PI * 2);
+        // (its cap is a wall, as wide as it looks: kept back off the aisle by the cap's reach)
+        if (off(AISLE + 5)(x, z)) kit.solid('glowcap_tall', x, z, range(r, 0.95, 1.15), r() * Math.PI * 2);
         continue;
       }
       // (the old rings' fruit bigger, a tower-cap here and there on the widest)

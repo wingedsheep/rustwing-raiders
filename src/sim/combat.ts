@@ -107,6 +107,8 @@ export type FoeEvent =
   | { type: 'multiKill'; id: number; n: number; x: number; z: number }
   | { type: 'latch'; id: number; enemy: number; x: number; z: number }
   | { type: 'breakFree'; id: number; enemy: number; x: number; z: number }
+  /** A hooked ship dashed the wrong way: the line went taut and held (`dx`, `dz`: towards the hookjaw). */
+  | { type: 'hookStrain'; id: number; enemy: number; x: number; z: number; dx: number; dz: number }
   /** A strike lands or starts (a shell, a ring, a slam); `gateDown`: a gate dropped. */
   | { type: 'strike'; kind: string; x: number; z: number; r: number; color?: number }
   | { type: 'outran'; id: number; enemy: number }

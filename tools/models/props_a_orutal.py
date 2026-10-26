@@ -1087,17 +1087,19 @@ def crystal_spire(variants):
             z = 3 + k * 4
             m.box((0.3, 2.75, 0.5), (lean[0] * z, lean[1] * z, z), accent[0] if main is not CYAN else LILAC[2],
                   rot=(0.2, 0, k * 1.1), glow=True)
-        collider(r, 0, 0, 1.5)
+        d0 = Vector((lean[0], lean[1], 1)).normalized()
+        collider(r, d0.x / d0.z * 10.5, d0.y / d0.z * 10.5, 1.5, z=10.0, lean=(d0.x / d0.z, d0.y / d0.z), top=(Lmain - 0.5) * d0.z)
         for a, d, ln, L in secs:
             bx, by = math.cos(a) * d, math.sin(a) * d
             dirv = Vector((math.cos(a) * ln, math.sin(a) * ln, 1)).normalized()
             fs = crystal(m, (bx, by, -0.3), dirv, 0.8 if L > 7 else 0.55, L, accent[0], sides=6, tip=0.28,
                          spin=rng.uniform(0, 1))
             two_tone(m, fs, accent[0], accent[1], glow=True)
+            # (every one: raised on a terrace, even a short one reaches the flight line; where it
+            # crosses 10, its lean and its top, so the game finds where it crosses wherever it stands)
             top = Vector((bx, by, -0.3)) + dirv * L
-            if top.z >= 10:                                                # tall enough to hit: where it crosses 10
-                p = Vector((bx, by, -0.3)) + dirv * ((10.3) / dirv.z)
-                collider(r, p.x, p.y, 0.9)
+            p = Vector((bx, by, -0.3)) + dirv * ((10.3) / dirv.z)
+            collider(r, p.x, p.y, 0.9 if L > 7 else 0.65, z=10.0, lean=(dirv.x / dirv.z, dirv.y / dirv.z), top=top.z - 0.4)
         # small shards and a rock foot
         for k in range(7):
             a = rng.uniform(0, math.tau)

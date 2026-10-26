@@ -247,8 +247,8 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'torch', name: 'Plasma Torch', cls: 'gun', tags: ['heat', 'energy'], rarity: 'common', shape: [[0, 0]], mass: 1,
-    gun: { rate: 24, damage: 1.8, speed: 30, count: 1, spread: 0.25, life: 0.34, shot: 'flame', pierce: 2, heat: 0.018, edge: 'burning' },
-    text: 'A short tongue of plasma. Melts bullets it touches.',
+    gun: { rate: 24, damage: 2.4, speed: 38, count: 1, spread: 0.3, life: 0.38, shot: 'flame', pierce: 3, heat: 0.018, edge: 'burning' },
+    text: 'A roaring cone of plasma. Sets what it licks alight, and melts the bullets it touches.',
   },
   {
     id: 'mine', name: 'Mine Chute', cls: 'gun', tags: ['explosive'], rarity: 'common', shape: [[0, 0]], mass: 1.2,
@@ -322,7 +322,7 @@ export const PARTS: PartDef[] = [
   {
     id: 'frost', name: 'Frost Sprayer', cls: 'gun', tags: ['energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.1,
     gun: { rate: 18, damage: 1.1, speed: 28, count: 1, spread: 0.32, life: 0.5, shot: 'flame', pierce: 2, heat: 0.016, edge: 'close', chill: 0.5, tint: 0x9ae8ff },
-    text: 'A wide, slow mist. It barely hurts, but four chills FREEZE it solid: a blow on the ice SMASHES it. Puts out fires.',
+    text: 'A wide, slow mist. It barely hurts, but four chills FREEZE it solid: a blow on the ice SMASHES it. On fire, it QUENCHES: the hull cracks.',
   },
   {
     id: 'saw', name: 'Saw Launcher', cls: 'gun', tags: ['kinetic'], rarity: 'common', shape: [[0, 0]], mass: 1.3,
@@ -514,7 +514,7 @@ export const FRAMES: FrameDef[] = [
     id: 'kestrel',
     name: 'Kestrel',
     text: 'A stripped-down racer, made of tinfoil. It flies past them.',
-    perk: { name: 'FLY-BY', text: 'The dash bends with the stick: hook it past foes, close but not into them, and each one is tagged. As the dash ends, the guns loose a volley at every tagged foe, as blows that carry their marks.' },
+    perk: { name: 'FLY-BY', text: 'The dash bends with the stick: hook it past foes, close but not into them, and each one is tagged. As the dash ends, the guns loose a volley at every tagged foe, as blows that carry their marks, harder the more it tagged. Down two or more and the dash is back.' },
     weak: '60 HULL. NO ARMOUR FOR A RAM.',
     grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
     mounts: { T: 2, H: 1, S: 1 },

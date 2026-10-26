@@ -182,6 +182,10 @@ export interface Player {
   riposte: number;
   /** The Kestrel's FLY-BY: the foes this dash has passed close to (their ids), paid back as it ends. */
   tagged: number[];
+  /** The FLY-BY volley in flight: the rounds still to land, one after another (seconds till each), and how many it has killed. */
+  volley: { id: number; t: number; dmg: number; n: number }[];
+  volleyKills: number;
+  volleyOf: number;
   /** Grazes towards the next round a Graze Fins feeds. */
   grazeFeed: number;
   /** Perfects in a row, each within PERFECT_CHAIN of the last (for the view's pitch and count), and the time since the last. */
@@ -516,6 +520,8 @@ export type LevelEvent =
   /** The Kestrel's FLY-BY: a foe tagged as the dash passes it, and the volley as the dash ends (at each tagged foe). */
   | { type: 'tag'; id: number; enemy: number; x: number; z: number }
   | { type: 'flyby'; id: number; x: number; z: number; to: { x: number; z: number }[] }
+  /** A FLY-BY round landing: the `n`th of `of`, from the ship at (fx, fz); `sweep` on the last when it killed two or more (the dash back). */
+  | { type: 'flybyHit'; id: number; enemy: number; x: number; z: number; fx: number; fz: number; n: number; of: number; kill: boolean; sweep: boolean }
   /** The new kit (see kit.ts): the Bulwark, the Swap Beacon, the skins and the bombs. */
   | { type: 'kit'; id: number; what: KitWhat; x: number; z: number; n?: number; x2?: number; z2?: number }
   | { type: 'dash'; id: number; x: number; z: number; dx: number; dz: number }
@@ -591,6 +597,8 @@ export type LevelEvent =
   | { type: 'reaction'; kind: ReactionKind; enemy: number; x: number; z: number; owner: number }
   /** The arsenal (see arsenal.ts): frozen, thawed, a burn doused, pinned, a flung body landing, a setup cashed in. */
   | { type: 'freeze' | 'thaw' | 'douse' | 'pin'; enemy: number; x: number; z: number }
+  /** A torch's plasma melts an enemy bullet. */
+  | { type: 'melt'; x: number; z: number }
   | { type: 'thud'; x: number; z: number }
   | { type: 'cash'; kind: CashKind; enemy: number; x: number; z: number; to: { x: number; z: number }[] }
   /** The Catalyst set off what an enemy carried (`bits`). */
@@ -842,6 +850,9 @@ export class Level {
         parryT: 0,
         riposte: 0,
         tagged: [],
+        volley: [],
+        volleyKills: 0,
+        volleyOf: 0,
         grazeFeed: 0,
         chain: 0,
         chainT: 9,
@@ -1159,6 +1170,7 @@ export class Level {
     const b = p.boosting;
     if (Math.hypot(mx, mz) < 0.1) mz = -SURGE_PUSH * b;
     const top = welding && !this.mind.fieldWeld(p) ? s.speed * WELD.crawl : s.speed * (i.focus ? 0.45 : 1) * (p.slow > 0 ? 0.55 : 1) * (1 + SURGE_SHIP * b);
+    if (p.volley.length) this.volley(p);
     if (diving) this.grafting.dive(p);
     else if (p.dashT > 0) {
       p.dashT -= DT;
@@ -2609,9 +2621,13 @@ export class Level {
       }
       // a heist: the shield over the runner's bridge
       if (this.heist?.stops(s)) continue;
-      if (s.kind === 'flame') {
-        // plasma burns away enemy bullets it touches
-        for (const b of this.bullets) if (!b.dead && b.kind !== 'seeker' && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1) this.cancel(b);
+      if (s.kind === 'flame' && !s.ax?.chill) {
+        // plasma burns away enemy bullets it touches (a frost sprayer's mist doesn't)
+        for (const b of this.bullets)
+          if (!b.dead && b.kind !== 'seeker' && (b.x - s.x) ** 2 + (b.z - s.z) ** 2 < 1.6) {
+            this.cancel(b);
+            this.emit({ type: 'melt', x: b.x, z: b.z });
+          }
       }
       for (const e of this.enemies) {
         // (not yet on the screen, or gone off it: shots fly on by)
@@ -2888,25 +2904,57 @@ export class Level {
   }
 
   /**
-   * The dash is over: a volley from the guns at everything it tagged. Each one takes a blow (it
-   * breaks plating, and cashes in what's set up on it), then the trigger guns' marks.
+   * The dash is over: a volley from the guns at everything it tagged, nearest first, the rounds
+   * landing one after another. Each is a blow (it breaks plating, and cashes in what's set up on
+   * it), then the trigger guns' marks; every foe more the dash tagged makes every round hit harder.
    */
   private flyby(p: Player) {
     const s = p.stats;
-    const hit = p.tagged.map((id) => this.enemies.find((e) => e.id === id)).filter((e): e is Enemy => !!e && !e.dead && !e.shielded);
+    // what's left of the last volley lands now
+    for (const r of p.volley) r.t = 0;
+    this.volley(p);
+    const hit = p.tagged
+      .map((id) => this.enemies.find((e) => e.id === id))
+      .filter((e): e is Enemy => !!e && !e.dead && !e.shielded)
+      .sort((a, b) => (a.x - p.x) ** 2 + (a.z - p.z) ** 2 - ((b.x - p.x) ** 2 + (b.z - p.z) ** 2));
     p.tagged = [];
     if (!hit.length) return;
     const guns = s.guns.filter((g) => !g.heavy);
-    const dmg = Math.max(FLYBY_MIN, guns.reduce((a, g) => a + this.gunDamage(p, g).dmg * g.spec.count, 0) * FLYBY_K);
+    const base = Math.max(FLYBY_MIN, guns.reduce((a, g) => a + this.gunDamage(p, g).dmg * g.spec.count, 0) * FLYBY_K);
+    const dmg = base * (1 + FLYBY_CHAIN * Math.min(FLYBY_CHAINS, hit.length - 1));
     this.emit({ type: 'flyby', id: p.id, x: p.x, z: p.z, to: hit.map((e) => ({ x: e.x, z: e.z })) });
-    this.credited('FLY-BY', () => {
-      for (const e of hit) {
-        this.blowing++;
-        this.damage(e, dmg, p.id, true, { x: p.x, z: p.z });
-        this.blowing--;
-        if (!e.dead) for (const g of guns) if (g.marks) this.credited(g.part.id, () => mark(this, e, g.marks, g.markStr, p.id));
+    p.volley = hit.map((e, k) => ({ id: e.id, t: k * FLYBY_STEP, dmg, n: k }));
+    p.volleyOf = hit.length;
+    p.volleyKills = 0;
+    this.volley(p);
+  }
+
+  /** The FLY-BY volley's rounds landing as they come due; a volley that kills two or more gives the dash back. */
+  private volley(p: Player) {
+    const guns = p.stats.guns.filter((g) => !g.heavy);
+    while (p.volley.length && p.volley[0].t <= 0) {
+      const r = p.volley.shift()!;
+      const last = !p.volley.length;
+      const e = this.enemies.find((o) => o.id === r.id);
+      const live = !!e && !e.dead && !e.shielded;
+      if (live) {
+        this.credited('FLY-BY', () => {
+          this.blowing++;
+          this.damage(e, r.dmg, p.id, true, { x: p.x, z: p.z });
+          this.blowing--;
+          if (!e.dead) for (const g of guns) if (g.marks) this.credited(g.part.id, () => mark(this, e, g.marks, g.markStr, p.id));
+        });
       }
-    });
+      // (one the guns got to first still counts: it's down)
+      if (!e || e.dead) p.volleyKills++;
+      const sweep = last && p.volleyKills >= 2;
+      if (e && (live || sweep)) this.emit({ type: 'flybyHit', id: p.id, enemy: e.id, x: e.x, z: e.z, fx: p.x, fz: p.z, n: r.n, of: p.volleyOf, kill: live && e.dead, sweep });
+      if (sweep) {
+        p.dashes = p.stats.dashes;
+        p.dashLock = Math.min(p.dashLock, p.dashT);
+      }
+    }
+    for (const r of p.volley) r.t -= DT;
   }
 
   /** The first parry of a burst: the reward for the timing. A perfect, and the riposte. */
@@ -3558,10 +3606,14 @@ const PARRY_DMG = 14;
  * the volley's hit on each: the trigger guns' damage (every pellet) this many times over, never
  * under the least.
  */
-const FLYBY_R = 3.5;
+const FLYBY_R = 4.5;
 const FLYBY_MAX = 8;
-const FLYBY_K = 2;
-const FLYBY_MIN = 10;
+const FLYBY_K = 3;
+const FLYBY_MIN = 14;
+/** FLY-BY: the gap between its rounds landing, and how much harder every round hits for each foe more the dash tagged (up to so many more). */
+const FLYBY_STEP = 0.06;
+const FLYBY_CHAIN = 0.2;
+const FLYBY_CHAINS = 4;
 /** KINDLING: how far round a kill the fire catches. */
 const KINDLE_R = 5;
 /** Graze Fins: grazes for a round. */
