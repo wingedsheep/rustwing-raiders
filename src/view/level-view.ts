@@ -59,6 +59,8 @@ import { EDGES, type Edge } from '../game/parts';
 /** How far the screen shakes at full trauma (world units), and how fast trauma fades (a second). */
 const SHAKE = 0.5;
 const SHAKE_FADE = 2.2;
+/** Fire this close (units) to a ship brings its hitbox up. */
+const CORE_NEAR = 5;
 /** The warm glow under every piece of scrap, and the streak one leaves on its way to the magnet. */
 /** A tug's tow line: a rod of hard light, stretched from the tug to its strongbox. */
 const TOW = new THREE.CylinderGeometry(0.08, 0.08, 1, 5);
@@ -195,6 +197,10 @@ export class LevelView {
   private relight = [0, 0];
   /** Just crashed (1, dying away), and the way it was thrown off: the hull shudders and bleeds sparks. */
   private crashT = [0, 0];
+  /** A hull hit's white, per ship (1 on the blow, fading fast). */
+  private struck = [0, 0];
+  /** How strongly each ship's hitbox shows (0..1): fades in with fire close, out when it's clear. */
+  private coreShow = [0, 0];
   private crashN = [[0, 1], [0, 1]];
   private shields: Shields;
   private guards: Guards;
@@ -411,11 +417,11 @@ export class LevelView {
     this.jumps = new JumpView(lv, this.fx, host);
     this.overlay.add(this.jumps.group);
     const disc = new THREE.CircleGeometry(0.5, 10);
-    // the hitbox while focusing: a white dot ringed dark, the size the sim really uses
+    // the hitbox (while focusing, or with fire close): a white dot ringed dark, the size the sim really uses
     lv.players.forEach((p) => {
       const g = new THREE.Group();
-      const ring = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0x140c1c, depthTest: false }));
-      const dot = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }));
+      const ring = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0x140c1c, depthTest: false, transparent: true }));
+      const dot = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
       ring.renderOrder = 50;
       dot.renderOrder = 51;
       ring.scale.setScalar(p.stats.core * 2 + 0.5);
@@ -646,12 +652,40 @@ export class LevelView {
           const p = lv.players[e.id];
           // the hull's hits by tier: a graze stings, a heavy one rocks the whole screen
           const k = e.shield ? 0.5 : e.tier === 'graze' ? 0.6 : e.tier === 'heavy' ? 1.5 : 1;
-          this.trauma = Math.min(1, this.trauma + 0.6 * k);
-          this.shove(0, 1, 1.2 * k);
+          // the blow is felt in the ship more than the screen: a small shake, a shove the way it
+          // was going, and the hull itself knocked over, white, bleeding sparks for a moment
+          this.trauma = Math.min(1, this.trauma + 0.3 * k);
+          let nx = p.x - e.x;
+          let nz = p.z - e.z;
+          const nd = Math.hypot(nx, nz);
+          if (nd < 0.05) [nx, nz] = [0, 1];
+          else [nx, nz] = [nx / nd, nz / nd];
+          this.shove(nx, nz, 1.1 * k);
           if (!e.shield) this.hurt = Math.min(1, k);
-          this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 16, e.shield ? LIVERY[e.id][2] : 0xff5a3a, 18, 0.4, 0.3);
-          this.fx.ring(p.x, FLIGHT_Y + 0.5, p.z, 3, 0.25, true, e.shield ? LIVERY[e.id][2] : 0xff5a3a);
-          audio.play(e.shield ? 'shield_break' : 'player_hit');
+          this.struck[e.id] = 1;
+          this.crashT[e.id] = Math.max(this.crashT[e.id], e.shield ? 0.35 : e.tier === 'heavy' ? 0.85 : 0.6);
+          this.crashN[e.id] = [nx, nz];
+          const col = e.shield ? LIVERY[e.id][2] : 0xff5a3a;
+          // where it struck: a white-hot blink, sparks thrown on through the hull the way it came
+          this.fx.add({ x: e.x, y: FLIGHT_Y + 0.9, z: e.z, size: 2.2 * Math.sqrt(k), grow: 0.6, life: 0.06, color: HOT, carried: true });
+          const a0 = Math.atan2(nz, nx);
+          for (let n = 0; n < 14; n++) {
+            const a = a0 + (Math.random() - 0.5) * 1.6;
+            const v = 12 + Math.random() * 20;
+            this.fx.add({ x: e.x, y: FLIGHT_Y + 0.6, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: 2 + Math.random() * 5, gravity: 22, drag: 3, size: 0.16 + Math.random() * 0.12, grow: 0.3, life: 0.2 + Math.random() * 0.25, color: e.shield ? this.c.setHex(col) : SPARK, to: EMBER_END, carried: true });
+          }
+          this.fx.sparks(p.x, FLIGHT_Y + 0.5, p.z, 10, col, 18, 0.4, 0.3);
+          this.fx.ring(p.x, FLIGHT_Y + 0.5, p.z, 3, 0.25, true, col);
+          if (!e.shield && e.tier !== 'graze') {
+            // bits of its own plating knocked off, tumbling away down the screen
+            const skin = LIVERY[e.id];
+            for (let n = 0; n < (e.tier === 'heavy' ? 7 : 4); n++) {
+              const a = a0 + (Math.random() - 0.5) * 2;
+              const v = 6 + Math.random() * 9;
+              this.fx.add({ x: e.x, y: FLIGHT_Y + 0.4, z: e.z, vx: Math.cos(a) * v, vz: Math.sin(a) * v + 3, vy: 4 + Math.random() * 6, size: 0.16 + Math.random() * 0.16, life: 1.4 + Math.random(), color: this.c.setHex(skin[n % 2]).multiplyScalar(0.8), solid: true, gravity: 24, spin: 10 + Math.random() * 12 });
+            }
+          }
+          audio.play(e.shield ? 'shield_break' : 'player_hit', { pan: p.x / HALF_W });
           break;
         }
         case 'crash': {
@@ -2330,6 +2364,7 @@ export class LevelView {
     this.jumps.update(dt);
     for (let k = 0; k < 2; k++) this.relight[k] = Math.max(0, this.relight[k] - dt * 1.4);
     for (let k = 0; k < 2; k++) this.crashT[k] = Math.max(0, this.crashT[k] - dt * 1.6);
+    for (let k = 0; k < 2; k++) this.struck[k] = Math.max(0, this.struck[k] - dt * 6);
     this.threats.update(dt, lv, this.halfW, this.halfH);
     this.shields.update(dt, lv);
     this.guards.update(dt, lv, (id) => LIVERY[id][2]);
@@ -2605,13 +2640,27 @@ export class LevelView {
       ship.core.visible = false;
       const hb = this.hitboxes[i];
       if (hb) {
-        hb.visible = p.focus && !p.down;
+        // the hitbox: always while focusing, and fading in whenever fire comes close (or you can't be hit)
+        let close = p.focus || p.inv > 0.1 ? 1 : 0;
+        if (!close)
+          for (const b of lv.bullets) {
+            const d2 = (b.x - p.x) ** 2 + (b.z - p.z) ** 2;
+            if (d2 < CORE_NEAR * CORE_NEAR) {
+              close = Math.max(close, clamp((CORE_NEAR - Math.sqrt(d2)) / 2, 0, 1));
+              if (close >= 1) break;
+            }
+          }
+        this.coreShow[i] = damp(this.coreShow[i], close, close > this.coreShow[i] ? 18 : 5, dt);
+        const k = p.down ? 0 : this.coreShow[i];
+        hb.visible = k > 0.05;
+        for (const m of hb.children) ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = k;
         hb.position.set(p.x, FLIGHT_Y + 1.2, fromFlight(p.z, FLIGHT_Y + 1.2));
         hb.quaternion.copy(this.eye.quaternion);
       }
       this.updateSafe(p, i);
       ship.shield.visible = p.shield > 0 && !p.down;
-      ship.flash(p.inv > 1.2 ? 1 : p.phase > 0 ? 0.5 : 0);
+      // struck: white on the blow (then it blinks while nothing can hurt it: see above)
+      ship.flash(Math.max(this.struck[i], p.phase > 0 ? 0.5 : 0));
       if (p.phase > 0) r.visible = Math.floor(this.time * 20) % 3 !== 0;
       // a down ship smokes; a partner jumpstarting it gets a ring
       if (p.down && !p.out && Math.random() < 0.3) this.fx.add({ x: p.x, y: FLIGHT_Y, z: p.z, vy: 3, vz: 4, size: 0.8, grow: 2.5, life: 1, color: new THREE.Color(0x4a4040), to: new THREE.Color(0x2a2228), carried: true });

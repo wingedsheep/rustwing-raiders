@@ -102,6 +102,9 @@ export interface Player {
   stats: Stats;
   x: number;
   z: number;
+  /** Where it was at the start of this step (fire is checked along the way, not just where it ended up). */
+  ox?: number;
+  oz?: number;
   vx: number;
   vz: number;
   hp: number;
@@ -372,6 +375,9 @@ export interface Bullet {
   from?: string;
   /** Fired this frame, not yet checked for a way through (see fair.ts). */
   fresh?: boolean;
+  /** Where it was before this step's move (see `closest`). */
+  ox?: number;
+  oz?: number;
 }
 
 /** Torpedoes: drift out for `launch` seconds, then light and chase (turning at `turn` rad/s, up to `speed`) until `fuel` runs out. */
@@ -971,6 +977,10 @@ export class Level {
       this.emit({ type: 'biome', index: bi });
     }
 
+    for (const p of this.players) {
+      p.ox = p.x;
+      p.oz = p.z;
+    }
     for (let i = 0; i < this.players.length; i++) this.updatePlayer(this.players[i], intents[i] ?? NEUTRAL, dz);
     this.updateJumpstarts();
     this.convoy?.update(dz);
@@ -2288,6 +2298,8 @@ export class Level {
     this.slowBullets = Math.max(0, this.slowBullets - DT);
     const k = this.slowBullets > 0 ? LONG_SLOW : 1;
     for (const b of this.bullets) {
+      b.ox = b.x;
+      b.oz = b.z;
       b.t += DT * k;
       if (b.turn) {
         const c = Math.cos(b.turn * DT);
@@ -2502,7 +2514,10 @@ export class Level {
       // enemy bullets: hit, or graze
       for (const b of this.bullets) {
         if (b.dead) continue;
-        const d2 = (b.x - p.x) ** 2 + (b.z - p.z) ** 2;
+        // (the nearest it came to the ship this step, not just where both ended up: a quick round
+        // and a quick ship can pass right through each other between two frames)
+        const [rx, rz] = closest(b, p);
+        const d2 = rx * rx + rz * rz;
         const hitR = core + b.r;
         // in a dash's opening slip, a bullet that would have hit where you were (give or take) is a perfect
         if (p.slip > 0 && !p.stats.catch && (b.x - p.slipX) ** 2 + (b.z - this.scroll - p.slipZ) ** 2 < (hitR + 0.3) ** 2) this.perfectDash(p);
@@ -2514,10 +2529,16 @@ export class Level {
           continue;
         }
         if (d2 < hitR * hitR) {
-          if (this.hurt(p, b.x, b.z, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind], b.from)) {
+          // where it struck: on the hull's edge, the side it came from
+          const d = Math.sqrt(d2) || 1;
+          const hx = p.x + (rx / d) * Math.min(d, core + 0.2);
+          const hz = p.z + (rz / d) * Math.min(d, core + 0.2);
+          if (this.hurt(p, hx, hz, b.kind === 'seeker' ? 'seeker' : b.kind === 'torpedo' ? 'torpedo' : 'bullet', BULLET_TIER[b.kind], b.from)) {
             b.dead = true;
-            if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
-            if (b.kind === 'seeker') this.emit({ type: 'seeker', x: b.x, z: b.z, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });
+            if (b.kind === 'torpedo') this.emit({ type: 'torpedo', x: hx, z: hz, color: b.color, shot: false });
+            else if (b.kind === 'seeker') this.emit({ type: 'seeker', x: hx, z: hz, color: b.color, how: 'hit', n: b.leg?.n ?? 0 });
+            // the round that got you bursts on the hull, in its own colour: you see what hit you
+            else this.emit({ type: 'bulletPop', x: hx, z: hz, color: b.color, look: b.look });
           }
         } else if (!(b.grazed & (1 << p.id)) && d2 < (hitR + 1.5) ** 2 && p.inv <= 0) {
           b.grazed |= 1 << p.id;
@@ -2525,7 +2546,7 @@ export class Level {
           p.charge = Math.min(1, p.charge + 0.018 * p.stats.specialRate);
           p.burn = Math.min(1, p.burn + BURN_GRAZE);
           this.score += 5 * (1 + this.combo);
-          this.emit({ type: 'graze', id: p.id, x: (b.x + p.x) / 2, z: (b.z + p.z) / 2 });
+          this.emit({ type: 'graze', id: p.id, x: p.x + rx / 2, z: p.z + rz / 2 });
           // Graze Fins: every few grazes, a round in the heavies they touch
           if (++p.grazeFeed >= GRAZE_FEED) {
             p.grazeFeed = 0;
@@ -3811,6 +3832,39 @@ const TAKEDOWN_REACH = 1;
 const BURN_TAKEDOWN = 0.25;
 /** Escorts: a hauler draws aimed fire only when it's this much nearer (squared) than you. */
 const HAULER_BIAS = 1.6;
+
+/**
+ * Where a bullet came nearest a ship this step, relative to the ship (x, z): both moved, so it's
+ * the nearest point of the bullet's path as the ship saw it. A jump (spawned, warped, carried off
+ * by a pickup) counts only where it ended up. A needle counts along its length.
+ */
+function closest(b: Bullet, p: Player): [number, number] {
+  const ex = b.x - p.x;
+  const ez = b.z - p.z;
+  // (a jump counts only where it ended up)
+  const sx = b.ox === undefined || p.ox === undefined ? ex : b.ox - p.ox;
+  const sz = b.oz === undefined || p.oz === undefined ? ez : b.oz - p.oz;
+  const dx = ex - sx;
+  const dz = ez - sz;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 < 1e-6 || len2 > SWEEP_MAX * SWEEP_MAX ? 1 : Math.min(1, Math.max(0, -(sx * dx + sz * dz) / len2));
+  const cx = sx + dx * t;
+  const cz = sz + dz * t;
+  if (b.kind !== 'needle') return [cx, cz];
+  // a needle is long: it hits along its length (a capsule down the way it flies), as it's drawn
+  const sp = Math.hypot(b.vx, b.vz);
+  if (sp < 1e-3) return [cx, cz];
+  const ux = b.vx / sp;
+  const uz = b.vz / sp;
+  const along = Math.min(NEEDLE_HALF, Math.max(-NEEDLE_HALF, -(ex * ux + ez * uz)));
+  const nx = ex + ux * along;
+  const nz = ez + uz * along;
+  return nx * nx + nz * nz < cx * cx + cz * cz ? [nx, nz] : [cx, cz];
+}
+/** Further than this (units) in a step isn't flying: it's a jump (see `closest`). */
+const SWEEP_MAX = 4;
+/** A needle's hitbox runs this far (units) ahead of and behind its middle, its radius round that. */
+export const NEEDLE_HALF = 0.6;
 
 function sweep<T extends { dead: boolean }>(xs: T[]) {
   let j = 0;

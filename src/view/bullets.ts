@@ -227,8 +227,9 @@ const slug = (needle: boolean): ShapeDef => ({
 const shard = (lance: boolean): ShapeDef => ({
   parts: [
     // crystal, its heart white
-    { geo: OCTA, stuff: 'light', at: lance ? place(0, 0, 0, 0.16, 0.14, 1.2) : place(0, 0, 0, 0.28, 0.22, 0.7), color: (_, o) => o.copy(WHITE).multiplyScalar(3) },
-    { geo: OCTA, stuff: 'glass', at: lance ? place(0, 0, 0, 0.36, 0.3, 1.6) : place(0, 0, 0, 0.62, 0.45, 1.05), color: tint(1.4, 0.1) },
+    // (a lance about as long as its hitbox: see NEEDLE_HALF)
+    { geo: OCTA, stuff: 'light', at: lance ? place(0, 0, 0, 0.16, 0.14, 1.05) : place(0, 0, 0, 0.28, 0.22, 0.7), color: (_, o) => o.copy(WHITE).multiplyScalar(3) },
+    { geo: OCTA, stuff: 'glass', at: lance ? place(0, 0, 0, 0.36, 0.3, 1.4) : place(0, 0, 0, 0.62, 0.45, 1.05), color: tint(1.4, 0.1) },
   ],
   spin: [4, 'roll'],
   halo: [1.7, 0.35],
