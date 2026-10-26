@@ -29,6 +29,7 @@ import { BossPose } from './boss-pose';
 import { CarRig } from './car-rig';
 import { WormRig } from './worm-rig';
 import { EelRig } from './eel-rig';
+import { SkaterRig } from './skater-rig';
 import { clamp, damp, lerp } from '../util';
 import { outlined, type PixelRenderer } from '../render/pixel';
 import { weather, tickWeather } from '../render/alive';
@@ -134,6 +135,8 @@ interface EnemyView {
   car?: CarRig;
   worm?: WormRig;
   eel?: EelRig;
+  /** A Glass Skater: its sail luffed and let fly, its sled heeled, from what it's doing. */
+  skate?: SkaterRig;
   /** A tug: the hard-light line it hauls its strongbox on. */
   tow?: THREE.Mesh;
   /** A strongbox: how many tugs held it last frame, and whether it's been cut loose. */
@@ -931,9 +934,12 @@ export class LevelView {
         case 'parried':
           this.strokes.star(e.x, e.z, 3, 0xffffff, 0.2);
           break;
-        case 'kill':
-          // (how it died shows in how it goes: see feel)
+        case 'kill': {
+          // (how it died shows in how it goes: see feel; a skater's sail tears away)
+          const en = e.arch === 'skater' ? lv.enemies.find((o) => o.id === e.enemy) : undefined;
+          if (en) this.enemies.get(e.enemy)?.skate?.burst(en, fromFlight(en.z, en.y), this.fx);
           break;
+        }
         case 'multiKill':
           break;
         case 'latch': {
@@ -2734,6 +2740,7 @@ export class LevelView {
         v.ring.position.set(e.x, e.y - 0.4, groundZ);
         v.ring.rotation.z += dt * 2;
       }
+      if (v.skate) v.skate.update(e, v.obj, groundZ, this.fx, (k) => (this.trauma = Math.min(1, this.trauma + k)), dt);
       if (e.arch === 'tender') this.torch(e, groundZ, dt);
       if (v.held !== undefined) this.strongbox(e, v);
       if (v.tow) this.towLine(e, v);
@@ -3136,7 +3143,8 @@ export class LevelView {
     const car = e.ground && inst ? (CarRig.of(obj, head) ?? undefined) : undefined;
     const worm = e.arch === 'burrower' && inst ? (WormRig.of(obj) ?? undefined) : undefined;
     const eel = e.arch === 'eel' && inst ? (EelRig.of(obj) ?? undefined) : undefined;
-    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold, car, worm, eel, tow, held: e.arch === 'vault' ? 2 : undefined };
+    const skate = e.arch === 'skater' && inst ? (SkaterRig.of(obj) ?? undefined) : undefined;
+    return { inst, obj, head, ring, seen: true, boss: !!e.boss, ground: e.ground, skin: e.skin.colors, punch: 0, knock: 0, pose, fold, car, worm, eel, skate, tow, held: e.arch === 'vault' ? 2 : undefined };
   }
 
   /** It folds to dive (fast) and opens as it climbs away; its idle spins up through the windup and runs fast out of the dive. */

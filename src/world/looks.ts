@@ -258,8 +258,11 @@ export const LOOKS: Record<string, Look> = {
   glass: {
     sets: [{ kind: 'ashgrave_fulgurite', role: 'gate', w: 3 }, { kind: 'ashgrave_glass_ship', role: 'giant', w: 3 }],
     setChance: 0.2,
-    haze: { color: 0x4aa078, glow: true, alpha: 0.3, rate: 0.18 },
-    pattern: { kind: 'veins', color: 0x6affa0, scale: 4, amount: 0.7, glow: 0.9, below: -0.2 },
+    // (its glass is the water's own (world-view's glass), its glaze and ash painted where they
+    // lie by its layout; the pattern's the crust the heat baked, crazed into plates; the haze the
+    // ash's grey)
+    haze: { color: 0x9a9a92, alpha: 0.3, rate: 0.2 },
+    pattern: { kind: 'cells', color: 0x4a453c, scale: 2.6, amount: 0.3, patchy: 0.6 },
   },
   scavcamp: {
     sets: [{ kind: 'ashgrave_scrap_gantry', role: 'span', w: 3 }, { kind: 'ashgrave_scrap_wall', role: 'gate', w: 2 }, { kind: 'ashgrave_crawler_town', role: 'giant', w: 2 }],

@@ -454,6 +454,8 @@ export class WorldView {
     u.uDeep.value.copy(c).multiplyScalar(glow > 0 ? 0.55 : 0.42);
     u.uGlow.value = glow;
     u.uStill.value = THREE.MathUtils.lerp(a.still ? 1 : 0, b.still ? 1 : 0, t);
+    // (glass: a's or b's, whichever has the water, as the colour)
+    u.uGlass.value = THREE.MathUtils.lerp(wet[0] && a.glass ? 1 : !wet[0] && b.glass ? 1 : 0, wet[1] && b.glass ? 1 : !wet[1] && a.glass ? 1 : 0, t);
   }
 
   dispose() {
@@ -940,6 +942,7 @@ function waterMaterial() {
       uDeep: { value: new THREE.Color(0x1f4f4a) },
       uGlow: { value: 0 },
       uStill: { value: 0 },
+      uGlass: { value: 0 },
       uSun: { value: new THREE.Vector3(-0.45, 0.8, 0.4).normalize() },
     },
     vertexShader: /* glsl */ `
@@ -947,6 +950,7 @@ function waterMaterial() {
       uniform vec2 uWindDir;
       uniform float uWind;
       uniform float uGlow;
+      uniform float uGlass;
       attribute float depth;
       varying float vDepth;
       varying vec3 vWorld;
@@ -961,7 +965,8 @@ function waterMaterial() {
       void main() {
         vDepth = depth;
         vec4 w = modelMatrix * vec4(position, 1.0);
-        float amp = (uGlow > 0.0 ? 0.35 : 1.0) * (0.6 + uWind) * smoothstep(-0.2, 1.5, depth);
+        // (glass doesn't move)
+        float amp = (uGlow > 0.0 ? 0.35 : 1.0) * (0.6 + uWind) * smoothstep(-0.2, 1.5, depth) * (1.0 - uGlass);
         float h = waveH(w.xz) * amp;
         float e = 0.3;
         float hx = waveH(w.xz + vec2(e, 0.0)) * amp - h;
@@ -987,6 +992,7 @@ function waterMaterial() {
       uniform vec3 uDeep;
       uniform float uGlow;
       uniform float uStill;
+      uniform float uGlass;
       uniform vec3 uSun;
       uniform float uCloud;
       uniform float uCloudDark;
@@ -1004,6 +1010,60 @@ function waterMaterial() {
         if (vDepth < -0.1) discard;
         vec2 p = vWorld.xz;
         vec2 flow = uWindDir * uTime * (0.6 + uWind);
+        if (uGlass > 0.5) {
+          // glass: a sheet the ground melted into and set, dark as a bottle and still. It cooled
+          // into cells, cracked at their joints (dark lines, like any cracked pane); the heat's
+          // still in the deep of it, and there a few of the cracks glow, a slow breath running
+          // along them. A ship over it wakes the cracks under it
+          vec2 q = p * 0.3 + (vec2(aNoise(p * 0.21), aNoise(p * 0.21 + 7.3)) - 0.5) * 1.3;
+          vec2 ci = floor(q);
+          float f1 = 9.0;
+          float f2 = 9.0;
+          vec2 id1 = ci;
+          vec2 id2 = ci;
+          for (int j = -1; j <= 1; j++)
+            for (int i = -1; i <= 1; i++) {
+              vec2 g = ci + vec2(float(i), float(j));
+              vec2 o = g + 0.5 + 0.42 * (vec2(aNoise(g * 1.7), aNoise(g * 2.3 + 5.1)) - 0.5) * 2.0;
+              float dd = length(q - o);
+              if (dd < f1) { f2 = f1; id2 = id1; f1 = dd; id1 = g; } else if (dd < f2) { f2 = dd; id2 = g; }
+            }
+          float joint = 1.0 - smoothstep(0.02, 0.07, f2 - f1);
+          // (which joints are hot: one in three or so, the same along a joint's length)
+          float hotJoint = step(0.58, aNoise((id1 + id2) * 0.93 + 3.7));
+          float deep = smoothstep(0.2, 2.4, vDepth);
+          // the cells' faces: each set at a slightly different tilt, so they catch the sky apart
+          float face = aNoise(id1 * 3.1);
+          // (the colours are linear: a little goes a long way)
+          vec3 glass = mix(uShallow * 0.13, uDeep * 0.1, deep) * (0.75 + 0.5 * face);
+          // the sky's sheen, in a soft band across it
+          float sheen = smoothstep(0.6, 0.95, aNoise(p * vec2(0.04, 0.1) + 3.0 + face * 0.4));
+          glass += vec3(0.16, 0.22, 0.2) * sheen * 0.35;
+          // the cracks: dark where they're cold
+          glass *= 1.0 - joint * 0.45;
+          float breath = 0.7 + 0.3 * sin(uTime * 0.8 - dot(p, vec2(0.11, 0.07)) + aNoise(p * 0.05) * 6.0);
+          float heat = smoothstep(0.35, 1.0, deep) * breath;
+          for (int i = 0; i < ${WASH}; i++) {
+            vec4 k = uWash[i];
+            if (k.z <= 0.0) continue;
+            float l = length(p - k.xy) / (k.w * 1.5);
+            heat += k.z * (1.0 - smoothstep(0.0, 1.0, l)) * 0.8;
+          }
+          vec3 hot = uShallow * 1.9 + vec3(0.1, 0.12, 0.08);
+          vec3 col = mix(glass, hot, joint * hotJoint * clamp(heat, 0.0, 1.0));
+          // a hot joint's glow bleeds a little into the glass either side of it
+          float near = 1.0 - smoothstep(0.0, 0.25, f2 - f1);
+          col += uShallow * 0.25 * near * hotJoint * heat;
+          // and the deepest glows a little through its body, like an ember
+          col += uShallow * 0.05 * smoothstep(0.6, 1.0, deep) * breath;
+          // its edge: a thin lip where it meets the sand, the glass there thin and pale
+          float edge = 1.0 - smoothstep(0.0, 0.16, vDepth);
+          col = mix(col, uShallow * 0.35 + vec3(0.03), edge * 0.5);
+          col *= 1.0 - cloudShadow(vWorld) * 0.6;
+          gl_FragColor = vec4(col, 1.0);
+          #include <colorspace_fragment>
+          return;
+        }
         if (uGlow > 0.0) {
           // lava and chemicals: a bright flow with a dark crust breaking up and drifting on it
           // a dark crust, cracked into plates that drift and break up, the glow welling up between

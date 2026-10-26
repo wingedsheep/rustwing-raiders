@@ -236,6 +236,54 @@
   "mounts": [],
   "variant": 1
  },
+ "ashgrave_glass_block#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_block",
+  "max": [
+   1.05,
+   1.7,
+   1.7
+  ],
+  "min": [
+   -1.05,
+   -0.005,
+   -2.168
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_block#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_block",
+  "max": [
+   1.091,
+   2.3,
+   1.5
+  ],
+  "min": [
+   -1.091,
+   -0.041,
+   -1.5
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_block#2": {
+  "colliders": [],
+  "kind": "ashgrave_glass_block",
+  "max": [
+   0.738,
+   1.04,
+   1.812
+  ],
+  "min": [
+   -0.876,
+   -0.026,
+   -1.629
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "ashgrave_glass_bubble#0": {
   "colliders": [],
   "kind": "ashgrave_glass_bubble",
@@ -284,6 +332,397 @@
   "mounts": [],
   "variant": 2
  },
+ "ashgrave_glass_convoy#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_convoy",
+  "max": [
+   1.935,
+   3.2,
+   4.05
+  ],
+  "min": [
+   -2.089,
+   -0.51,
+   -4.19
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_convoy#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_convoy",
+  "max": [
+   2.723,
+   1.899,
+   2.975
+  ],
+  "min": [
+   -1.995,
+   -0.5,
+   -3.597
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_convoy#2": {
+  "colliders": [],
+  "kind": "ashgrave_glass_convoy",
+  "max": [
+   2.7,
+   3.2,
+   5.9
+  ],
+  "min": [
+   -2.105,
+   -0.51,
+   -4.19
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_glass_derrick#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_derrick",
+  "max": [
+   3.0,
+   7.15,
+   2.9
+  ],
+  "min": [
+   -4.7,
+   -0.108,
+   -2.9
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_dud#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_dud",
+  "max": [
+   1.681,
+   2.517,
+   1.559
+  ],
+  "min": [
+   -1.753,
+   -0.886,
+   -1.641
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_dud#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_dud",
+  "max": [
+   2.417,
+   0.74,
+   1.587
+  ],
+  "min": [
+   -2.686,
+   -0.31,
+   -1.637
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_ejecta#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.88,
+   1.106,
+   0.992
+  ],
+  "min": [
+   -1.007,
+   -0.2,
+   -0.795
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_ejecta#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.771,
+   0.889,
+   0.711
+  ],
+  "min": [
+   -1.148,
+   -0.192,
+   -0.883
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_ejecta#2": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.456,
+   1.238,
+   0.856
+  ],
+  "min": [
+   -0.893,
+   -0.14,
+   -0.792
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_glass_ejecta#3": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.222,
+   1.207,
+   0.834
+  ],
+  "min": [
+   -1.105,
+   -0.147,
+   -0.844
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_glass_ejecta#4": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.213,
+   1.083,
+   0.728
+  ],
+  "min": [
+   -0.865,
+   -0.149,
+   -0.784
+  ],
+  "mounts": [],
+  "variant": 4
+ },
+ "ashgrave_glass_ejecta#5": {
+  "colliders": [],
+  "kind": "ashgrave_glass_ejecta",
+  "max": [
+   1.344,
+   0.828,
+   0.571
+  ],
+  "min": [
+   -0.976,
+   -0.255,
+   -0.613
+  ],
+  "mounts": [],
+  "variant": 5
+ },
+ "ashgrave_glass_gunship#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_gunship",
+  "max": [
+   21.73,
+   7.2,
+   16.009
+  ],
+  "min": [
+   -23.6,
+   -1.158,
+   -15.5
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_mast#0": {
+  "colliders": [
+   {
+    "r": 1.2,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "ashgrave_glass_mast",
+  "max": [
+   4.485,
+   17.5,
+   4.59
+  ],
+  "min": [
+   -4.014,
+   -0.25,
+   -4.919
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_mast#1": {
+  "colliders": [
+   {
+    "r": 1.2,
+    "x": 0.0,
+    "z": -0.0
+   }
+  ],
+  "kind": "ashgrave_glass_mast",
+  "max": [
+   5.821,
+   14.696,
+   4.474
+  ],
+  "min": [
+   -4.785,
+   -0.25,
+   -4.41
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_needle#0": {
+  "colliders": [
+   {
+    "lean": [
+     0.0293,
+     -0.0272
+    ],
+    "r": 0.747,
+    "top": 16.548,
+    "x": 0.531,
+    "y": 10.3,
+    "z": -0.492
+   },
+   {
+    "lean": [
+     -0.0809,
+     0.1128
+    ],
+    "r": 0.55,
+    "top": 14.936,
+    "x": -1.44,
+    "y": 10.3,
+    "z": 2.008
+   }
+  ],
+  "kind": "ashgrave_glass_needle",
+  "max": [
+   2.832,
+   16.76,
+   2.729
+  ],
+  "min": [
+   -3.607,
+   -0.392,
+   -3.151
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_needle#1": {
+  "colliders": [
+   {
+    "lean": [
+     -0.0372,
+     -0.0148
+    ],
+    "r": 0.738,
+    "top": 16.35,
+    "x": -0.673,
+    "y": 10.3,
+    "z": -0.268
+   },
+   {
+    "lean": [
+     0.0816,
+     0.1018
+    ],
+    "r": 0.55,
+    "top": 13.332,
+    "x": 1.491,
+    "y": 10.3,
+    "z": 1.859
+   },
+   {
+    "lean": [
+     0.1211,
+     -0.1261
+    ],
+    "r": 0.55,
+    "top": 13.504,
+    "x": 1.976,
+    "y": 10.3,
+    "z": -2.058
+   }
+  ],
+  "kind": "ashgrave_glass_needle",
+  "max": [
+   2.873,
+   16.557,
+   2.98
+  ],
+  "min": [
+   -1.97,
+   -0.371,
+   -3.534
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_needle#2": {
+  "colliders": [
+   {
+    "lean": [
+     -0.0383,
+     0.0117
+    ],
+    "r": 0.752,
+    "top": 16.683,
+    "x": -0.692,
+    "y": 10.3,
+    "z": 0.211
+   },
+   {
+    "lean": [
+     0.1231,
+     0.0829
+    ],
+    "r": 0.55,
+    "top": 13.959,
+    "x": 2.135,
+    "y": 10.3,
+    "z": 1.437
+   },
+   {
+    "lean": [
+     -0.0054,
+     -0.1535
+    ],
+    "r": 0.55,
+    "top": 14.192,
+    "x": -0.092,
+    "y": 10.3,
+    "z": -2.626
+   }
+  ],
+  "kind": "ashgrave_glass_needle",
+  "max": [
+   3.599,
+   16.9,
+   2.855
+  ],
+  "min": [
+   -3.205,
+   -0.401,
+   -3.311
+  ],
+  "mounts": [],
+  "variant": 2
+ },
  "ashgrave_glass_ship#0": {
   "colliders": [],
   "kind": "ashgrave_glass_ship",
@@ -312,6 +751,102 @@
    -32.964,
    -0.75,
    -18.814
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_spire#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_spire",
+  "max": [
+   1.804,
+   5.364,
+   1.785
+  ],
+  "min": [
+   -1.865,
+   -0.233,
+   -1.86
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_spire#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_spire",
+  "max": [
+   2.027,
+   4.569,
+   2.035
+  ],
+  "min": [
+   -2.157,
+   -0.307,
+   -2.115
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_glass_spire#2": {
+  "colliders": [],
+  "kind": "ashgrave_glass_spire",
+  "max": [
+   2.397,
+   3.376,
+   2.29
+  ],
+  "min": [
+   -2.419,
+   -0.315,
+   -2.326
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_glass_spire#3": {
+  "colliders": [],
+  "kind": "ashgrave_glass_spire",
+  "max": [
+   1.973,
+   5.761,
+   1.978
+  ],
+  "min": [
+   -2.198,
+   -0.279,
+   -2.245
+  ],
+  "mounts": [],
+  "variant": 3
+ },
+ "ashgrave_glass_stake#0": {
+  "colliders": [],
+  "kind": "ashgrave_glass_stake",
+  "max": [
+   0.769,
+   1.908,
+   0.35
+  ],
+  "min": [
+   -0.303,
+   -0.109,
+   -0.35
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_glass_stake#1": {
+  "colliders": [],
+  "kind": "ashgrave_glass_stake",
+  "max": [
+   0.364,
+   1.187,
+   0.42
+  ],
+  "min": [
+   -0.364,
+   -0.05,
+   -0.42
   ],
   "mounts": [],
   "variant": 1
@@ -418,6 +953,38 @@
    -50.0,
    -1.952,
    -15.078
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_lantern_pole#0": {
+  "colliders": [],
+  "kind": "ashgrave_lantern_pole",
+  "max": [
+   0.544,
+   3.325,
+   0.573
+  ],
+  "min": [
+   -1.024,
+   -0.1,
+   -0.798
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_lantern_pole#1": {
+  "colliders": [],
+  "kind": "ashgrave_lantern_pole",
+  "max": [
+   0.722,
+   3.561,
+   0.686
+  ],
+  "min": [
+   -1.06,
+   -0.117,
+   -0.9
   ],
   "mounts": [],
   "variant": 1
@@ -581,6 +1148,38 @@
   ],
   "mounts": [],
   "variant": 2
+ },
+ "ashgrave_sail_barge#0": {
+  "colliders": [],
+  "kind": "ashgrave_sail_barge",
+  "max": [
+   2.2,
+   6.6,
+   3.9
+  ],
+  "min": [
+   -2.2,
+   0.0,
+   -4.732
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_sail_barge#1": {
+  "colliders": [],
+  "kind": "ashgrave_sail_barge",
+  "max": [
+   2.643,
+   6.6,
+   3.9
+  ],
+  "min": [
+   -2.2,
+   0.0,
+   -4.732
+  ],
+  "mounts": [],
+  "variant": 1
  },
  "ashgrave_scrap_gantry#0": {
   "colliders": [

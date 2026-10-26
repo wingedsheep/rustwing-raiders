@@ -40,6 +40,8 @@ export type Foe =
   | 'halo'
   | 'manta'
   | 'rook'
+  // the clans' sail-sled: rides the glass gutters a laid-out Glass Craters lays down
+  | 'skater'
   // the bloom's channel-keeper: swims the water routes a layout lays down
   | 'eel'
   // a fallen titan's welders, woken out of its core (only where a graveyard's laid out)
@@ -95,6 +97,7 @@ export const FOES: Record<Foe, FoeDef> = {
   halo: { name: 'Halo', faction: 'lattice', hp: 70, r: 1.7, score: 600, scrap: 4, model: 'halo', beast: false, scale: 1.1, tip: 'TWO RINGS: THE FIRST GAP IS WHERE YOU ARE, THE SECOND IS NOT' },
   manta: { name: 'Sky Manta', faction: 'wild', hp: 140, r: 3.2, score: 900, scrap: 6, model: 'manta', beast: true, scale: 1, tip: 'ITS WAKE OF THORNS BURSTS UP AND DOWN: CROSS IT BEFORE IT RIPENS' },
   eel: { name: 'Mire Eel', faction: 'bloom', hp: 130, r: 2.2, score: 900, scrap: 6, model: 'serpent', beast: true, scale: 1.4, ground: true, water: true, tip: 'IT SWIMS THE CHANNEL AHEAD. WHEN ITS BACK SWELLS IT FIRES DOWN BOTH FLANKS: GET AHEAD OF ITS HEAD, THEN HIT IT WHILE IT LIES OUT' },
+  skater: { name: 'Glass Skater', faction: 'scrap', hp: 55, r: 1.8, score: 500, scrap: 4, model: 'gunboat', beast: false, scale: 1.3, ground: true, tip: 'IT SKATES ITS GLASS GUTTER AT YOU. WHEN THE SAIL LUFFS IT SLEWS AND RAKES DOWN THE GUTTER: GET OFF THE GLASS LINE, THEN HIT IT WHILE IT SLIDES' },
   rook: { name: 'Rook', faction: 'lattice', hp: 75, r: 1.8, score: 600, scrap: 4, model: 'carrier', beast: false, scale: 0.8, tip: 'ITS DARTS ONLY TURN SQUARE: WHEN ONE STOPS AND DRAWS ITS LANE, STEP OFF IT' },
   tender: { name: 'Tender', faction: 'lattice', hp: 8, r: 1.1, score: 90, scrap: 1, model: 'swarm', beast: false, scale: 1.55, tip: 'A TITAN\'S WELDERS: EACH DRAWS ITS LINE AND DARTS DOWN IT, LEAVING A BURNING SEAM. STEP OFF THE LINE, THEN SHOOT IT WHILE IT COOLS' },
   scrapling: { name: 'Scrapling', faction: 'scrap', hp: 9, r: 1.1, score: 80, scrap: 1, model: 'dart', beast: false, scale: 1.35, tip: 'THEY FLY IN STRINGS: SIT IN THEIR PATH AND SWEEP THE LOT FOR A BONUS' },
@@ -163,6 +166,8 @@ export const ROSTER: Record<Faction, [Foe, number, number][]> = {
     ['ace', 0.5, 0.45],
     ['technical', 1.3, 0.05],
     ['gunboat', 0.9, 0.1],
+    // (only where a layout lays down glass gutters to ride: see director.ts)
+    ['skater', 1.6, 0.05],
     ['blimp', 0.5, 0.4],
   ],
   lattice: [

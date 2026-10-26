@@ -12,7 +12,7 @@ import { lerp, pick, rng, type Rng, weighted } from '../util';
 import { BOUNTIES, FOES, HEAVY, ROSTER, factionOf, factionsIn, foeSkin, isFoe, type Foe } from './factions';
 import { strike } from './strikes';
 import { CHAIN } from './combat';
-import { afloat, channel, road, type Form } from './foes';
+import { afloat, channel, gutter, road, type Form } from './foes';
 
 /** A Tender's body and trim, in its titan's trim colours (tools/models/props_b_ashgrave.py), so it stands out from the body it came out of. */
 const TENDER_COMPACT: [number, number] = [0xa83a2e, 0x2a2220];
@@ -125,7 +125,10 @@ export class Director {
         for (const [foe, w, from] of ROSTER[f]) if (t >= from) weights.push([foe, w]);
       // (no boats where there's no water)
       const wet = biome.water !== null;
-      const can = weights.filter(([a, w]) => w > 0 && (wet || !(isFoe(a) && FOES[a].water)));
+      // (a skater only where there's glass to skate; and on the Glass Craters the 'water' is glass:
+      // no boats on it)
+      const glass = biome.id === 'glass';
+      const can = weights.filter(([a, w]) => w > 0 && (wet || !(isFoe(a) && FOES[a].water)) && (a === 'skater' ? glass : !(glass && a === 'gunboat')));
       // (a heavy too soon after the last: something lighter)
       const light = can.filter(([a]) => !HEAVY.has(a));
       const first = weighted(r, at - heavyAt < L * HEAVY_GAP && light.length ? light : can);
@@ -351,8 +354,15 @@ export class Director {
         break;
       }
       case 'gunboat': {
-        // on water ahead, with room to patrol; with none, a gun truck comes instead
+        // on water ahead, with room to patrol; with none, a gun truck comes instead (and on the
+        // Glass Craters, whose 'water' is glass, a skater)
+        if (lv.terrain.biome(lv.top - 10).id === 'glass') return this.spawnFoe('skater', elite, bounty);
         if (!this.water(skin, opts)) this.spawnFoe('technical', elite, bounty);
+        break;
+      }
+      case 'skater': {
+        // down a glass gutter just ahead, one, or later two in file; with none, a gun truck instead
+        if (!this.skate(skin, opts, elite || bounty ? 1 : 1 + (r() < d * 0.5 ? 1 : 0))) this.spawnFoe('technical', elite, bounty);
         break;
       }
       case 'technical': {
@@ -547,6 +557,27 @@ export class Director {
     if (!rt || lv.enemies.some((e) => e.arch === 'eel' && !e.dead)) return false;
     const x = routeX(rt, zg);
     lv.spawn('eel', skin, x, toFlight(zg, water), { tz: zg }, { ...opts, y: water, heading: Math.PI });
+    return true;
+  }
+
+  /**
+   * Skaters down the glass gutter nearest you, just ahead (a laid-out Glass Craters' walks, see
+   * sim/layouts/glass.ts), `n` in file (false if there's no gutter there).
+   */
+  private skate(skin: EnemySkin, opts: Partial<Enemy>, n: number) {
+    const lv = this.lv;
+    const p = lv.nearest(0, lv.bottom);
+    const zr = lv.top - 6;
+    const rt = gutter(lv, p?.x ?? 0, zr);
+    if (!rt) return false;
+    for (let k = 0; k < n; k++) {
+      // (the second further up its gutter, if the gutter runs that far)
+      const zg = Math.max(zr - k * 9, rt.pts[rt.pts.length - 1].z + 1);
+      const x = routeX(rt, zg);
+      const y = Math.max(lv.terrain.height(x, zg), lv.terrain.water(zg));
+      const run = Math.atan2(routeX(rt, zg + 1.5) - routeX(rt, zg - 1.5), 3);
+      lv.spawn('skater', skin, x, toFlight(zg, y), { tz: zg, run }, { ...opts, y, heading: run, t: -k * 0.9 });
+    }
     return true;
   }
 
@@ -834,6 +865,8 @@ const SQUADS: { kinds: (Archetype | Foe)[]; from: number; gap: number }[] = [
   { kinds: ['technical', 'flakker'], from: 0.1, gap: 5 },
   { kinds: ['blimp', 'ramjack'], from: 0.4, gap: 10 },
   { kinds: ['hookjaw', 'flakker'], from: 0.3, gap: 6 },
+  // the flak sets your pace; the skater rakes down its gutter at where it set it
+  { kinds: ['flakker', 'skater'], from: 0.2, gap: 5 },
   // the lattice
   { kinds: ['warden', 'prism'], from: 0.15, gap: 4 },
   { kinds: ['spindle', 'halo'], from: 0.15, gap: 6 },

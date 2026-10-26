@@ -11,13 +11,13 @@
 | Biome | Card | Land | Life |
 |---|---|---|---|
 | Titan Graveyard | Their hands are bigger than your ship. Some of them still twitch. | rolling, ash | — |
-| Glass Craters | Where the big guns hit, the ground turned to glass. It still glows. | craters, motes | — |
+| Glass Craters | Where the big guns hit, the ground turned to glass. It still glows. | craters, ash | — |
 | Scav Camp | Tents, fires and a lot of people aiming at you. | flats, ash | crawlers |
 | Bone-White Woods | A forest, dead and bleached. Ash falls like snow, under a blue moon. | rolling, ash | — |
 
 ## Who you fight
 
-Scav Kite (dart), Junk Flak (turret), Clan Rig (gunship), Revived Titan Torso (brute), Scrap Hauler (bomber), Glass Sniper (lancer); the scrap roster on top.
+Scav Kite (dart), Junk Flak (turret), Clan Rig (gunship), Revived Titan Torso (brute), Scrap Hauler (bomber), Glass Sniper (lancer); the scrap roster on top. In the Glass Craters the Glass Skater (see [skater](../enemies/skater.md)) rides the glass gutters.
 
 ## Ideas
 

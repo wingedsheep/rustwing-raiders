@@ -184,7 +184,8 @@ export function road(lv: Level, x: number, zg: number): Route | null {
   let best: Route | null = null;
   let far = Infinity;
   for (const rt of lv.terrain.routes(zg)) {
-    if (rt.kind === 'water' || zg > rt.pts[0].z || zg < rt.pts[rt.pts.length - 1].z) continue;
+    // (the water's for boats and the glass for skaters: no truck drives either)
+    if (rt.kind === 'water' || rt.kind === 'glass' || zg > rt.pts[0].z || zg < rt.pts[rt.pts.length - 1].z) continue;
     const d = Math.abs(routeX(rt, zg) - x);
     if (d < far) {
       far = d;
@@ -208,6 +209,28 @@ export function channel(lv: Level, x: number, zg: number): Route | null {
   }
   return best;
 }
+
+/** The glass gutter through ground z nearest x (a gunship's walk fused into one channel: what a skater rides), if any. */
+export function gutter(lv: Level, x: number, zg: number): Route | null {
+  let best: Route | null = null;
+  let far = Infinity;
+  for (const rt of lv.terrain.routes(zg)) {
+    if (rt.kind !== 'glass' || zg > rt.pts[0].z || zg < rt.pts[rt.pts.length - 1].z) continue;
+    const d = Math.abs(routeX(rt, zg) - x);
+    if (d < far) {
+      far = d;
+      best = rt;
+    }
+  }
+  return best;
+}
+
+/**
+ * A Glass Skater's run: how fast it skates down its gutter (ground units a second, on top of the
+ * land going by), how it bleeds speed through the luff, the slew and the slide, how far it slews,
+ * and the rake it fires down the gutter out of its downhill flank (shots a volley, the fan's step).
+ */
+export const SKATE = { run: 11, luff: 6, slide: 3, slew: 1.35, volleys: 2, fan: 5, step: 0.17, speed: 10 };
 
 /**
  * The Mire Eel's body: how many segments trail its head and how far apart (ground units, back down
@@ -1396,6 +1419,82 @@ export function updateFoe(lv: Level, e: Enemy): void {
           go(lv, e, 'recover', 1.1);
         }
       } else if (e.state === 'stagger' && over(e)) go(lv, e, 'idle');
+      break;
+    }
+    case 'skater': {
+      // a Sankvi sail-sled riding a glass gutter (a gunship's walk, fused into one channel) down
+      // at you, sail full, faster than the land goes by. Its tell: the sail luffs and the runners
+      // shriek. Then it slews broadside across the gutter, sliding on down it, and rakes a fan of
+      // shot down the gutter out of its downhill flank; it lies slewed, sail spilled and slow, open
+      // to you; it rights itself and skates on. Twice, then on down and away. It never leaves the
+      // glass: at its gutter's near end it skids to a stop and rides the land.
+      const st = e.state;
+      const k = e.stateDur > 0 ? clamp(e.stateT / e.stateDur, 0, 1) : 0;
+      let zg = d.tz ?? fromFlight(e.z, e.y);
+      const sp =
+        st === 'idle' ? SKATE.run * Math.min(1, 0.45 + e.stateT * 1.2)
+        : st === 'windup' ? lerp(SKATE.run, SKATE.luff, k)
+        : st === 'attack' ? lerp(SKATE.luff, SKATE.slide, k)
+        : st === 'recover' ? lerp(SKATE.slide, SKATE.run * 0.45, k * k)
+        : SKATE.slide;
+      zg += sp * slow * DT;
+      if (d.end !== undefined) zg = Math.min(zg, d.end - 0.3);
+      d.tz = zg;
+      const rt = gutter(lv, e.x, zg);
+      if (rt) d.end = rt.pts[0].z;
+      const x = rt ? routeX(rt, zg) : e.x;
+      drive(lv, e, x, zg);
+      // which way the gutter runs, down it towards you; slewed, across it, bow to `turn`
+      const run = rt ? Math.atan2(routeX(rt, zg + 1.5) - routeX(rt, zg - 1.5), 3) : (d.run ?? 0);
+      d.run = run;
+      const turn = d.turn ?? 1;
+      const slewed = st === 'attack' || (st === 'recover' && k < 0.65);
+      const want = slewed ? run + turn * SKATE.slew : st === 'windup' ? run - turn * 0.18 * k : run;
+      e.heading = lerpAngle(e.heading, want, slewed ? 0.2 : 0.08);
+      e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.1);
+      if (s > HALF_H + 6) {
+        lv.escape(e);
+        break;
+      }
+      if (!ok || !p) break;
+      if (st === 'idle') {
+        // (on the screen, ahead of you, with room before it's past you)
+        const n = d.n ?? 0;
+        if (n < 2 && e.stateT > (n ? 0.8 : 0.5) && s > -HALF_H + 5 && s < HALF_H - 14 && ps(lv, p) - s > 8) {
+          d.turn = Math.sign(p.x - e.x) || 1;
+          // the rake: down the gutter, leaning towards you a little, then held
+          const off = Math.atan2(Math.sin(lv.aim(e.x, e.z) - run), Math.cos(lv.aim(e.x, e.z) - run));
+          d.rake = run + clamp(off, -0.3, 0.3);
+          const half = ((SKATE.fan - 1) / 2 + 0.5) * SKATE.step;
+          go(lv, e, 'windup', 0.8 * quick(lv), 'broadside', { shape: 'sweep', x: e.x, z: e.z, a0: d.rake - half, a1: d.rake + half, len: 30, w: 0 });
+        }
+      } else if (st === 'windup') {
+        const t = e.tele;
+        if (t && t.shape === 'sweep') {
+          t.x = e.x;
+          t.z = e.z;
+        }
+        if (over(e)) {
+          d.shots = 0;
+          d.fire = 0.12;
+          go(lv, e, 'attack', 0.55, 'broadside');
+        }
+      } else if (st === 'attack') {
+        d.fire = (d.fire ?? 0) - DT;
+        if (d.fire <= 0 && (d.shots ?? 0) < SKATE.volleys) {
+          d.fire = 0.22;
+          // (the second volley between the first's shots: the fan is one you leave, not thread)
+          const n = SKATE.fan + (lv.spec.difficulty > 0.6 ? 1 : 0) - (d.shots ?? 0);
+          const c = d.rake ?? run;
+          for (let j = 0; j < n; j++) lv.bullet(e.x, e.z, c + (j - (n - 1) / 2) * SKATE.step, SKATE.speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
+          d.shots = (d.shots ?? 0) + 1;
+        }
+        if (over(e)) go(lv, e, 'recover', 1.2);
+      } else if (st === 'recover' && over(e)) {
+        d.n = (d.n ?? 0) + 1;
+        go(lv, e, 'idle');
+      } else if (st === 'stagger' && over(e)) go(lv, e, 'idle');
       break;
     }
     case 'blimp': {

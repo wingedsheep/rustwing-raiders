@@ -1156,3 +1156,6 @@ def build():
     # the Titan Graveyard's titans, posed by the layout, and the clans' things (set_ashgrave_titans.py)
     import set_ashgrave_titans
     set_ashgrave_titans.build()
+    # the Glass Craters' ejecta, spires, masts, convoy, cutters, barges and the gunship (set_ashgrave_glass.py)
+    import set_ashgrave_glass
+    set_ashgrave_glass.build()

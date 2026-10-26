@@ -139,6 +139,10 @@ const WATERBORNE = new Set([
   'mirefall_hearth_lamp', 'mirefall_lamp_pylon', 'mirefall_column', 'mirefall_rang_hut', 'mirefall_punt', 'mirefall_bell',
   // (the peat marsh's drowned wood stands in its water, and the settlers' fences and tanks went under)
   'mirefall_peat_snag', 'mirefall_peat_elder', 'mirefall_peat_poplar', 'mirefall_peat_log', 'mirefall_peat_fence', 'mirefall_peat_silo',
+  // (the glass craters' convoy sunk in puddles of its own glass, the Chikta's barges drawn up on it)
+  'ashgrave_glass_convoy', 'ashgrave_sail_barge',
+  // (and its spires stand up out of the glass as well as the crust)
+  'ashgrave_glass_spire', 'ashgrave_glass_needle',
 ]);
 /** How far up the shore a waterborne kind may stand (above the water line; 1.5 if not said): kelp stays in the sea. */
 const SHORE: Record<string, number> = {
@@ -148,6 +152,7 @@ const SHORE: Record<string, number> = {
   mirefall_colonnade: Infinity, vine_pillar: Infinity, mirefall_stele: Infinity,
   mirefall_hearth_lamp: Infinity, mirefall_lamp_pylon: Infinity, mirefall_column: Infinity, mirefall_rang_hut: Infinity, mirefall_punt: 0.05, mirefall_bell: 0.4,
   mirefall_peat_snag: Infinity, mirefall_peat_elder: Infinity, mirefall_peat_poplar: Infinity, mirefall_peat_log: Infinity, mirefall_peat_fence: Infinity, mirefall_peat_silo: Infinity,
+  ashgrave_glass_convoy: Infinity, ashgrave_sail_barge: 0.05, ashgrave_glass_spire: Infinity, ashgrave_glass_needle: Infinity,
 };
 /**
  * Farmland, by biome: these kinds aren't scattered but laid in a grid of plots (cell w × d), all

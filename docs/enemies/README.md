@@ -55,6 +55,7 @@ P = Personality, Pt = Pattern, M = Model, A = Animation, S = Sound.
 | [Flakker](flakker.md) | scrap | Ground artillery | 1 | 2 | 2 | 1 | 1 | A body tell of its own |
 | [Technical](technical.md) | scrap | Gun truck | 2 | 2 | 2 | 1 | 1 | Skid and engine sounds |
 | [Gunboat](gunboat.md) | scrap, water only | Broadside boat | 2 | 2 | 2 | 1 | 1 | Telegraph the deck gun |
+| [Glass Skater](skater.md) | scrap: Ashgrave's glass gutters | Sail-sled broadside | 2 | 3 | 2 | 2 | 2 | A wake in the glass |
 | [Dreadnought](dreadnought.md) | scrap | Heavy airship | 2 | 2 | 2 | 1 | 1 | Tell the mines |
 | [Sower](sower.md) | wild, bloom | Diver | 2 | 3 | 2 | 2 | 1 | A whirr on the spin-up |
 | [Burrower](burrower.md) | wild | Ambusher | 2 | 2 | 2 | 1 | 1 | Draw the ripple |
@@ -97,6 +98,7 @@ Metal you bolted together yourself: the Hesk, the Uukhvar, the Sankvi and the Lo
 - [Flakker](flakker.md)
 - [Technical](technical.md)
 - [Gunboat](gunboat.md)
+- [Glass Skater](skater.md): skates a layout's glass gutters
 - [Dreadnought](dreadnought.md)
 
 ## Wild

@@ -42,6 +42,8 @@ export type Sfx =
   | 'khet_yell' | 'thruster' | 'titan_servo' | 'titan_land' | 'light_tone' | 'glass_fall' | 'glass_burst'
   // a fallen titan's Tenders: the core waking under them, and a seam welded across the air
   | 'brood_wake' | 'weld'
+  // a Glass Skater: its sail flogging and its runners shrieking in the tell, the slew's scream and snap
+  | 'skate_luff' | 'skate_slew'
   | 'engine_out' | 'spool' | 'jump' | 'runner_down' | 'bay' | 'pod_loose' | 'pod_catch' | 'pod_fell'
   | 'sentinel' | 'sentinel_out' | 'boomerang' | 'frenzy' | 'frenzy_max' | 'frenzy_off' | 'thunder' | 'nova' | 'feed'
   | 'heavy' | 'heavy_dry' | 'reload' | 'reload_perfect' | 'load_class'
@@ -1000,6 +1002,32 @@ const SFX: Record<Sfx, SfxDef> = {
     noise(o, t + 0.6, 0.5, 'bandpass', 2600 * p, 3400 * p, 6, 0.05, 0.1);
     return 1.3;
   }, 0.5, 1, { rev: 0.35 }),
+
+  // a skater's tell: the sail spilling its wind and flogging, faster and faster, and the runners
+  // biting into the glass in a rising squeal
+  skate_luff: S((t, p, o) => {
+    for (let k = 0; k < 9; k++) {
+      const tt = t + 0.6 * Math.pow(k / 9, 0.75);
+      noise(o, tt, 0.05, 'bandpass', 520 * p, 320 * p, 1.2, 0.1 + k * 0.012, 0.002);
+    }
+    noise(o, t + 0.1, 0.65, 'bandpass', 2300 * p, 3700 * p, 9, 0.05, 0.25);
+    noise(o, t, 0.7, 'highpass', 5000 * p, 6500 * p, 0.7, 0.025, 0.3);
+    metal(o, t + 0.45, 1450 * p, 0.025, 0.35);
+    return 0.8;
+  }, 0.2, 2, { rev: 0.12 }),
+
+  // the slew: the runners screaming sideways over the glass, a crackle of chips, the sail let go
+  // with a crack, and the outriggers' iron knocking
+  skate_slew: S((t, p, o) => {
+    noise(o, t, 0.5, 'bandpass', 2100 * p, 800 * p, 7, 0.14, 0.005);
+    noise(o, t, 0.45, 'highpass', 4200 * p, 2600 * p, 0.8, 0.07, 0.005);
+    crackle(o, t + 0.03, 0.4, 22, 0.1);
+    noise(o, t + 0.04, 0.025, 'highpass', 2500, 2500, 0.7, 0.22);
+    tone(o, t + 0.04, 'sine', 120 * p, 70 * p, 0.14, 0.14, 0.002);
+    metal(o, t + 0.08, 310 * p, 0.05, 0.4);
+    metal(o, t + 0.14, 470 * p, 0.035, 0.3);
+    return 0.6;
+  }, 0.15, 2, { rev: 0.15 }),
 
   // a seam welded across the air: the arc's spitting hiss, bright and short, and a tick as it strikes
   weld: S((t, p, o) => {

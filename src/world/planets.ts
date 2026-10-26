@@ -35,6 +35,8 @@ export interface Biome {
   waterGlow?: number;
   /** The water lies still (a mire): no surf or streaks on it, only a faint line at the bank. */
   still?: boolean;
+  /** The "water" is glass, set solid: no waves, cooled into cells, the cracks glowing in the deep. */
+  glass?: boolean;
   /** How much what glows on the land brightens as a ship goes over it (0 or unset: not at all). */
   pass?: number;
   /** Ground from low to high: shore, low, mid, high. */
@@ -694,22 +696,26 @@ export const PLANETS: Planet[] = [
         line: 'Where the big guns hit, the ground turned to glass. It still glows.',
         shape: 'craters',
         relief: 4,
+        // (the glass: every bowl the guns dug deep enough holds a sheet of it, set at this level)
         water: -0.3,
-        waterColor: 0x1e8a50,
+        waterColor: 0x2c9a62,
         waterGlow: 0.45,
-        ground: [0x3a4a3a, 0x4a5a48, 0x5a6a58, 0x6a7a68],
-        cliff: 0x2a3a2a,
+        glass: true,
+        // the crust the heat baked the sand to: a step darker and warmer than the titans' ash, the
+        // glass darker still in it, the glow's the only green
+        ground: [0x6c675d, 0x787267, 0x847e72, 0x928b7e],
+        cliff: 0x48443c,
         props: [['ashgrave_fulgurite_root', 4], ['ashgrave_glass_crust', 3], ['glass_shard', 2], ['ashgrave_glass_bubble', 2], ['ashgrave_fused_wreck', 1], ['ashgrave_shell_casing', 1]],
         density: 1.2,
         creatures: [],
-        particles: 'motes',
-        sun: 0xd8ffe0,
-        sky: 0x6a8a7a,
-        bounce: 0x2a8a4a,
+        particles: 'ash',
+        sun: 0xe8e8e0,
+        sky: 0x8e9894,
+        bounce: 0x4a7a5e,
         clouds: null,
-        shade: 0x2a4a5a,
-        light: 0xe0ffe8,
-        hazards: ['falling_rocks'],
+        shade: 0x3e4a5c,
+        light: 0xeef4ee,
+        hazards: [],
       },
       {
         id: 'scavcamp',

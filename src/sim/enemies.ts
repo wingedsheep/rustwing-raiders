@@ -18,6 +18,11 @@ import { strike } from './strikes';
 import type { PartKind } from './heist';
 
 export interface EnemyData {
+  /** A skater's gutter (see foes.ts): its near end (ground z), which way it runs, the slew's way, and the rake's middle. */
+  end?: number;
+  run?: number;
+  turn?: number;
+  rake?: number;
   /** The boss has come: it's off out of the way, firing nothing (see Director.spawnBoss). */
   flee?: number;
   /** Taken down this stagger (a dash through it: see Level.takedown). */

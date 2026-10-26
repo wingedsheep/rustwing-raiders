@@ -528,7 +528,104 @@ def tender():
     osc(body, clip, "rotation_euler", T, (1, 0.05, 1, 0.25))
 
 
+# --- Glass Skater: a sail-sled on the glass gutters, ~5.5 ---------------------------------------------
+
+STITCH = "#c4bca8"
+BANNER = ["#8f979c", "#8e2a1e", "#6e6a5c", "#a9adaa"]   # war banners, ash-washed: blue-grey, oxblood, khaki, pale ash
+
+
+def glass_skater():
+    """The clans' copy of a Chikta sail-barge, cut down for raiding: a long narrow sled on three
+    runners (one steering under the bow, two out on an aft beam), a gun tub in its stern, and a
+    big sail of stitched war banners, heeled hard over so it lies spread to one side, the clan hand
+    painted on it in bone. Lopsided and leaning forward: at 32 pixels a sled with a sail flung out
+    to one side. The rig (`_rig`, pivoted at the mast's foot) and the cloth on it (`_sail`) are
+    turned by the game (luffing, slewing); the idle only shivers the cloth. Seeds 6070-6079."""
+    kind, clip, root = named("glass_skater", "gunboat", "mech", "skate", preview=("#8a7a6a", "#2e2a2e", "#ff3a3a"))
+    T = 0.8
+    b = Model(f"{kind}_body", seed=6070)
+    deck = [(0.0, 2.95), (-0.5, 2.1), (-0.78, 0.7), (-0.72, -1.6), (-0.5, -2.25), (0.55, -2.25), (0.8, -1.5),
+            (0.82, 0.7), (0.5, 2.1)]
+    hull(b, deck, -0.05, 0.28, B, inset=0.8)                                            # dark hull
+    hull(b, [(x * 0.86, y * 0.94 - 0.04) for x, y in deck], 0.28, 0.5, A.shade(1.3), inset=0.75)  # pale deck
+    _hazard(b, -0.35, 0.35, 2.05, 0.52, 0.34, 4)                                        # the bow's stripes
+    b.box((0.14, 0.9, 0.06), (0.0, 2.45, 0.5), DARK)                                    # the bow's spine
+    for y in (1.35, -0.2, -1.6):                                                        # plank seams
+        b.box((1.2, 0.07, 0.04), (0.02, y, 0.53), B)
+    b.box((0.55, 0.62, 0.05), (-0.36, 0.0, 0.54), RUST, rot=(0, 0, 0.2))                # a patch, bolted on
+    for x, y in ((-0.58, 0.25), (-0.15, 0.25), (-0.58, -0.25), (-0.15, -0.25)):
+        b.box((0.08, 0.08, 0.05), (x, y, 0.58), DARK)
+    _skull(b, 0.38, 0.95, 0.54, 0.2)
+    # the steering runner under the bow, on a raked strut, its tiller back to the deck
+    limb(b, (0.0, 2.35, 0.1), (0.0, 2.55, -0.32), 0.1, 0.08, DARK, segs=4)
+    b.box((0.12, 1.5, 0.12), (0.0, 2.45, -0.38), B.shade(1.6))
+    b.box((0.06, 1.5, 0.05), (0.0, 2.45, -0.45), "#d8e0dc")                             # its edge, polished bright
+    # the aft beam, out further to the lee side (it's lopsided), an outrigger runner at each end
+    b.box((4.5, 0.26, 0.2), (0.12, -1.25, 0.32), B.shade(1.3))                          # the beam
+    _hazard(b, 1.3, 2.3, -1.25, 0.43, 0.27, 4)
+    for x, w in ((-2.05, 1.6), (2.3, 1.9)):
+        limb(b, (x, -1.25, 0.3), (x, -1.2, -0.3), 0.09, 0.08, DARK, segs=4)              # strut
+        b.box((0.16, w, 0.14), (x, -1.3, -0.36), B.shade(1.6))                          # runner
+        b.box((0.07, w, 0.05), (x, -1.3, -0.44), "#d8e0dc")
+        b.box((0.42, 0.62, 0.34), (x, -1.25, 0.42), A.shade(1.1))                       # pod on the end
+        b.box((0.34, 0.3, 0.1), (x, -1.25, 0.6), C, glow=True)                          # a lantern on top
+    # the gun tub in the stern: a ring of plate, the gunner, a twin gun out over the side
+    b.cyl(0.55, 0.42, (0.05, -1.85, 0.45), B.shade(1.4), segs=8)
+    b.cyl(0.42, 0.1, (0.05, -1.85, 0.82), DARK, segs=8)
+    b.ball(0.24, (0.05, -1.85, 1.02), BONE, subdiv=1)                                    # the gunner's helmet
+    b.box((0.36, 0.1, 0.06), (0.05, -1.66, 1.02), DARK)                                 # its visor
+    for s in (1, -1):
+        tube(b, 0.06, -1.55, -0.6, 0.05 + s * 0.12, 0.98, DARK, segs=5)
+    body = b.build(root)
+    marker(body, kind, "muzzle", (0.05, -0.5, 0.98))
+    # the rig: the mast (raked back), heeled over to the +x side so the sail lies spread out from it
+    rg = Model(f"{kind}_rig", seed=6071)
+    rg.cyl(0.12, 4.1, (0, 0, 0), DARK, segs=5, r_top=0.07, rot=(0, math.pi / 2, 0))     # the mast, along +x
+    rg.cyl(0.22, 0.25, (-0.05, 0, 0), B, segs=6, rot=(0, math.pi / 2, 0))               # its step
+    rg.box((0.4, 0.06, 0.5), (3.95, 0.05, 0.2), "#7a3226", rot=(0, 0, 0.1))            # a pennant at its head
+    rig = rg.build(body, loc=(0.25, 0.75, 0.55))
+    rig.rotation_euler = (0.0, -1.2, 0.22)
+    # the cloth, its own parts so it can shiver and spill: a gaff sail of war banners stitched
+    # together, in two halves (the luff's, and the leech's hinged on it at the seam) so it bellies;
+    # in its frame x up the mast, y fore and aft, its face (+z) the side seen from above
+    SEAM = -1.5
+    sl = Model(f"{kind}_sail", seed=6072)
+    sl.slab([(0.25, 0.2), (3.75, 0.05), (3.55, SEAM), (0.28, SEAM)], -0.04, 0.03, BANNER[3])
+    sl.slab([(0.3, 0.12), (1.6, 0.08), (1.52, SEAM + 0.06), (0.32, SEAM + 0.06)], 0.02, 0.06, BANNER[0])
+    sl.slab([(1.66, 0.08), (3.7, 0.05), (3.52, SEAM + 0.06), (1.58, SEAM + 0.06)], 0.02, 0.06, BANNER[2])
+    sl.box((3.3, 0.09, 0.04), (1.95, 0.0, 0.07), STITCH)                                # the stitching, pale
+    sl.box((0.09, 1.5, 0.04), (1.62, -0.72, 0.07), STITCH)
+    for x in (0.9, 2.4):                                                                # a tally of kills in bone
+        for k in range(3):
+            sl.box((0.32, 0.08, 0.04), (x + k * 0.16, -0.55 - k * 0.04, 0.08), BONE, rot=(0, 0, 1.2))
+    # the spars: the boom along the foot, the gaff along the head
+    sl.cyl(0.09, 3.6, (0.25, 0.4, 0.0), "#5a4630", segs=5, rot=(math.pi / 2, 0, 0))
+    limb(sl, (3.8, 0.15, 0.0), (3.5, SEAM, 0.0), 0.08, 0.07, "#5a4630", segs=5)
+    cloth = sl.build(rig)
+    lc = Model(f"{kind}_sail_leech", seed=6073)
+    o = lambda pts: [(x, y - SEAM) for x, y in pts]
+    lc.slab(o([(0.28, SEAM), (3.55, SEAM), (3.3, -2.6), (0.3, -3.25)]), -0.04, 0.03, BANNER[3])
+    lc.slab(o([(0.34, SEAM - 0.06), (1.55, SEAM - 0.06), (1.62, -3.05), (0.36, -3.15)]), 0.02, 0.06, BANNER[2])
+    lc.slab(o([(1.66, SEAM - 0.06), (3.5, SEAM - 0.06), (3.3, -2.5), (1.72, -2.95)]), 0.02, 0.06, BANNER[1])
+    _hazard(lc, 0.4, 3.25, -3.0 - SEAM, 0.07, 0.24, 7, rot=0.13)                        # a hazard-striped leech
+    # the clan hand in bone, big, on the leech: a palm, four fingers up the mast, a thumb, an eye
+    hx, hy = 2.4, -2.2 - SEAM
+    lc.slab([(hx - 0.55, hy - 0.45), (hx + 0.35, hy - 0.5), (hx + 0.42, hy + 0.35), (hx - 0.5, hy + 0.4)], 0.06, 0.1, BONE)
+    for dy, L in ((-0.4, 0.65), (-0.13, 0.85), (0.14, 0.8), (0.4, 0.6)):
+        lc.box((L, 0.2, 0.04), (hx + 0.38 + L / 2, hy + dy * 0.95, 0.08), BONE)
+    lc.box((0.6, 0.22, 0.04), (hx - 0.1, hy + 0.6, 0.08), BONE, rot=(0, 0, 0.7))
+    lc.cyl(0.13, 0.04, (hx - 0.05, hy - 0.05, 0.1), DARK, segs=6)
+    limb(lc, (3.5, 0.0, 0.0), (3.3, -1.15, 0.0), 0.07, 0.06, "#5a4630", segs=5)          # the gaff's end
+    leech = lc.build(cloth, loc=(0, SEAM, 0))
+    leech.rotation_euler = (0.42, 0.0, 0.0)
+    osc(cloth, clip, "rotation_euler", T, (0, 0.04, 2, 0), (0, 0.02, 3, 0.3))
+    osc(leech, clip, "rotation_euler", T, (0, 0.12, 2, 0.15), (0, 0.06, 3, 0.45))
+    osc(body, clip, "location", T, (2, 0.025, 2, 0))
+    osc(body, clip, "rotation_euler", T, (1, 0.02, 1, 0.25))
+
+
 def build():
+    glass_skater()
     tender()
     scav_kite()
     junk_flak()

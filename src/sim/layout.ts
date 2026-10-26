@@ -38,7 +38,8 @@ export interface Post {
 
 /** Something to drive along, from the near end of the stretch to the far one. */
 export interface Route {
-  kind: 'wash' | 'track' | 'road' | 'water' | 'crack';
+  /** ('glass': a gutter of fused glass a skater rides, see sim/layouts/glass.ts) */
+  kind: 'wash' | 'track' | 'road' | 'water' | 'crack' | 'glass';
   pts: { x: number; z: number }[];
 }
 

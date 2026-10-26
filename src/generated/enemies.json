@@ -521,6 +521,22 @@
   "mounts": [],
   "variant": 0
  },
+ "enemy_glass_skater": {
+  "colliders": [],
+  "kind": "enemy_glass_skater",
+  "max": [
+   3.162,
+   4.557,
+   2.4
+  ],
+  "min": [
+   -2.269,
+   -0.525,
+   -3.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
  "enemy_glass_sniper": {
   "colliders": [],
   "kind": "enemy_glass_sniper",
