@@ -37,6 +37,8 @@ export type PerfectHow = 'dash' | 'parry';
 /** Boost is a surge of your own ship: faster, up the screen unless steered, sliding more. */
 const SURGE_SHIP = 0.9;
 const SURGE_PUSH = 0.7;
+/** Seconds between heavy rounds while the button's held. */
+const HEAVY_GAP = 0.22;
 /** Burn per second at full boost, and what flying close to danger earns. */
 const BURN_DRAIN = 0.3;
 const BURN_START = 0.35;
@@ -83,6 +85,10 @@ export interface LevelSpec {
   difficulty: number;
   /** Units per biome. */
   length: number;
+  /** False in a run: parts come only as the site's reward, so what would drop one in flight pays scrap. */
+  parts?: boolean;
+  /** A Warden's hull, of its full (stages won on its ground take some off). */
+  bossHull?: number;
 }
 
 export interface Player {
@@ -136,8 +142,10 @@ export interface Player {
   causes: Record<string, number>;
   /** The Burn meter, 0..1: earned by flying close to danger, spent on boost. */
   burn: number;
-  /** How hard it's boosting this frame, 0..1 (0 once the Burn runs out). */
+  /** How hard it's boosting this frame, 0..1 (0 once the Burn runs out). The boost is cut: always 0. */
   boosting: number;
+  /** The heavy button held last step (a fresh press clicks even when dry; a hold doesn't). */
+  heavyHeld: boolean;
   /** Seconds till the Burn starts coming back (it waits a moment after the boost is let go). */
   burnWait: number;
   /** How close it's skimming the land or an obstacle this frame: 0 (not) to 1 (a hair away). */
@@ -806,6 +814,7 @@ export class Level {
         causes: {},
         burn: BURN_START,
         boosting: 0,
+        heavyHeld: false,
         burnWait: 0,
         skim: 0,
         skimT: 0,
@@ -1028,12 +1037,11 @@ export class Level {
   // --- speed, waves and bounties -----------------------------------------------------------
 
   /** Boost spends Burn. The screen keeps its pace and the boost goes into the ship (see updatePlayer). */
-  private updateSpeed(intents: Intent[]) {
+  private updateSpeed(_intents: Intent[]) {
     const over = this.state === 'clear' || this.state === 'failed';
     for (const p of this.players) {
-      const i = intents[p.id] ?? NEUTRAL;
-      // (no Burn, no boost)
-      const press = clamp(i.boost ?? 0, 0, 1);
+      // (the boost is cut: nothing boosts, the autopilot included; see docs/simple-run.md)
+      const press = 0;
       this.tickCrate(p);
       const want = p.down || over || p.burn <= 0 ? 0 : press;
       const was = p.boosting > 0.05;
@@ -1229,7 +1237,11 @@ export class Level {
     p.firing = i.fire && !quiet && this.state !== 'clear';
     p.heavyT += DT;
     let fired = 0;
-    const press = i.heavy && !quiet && this.state !== 'clear';
+    // a press fires a round; held, the next goes as soon as one's back (a beat apart at least)
+    const hold = !!i.heavy && !quiet && this.state !== 'clear';
+    const fresh = hold && !p.heavyHeld;
+    p.heavyHeld = !!i.heavy;
+    const press = hold && (fresh || p.heavyT >= HEAVY_GAP);
     for (let k = 0; k < s.guns.length; k++) {
       if (s.guns[k].heavy) fired += this.updateHeavy(p, k, press);
       else this.updateGun(p, k, p.firing);
@@ -1239,7 +1251,8 @@ export class Level {
         p.heavyT = 0;
         this.grafting.heavy(p);
       }
-      this.emit({ type: 'heavy', id: p.id, x: p.x, z: p.z, fired });
+      // (held with nothing ready says nothing; only a fresh press clicks dry)
+      if (fired || fresh) this.emit({ type: 'heavy', id: p.id, x: p.x, z: p.z, fired });
     }
     this.updateKit(p, welding || diving ? { ...i, aux: false } : i);
     this.grafting.tick(p);
@@ -2135,6 +2148,10 @@ export class Level {
 
   /** A part crate's part is rolled as it drops (`part`: this one, else the director's pick), so it shows its tier in flight. */
   drop(kind: PickupKind, x: number, z: number, value: number, part?: string) {
+    if (kind === 'part' && this.spec.parts === false) {
+      for (let k = 0; k < 3; k++) this.drop('scrap', x + (this.rand() - 0.5) * 2, z + (this.rand() - 0.5) * 2, 5);
+      return;
+    }
     const a = this.rand() * Math.PI * 2;
     const v = kind === 'scrap' ? 3 + this.rand() * 6 : 2;
     const id = part ?? (kind === 'part' ? this.director.loot() : undefined);
@@ -3615,19 +3632,20 @@ export const HOT_CRACK: Record<Tier, number> = { common: 20, rare: 25, epic: 30,
 export const HOT_BOLTS = 3;
 /**
  * The hull is a number (a frame's 60 to 100), and a hit takes what it's worth. A GRAZE of light
- * stuff (spores, acid, a jet's wash), a HIT (shots, shells, rams, the land), or a HEAVY blow (big
- * orbs, torpedoes, seekers, slams, lightning, beams, a crate going up): the bigger the tell, the
- * more it takes. Hits grow with the run, as the enemies' hulls do.
+ * stuff (spores, acid, a jet's wash), a HIT (shots, shells, rams, the land, beams: a beam always
+ * charges where you can see it, and sweeps), or a HEAVY blow (big orbs, torpedoes, seekers, slams,
+ * lightning, a crate going up): the bigger the tell, the more it takes, but never so much that
+ * three hits end a 60-hull ship (playtest 3). Hits grow with the run, as the enemies' hulls do.
  */
 export type HitTier = 'graze' | 'hit' | 'heavy';
-export const HIT_DMG: Record<HitTier, number> = { graze: 8, hit: 15, heavy: 30 };
+export const HIT_DMG: Record<HitTier, number> = { graze: 8, hit: 15, heavy: 22 };
 const HIT_GROWTH = 0.3;
 /** Seconds without a hit before the shield starts coming back, and how fast it fills then (points a second). */
 const SHIELD_WAIT = 10;
 const SHIELD_RATE = 4;
 /** The store a level starts with, in full shields: it refills the shield about this many times, then it stays down. */
 export const SHIELD_STORE = 2;
-const HEAVY_CAUSES = new Set(['torpedo', 'seeker', 'slam', 'ball', 'lightning', 'laser', 'crate']);
+const HEAVY_CAUSES = new Set(['torpedo', 'seeker', 'slam', 'ball', 'lightning', 'crate']);
 const GRAZE_CAUSES = new Set(['spore', 'acid', 'puddle', 'jetwash']);
 export const tierOf = (cause: string): HitTier => (HEAVY_CAUSES.has(cause) ? 'heavy' : GRAZE_CAUSES.has(cause) ? 'graze' : 'hit');
 const BULLET_TIER: Record<BulletKind, HitTier> = { orb: 'hit', needle: 'hit', mine: 'hit', spore: 'graze', big: 'heavy', torpedo: 'heavy', seeker: 'heavy' };

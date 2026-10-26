@@ -13,7 +13,7 @@
 | Coral Flats | The tide is out. The reef is pink and enormous and dripping. | marsh | — |
 | Calving Haze | They feed on the plankton haze. They are flying under you. | islands, motes | drift-calves |
 | Bone Archipelago | Islands of pale shell. Something very big died here, many times. | islands | — |
-| Tide Caves | The sea carved a maze into the reef. The sea is coming back. | canyon, motes | — |
+| Tide Caves | The sea carved a maze into the reef. The sea is coming back. | islands, motes | — |
 
 ## Who you fight
 

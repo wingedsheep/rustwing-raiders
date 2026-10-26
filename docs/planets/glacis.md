@@ -13,7 +13,7 @@
 | Aurora Shelf | Ice sheets and blue spires. The aurora hums. | ridges, snow | — |
 | Rosewater Springs | Terraced pools, pink with algae, steaming in the cold. | terraces, snow | — |
 | Mammoth Tundra | The herds don't look up. They've seen worse than you. | rolling, snow | mammoths |
-| Engine City | Under the ice: domes, pylons and orange light. It is turning on. | canyon, snow | — |
+| Engine City | Under the ice: domes, pylons and orange light. It is turning on. | terraces, snow | — |
 
 ## Who you fight
 

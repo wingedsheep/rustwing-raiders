@@ -38,7 +38,6 @@ export function controlsCard(ctx: CanvasRenderingContext2D, dev: DeviceId, p: Pl
     ['fire', 'FIRE (HOLD)', names(main) || 'NO GUNS ON THE TRIGGER', 'GUN'],
     ['heavy', 'HEAVY', names(heavy) || 'NO HEAVY GUNS', 'HEAVY'],
     ['dash', `DASH ×${s.dashes}`, names(mods) || 'PLAIN', 'DASH MOD'],
-    ['boost', 'BOOST (HOLD)', 'SPENDS BURN', null],
     ['special', 'SPECIAL', s.special ? SPECIAL_NAME[s.special] : 'NONE FITTED', 'SPECIAL'],
     ['aux', 'AUX', s.aux ? AUX_NAME[s.aux] : 'NONE FITTED', 'AUX'],
     ['focus', 'FOCUS (HOLD)', 'SLOW AND STEADY; GUNS OFF: WELD', null],

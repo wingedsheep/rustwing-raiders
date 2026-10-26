@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Game, Screen } from '../game/game';
 import type { Run } from '../sim/run';
-import { EDGE, type ChartNode, type NodeKind, type Reward } from '../sim/chart';
-import { DANGER_PAY, FUEL_MAX, SECTORS, fights, threatTier, type Run as RunT } from '../sim/run';
+import { MOODS, STOPS, isPartReward, type ChartNode, type NodeKind, type Reward } from '../sim/chart';
+import { SECTORS, fights, threatTier } from '../sim/run';
 import { eventById } from '../sim/events';
 import { audio } from '../audio';
 import { drawText, textWidth, wrap } from '../ui/font';
@@ -18,8 +18,7 @@ import { Stage } from '../view/stage';
 import { EncounterPreview } from '../view/encounter-preview';
 import { flat, GEO, part, toon } from '../render/toon';
 import { drawArt } from './art';
-import { land, toChart, toHangar, caught } from '../game/flow';
-import { CoreScreen } from './core';
+import { land, toChart, toHangar } from '../game/flow';
 import { CARGO, crewHull } from '../sim/run';
 import { convoyRoles, ROLES } from '../sim/convoy';
 import { clamp, hashStr, lerp, noise2, rng, smoothstep } from '../util';
@@ -37,11 +36,11 @@ const ESCORT = '#7ab8ff';
 
 export const KIND: Record<NodeKind, { label: string; icon: string; color: string; text: string }> = {
   start: { label: 'JUMP POINT', icon: 'start', color: '#8a8098', text: 'Where you came in.' },
-  raid: { label: 'RAID', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Pick a part at the end.' },
-  hunt: { label: 'HUNT', icon: 'hunt', color: '#ff8a4a', text: 'Elites carrying parts. A hard fight, and rich pickings.' },
+  raid: { label: 'STAGE', icon: 'raid', color: GOLD, text: 'Fly in low and shoot your way through. Its reward is waiting at the end.' },
+  hunt: { label: 'ELITE STAGE', icon: 'hunt', color: '#ff8a4a', text: 'Elites, and a harder fight. It pays better: a rare part or better, or a graft.' },
   escort: { label: 'ESCORT', icon: 'escort', color: ESCORT, text: 'Fly cover for three haulers. Raiders will try to board them: shoot them off. Every hauler that gets home pays, and brings you a crate.' },
   heist: { label: 'HEIST', icon: 'heist', color: HEIST, text: 'A loaded freighter running for a jump point. Shoot its strongboxes loose and catch them as they fall, or clamp on and board her on foot.' },
-  salvage: { label: 'SALVAGE', icon: 'salvage', color: GREEN, text: 'A dealer: buy parts, sell parts, patch the hull, take on fuel.' },
+  salvage: { label: 'DEALER', icon: 'salvage', color: GREEN, text: 'Buy parts, refit one, patch the hull, sell what you have no use for.' },
   dock: { label: 'DOCK', icon: 'dock', color: '#f4ecd8', text: 'Friends. Free repairs, fuel and gossip.' },
   event: { label: 'UNKNOWN', icon: 'unknown', color: VIOLET, text: 'Something out in the dark. Could be anything. A rumour would tell you.' },
   gate: { label: 'WARDEN GATE', icon: 'gate', color: RED, text: 'The way out of the system, and the thing that guards it. Win, and the next sector opens.' },
@@ -98,13 +97,17 @@ function dots(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x
   }
 }
 
-/** What a site pays in, as a word and a colour. */
+/** What a site pays, as a word and a colour. */
 const REWARD: Record<Reward, [string, string]> = {
-  gun: ['GUNS', CLASS_COLOR.gun],
-  engine: ['ENGINES', CLASS_COLOR.engine],
+  gun: ['A GUN', CLASS_COLOR.gun],
+  engine: ['AN ENGINE', CLASS_COLOR.engine],
   defense: ['DEFENCE', CLASS_COLOR.defense],
-  booster: ['BOOSTERS', CLASS_COLOR.booster],
-  special: ['SPECIALS', CLASS_COLOR.special],
+  booster: ['A BOOSTER', CLASS_COLOR.booster],
+  special: ['A SPECIAL', CLASS_COLOR.special],
+  graft: ['A GRAFT', '#ff7ad0'],
+  // (their own colours, not a part class's: on the map a site's colour is what it pays)
+  refit: ['A REFIT', '#c8e050'],
+  repair: ['A REPAIR', '#f4ecd8'],
   scrap: ['SCRAP', GOLD],
   fuel: ['FUEL', FUEL],
   hull: ['REPAIRS', '#f4ecd8'],
@@ -113,7 +116,32 @@ const REWARD: Record<Reward, [string, string]> = {
   none: ['', DIM],
 };
 
+/** What a site pays, in a word, for its tag on the map. */
+const SHORT: Partial<Record<Reward, string>> = { gun: 'GUN', engine: 'ENGINE', defense: 'DEFENCE', booster: 'BOOSTER', special: 'SPECIAL', graft: 'GRAFT', refit: 'REFIT', repair: 'REPAIR', scrap: 'SCRAP' };
+
+/** A fight on a dark planet: what it pays is a secret till it's won. */
+const hidden = (n: ChartNode) => (n.kind === 'raid' || n.kind === 'hunt') && !n.known && !n.done;
+
+/** A fight's reward in a few words: the part it names, or what it pays. */
+function payWord(n: ChartNode, short = false) {
+  if (hidden(n)) return '???';
+  if (n.part) return partById(n.part).name.toUpperCase();
+  return (short ? SHORT[n.reward] : REWARD[n.reward][0]) ?? '';
+}
+
 /** The five steps of threat, easy to brutal. */
+/** A reward in a line, under its name on the card. */
+const REWARD_TEXT: Partial<Record<Reward | 'part', string>> = {
+  part: 'ONE OF THREE PARTS',
+  graft: 'ONE OF THREE GRAFTS',
+  refit: 'A PART YOU CARRY, A TIER UP',
+  repair: 'HULL BACK',
+  scrap: 'FOR THE DEALER',
+};
+
+/** A rectangle on the map, for keeping labels off each other. */
+type Box = { x: number; y: number; w: number; h: number };
+
 const THREAT_COLOR = ['#8affb0', '#d8e060', '#ffb04a', '#ff7a4a', '#ff4a5a'];
 
 /** Charts whose name has been up (it shows once a sector, not again after the hangar). */
@@ -122,31 +150,35 @@ const named = new WeakSet<object>();
 const SYSTEMS = ['KAPTEYN DRIFT', 'OLD LANTERN', 'THE ANVIL', 'MERIDIAN REACH', 'SALT NEBULA', 'HOLLOW CROWN', 'NINE WELLS', 'THE ORCHARD'];
 
 /**
- * The star chart: the sector's little solar system turning under you. Jump to anything in range;
- * every jump (or a wait) is a watch, the planets move on, and the Sweep comes across from where
- * you came in. Make the gate before it has you.
+ * The star chart: the sector's little solar system, held still, its sites in a column for each
+ * stop from the jump point on the left to the gate on the right, linked on to the next.
  *
- * What you can reach shines and is joined to you by a route (cyan a hop, amber a long jump); the
- * rest sits dim. A strip along the top shows the crossing: you, the Sweep behind, the gate ahead.
- * The card on the right shows the picked site: a picture of what's there, how hard it is, what it
- * pays, and what the jump costs.
+ * What you can jump to now shines, with what it pays on a tag; what a route can still reach sits
+ * back, its colour what it pays; what you've cut yourself off from fades. The route can be
+ * planned ahead stop by stop to the gate (numbered on the map, and filled into the strip along the
+ * top). The card on the right shows the picked site: a picture of what's there, how hard it is,
+ * what it pays, and where it leads.
  */
 export class ChartScreen implements Screen {
   private stage = new Stage(MAP_W, H, 7, 38);
   private bodies: THREE.Object3D[] = [];
   private ship: ShipModel;
   private ships: ShipModel[];
-  /** The watch being shown (eases towards the chart's). */
+  /** The watch being shown (eases towards the one being planned for). */
   private shown: number;
+  /**
+   * The route being planned: the next jump first, then the ones after it, as far as the pilot's
+   * looked (up to the gate). `depth` is the stop being chosen now; what's in `options` is in reach
+   * then, and `sel` is the one of them picked (the plan's stop there).
+   */
+  private plan: ChartNode[] = [];
+  private depth = 0;
   private sel = 0;
   private options: ChartNode[] = [];
-  private anim: { kind: 'jump' | 'drift'; t: number; to: ChartNode | null; from: { x: number; y: number } } | null = null;
-  private driftAsk = 0;
-  /** Co-op: who wants to go where (a site's id, or to drift, or to fight out). */
+  private anim: { kind: 'jump'; t: number; to: ChartNode; from: { x: number; y: number }; shown: number } | null = null;
+  /** Co-op: who wants to go where (a site's id). */
   private accord: Accord<number | 'drift' | 'fight'>;
   private t = 0;
-  private msg = '';
-  private msgT = 0;
   private note = '';
   private noteT = 0;
   private v = new THREE.Vector3();
@@ -230,7 +262,8 @@ export class ChartScreen implements Screen {
       }
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
-      const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: b.kind === 'trader' ? 0x3a5a48 : 0x3a3050, depthWrite: false }));
+      // (kept faint: the routes are what you read, the orbits only say which way things are going)
+      const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: b.kind === 'trader' ? 0x22382e : 0x262036, depthWrite: false }));
       s.scene.add(line);
     }
     // the bodies
@@ -284,57 +317,103 @@ export class ChartScreen implements Screen {
     }
   }
 
-  /** Recomputes where you can go. */
-  private refresh() {
+  /** What's in reach at the plan's `k`th stop, in order along the way to the gate. */
+  private optionsAt(k: number, plan = this.plan) {
     const c = this.chart;
-    const prev = this.options[this.sel];
-    this.options = c.reachable().sort((a, b) => c.along(c.pos(a, c.time + 1)) - c.along(c.pos(b, c.time + 1)));
-    // (&site=escort, for testing: that kind of site picked to begin with)
-    const site = this.game.params.get('site');
-    const keep = prev ? this.options.indexOf(prev) : site ? this.options.findIndex((o) => o.kind === site) : -1;
-    // default to the furthest-on thing that isn't the gate, so the obvious move is forward
-    this.sel = keep >= 0 ? keep : Math.max(0, this.options.length - 1 - (this.options.length > 1 && this.options[this.options.length - 1].kind === 'gate' ? 1 : 0));
+    return c.optionsAt(plan, k).sort((a, b) => c.along(c.pos(a, c.time + k + 1)) - c.along(c.pos(b, c.time + k + 1)));
   }
 
-  private say(msg: string) {
-    this.msg = msg;
-    this.msgT = 2.2;
-    audio.play('ui_error');
+  /** The obvious pick among some options: the furthest-on stage, so it's forward and a fight (not the dealer). */
+  private defaultPick(opts: ChartNode[]) {
+    const stage = opts.filter((o) => o.kind === 'raid' || o.kind === 'hunt').pop();
+    return stage ?? opts[opts.length - 1];
+  }
+
+  /** Picks up the route planned last time, as far as it still goes; or starts one. */
+  private refresh() {
+    const c = this.chart;
+    this.plan = [];
+    for (const id of c.plan) {
+      if (!this.optionsAt(this.plan.length).includes(c.nodes[id])) break;
+      this.plan.push(c.nodes[id]);
+    }
+    const opts = this.optionsAt(0);
+    // (&site=escort, for testing: that kind of site picked to begin with)
+    const site = this.game.params.get('site');
+    const want = site ? opts.find((o) => o.kind === site) : undefined;
+    if (want) this.plan = [want];
+    if (!this.plan.length && opts.length) this.plan = [this.defaultPick(opts)];
+    this.depth = 0;
+    this.sync();
+  }
+
+  /** Puts `n` in the plan at the stop being chosen, keeping the stops after it that still follow. */
+  private pick(n: ChartNode) {
+    const plan = [...this.plan.slice(0, this.depth), n];
+    for (const later of this.plan.slice(this.depth + 1)) {
+      if (!this.optionsAt(plan.length, plan).includes(later)) break;
+      plan.push(later);
+    }
+    this.plan = plan;
+    this.sync();
+  }
+
+  /** Looks a stop further along the route (or back): the planets turn to where they'll be. */
+  private ahead(dir: 1 | -1) {
+    if (dir < 0) {
+      if (this.depth === 0) return false;
+      this.depth--;
+    } else {
+      const opts = this.optionsAt(this.depth + 1);
+      if (!opts.length) return false;
+      this.depth++;
+      if (!this.plan[this.depth]) this.plan.push(this.defaultPick(opts));
+    }
+    this.sync();
+    return true;
+  }
+
+  /** The options at the stop being chosen, and which is picked; the plan's kept on the chart. */
+  private sync() {
+    this.options = this.optionsAt(this.depth);
+    this.sel = Math.max(0, this.options.indexOf(this.plan[this.depth]));
+    this.chart.plan = this.plan.map((n) => n.id);
+  }
+
+  /** Can the plan go a stop further than the one being chosen? */
+  private get further() {
+    return this.optionsAt(this.depth + 1).length > 0;
   }
 
   update(dt: number) {
     this.t += dt;
-    this.msgT -= dt;
     // news from the last stop, one at a time
     this.noteT -= dt;
     if (this.noteT <= 0 && this.run.notes.length) {
       this.note = this.run.notes.shift()!;
       this.noteT = 2.6;
     }
-    this.driftAsk -= dt;
     const c = this.chart;
     if (this.anim) {
       const a = this.anim;
-      a.t += dt / (a.kind === 'jump' ? 1.1 : 0.7);
-      this.shown = c.time + smoothstep(0, 1, a.t);
+      a.t += dt / 1.1;
+      this.shown = lerp(a.shown, c.time + 1, smoothstep(0, 1, a.t));
       if (a.t >= 1) {
         this.anim = null;
-        if (a.kind === 'jump') {
-          this.run.payJump(c.cost(a.to!));
-          c.jump(a.to!);
-          this.shown = c.time;
-          land(this.game, a.to!);
-          return;
-        }
-        c.drift();
+        c.jump(a.to);
+        // (the rest of the route stays planned, for when you're back on the chart)
+        c.plan = this.plan.slice(1).map((n) => n.id);
         this.shown = c.time;
-        this.refresh();
+        land(this.game, a.to);
+        return;
       }
       for (const sh of this.ships) sh.update(dt);
       this.shownPreview?.update(dt);
       return;
     }
-    this.shown = c.time;
+    // (the planets turn on to where they'll be at the stop being planned, and back)
+    this.shown = lerp(this.shown, c.time + this.depth, Math.min(1, dt * 7));
+    if (Math.abs(this.shown - c.time - this.depth) < 0.002) this.shown = c.time + this.depth;
     for (const sh of this.ships) sh.update(dt);
     this.shownPreview?.update(dt);
     // the first look at a chart: how it works, unasked (not for the hands-off test runs)
@@ -352,19 +431,13 @@ export class ChartScreen implements Screen {
     this.seen += dt;
     if (!quiet && !this.banner) this.meet();
     this.intro.update(dt);
-    // (co-op: a jump, a drift or a fight is the crew's, so it waits for everyone; see Accord)
+    // (co-op: a jump is the crew's, so it waits for everyone; see Accord)
     const ms = this.game.crewMenus();
     this.accord.withdraw(ms);
     const m = this.game.menu();
+    // the sector's name goes as soon as you start looking round (it's over the top of the map)
+    if (this.banner && (m.left || m.right || m.up || m.down || m.next || m.prev || m.confirm)) this.seen = Math.max(this.seen, 4.6);
     if (m.info) return this.openGuide();
-    const stuck = !this.options.some((o) => this.run.canJump(c.cost(o))) && c.swept(c.nodes[c.here], c.time + 1);
-    if (stuck) {
-      if (this.accord.confirm(ms, 'fight') !== null) {
-        audio.play('boss_warning');
-        caught(this.game);
-      }
-      return;
-    }
     if (this.options.length) {
       let dir: [number, number] | null = null;
       if (m.left) dir = [-1, 0];
@@ -372,47 +445,24 @@ export class ChartScreen implements Screen {
       if (m.up) dir = [0, -1];
       if (m.down) dir = [0, 1];
       if (dir) this.steer(dir);
-      if (m.prev) this.sel = (this.sel + this.options.length - 1) % this.options.length;
-      if (m.next) this.sel = (this.sel + 1) % this.options.length;
-      if (dir || m.prev || m.next) audio.play('ui_move');
+      if (dir) audio.play('ui_move');
+      // planning ahead: a stop further along the route, or back
+      if (m.next) audio.play(this.ahead(1) ? 'ui_select' : 'ui_back');
+      if (m.prev && this.ahead(-1)) audio.play('ui_back');
       if (m.confirm) {
-        const to = this.options[this.sel];
-        if (!this.run.canJump(c.cost(to))) {
-          this.say('NO FUEL, AND TOO LITTLE HULL TO BURN');
-          if (this.game.params.has('autorun') && !c.swept(c.nodes[c.here], c.time + 1)) this.anim = { kind: 'drift', t: 0, to: null, from: c.pos(c.nodes[c.here]) };
-          return;
-        }
+        // a jump is always to the route's first stop
+        const to = this.plan[0];
         if (this.accord.confirm(ms, to.id) === null) return;
-        this.anim = { kind: 'jump', t: 0, to, from: c.pos(c.nodes[c.here]) };
+        this.depth = 0;
+        this.sync();
+        this.anim = { kind: 'jump', t: 0, to, from: c.pos(c.nodes[c.here]), shown: this.shown };
         audio.play('warp');
         return;
       }
-    } else if (m.confirm) {
-      if (this.game.params.has('autorun')) m.back = true;
-      this.say('NOTHING IN RANGE: DRIFT AND WAIT');
     }
     if (m.alt) {
       audio.play('ui_select');
       toHangar(this.game, () => toChart(this.game));
-      return;
-    }
-    if (m.start) {
-      audio.play('ui_select');
-      this.game.go(new CoreScreen(this.game, this.run, null, null, () => toChart(this.game)));
-      return;
-    }
-    if (m.back) {
-      if (c.swept(c.nodes[c.here], c.time + 1)) this.say('NO TIME TO WAIT: THE SWEEP IS HERE');
-      else if (this.accord.coop) {
-        // a back from someone with no vote out is a vote to drift
-        let go = false;
-        ms.forEach((pm, i) => pm.back && (go = this.accord.vote(i, 'drift') !== null || go));
-        if (go) this.drift();
-      } else if (this.driftAsk > 0 || this.game.params.has('autorun')) this.drift();
-      else {
-        this.driftAsk = 2;
-        audio.play('ui_move');
-      }
     }
   }
 
@@ -430,14 +480,9 @@ export class ChartScreen implements Screen {
   /** Says what's new on the chart, the first time each is met. */
   private meet() {
     const run = this.run;
-    const c = this.chart;
     if (run.crew.some((_, i) => newParts(run, i) > 0)) this.intro.meet('hold');
     const n = this.picked;
     if (n?.elite) this.intro.meet('elite');
-    if (n && (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'gate') && DANGER_PAY[run.danger(n)] > 1) this.intro.meet('dangerpay');
-    if (n && run.jumpCost(c.cost(n)) > run.fuel) this.intro.meet('fuel');
-    if (c.alert >= 0) this.intro.meet('alert');
-    if (run.contract) this.intro.meet('crate');
   }
 
   /** Parts waiting in the holds that nobody's looked at in the hangar yet. */
@@ -449,9 +494,10 @@ export class ChartScreen implements Screen {
   private controls(): Hint[][] {
     const dev = this.game.hintDevices();
     if (this.stuck) return [[['confirm', 'FIGHT OUT']]];
-    const drift: Hint = ['back', this.accord.open ? 'TAKE BACK' : this.driftAsk > 0 ? 'AGAIN TO DRIFT' : 'DRIFT A WATCH'];
-    const items: Hint[] = [['confirm', 'JUMP'], drift, ...(this.fresh ? [] : [['alt', 'FIT PARTS'] as Hint]), ['start', 'CORE']];
-    return hintRows(dev, items, W - PANEL_X - 20);
+    const items: Hint[] = [['confirm', this.chart.open ? 'TO THE GATE' : this.depth ? `JUMP TO STOP ${this.chart.stops + 1}` : 'JUMP'], ...(this.accord.open ? [['back', 'TAKE BACK'] as Hint] : []), ...(this.fresh ? [] : [['alt', 'FIT PARTS'] as Hint])];
+    // (planning: on its own row, so it reads as one thing)
+    const plan: Hint[] = [...(this.depth ? [['prev', 'BACK'] as Hint] : []), ...(this.further ? [['next', 'PLAN AHEAD', VIOLET] as Hint] : [])];
+    return [...(plan.length ? hintRows(dev, plan, W - PANEL_X - 20) : []), ...hintRows(dev, items, W - PANEL_X - 20)];
   }
 
   /** Where the card has to stop, for the buttons under it. */
@@ -459,23 +505,16 @@ export class ChartScreen implements Screen {
     return H - 8 - this.controls().length * 15 - (this.fresh && !this.stuck ? 21 : 0);
   }
 
-  private drift() {
-    const c = this.chart;
-    this.driftAsk = 0;
-    this.anim = { kind: 'drift', t: 0, to: null, from: c.pos(c.nodes[c.here]) };
-    audio.play('ui_select');
-  }
-
   /** Picks the nearest option in a direction on screen from the one selected. */
   private steer([dx, dy]: [number, number]) {
     const c = this.chart;
-    const cur = this.screen(c.pos(this.options[this.sel], c.time + 1));
+    const cur = this.screen(c.pos(this.options[this.sel], this.shown));
     const from = { x: cur.x, y: cur.y };
     let best = -1;
     let bs = Infinity;
     this.options.forEach((n, i) => {
       if (i === this.sel) return;
-      const p = this.screen(c.pos(n, c.time + 1));
+      const p = this.screen(c.pos(n, this.shown));
       const vx = p.x - from.x;
       const vy = p.y - from.y;
       const d = Math.hypot(vx, vy) || 1;
@@ -487,7 +526,7 @@ export class ChartScreen implements Screen {
         best = i;
       }
     });
-    if (best >= 0) this.sel = best;
+    if (best >= 0) this.pick(this.options[best]);
   }
 
   /** Where the ship is drawn now. */
@@ -504,15 +543,14 @@ export class ChartScreen implements Screen {
   }
 
 
-  /** Is it stuck: nowhere it can reach, and the Sweep about to be on it? */
+  /** (The Sweep is unhooked: never stuck.) */
   private get stuck() {
-    const c = this.chart;
-    return !this.options.some((o) => this.run.canJump(c.cost(o))) && c.swept(c.nodes[c.here], c.time + 1);
+    return false;
   }
 
   /** The site on the card: where you're going, or what's picked. */
   private get picked(): ChartNode | null {
-    return this.anim?.to ?? (this.anim ? null : (this.options[this.sel] ?? null));
+    return this.anim?.to ?? (this.anim ? null : (this.plan[this.depth] ?? null));
   }
 
   /** Sites with a fight get a 3D picture; the rest are painted. */
@@ -533,7 +571,7 @@ export class ChartScreen implements Screen {
     // place the 3D
     c.bodies.forEach((b, i) => {
       this.world(c.bodyPos(i, this.shown), 0, this.bodies[i].position);
-      this.bodies[i].rotation.y = this.shown * 0.4 + i;
+      this.bodies[i].rotation.y = this.t * 0.12 + i;
     });
     const sp = this.shipPos();
     this.world(sp, 1.4, this.ship.root.position);
@@ -566,9 +604,21 @@ export class ChartScreen implements Screen {
     this.panel(ctx);
     if (!this.anim && this.guide < 0 && !this.banner) {
       this.intro.draw(ctx, 12, 30, 300);
-      if (!this.intro.showing) hints(ctx, this.game.hintDevices(), [['info', 'HOW IT WORKS']], MAP_W - 12, 31, 'right');
+      if (this.depth) this.lookingAhead(ctx);
+      else if (!this.intro.showing) hints(ctx, this.game.hintDevices(), [['info', 'HOW IT WORKS']], MAP_W - 12, 31, 'right');
     }
     if (this.guide >= 0) this.drawGuide(ctx);
+  }
+
+  /** Planning ahead: which stop's being chosen. */
+  private lookingAhead(ctx: CanvasRenderingContext2D) {
+    const head = this.plan[this.depth]?.kind === 'gate' ? 'PLANNING THE GATE' : `PLANNING STOP ${this.chart.stops + this.depth + 1}`;
+    const tail = this.plan[this.depth]?.kind === 'gate' ? '' : ` OF ${STOPS}`;
+    const w = textWidth(head + tail) + 12;
+    const x = Math.round(MAP_W / 2 - w / 2);
+    frame(ctx, x, 27, w, 13, 'rgba(18,12,24,0.94)', VIOLET);
+    const hx = x + 6 + drawText(ctx, head, x + 6, 30, INK);
+    drawText(ctx, tail, hx, 30, VIOLET);
   }
 
   /** What a co-op vote is for, in a few words. */
@@ -581,110 +631,98 @@ export class ChartScreen implements Screen {
 
   private overlay(ctx: CanvasRenderingContext2D) {
     const c = this.chart;
-    const t = this.shown;
-    // the Sweep: everything behind its front is lost
-    const front = c.front(t);
-    const corners = [
-      [-60, -60],
-      [front, -60],
-      [front, 60],
-      [-60, 60],
-    ].map(([x, z]) => this.stage.project(new THREE.Vector3(x, 0, z)));
-    ctx.save();
-    ctx.beginPath();
-    corners.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.closePath();
-    ctx.clip();
-    ctx.fillStyle = 'rgba(150,16,36,0.26)';
-    ctx.fillRect(0, 0, MAP_W, H);
-    // scanlines drifting across it
-    ctx.fillStyle = 'rgba(255,60,80,0.1)';
-    const off = Math.floor(this.t * 12) % 6;
-    for (let y = off; y < H; y += 6) ctx.fillRect(0, y, MAP_W, 1);
-    ctx.restore();
-    const line = (x: number, color: string, gap: number, width = 1) => {
-      const a = this.stage.project(new THREE.Vector3(x, 0, -60));
-      const b = this.stage.project(new THREE.Vector3(x, 0, 60));
-      for (let w = 0; w < width; w++) dots(ctx, { x: a.x - w, y: a.y }, { x: b.x - w, y: b.y }, w ? 'rgba(255,74,90,0.35)' : color, gap, 0);
-    };
-    line(front, '#ff4a5a', 9999, 3);
-    if (!this.anim) line(c.front(t + 1), 'rgba(255,90,100,0.55)', 3);
-    const fl = this.stage.project(new THREE.Vector3(Math.max(front, -EDGE - 2), 0, 22));
-    if (fl.x > 64) drawText(ctx, 'THE SWEEP', fl.x - 6, fl.y, '#ff6a7a', { align: 'right' });
-
-    // planet names (the one on alert in red), and a flag where a crate is going
+    const at = (n: ChartNode) => this.screen(c.pos(n), 0.5);
+    const taken: Box[] = [];
+    // planet names, on a plate under each planet; or over it, or beside it, if a site's in the way
+    // (or it'd be down in the key)
+    const sites = c.nodes.filter((n) => n.kind !== 'start').map((n) => {
+      const p = at(n);
+      return { x: p.x - 9, y: p.y - 9, w: 19, h: 19 };
+    });
     c.bodies.forEach((b, i) => {
       if (!b.planet) return;
-      const p = this.screen(c.bodyPos(i, t));
-      const ny = p.y + b.size * 6 + 10;
-      drawText(ctx, b.planet.name, p.x, ny, i === c.alert ? '#c85a6a' : '#5a5070', { align: 'center' });
-      if (i === c.alert) drawText(ctx, 'ON ALERT', p.x, ny + 9, '#8a3a4a', { align: 'center' });
-      if (this.run.contract?.planet === b.planet.id) drawText(ctx, `CRATE: +${this.run.contract.pay}`, p.x, ny + (i === c.alert ? 18 : 9), GOLD, { align: 'center' });
+      const p = this.screen(c.bodyPos(i));
+      // (its mood, if it has one, on a line under its name)
+      const mood = c.moods[b.planet.id] ? MOODS[c.moods[b.planet.id]] : null;
+      const w = Math.max(textWidth(b.planet.name), mood ? textWidth(mood.name) : 0) + 6;
+      const h = mood ? 20 : 11;
+      const r = b.size * 6;
+      const spots: Box[] = [
+        { x: Math.round(p.x - w / 2), y: Math.round(p.y + r + 6), w, h },
+        { x: Math.round(p.x - w / 2), y: Math.round(p.y - r - 6 - h), w, h },
+        { x: Math.round(p.x + r + 6), y: Math.round(p.y - 5), w, h },
+        { x: Math.round(p.x - r - 6 - w), y: Math.round(p.y - 5), w, h },
+      ];
+      const ok = (q: Box) => q.y > 26 && q.y + q.h < H - 18 && q.x > 2 && q.x + q.w < MAP_W - 2;
+      const free = (q: Box) => !sites.some((o) => q.x < o.x + o.w && o.x < q.x + q.w && q.y < o.y + o.h && o.y < q.y + q.h);
+      const box = spots.find((q) => ok(q) && free(q)) ?? spots.find(ok) ?? spots[0];
+      ctx.fillStyle = 'rgba(7,6,12,0.72)';
+      ctx.fillRect(box.x, box.y, w, h);
+      drawText(ctx, b.planet.name, box.x + w / 2, box.y + 2, '#8a7ea0', { align: 'center', shadow: false });
+      if (mood) drawText(ctx, mood.name, box.x + w / 2, box.y + 11, mood.color, { align: 'center', shadow: false });
+      taken.push(box);
+      if (this.run.contract?.planet === b.planet.id) drawText(ctx, `CRATE: +${this.run.contract.pay}`, box.x + w / 2, box.y + 12, GOLD, { align: 'center' });
     });
 
     const sp = this.screen(this.shipPos(), 0.5);
-    const sel = this.anim ? null : this.options[this.sel];
-    // routes to everything in reach: cyan a hop, amber a long jump
-    if (!this.anim)
-      for (const o of this.options) {
-        if (o === sel) continue;
-        const q = this.screen(c.pos(o, t), 0.5);
-        dots(ctx, sp, q, this.run.jumpCost(c.cost(o)) > 1 ? 'rgba(255,176,74,0.32)' : 'rgba(138,255,224,0.38)', 3, 0, 7, 9);
-      }
+    const here = c.nodes[c.here];
+    const plan = this.anim ? [this.anim.to] : this.plan;
+    const sel = this.anim ? null : (plan[this.depth] ?? null);
+    // every site some route from here can still reach; the rest are behind you, or cut off
+    const ahead = c.ahead();
+    // the way you've come, dim gold
+    const flown = [c.nodes[0], ...c.path.map((id) => c.nodes[id])];
+    for (let i = 1; i < flown.length; i++) dots(ctx, at(flown[i - 1]), at(flown[i]), 'rgba(160,120,50,0.6)', 99, 0, 4, 4);
+    // every way on that's still open, faint: the whole map of what's possible
+    for (const n of [here, ...ahead]) for (const m of c.reachable(n)) if (ahead.has(m)) dots(ctx, at(n), at(m), 'rgba(150,130,190,0.32)', 3, 0, 7, 8);
+    // the ways on from the picked site, brighter: what it leads to
+    const next = sel ? this.optionsAt(this.depth + 1) : [];
+    if (sel) for (const m of next) dots(ctx, at(sel), at(m), 'rgba(200,160,255,0.75)', 3, Math.floor(-this.t * 10) % 3, 9, 8);
+    // the route planned: the stops before this one gold, this leg cyan, the ones after it faint gold
+    plan.forEach((n, i) => {
+      const from = i ? at(plan[i - 1]) : sp;
+      if (i === this.depth) dots(ctx, from, at(n), CYAN, 4, Math.floor(-this.t * 14) & 3, 9, 10);
+      else dots(ctx, from, at(n), i < this.depth ? 'rgba(255,208,74,0.95)' : 'rgba(255,208,74,0.5)', i < this.depth ? 99 : 2, 0, 8, 8);
+    });
 
-    // the sites: what's out of reach first, dim; then what's in reach, bright
-    const lost = sel ? new Set(c.closes(sel)) : new Set<ChartNode>();
-    const order = [...c.nodes].sort((a, b) => Number(this.options.includes(a)) - Number(this.options.includes(b)));
+    // the sites: cut off, then what's ahead, the route, and last what's in reach now (on top)
+    const state = (n: ChartNode) => (n.done ? 'done' : !this.anim && this.options.includes(n) ? 'reach' : plan.includes(n) ? 'plan' : ahead.has(n) || n.kind === 'gate' ? 'ahead' : 'gone');
+    const layer = { done: 0, gone: 1, ahead: 2, plan: 3, reach: 4 };
+    const order = c.nodes.filter((n) => n.kind !== 'start' && n !== here).sort((a, b) => layer[state(a)] - layer[state(b)]);
+    const tags: { n: ChartNode; px: number; py: number; off: number }[] = [];
+    const badges: { k: number; x: number; y: number }[] = [];
     for (const n of order) {
-      if (n.kind === 'start' && n.id !== c.here) continue;
-      if (n.id === c.here && !this.anim) continue;
-      const p = this.screen(c.pos(n, t), 0.5);
-      const reach = !this.anim && this.options.includes(n);
-      const gone = c.swept(n, Math.floor(t));
-      this.token(ctx, p.x, p.y, n, n.done ? 'done' : gone ? 'gone' : reach ? 'reach' : 'far', n === sel);
-      if (n.done || gone) continue;
-      if (n.kind === 'gate' && !reach) drawText(ctx, 'WARDEN GATE', Math.min(p.x, MAP_W - 4 - textWidth('WARDEN GATE') / 2), p.y + 13, '#a83a4a', { align: 'center' });
-      if (!reach) continue;
+      const p = at(n);
+      const st = state(n);
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      this.token(ctx, px, py, n, st, n === sel);
+      if (st === 'done' || st === 'gone') continue;
+      const s = n.kind === 'gate' ? 9 : st === 'reach' ? 7 : 5;
+      taken.push({ x: px - s - 1, y: py - s - 1, w: s * 2 + 3, h: s * 2 + 3 });
+      if (n.kind === 'gate' && st !== 'reach') {
+        const gx = Math.min(p.x, MAP_W - 4 - textWidth('WARDEN GATE') / 2);
+        drawText(ctx, 'WARDEN GATE', gx, p.y + 13, '#a83a4a', { align: 'center' });
+        taken.push({ x: gx - textWidth('WARDEN GATE') / 2, y: p.y + 12, w: textWidth('WARDEN GATE'), h: 10 });
+      }
+      // a planned stop wears its number, on its corner
+      const k = plan.indexOf(n);
+      if (k >= 0 && n.kind !== 'gate') {
+        badges.push({ k: c.stops + k + 1, x: px - 4, y: py - s - 13 });
+        taken.push({ x: px - 5, y: py - s - 14, w: 11, h: 12 });
+      }
+      if (st !== 'reach') continue;
       // who wants to go there, over it
-      this.accord.tags(ctx, n.id, p.x - (n.kind === 'gate' ? 9 : 7) - 4, p.y - 3, 'right');
-      // danger pips under it, what it pays in to its right
-      const d = this.run.danger(n);
-      const unknown = n.kind === 'event' && !n.known;
-      const s = n.kind === 'gate' ? 9 : 7;
-      for (let k = 0; k < (unknown ? 0 : d); k++) {
-        const x = Math.round(p.x) - d * 2 + k * 4 + 1;
-        ctx.fillStyle = DARK;
-        ctx.fillRect(x - 1, Math.round(p.y) + s + 2, 5, 5);
-        ctx.fillStyle = d >= 3 ? RED : d === 2 ? '#ff8a4a' : '#c8a060';
-        ctx.fillRect(x, Math.round(p.y) + s + 3, 3, 3);
-      }
-      const rw = REWARD[n.reward];
-      if (rw[0] && n.kind !== 'gate' && n.kind !== 'dock' && n.kind !== 'salvage') {
-        ctx.fillStyle = DARK;
-        ctx.fillRect(Math.round(p.x) + s + 2, Math.round(p.y) - 3, 6, 6);
-        ctx.fillStyle = rw[1];
-        ctx.fillRect(Math.round(p.x) + s + 3, Math.round(p.y) - 2, 4, 4);
-      }
-      if (lost.has(n)) {
-        ctx.fillStyle = RED;
-        for (let k = -4; k <= 4; k++) {
-          ctx.fillRect(Math.round(p.x) + k, Math.round(p.y) + k, 1, 1);
-          ctx.fillRect(Math.round(p.x) + k, Math.round(p.y) - k, 1, 1);
-        }
-      }
+      this.accord.tags(ctx, n.id, p.x - s - 4, p.y - 3, 'right');
+      tags.push({ n, px, py, off: s + 3 });
     }
+    // what's in reach says what it pays in words (the rest say it in colour), over everything
+    const placed = tags.map((g) => ({ g, box: this.placeTag(g.n, g.px, g.py, g.off, taken) }));
+    for (const { g, box } of placed) if (box) this.rewardTag(ctx, g.n, box);
 
-    // the selected one: the route, where it'll be when you get there, and its name
+    // the picked one: brackets round it
     if (sel) {
-      const now = this.screen(c.pos(sel, t), 0.5);
-      const then = this.screen(c.pos(sel, t + 1), 0.5);
-      const cost = this.run.jumpCost(c.cost(sel));
-      const col = cost > 1 ? FUEL : CYAN;
-      dots(ctx, sp, then, col, 4, Math.floor(-this.t * 14) & 3, 7, 6);
-      if (Math.hypot(then.x - now.x, then.y - now.y) > 4) {
-        dots(ctx, now, then, 'rgba(255,208,74,0.6)', 2, 0, 9, 5);
-        ring(ctx, Math.round(then.x), Math.round(then.y), 4, 'rgba(255,208,74,0.8)');
-      }
+      const now = at(sel);
       const b = (sel.kind === 'gate' ? 13 : 11) + Math.round(Math.sin(this.t * 6));
       ctx.fillStyle = GOLD;
       for (const [sx, sy] of [
@@ -698,17 +736,9 @@ export class ChartScreen implements Screen {
         ctx.fillRect(cx - (sx > 0 ? 3 : 0), cy, 4, 1);
         ctx.fillRect(cx, cy - (sy > 0 ? 3 : 0), 1, 4);
       }
-      // a name plate, kept on the map
-      const look = this.look(sel);
-      const label = sel.kind === 'event' && !sel.known ? '???' : sel.name;
-      const fuel = '◆'.repeat(cost);
-      const w = textWidth(label) + textWidth(fuel) + 16;
-      const px = clamp(Math.round(now.x - w / 2), 4, MAP_W - w - 4);
-      const py = Math.round(now.y) - b - 18;
-      frame(ctx, px, py, w, 13, 'rgba(18,12,24,0.92)', look.color);
-      drawText(ctx, label, px + 5, py + 3, INK);
-      drawText(ctx, fuel, px + w - 5, py + 3, cost > this.run.fuel ? RED : col, { align: 'right' });
     }
+    // (the route's numbers go over everything, the brackets too)
+    for (const b of badges) this.badge(ctx, b.x, b.y, b.k);
     // where you are
     if (!this.anim) {
       const k = Math.round(9 + Math.sin(this.t * 3));
@@ -716,41 +746,55 @@ export class ChartScreen implements Screen {
     }
   }
 
-  /** How a site shows on the map: bright in reach, dim out of it, a dot once it's done or lost. */
-  private token(ctx: CanvasRenderingContext2D, x: number, y: number, n: ChartNode, state: 'reach' | 'far' | 'done' | 'gone', sel: boolean) {
+  /**
+   * How a site shows on the map, its colour what it pays: big and bright if you can jump there
+   * now; mid-sized if a route can still get there (or it's on yours); faint once it's cut off, and
+   * a dark dot once it's done.
+   */
+  private token(ctx: CanvasRenderingContext2D, px: number, py: number, n: ChartNode, state: 'reach' | 'plan' | 'ahead' | 'gone' | 'done', sel: boolean) {
     const look = this.look(n);
-    const px = Math.round(x);
-    const py = Math.round(y);
-    if (state === 'done' || state === 'gone') {
+    const col = this.payColor(n);
+    if (state === 'done') {
       chamfer(ctx, px, py, 3, DARK);
-      chamfer(ctx, px, py, 2, state === 'done' ? '#4a4258' : '#6a2a38');
+      chamfer(ctx, px, py, 2, '#8a6a2a');
+      return;
+    }
+    if (state === 'gone') {
+      chamfer(ctx, px, py, 3, DARK);
+      chamfer(ctx, px, py, 2, '#2e2640');
       return;
     }
     const gate = n.kind === 'gate';
-    if (state === 'far' && !gate) {
-      chamfer(ctx, px, py, 6, DARK);
-      chamfer(ctx, px, py, 5, '#3a3048');
-      chamfer(ctx, px, py, 4, '#1c1526');
-      ctx.globalAlpha = 0.7;
-      icon(ctx, look.icon, px - 3, py - 3, look.color);
-      ctx.globalAlpha = 1;
+    // (a dealer's a shop, not a reward: outlined, so it's never mistaken for a site paying in green)
+    const shop = n.kind === 'salvage';
+    if (state !== 'reach' && !gate) {
+      chamfer(ctx, px, py, 6, shop ? col : DARK);
+      chamfer(ctx, px, py, 5, shop ? '#14261e' : col);
+      icon(ctx, look.icon, px - 3, py - 3, shop ? col : DARK);
+      // (what's only on the way, not on your route, sits back a little)
+      if (state === 'ahead') {
+        ctx.globalAlpha = 0.3;
+        chamfer(ctx, px, py, 5, DARK);
+        ctx.globalAlpha = 1;
+      }
       return;
     }
     // the gate always shows (it's where you're going), dimmer while it's out of reach
     const s = gate ? 9 : 7;
     if (state === 'reach') {
-      ctx.globalAlpha = sel ? 0.6 : 0.2 + (0.5 + 0.5 * Math.sin(this.t * 3 + n.id)) * 0.2;
-      ring(ctx, px, py, s + 3, look.color);
+      // a dark halo, so it stands off a bright planet, and a ring that breathes
+      chamfer(ctx, px, py, s + 2, 'rgba(7,6,12,0.55)');
+      ctx.globalAlpha = sel ? 0.7 : 0.25 + (0.5 + 0.5 * Math.sin(this.t * 3 + n.id)) * 0.25;
+      ring(ctx, px, py, s + 3, col);
       ctx.globalAlpha = 1;
-    }
-    if (state === 'far') ctx.globalAlpha = 0.65;
-    chamfer(ctx, px, py, s + 1, DARK);
-    chamfer(ctx, px, py, s, look.color);
+    } else ctx.globalAlpha = 0.65;
+    chamfer(ctx, px, py, s + 1, shop ? col : DARK);
+    chamfer(ctx, px, py, s, shop ? '#14261e' : col);
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.fillRect(px - s + 1, py - s, s * 2 - 1, 1);
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.fillRect(px - s + 1, py + s, s * 2 - 1, 1);
-    icon(ctx, look.icon, px - 3, py - 3, DARK);
+    icon(ctx, look.icon, px - 3, py - 3, shop ? col : DARK);
     ctx.globalAlpha = 1;
     if (n.elite && state === 'reach') {
       // a crown of spikes
@@ -762,57 +806,136 @@ export class ChartScreen implements Screen {
     }
   }
 
-  /** The crossing along the top: where you came in, the Sweep behind you, you, the gate. */
+  /** A planned stop's number, on a gold tag. */
+  private badge(ctx: CanvasRenderingContext2D, x: number, y: number, k: number) {
+    ctx.fillStyle = DARK;
+    ctx.fillRect(x - 1, y - 1, 11, 12);
+    ctx.fillStyle = GOLD;
+    ctx.fillRect(x, y, 9, 10);
+    drawText(ctx, `${k}`, x + 5, y + 2, DARK, { align: 'center', shadow: false });
+  }
+
+  /** The colour of what a site pays: its reward for a fight, else its kind's. */
+  private payColor(n: ChartNode) {
+    if (hidden(n)) return MOODS.dark.color;
+    return (n.kind === 'raid' || n.kind === 'hunt') && n.reward !== 'none' ? REWARD[n.reward][1] : this.look(n).color;
+  }
+
+  /**
+   * The sector's route along the top: a slot for each of its stops, filled with the site you made
+   * (its kind and what it paid) as you go; the next one shows the picked site, ghosted; then the gate.
+   */
   private strip(ctx: CanvasRenderingContext2D) {
     const c = this.chart;
-    const t = this.shown;
     const x0 = 10;
     const x1 = MAP_W - 10;
     const y = 6;
     frame(ctx, x0, y, x1 - x0, 17, 'rgba(18,12,24,0.88)');
-    drawText(ctx, 'IN', x0 + 6, y + 5, DIM);
-    const tx0 = x0 + 24;
-    const tx1 = x1 - 52;
+    const gateW = 50;
+    const tx0 = x0 + 4;
+    const tx1 = x1 - gateW;
     const ty = y + 8;
-    const at = (along: number) => Math.round(lerp(tx0, tx1, clamp((along + EDGE) / (EDGE * 2), 0, 1)));
-    ctx.fillStyle = '#2a2236';
-    ctx.fillRect(tx0, ty - 1, tx1 - tx0, 3);
-    // the Sweep, and where it'll be after another watch
-    const f = at(c.front(t));
-    ctx.fillStyle = '#c8304a';
-    ctx.fillRect(tx0, ty - 1, f - tx0, 3);
-    ctx.fillStyle = '#ff6a7a';
-    ctx.fillRect(tx0, ty - 1, f - tx0, 1);
-    if (!this.anim) {
-      const f1 = at(c.front(t + 1));
-      ctx.fillStyle = 'rgba(255,74,90,0.45)';
-      for (let x = f; x < f1; x += 2) ctx.fillRect(x, ty - 1, 1, 3);
-    }
-    // everything in reach, a tick each, where it'll be when you get there
-    const sel = this.anim ? null : this.options[this.sel];
-    for (const o of this.anim ? [] : this.options) {
-      const x = at(c.along(c.pos(o, t + 1)));
-      const col = this.look(o).color;
-      ctx.fillStyle = DARK;
-      ctx.fillRect(x - 1, ty - 4, 3, 9);
-      ctx.fillStyle = col;
-      ctx.fillRect(x, ty - 3, 1, 7);
-      if (o === sel) {
+    const gap = (tx1 - tx0) / STOPS;
+    // (the route planned on from here; while jumping, just where you're going)
+    const plan = this.anim ? [this.anim.to] : this.plan;
+    const choosing = this.anim ? 0 : this.depth;
+    const slot = (k: number, n: ChartNode, mode: 'made' | 'plan' | 'choosing') => {
+      const sx = Math.round(tx0 + gap * k + 7);
+      const look = this.look(n);
+      // made: dimmed, behind you; planned: lit; the one being chosen: underlined in gold, breathing
+      if (mode === 'made') ctx.globalAlpha = 0.5;
+      if (mode === 'choosing') {
         ctx.fillStyle = GOLD;
-        ctx.fillRect(x - 1, ty - 5, 3, 1);
-        ctx.fillRect(x - 1, ty + 5, 3, 1);
+        ctx.fillRect(sx - 6, ty + 8, Math.min(gap - 6, 13 + textWidth(this.slotWord(n))), 1);
+        ctx.globalAlpha = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(this.t * 5));
+      }
+      const shop = n.kind === 'salvage';
+      chamfer(ctx, sx, ty, 6, shop ? look.color : DARK);
+      chamfer(ctx, sx, ty, 5, shop ? '#14261e' : this.payColor(n));
+      icon(ctx, look.icon, sx - 3, ty - 3, shop ? look.color : DARK);
+      const word = this.slotWord(n);
+      const col = n.kind === 'salvage' ? look.color : this.payColor(n);
+      if (word && textWidth(word) <= gap - 18) drawText(ctx, word, sx + 9, ty - 3, col);
+      ctx.globalAlpha = 1;
+    };
+    for (let k = 0; k < STOPS; k++) {
+      const made = c.path[k] !== undefined ? c.nodes[c.path[k]] : null;
+      const planned = plan[k - c.stops];
+      if (made) slot(k, made, 'made');
+      else if (planned && planned.kind !== 'gate') slot(k, planned, k - c.stops === choosing ? 'choosing' : 'plan');
+      else {
+        const sx = Math.round(tx0 + gap * k + 7);
+        chamfer(ctx, sx, ty, 4, DARK);
+        chamfer(ctx, sx, ty, 3, k === c.stops + plan.length && !this.anim ? (Math.floor(this.t * 3) % 2 ? INK : '#5a4e68') : '#3a3048');
+        drawText(ctx, `${k + 1}`, sx + 7, ty - 3, '#4a3e5a');
+      }
+      // a rule between the slots: lit behind you, gold along the route planned
+      if (k < STOPS - 1) {
+        ctx.fillStyle = k < c.stops - 1 ? '#8a6a2a' : k < c.stops + plan.length - 1 ? '#ffd04a' : '#2a2236';
+        ctx.fillRect(Math.round(tx0 + gap * (k + 1)) - 2, ty, 3, 1);
       }
     }
-    // you
-    const sx = at(c.along(this.shipPos()));
-    ctx.fillStyle = DARK;
-    ctx.fillRect(sx - 3, ty - 4, 7, 9);
-    ctx.fillStyle = hex(LIVERY[0][2]);
-    for (let k = 0; k < 4; k++) ctx.fillRect(sx - 2 + k, ty - 3 + k, 1, 7 - k * 2);
+    const sel = plan[choosing];
     // the gate
-    const gx = tx1 + 8;
-    icon(ctx, 'gate', gx, ty - 3, RED);
-    drawText(ctx, 'GATE', gx + 10, y + 5, '#ff8a8a');
+    const gx = tx1 + 4;
+    ctx.fillStyle = '#3a2e48';
+    ctx.fillRect(gx - 4, y + 3, 1, 11);
+    // (lit once it's open, or once the route planned reaches it; picked, it pulses)
+    const lit = c.open || plan.some((n) => n.kind === 'gate');
+    if (sel?.kind === 'gate') ctx.globalAlpha = 0.6 + 0.4 * Math.sin(this.t * 6);
+    icon(ctx, 'gate', gx + 2, ty - 3, lit ? RED : '#5a3a48');
+    drawText(ctx, 'GATE', gx + 12, ty - 3, lit ? '#ff8a8a' : '#6a4a58');
+    ctx.globalAlpha = 1;
+  }
+
+  /** What a site's slot on the route says: what it pays, or that it's the dealer. */
+  private slotWord(n: ChartNode) {
+    return n.kind === 'salvage' ? 'DEALER' : hidden(n) ? '???' : (SHORT[n.reward] ?? '');
+  }
+
+  /** A site's reward tag: the word, and its colour. */
+  private tagWord(n: ChartNode) {
+    const word = n.kind === 'raid' || n.kind === 'hunt' ? payWord(n, true) : n.kind === 'salvage' ? 'DEALER' : undefined;
+    return word ? { word, col: this.payColor(n) } : null;
+  }
+
+  /**
+   * Where a site's tag goes: beside it, on the side away from its planet (so not over the planet
+   * or its other sites); if that's taken or off the map, the other side, then under, then over.
+   * It takes its spot in `taken`.
+   */
+  private placeTag(n: ChartNode, px: number, py: number, off: number, taken: Box[]): Box | null {
+    const tw = this.tagWord(n);
+    if (!tw) return null;
+    const w = textWidth(tw.word) + 9;
+    const h = 9;
+    const away = n.body >= 0 && px < this.screen(this.chart.bodyPos(n.body, this.shown)).x - 1 ? -1 : 1;
+    const spots: Box[] = [
+      { x: away > 0 ? px + off : px - off - w, y: py - 4, w, h },
+      { x: away > 0 ? px - off - w : px + off, y: py - 4, w, h },
+      { x: px - Math.round(w / 2), y: py + off + 1, w, h },
+      { x: px - Math.round(w / 2), y: py - off - h - 1, w, h },
+    ];
+    const fits = (b: Box) => b.x >= 4 && b.x + b.w <= MAP_W - 4 && b.y >= 26 && b.y + b.h <= H - 18;
+    const free = (b: Box) => !taken.some((o) => b.x - 1 < o.x + o.w && o.x < b.x + b.w + 1 && b.y - 1 < o.y + o.h && o.y < b.y + b.h + 1);
+    const box = spots.find((b) => fits(b) && free(b)) ?? spots.find(fits) ?? spots[0];
+    taken.push(box);
+    return box;
+  }
+
+  /** What a site pays, on its tag. */
+  private rewardTag(ctx: CanvasRenderingContext2D, n: ChartNode, { x: tx, y, w }: Box, faint = false) {
+    const tw = this.tagWord(n);
+    if (!tw) return;
+    if (faint) ctx.globalAlpha = 0.75;
+    ctx.fillStyle = DARK;
+    ctx.fillRect(tx - 1, y - 1, w + 2, 11);
+    ctx.fillStyle = 'rgba(18,12,24,0.95)';
+    ctx.fillRect(tx, y, w, 9);
+    ctx.fillStyle = tw.col;
+    ctx.fillRect(tx + 2, y + 2, 4, 5);
+    drawText(ctx, tw.word, tx + 7, y + 1, tw.col, { shadow: false });
+    ctx.globalAlpha = 1;
   }
 
   /** A key to the marks, along the bottom. */
@@ -820,23 +943,28 @@ export class ChartScreen implements Screen {
     if (this.anim) return;
     const y = H - 9;
     let x = 12;
-    for (const k of ['raid', 'hunt', 'escort', 'heist', 'salvage', 'dock', 'event'] as NodeKind[]) {
+    const key = '#8a7ea0';
+    // the kinds by their icons (their colours are what they pay)
+    for (const k of ['raid', 'hunt', 'salvage'] as NodeKind[]) {
       const look = KIND[k];
-      chamfer(ctx, x + 5, y, 6, DARK);
-      chamfer(ctx, x + 5, y, 5, look.color);
-      icon(ctx, look.icon, x + 2, y - 3, DARK);
+      const shop = k === 'salvage';
+      chamfer(ctx, x + 5, y, 6, shop ? look.color : DARK);
+      chamfer(ctx, x + 5, y, 5, shop ? '#14261e' : '#b8acc8');
+      icon(ctx, look.icon, x + 2, y - 3, shop ? look.color : DARK);
       x += 13;
-      x += drawText(ctx, k === 'event' ? '???' : look.label, x, y - 3, '#8a7ea0') + 9;
+      x += drawText(ctx, look.label, x, y - 3, key) + 9;
     }
-    x += 4;
-    for (const [cost, col] of [
-      [1, CYAN],
-      [2, FUEL],
-    ] as const) {
-      dots(ctx, { x, y }, { x: x + 10, y }, col, 3);
-      x += 13;
-      x += drawText(ctx, '◆'.repeat(cost), x, y - 3, col) + 9;
+    // the colours
+    for (const r of ['gun', 'graft', 'refit'] as Reward[]) {
+      chamfer(ctx, x + 2, y, 3, DARK);
+      chamfer(ctx, x + 2, y, 2, REWARD[r][1]);
+      x += 6;
     }
+    x += drawText(ctx, 'WHAT IT PAYS', x + 2, y - 3, key) + 13;
+    // the route's numbers
+    this.badge(ctx, x, y - 5, 1);
+    x += 13;
+    drawText(ctx, 'YOUR ROUTE', x, y - 3, key);
   }
 
   /** News from the last stop, and the name of a new system. */
@@ -858,7 +986,7 @@ export class ChartScreen implements Screen {
       frame(ctx, x, y, w, 60, 'rgba(18,12,24,0.92)', GOLD);
       drawText(ctx, `SECTOR ${this.run.sector + 1} OF ${SECTORS}`, MAP_W / 2, y + 6, DIM, { align: 'center' });
       drawText(ctx, SYSTEMS[(c.seed >>> 3) % SYSTEMS.length], MAP_W / 2, y + 17, INK, { scale: 2, align: 'center' });
-      drawText(ctx, 'REACH THE GATE BEFORE THE SWEEP', MAP_W / 2, y + 37, GOLD, { align: 'center' });
+      drawText(ctx, `${STOPS} STOPS, THEN THE GATE`, MAP_W / 2, y + 37, GOLD, { align: 'center' });
       drawText(ctx, `THE WARDEN: ${c.bossPlanet.boss.name}`, MAP_W / 2, y + 47, '#ff8a8a', { align: 'center' });
       ctx.globalAlpha = 1;
     }
@@ -872,9 +1000,9 @@ export class ChartScreen implements Screen {
     return { ...k, label: ev.open ? 'PORT OF CALL' : 'EVENT', icon: ev.open ? 'port' : 'known', color: ev.open ? '#ffd0a0' : ev.danger >= 2 ? '#ff8ac8' : VIOLET, text: ev.rumour };
   }
 
-  /** Height of the status block (the crew, fuel, scrap and your affairs). */
+  /** Height of the status block (the crew and the scrap). */
   private statusH() {
-    return 26 + this.run.crew.length * 10 + this.affairs(this.run).length * 9;
+    return 16 + this.run.crew.length * 10;
   }
 
   /** Where the card starts. */
@@ -907,13 +1035,13 @@ export class ChartScreen implements Screen {
         chamfer(ctx, sx, y + 8, 3, GOLD);
       } else ring(ctx, sx, y + 8, 3, '#4a3e5a');
     }
-    drawText(ctx, `WATCH ${c.time + 1}`, px + pw - 6, y + 5, DIM, { align: 'right' });
-    const left = c.watchesLeft(c.nodes[c.here]);
-    const sweepText = left <= 1 ? 'THE SWEEP IS ON YOU' : left > 20 ? 'THE SWEEP IS FAR OFF' : `SWEEP HERE IN ${left} WATCHES`;
-    drawText(ctx, sweepText, px + 6, y + 17, left <= 1 ? (Math.floor(this.t * 4) % 2 ? RED : INK) : left <= 3 ? '#ff8a7a' : DIM);
+    drawText(ctx, `STOP ${Math.min(c.stops + 1, STOPS)}/${STOPS}`, px + pw - 6, y + 5, DIM, { align: 'right' });
+    const left = STOPS - c.stops;
+    drawText(ctx, c.open ? 'THE GATE IS OPEN' : `${left} STOP${left > 1 ? 'S' : ''} TO THE GATE`, px + 6, y + 17, c.open ? (Math.floor(this.t * 4) % 2 ? RED : INK) : DIM);
+    // what the Warden's lost to the stages won on its ground
+    if (run.wardenEase > 0) drawText(ctx, `WARDEN -${Math.round(run.wardenEase * 100)}%`, px + pw - 6, y + 17, MOODS.warden.color, { align: 'right' });
     y += 35;
-    // the crew, fuel, scrap, and your affairs
-    const affairs = this.affairs(run);
+    // the crew and the scrap
     const fh = this.statusH();
     frame(ctx, px, y, pw, fh);
     let ty = y + 4;
@@ -929,15 +1057,7 @@ export class ChartScreen implements Screen {
       }
       ty += 10;
     });
-    drawText(ctx, 'FUEL', px + 6, ty, DIM);
-    for (let k = 0; k < FUEL_MAX; k++) drawText(ctx, '◆', px + 34 + k * 9, ty, k < run.fuel ? FUEL : '#3a2e48');
-    ty += 10;
     drawText(ctx, `SCRAP ${run.purses()}`, px + 6, ty, GOLD);
-    ty += 10;
-    for (const [t, col] of affairs) {
-      drawText(ctx, t, px + 6, ty, col);
-      ty += 9;
-    }
     y = this.cardY();
     const bottom = this.cardBottom();
     const n = this.picked;
@@ -948,14 +1068,10 @@ export class ChartScreen implements Screen {
     } else if (n) this.card(ctx, n, px, y, pw, bottom - y);
     else if (!this.anim) {
       frame(ctx, px, y, pw, 40);
-      wrap('Nothing in range. Drift a watch and let the planets come round.', pw - 12).forEach((l, k) => drawText(ctx, l, px + 6, y + 6 + k * 9, INK));
+      wrap('Nowhere left to land in this sector.', pw - 12).forEach((l, k) => drawText(ctx, l, px + 6, y + 6 + k * 9, INK));
     }
     // controls
     const dev = this.game.hintDevices();
-    if (this.msgT > 0) {
-      frame(ctx, px, bottom - 14, pw, 13, '#3a1420', '#6a2430');
-      drawText(ctx, this.msg, px + pw / 2, bottom - 11, RED, { align: 'center' });
-    }
     if (this.anim) return;
     // (moving the cursor goes without saying; the rest fits the panel in rows, as many as the keys need)
     const rows = this.controls();
@@ -1011,8 +1127,8 @@ export class ChartScreen implements Screen {
       icon(ctx, look.icon, x - 3, y0 - 3, dim ? '#1c1526' : DARK);
     };
     // 1: sites in reach, one picked
-    step(1, 'PICK WHERE TO GO', 'EVERYTHING YOU CAN REACH SHINES. MOVE TO CHOOSE ONE: THE CARD ON THE RIGHT SAYS WHAT IT IS, HOW HARD IT IS AND WHAT IT PAYS. THEN JUMP THERE.', (cx, cy) => {
-      const kinds: NodeKind[] = ['raid', 'dock', 'hunt'];
+    step(1, 'PICK WHERE TO GO', 'THE SITES YOU CAN JUMP TO NOW SHINE. MOVE TO CHOOSE ONE: THE CARD ON THE RIGHT SAYS WHAT IT IS, HOW HARD IT IS AND WHAT IT PAYS. THEN JUMP THERE.', (cx, cy) => {
+      const kinds: NodeKind[] = ['raid', 'salvage', 'hunt'];
       const at = Math.floor(t * 0.8) % 3;
       kinds.forEach((k, i) => {
         const sx = cx - 20 + i * 20;
@@ -1029,35 +1145,25 @@ export class ChartScreen implements Screen {
         }
       });
     });
-    // 2: a hop and a long jump
-    step(2, 'A JUMP COSTS FUEL', 'A CYAN ROUTE IS A HOP, ONE FUEL. AN AMBER ONE IS A LONG JUMP, TWO. DOCKS AND DEALERS SELL MORE. OUT OF FUEL, A JUMP BURNS HULL INSTEAD.', (cx, cy) => {
-      const ph0 = Math.floor(-t * 14) & 3;
-      ctx.fillStyle = hex(LIVERY[0][2]);
-      ctx.fillRect(cx - 24, cy - 1, 3, 3);
-      dots(ctx, { x: cx - 20, y: cy }, { x: cx + 8, y: cy - 10 }, CYAN, 4, ph0);
-      dots(ctx, { x: cx - 20, y: cy }, { x: cx + 22, y: cy + 10 }, FUEL, 4, ph0);
-      drawText(ctx, '◆', cx + 11, cy - 14, CYAN);
-      drawText(ctx, '◆◆', cx + 12, cy + 12, FUEL);
-    });
-    // 3: the Sweep coming across, sites going out behind it
-    step(3, 'THE SWEEP IS BEHIND YOU', 'EVERY JUMP IS A WATCH, AND SO IS DRIFTING (WAITING ONE OUT). EACH WATCH THE RED SWEEP COMES ON FROM WHERE YOU CAME IN, AND WHAT IT PASSES IS LOST. IF IT CATCHES YOU, YOU HAVE TO FIGHT YOUR WAY OUT.', (cx, cy) => {
-      const f = (t * 0.25) % 1;
-      const x0 = cx - 30;
-      const front = Math.round(x0 + f * 60);
-      ctx.fillStyle = 'rgba(150,16,36,0.5)';
-      ctx.fillRect(x0, cy - 12, front - x0, 24);
-      ctx.fillStyle = '#ff4a5a';
-      ctx.fillRect(front, cy - 12, 1, 24);
-      [-18, 0, 18].forEach((ox, i) => {
-        const sx = cx + ox;
-        if (sx < front) {
-          chamfer(ctx, sx, cy, 3, DARK);
-          chamfer(ctx, sx, cy, 2, '#6a2a38');
-        } else site((['raid', 'salvage', 'event'] as NodeKind[])[i], sx, cy);
+    // 2: what each site pays, on its tag
+    step(2, 'EVERY SITE SHOWS ITS REWARD', 'A SITE\'S COLOUR IS WHAT IT PAYS: THE PART IT NAMES (ONE OF THREE), A GRAFT FROM ITS FACTION, A REFIT, SCRAP OR A REPAIR. ELITES ARE HARDER, AND PAY BETTER. EACH PLANET HAS A MOOD: WIN ON THE WARDEN\'S GROUND TO WEAKEN IT.', (cx, cy) => {
+      const ks: Reward[] = ['gun', 'graft', 'refit'];
+      ks.forEach((k, i) => {
+        const [, col] = REWARD[k];
+        ctx.fillStyle = col;
+        ctx.fillRect(cx - 26 + i * 20, cy - 2 + (i === 1 ? -5 : 3), 5, 5);
       });
     });
+    // 3: five stops, the planets turning
+    const y3 = step(3, `${STOPS} STOPS, THEN THE GATE: PLAN YOUR ROUTE`, 'THE LINES ARE THE WAYS ON: EACH SITE LEADS TO ONE OR TWO IN THE NEXT COLUMN, SO WHERE YOU GO NOW DECIDES WHAT YOU CAN STILL REACH. PLAN AHEAD TO PICK EVERY STOP ON THE WAY TO THE GATE.', (cx, cy) => {
+      for (let k = 0; k < STOPS; k++) {
+        chamfer(ctx, cx - 24 + k * 10, cy, 3, DARK);
+        chamfer(ctx, cx - 24 + k * 10, cy, 2, k < Math.floor(t * 1.5) % (STOPS + 1) ? GOLD : '#3a3048');
+      }
+    }, 16);
+    hints(ctx, dev, [['next', 'PLAN AHEAD', VIOLET], ['prev', 'BACK']], tx + 3, y3 + 3);
     // 4: a part into the grid, and the buttons for it
-    const y4 = step(4, 'BUILD YOUR SHIP AS YOU GO', 'FIGHTS PAY IN PARTS. THEY WAIT IN YOUR HOLD, DOING NOTHING, UNTIL YOU FIT THEM TO YOUR SHIP IN THE HANGAR. THE CORE SHOWS WHAT YOUR FLYING HAS TAUGHT IT.', (cx, cy) => {
+    const y4 = step(4, 'BUILD YOUR SHIP AS YOU GO', 'PARTS WAIT IN YOUR HOLD, DOING NOTHING, UNTIL YOU FIT THEM TO YOUR SHIP IN THE HANGAR. GRAFTS GO ON AT ONCE, AND CHANGE HOW A BUTTON WORKS.', (cx, cy) => {
       ctx.fillStyle = '#2a2236';
       for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 3; gy++) ctx.fillRect(cx - 4 + gx * 8, cy - 8 + gy * 8, 7, 7);
       // (the ship's biggest part, sliding in from the hold, at the grid's own cell size)
@@ -1065,9 +1171,9 @@ export class ChartScreen implements Screen {
       const def = this.run.crew[0].build.parts.map((p) => partById(p.id)).filter((d) => d.shape.length <= 3).sort((p, q) => q.shape.length - p.shape.length)[0];
       if (def) shapeIcon(ctx, def, Math.round(lerp(cx - 34, cx - 4, f)), cy - 8, 8);
     }, 16);
-    hints(ctx, dev, [['alt', 'FIT PARTS'], ['start', 'THE CORE']], tx + 3, y4 + 3);
+    hints(ctx, dev, [['alt', 'FIT PARTS']], tx + 3, y4 + 3);
     // 5: the gate
-    step(5, 'THEN TAKE THE GATE', `ITS WARDEN GUARDS THE WAY OUT OF THE SECTOR. BEAT IT AND THE NEXT ONE OPENS: ${SECTORS} SECTORS IN ALL. THE STRIP ALONG THE TOP SHOWS HOW FAR YOU ARE, AND HOW CLOSE THE SWEEP.`, (cx, cy) => {
+    step(5, 'THEN TAKE THE GATE', `ITS WARDEN GUARDS THE WAY OUT OF THE SECTOR. BEAT IT FOR ITS GRAFT, THE PICK OF ITS PARTS AND A BIG REPAIR, AND THE NEXT SECTOR OPENS: ${SECTORS} IN ALL.`, (cx, cy) => {
       const k = Math.round(9 + Math.sin(t * 3));
       ring(ctx, cx, cy, k, 'rgba(255,74,90,0.5)');
       chamfer(ctx, cx, cy, 7, DARK);
@@ -1076,11 +1182,6 @@ export class ChartScreen implements Screen {
     });
     hints(ctx, dev, [['confirm', 'GOT IT']], W / 2, py + ph - 14, 'center');
     ctx.globalAlpha = 1;
-  }
-
-  /** The things hanging over you, a line each. */
-  private affairs(run: RunT): [string, string][] {
-    return run.affairs();
   }
 
 
@@ -1179,24 +1280,33 @@ export class ChartScreen implements Screen {
     else if (n.kind === 'event' && eventById(n.event!).danger >= 2) row('THREAT', (x0) => drawText(ctx, 'COULD COME TO A FIGHT', x0, ty, '#ff8ac8'));
     else row('THREAT', (x0) => drawText(ctx, 'NONE', x0, ty, GREEN));
     // what it pays
-    const d = run.danger(n);
     const rw = REWARD[n.reward];
-    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'gate') {
-      const rich = d >= 3 || n.kind === 'hunt' || n.kind === 'gate';
-      row('LOOT', (x0) => {
-        let lx = x0;
-        if (rw[0] && n.kind !== 'gate') {
-          ctx.fillStyle = DARK;
-          ctx.fillRect(lx, ty, 6, 6);
-          ctx.fillStyle = rw[1];
-          ctx.fillRect(lx, ty, 5, 5);
-          lx += 8;
-          lx += drawText(ctx, rw[0], lx, ty, rw[1]) + 6;
-        } else lx += drawText(ctx, 'PARTS', lx, ty, INK) + 6;
-        if (n.kind === 'gate') drawText(ctx, 'ONE LEGENDARY', lx, ty, '#ffb03a');
-        else if (rich) drawText(ctx, 'RARE+', lx, ty, '#6ad0ff');
+    if (n.kind === 'raid' || n.kind === 'hunt') {
+      const col = this.payColor(n);
+      const rich = n.elite || hidden(n);
+      row('REWARD', (x0) => {
+        ctx.fillStyle = DARK;
+        ctx.fillRect(x0, ty, 6, 6);
+        ctx.fillStyle = col;
+        ctx.fillRect(x0, ty, 5, 5);
+        const lx = x0 + 8 + drawText(ctx, payWord(n), x0 + 8, ty, col) + 6;
+        if (rich && (hidden(n) || isPartReward(n.reward) || n.reward === 'graft')) drawText(ctx, 'RARE+', lx, ty, '#6ad0ff');
       });
-      if (DANGER_PAY[d] > 1) row('', (x0) => drawText(ctx, `SCRAP ×${DANGER_PAY[d]}: DANGER PAY`, x0, ty, GOLD));
+      const what = hidden(n) ? 'PART, GRAFT OR REFIT' : n.part ? 'OR ONE OF TWO MORE' : REWARD_TEXT[isPartReward(n.reward) ? 'part' : n.reward];
+      const says = !hidden(n) && n.reward === 'graft' && planet ? `FROM THE ${planet.faction.toUpperCase().replace(/^THE /, '')}` : what;
+      // (wrapped: it mustn't run off the card)
+      if (says) for (const l of wrap(says, iw - 42)) row('', (x0) => drawText(ctx, l, x0, ty, DIM));
+    }
+    const mood = c.mood(n);
+    if (mood) {
+      const m = MOODS[mood];
+      row('PLANET', (x0) => drawText(ctx, m.name, x0, ty, m.color));
+      for (const l of wrap(m.text, iw - 42)) row('', (x0) => drawText(ctx, l, x0, ty, MUTED));
+    }
+    if (n.kind === 'gate') {
+      row('REWARD', (x0) => drawText(ctx, 'EPIC+ PARTS, ITS GRAFT', x0, ty, '#ffb03a'));
+      row('', (x0) => drawText(ctx, 'AND A BIG REPAIR', x0, ty, GREEN));
+      if (run.wardenEase > 0) row('WEAKENED', (x0) => drawText(ctx, `-${Math.round(run.wardenEase * 100)}% HULL`, x0, ty, MOODS.warden.color));
     }
     if (n.kind === 'escort') {
       row('LOOT', (x0) => {
@@ -1250,15 +1360,9 @@ export class ChartScreen implements Screen {
     if (n.planet && run.moodOf(n.planet.faction) <= -2) row('', (x0) => drawText(ctx, 'THEY HATE YOU: +1 DANGER', x0, ty, RED));
     if (run.contract && n.planet?.id === run.contract.planet) row('CRATE', (x0) => drawText(ctx, `DELIVER: +${run.contract!.pay}`, x0, ty, GOLD));
 
-    // the jump, at the foot of the card
-    const cost = this.run.jumpCost(c.cost(n));
-    const short = cost - run.fuel;
-    const after = (() => {
-      for (let k2 = 1; k2 < 20; k2++) if (c.swept(n, c.time + 1 + k2)) return k2;
-      return 99;
-    })();
-    const closes = c.closes(n).length;
-    const jumpRows = 1 + (n.kind !== 'gate' ? 1 : 0) + (closes ? 1 : 0);
+    // what going there opens up next, at the foot of the card
+    const then = n.kind === 'gate' ? [] : this.optionsAt(this.depth + 1);
+    const jumpRows = then.length ? then.length + 1 : 0;
     const jy = y + room - 6 - jumpRows * 10;
     // what it's like, in the room that's left
     const desc = wrap(unknown ? KIND.event.text : k.text, iw);
@@ -1273,13 +1377,25 @@ export class ChartScreen implements Screen {
     ctx.fillStyle = '#3a2e48';
     ctx.fillRect(tx, jy - 4, iw, 1);
     ty = jy;
-    row('JUMP', (x0) => {
-      const fw = drawText(ctx, '◆'.repeat(cost), x0, ty, cost > 1 ? FUEL : CYAN);
-      drawText(ctx, cost > 1 ? 'LONG JUMP' : 'HOP', x0 + fw + 6, ty, DIM);
-      if (short > 0) drawText(ctx, `BURNS ${short} HULL`, tx + iw, ty, RED, { align: 'right' });
-    });
-    if (n.kind !== 'gate') row('SWEEP', (x0) => drawText(ctx, after > 20 ? 'SAFE THERE' : `${after} WATCH${after === 1 ? '' : 'ES'} AHEAD OF IT`, x0, ty, after <= 1 ? RED : after <= 3 ? '#ff8a7a' : GREEN));
-    if (closes) row('LOSE', (x0) => drawText(ctx, `${closes} SITE${closes > 1 ? 'S' : ''} OUT OF REACH`, x0, ty, '#ff8a7a'));
+    if (then.length) {
+      // what it opens up next: a line each, its reward (a crown on an elite) and where
+      drawText(ctx, then[0].kind === 'gate' ? 'AND THEN' : 'LEADS ON TO', tx, ty, VIOLET);
+      ty += 10;
+      for (const o of then) {
+        const fight = o.kind === 'raid' || o.kind === 'hunt';
+        const word = o.kind === 'gate' ? 'THE WARDEN GATE' : o.kind === 'salvage' ? 'DEALER' : payWord(o);
+        const col = fight ? this.payColor(o) : this.look(o).color;
+        ctx.fillStyle = DARK;
+        ctx.fillRect(tx + 2, ty, 6, 6);
+        ctx.fillStyle = col;
+        ctx.fillRect(tx + 2, ty, 5, 5);
+        let lx = tx + 11 + drawText(ctx, word, tx + 11, ty, col) + 5;
+        if (o.elite) lx += drawText(ctx, 'ELITE', lx, ty, '#ff8a4a') + 5;
+        const where = o.planet?.name ?? (o.kind === 'salvage' ? 'COMET' : '');
+        if (where && lx + textWidth(where) <= x + w - 6) drawText(ctx, where, x + w - 6, ty, '#5a5070', { align: 'right' });
+        ty += 10;
+      }
+    }
   }
 
   dispose() {

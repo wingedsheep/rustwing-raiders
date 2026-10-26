@@ -118,6 +118,7 @@ function report(files: string[]) {
       ratings[s.rating ?? 'skipped'] = (ratings[s.rating ?? 'skipped'] ?? 0) + 1;
       const pct = hullStart ? Math.round(((hullStart - hullEnd) / hullStart) * 100) : 0;
       console.log(`  ${pad(n, 4)}${pad(stageName(s), 20)}${pad(s.end?.state ?? '?', 8)}${lpad(Math.round(s.end?.time ?? 0) + 's', 6)}  ${pad(`${hullStart}→${hullEnd} ${pct >= 0 ? '-' : '+'}${Math.abs(pct)}%`, 12)}${pad(s.rating ?? '-', 8)}${pad(pace(s) || '-', 18)}${top(stageLost) || '-'}`);
+      if (s.note) console.log(`      "${s.note.replace(/\n+/g, ' / ')}"`);
     }
   }
   console.log('  (hull target: 25-40% lost a stage, Wardens more. pace: foes a minute, % weak/medium/heavy by kind)');

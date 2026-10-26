@@ -174,16 +174,26 @@ const DEPTH_VERT = (on?: boolean) =>
   }`
     : '';
 
+/** How a material is enlivened (see enliven). */
+export interface Alive {
+  sway?: boolean;
+  grain?: number;
+  see?: boolean;
+  hole?: boolean;
+}
+
 /**
  * Patches a lit material (toon) so it takes the cloud shadows and a little painterly grain, and,
  * with `sway`, bends in the wind by its `aSway` vertex attribute (0 at the root, ~1 at the tips).
  * With `see`, it's something that stands over the flight line: drawn with depth (see DEPTH), and
  * (unless `hole` is false) thinned away round whatever's under it on screen (see uSee).
  */
-export function enliven<T extends THREE.Material>(mat: T, opts: { sway?: boolean; grain?: number; see?: boolean; hole?: boolean } = {}): T {
+export function enliven<T extends THREE.Material>(mat: T, opts: Alive = {}): T {
   const grain = opts.grain ?? 0.07;
   const hole = opts.see && opts.hole !== false;
   const prev = mat.onBeforeCompile;
+  // what it was enlivened with, for merging meshes drawn alike (see batch.ts); patched twice over, it's its own
+  mat.userData.alive = prev === THREE.Material.prototype.onBeforeCompile ? { sway: !!opts.sway, grain, see: !!opts.see, hole: !!hole } : null;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
     Object.assign(shader.uniforms, weather);

@@ -1,16 +1,13 @@
 /**
- * How a run hangs together, screen to screen: the chart, then wherever you jump to (a level, a
- * salvage dealer, a dock, something in the dark), then what you got, then the chart again. The
- * Warden's gate ends a sector; three sectors end the run.
- *
- * On the way in to a landing, your affairs can catch up with you: Kaspar, if there's a price on
- * your head; Mama Ruzz's boys at the gate, if you owe her.
+ * How a run hangs together, screen to screen: the chart, then wherever you jump to (a stage, an
+ * elite stage, the dealer), then the site's reward, then the chart again. Five stops and the
+ * Warden's gate end a sector; three sectors end the run. (The old run's affairs, events, escorts,
+ * heists and boarding are unhooked from here, not deleted: see docs/simple-run.md.)
  */
 
 import type { Game } from './game';
 import { Flight, type FlightResult } from '../screens/flight';
 import { BoardingScreen } from '../screens/boarding';
-import { BoardChoice } from '../screens/board-choice';
 import type { BoardResult, BoardSpec } from '../sim/boarding';
 import type { Condition, Family, ShipSize } from '../sim/deck';
 import { factionOf } from '../sim/factions';
@@ -18,15 +15,16 @@ import { ChartScreen } from '../screens/chart';
 import { Results } from '../screens/results';
 import { WreckScreen } from '../screens/wreck';
 import { Hangar } from '../screens/hangar';
-import { Shop, Dock } from '../screens/stops';
+import { Shop } from '../screens/stops';
 import { EventScreen } from '../screens/event';
 import { Ending } from '../screens/ending';
 import { CoreScreen } from '../screens/core';
-import { forget, kitOf, learn, type Fed } from './core';
-import { PRICE_HARDER } from '../sim/mind';
+import { kitOf, learn, type Fed } from './core';
 import { crewHull, DANGER_HARDER, DANGER_PAY, levelSpec, Run, SECTORS } from '../sim/run';
-import { EVENTS, eventById, type Result, type RunEvent } from '../sim/events';
-import type { ChartNode } from '../sim/chart';
+import type { Wreck } from './grafts';
+import type { SiteReward } from '../screens/results';
+import type { Result, RunEvent } from '../sim/events';
+import { WARDEN_GROUND, type ChartNode } from '../sim/chart';
 import { HULL_STEP, type Mode } from '../sim/level';
 import type { Planet } from '../world/planets';
 import { hashStr, pick, rng } from '../util';
@@ -70,37 +68,6 @@ export function land(game: Game, node: ChartNode) {
   run.stops++;
   run.landing = node;
   recorder.landed(run, node);
-  run.deliver(node);
-  // whoever owes you a visit (someone you crossed sent them)
-  const due = node.kind !== 'gate' ? run.due.shift() : undefined;
-  if (due) {
-    if (due === 'hunter') run.hunted = true;
-    if (due !== 'hunter' || run.bounty > 0) return meet(game, node, eventById(due), () => arrive(game, node));
-  }
-  // the Wren's people pay her debt: at the gate, the Talkwa settle what you owe
-  if (node.kind === 'gate' && run.aboard.includes('wren')) {
-    run.aboard.splice(run.aboard.indexOf('wren'), 1);
-    run.mood('Talkwa', 1);
-    if (run.debt) {
-      run.notes.push(`THE TALKWA PAY YOUR DEBT OF ${run.debt}, AND TAKE THE WREN HOME. OWED AND OWING`);
-      run.debt = 0;
-    } else {
-      run.scrap += 100;
-      run.notes.push('THE TALKWA TAKE THE WREN HOME, AND LEAVE 100 SCRAP IN HER PLACE. OWED AND OWING');
-    }
-  }
-  // the kelters wait at the gate for anyone who owes: Mama's boys, or the Count's drones
-  if (node.kind === 'gate' && run.debt > 0) return meet(game, node, eventById(run.lender === 'ledger' ? 'drones' : 'collect'), () => arrive(game, node));
-  // hull leeches, out where the lanterns run hot, once a sector at most
-  if (!node.planet && node.kind !== 'gate' && !run.leeched && rng(node.seed ^ 0x1eec)() < 0.14) {
-    run.leeched = true;
-    return meet(game, node, eventById('leeches'), () => arrive(game, node));
-  }
-  // Kaspar comes for a bounty, once a sector at most, more likely the bigger it is
-  if (run.bounty > 0 && !run.hunted && node.kind !== 'gate' && rng(node.seed ^ 0x4a5)() < 0.18 + run.bounty * 0.14) {
-    run.hunted = true;
-    return meet(game, node, eventById('hunter'), () => arrive(game, node));
-  }
   arrive(game, node);
 }
 
@@ -110,58 +77,21 @@ function arrive(game: Game, node: ChartNode) {
   switch (node.kind) {
     case 'raid':
     case 'hunt':
-    case 'escort': {
-      const d = run.danger(node);
-      fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[d], undefined, node);
+      fly(game, node.planet!, node.kind, node.seed, DANGER_HARDER[run.danger(node)], undefined, node);
       return;
-    }
-    case 'heist': {
-      // run her down in the air, or clamp on and go aboard
-      const d = run.danger(node);
-      const planet = node.planet!;
-      const name = `${planet.faction.toUpperCase()} FREIGHTER`;
-      game.go(new BoardChoice(game, run, name, boardSpec(run, node, game.params), (aboard) => (aboard ? board(game, node) : fly(game, planet, 'heist', node.seed, DANGER_HARDER[d], undefined, node))));
+    case 'gate':
+      fly(game, run.chart.bossPlanet, 'boss', node.seed, 0, undefined, node);
       return;
-    }
-    case 'gate': {
-      // Captain Brask keeps his word: his convoy draws the Warden's fire
-      let harder = 0;
-      if (run.favours.includes('brask')) {
-        run.favours.splice(run.favours.indexOf('brask'), 1);
-        harder = -0.25;
-        run.notes.push("BRASK'S CONVOY DRAWS THE WARDEN'S FIRE");
-      }
-      if (run.wardenEase) {
-        harder -= run.wardenEase;
-        run.notes.push('YOU KNOW WHERE THE WARDEN IS WEAK');
-      }
-      fly(game, run.chart.bossPlanet, 'boss', node.seed, harder, undefined, node);
-      return;
-    }
     case 'salvage':
       game.go(new Shop(game, run, node, () => toChart(game)));
       return;
-    case 'dock':
-      game.go(new Dock(game, run, node, () => toChart(game)));
-      return;
-    case 'event': {
-      // ?ev=<id>: that event, for testing
-      const want = game.params.get('ev');
-      const ev = (want && EVENTS.find((e) => e.id === want)) || (node.event ? eventById(node.event) : pick(rng(node.seed), EVENTS.filter((e) => e.where !== 'never')));
-      node.known = true;
-      if (want === 'hunter') run.bounty ||= 2;
-      if (want === 'collect' || want === 'drones') run.debt ||= 120;
-      if (want === 'drones') run.lender = 'ledger';
-      meet(game, node, ev, () => toChart(game));
-      return;
-    }
     default:
       toChart(game);
   }
 }
 
-/** An event at a node, then on (or a fight first, if it came to that). */
-function meet(game: Game, node: ChartNode, ev: RunEvent, then: () => void) {
+/** An event at a node, then on (or a fight first, if it came to that). Unhooked from the run for now. */
+export function meet(game: Game, node: ChartNode, ev: RunEvent, then: () => void) {
   const run = game.run!;
   const planet = node.planet ?? nearestPlanet(run, node);
   game.go(
@@ -206,9 +136,12 @@ function nearestPlanet(run: Run, node: ChartNode): Planet {
  */
 export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder = 0, after?: () => void, node?: ChartNode) {
   const run = game.run!;
-  // THE PRICE ON YOU: they come harder
-  if (run.crew.some((c) => c.core.held.includes('price'))) harder += PRICE_HARDER;
-  const spec = levelSpec(planet, mode, seed, run.difficulty() + harder);
+  // (a quiet planet's easier, but never easier than the first stop)
+  const spec = levelSpec(planet, mode, seed, Math.max(0, run.difficulty() + harder));
+  // parts come only as a site's reward: what would drop one in flight pays scrap
+  spec.parts = false;
+  // every stage won on the Warden's ground took some of its hull
+  if (mode === 'boss') spec.bossHull = 1 - run.wardenEase;
   const builds = run.crew.map((c) => c.build);
   const hull = run.crew.map((c) => c.hull);
   if (!node) run.landing = null;
@@ -216,8 +149,6 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
     new Flight(game, spec, builds, hull, (res: FlightResult) => rated(game, `${planet.name.toUpperCase()}  ${mode === 'boss' ? 'THE WARDEN' : mode.toUpperCase()}`, !res.cleared || (mode === 'boss' && run.sector + 1 >= SECTORS), (line) => {
       run.levels++;
       run.score += res.score;
-      // what each core took in (a policy paid out is gone, cleared or not)
-      run.crew.forEach((c, i) => res.spent[i]?.forEach((id) => forget(c.core, id)));
       for (const s of res.stats) {
         run.stats.kills += s.kills;
         run.stats.grazes += s.grazes;
@@ -228,48 +159,18 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         game.go(new Ending(game, run, false, `Shot down over ${planet.name}.`));
         return;
       }
-      // what the danger pays, and what the site was worth
-      const d = node ? run.danger(node) : 1;
-      if (DANGER_PAY[d] > 1) {
-        const extra = Math.round(res.scrap * (DANGER_PAY[d] - 1));
-        res.scrap += extra;
-        run.notes.push(`DANGER PAID: +${extra} SCRAP`);
-      }
-      if (node?.reward === 'fuel') {
-        run.addFuel(3);
-        run.notes.push('FUEL TAKEN: +3');
-      } else if (node?.reward === 'intel') {
-        const named = run.chart.reveal(99);
-        run.notes.push(`THE LISTENING POST'S LOGS NAME ${named.length} HIDDEN SITES`);
-      } else if (node?.reward === 'scrap') {
-        const extra = Math.round(20 * DANGER_PAY[d]);
-        res.scrap += extra;
-      }
-      if (node?.kind === 'hunt' && node.planet) run.mood(node.planet.faction, -1);
-      // an escort that brought every hauler home is remembered
-      if (node?.kind === 'escort' && node.planet && res.convoy?.delivered === 3) {
-        run.mood(node.planet.faction, 1);
-        run.notes.push(`ALL THREE HAULERS HOME: ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
-      }
-      // a runner taken down is remembered too, the other way
-      if (node?.kind === 'heist' && node.planet && res.heist?.downed) {
-        run.mood(node.planet.faction, -1);
-        run.notes.push(`YOU TOOK THEIR RUNNER DOWN: ${node.planet.faction.toUpperCase()} WON'T FORGET IT`);
-      }
-      // Squit's tip: the tithe barge was where he said
-      if (run.tip && node && node.kind !== 'gate' && res.scrap > 0) {
-        const extra = Math.round(res.scrap * run.tip);
-        res.scrap += extra;
-        run.tip = 0;
-        run.notes.push(`SQUIT'S TIP PAID: +${extra} SCRAP`);
-      }
       payOut(run, res);
-      // the insurance pays for what got shot off
-      run.claim(res.hull.reduce((a, h, i) => a + Math.max(0, hull[i] - h), 0));
-      // patched up a little on the way out
-      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i] + HULL_STEP)));
+      run.crew.forEach((c, i) => (c.hull = Math.min(crewHull(c), res.hull[i])));
+      if (node && run.chart.mood(node) === 'warden') {
+        run.wardenEase = Math.min(0.6, run.wardenEase + WARDEN_GROUND);
+        run.notes.push(`${run.chart.bossPlanet.boss.name} LOSES ${Math.round(WARDEN_GROUND * 100)}% OF ITS HULL`);
+      }
       const boss = mode === 'boss';
-      if (boss) run.stats.bosses++;
+      if (boss) {
+        run.stats.bosses++;
+        // a Warden down: a big repair
+        run.crew.forEach((c) => (c.hull = Math.min(crewHull(c), c.hull + Math.round(crewHull(c) * WARDEN_REPAIR))));
+      }
       const next = () => {
         if (boss) {
           if (run.sector + 1 >= SECTORS) {
@@ -283,14 +184,36 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
         } else if (after) after();
         else toChart(game);
       };
-      // the cores learn from the fight; any that grew a knot get to choose it after the salvage
-      const was = run.crew.map((c) => ({ ...c.core, life: { ...c.core.life } }));
-      const grows = run.crew.map((c, i) => learn(c.core, res.fed[i]));
-      const core = () => (grows.some((n) => n > 0) || run.crew.some((c) => c.core.growths > 0) ? game.go(new CoreScreen(game, run, res.fed, was, next)) : next());
-      // then the wrecks taken down, if any, to strip
-      game.go(new Results(game, run, res, spec, () => (res.wrecks.length ? game.go(new WreckScreen(game, run, res.wrecks, planet, spec.seed, core)) : core())));
+      // the site's reward; a GRAFT (or a Warden's signature) is picked off the wrecks after
+      const reward: SiteReward = boss ? 'warden' : node && !after ? node.reward : 'none';
+      const wrecks = boss ? res.wrecks : reward === 'graft' ? graftWrecks(run, res, planet, seed) : [];
+      const grafts = () => (wrecks.length ? game.go(new WreckScreen(game, run, wrecks, planet, spec.seed, next)) : next());
+      // (a dark planet's stages pay like an elite's)
+      const rich = !!node?.elite || (!!node && run.chart.mood(node) === 'dark');
+      game.go(new Results(game, run, res, spec, reward, rich, grafts));
     }), run.crew.map((c) => c.grafts), run.crew.map((c) => kitOf(c.core)), mode === 'boss' ? Math.min(2, run.sector) : 0),
   );
+}
+
+/** Of the hull, what a Warden's fall mends. */
+const WARDEN_REPAIR = 0.6;
+
+/**
+ * A GRAFT site's wrecks, for each pilot: any elite they took down, then two of the faction they
+ * fought (the offer is grafts of that faction, one of three).
+ */
+function graftWrecks(run: Run, res: FlightResult, planet: Planet, seed: number): Wreck[] {
+  const faction = factionOf(planet);
+  const r = rng(seed ^ 0x9a4f);
+  const mechs = planet.enemies.filter((e) => e.kind === 'mech');
+  return run.crew.flatMap((_, i) => {
+    const own = res.wrecks.filter((w) => w.owner === i);
+    const plain = [0, 1].map((): Wreck => {
+      const skin = pick(r, mechs.length ? mechs : planet.enemies);
+      return { owner: i, kind: skin.archetype, title: skin.name.toUpperCase(), faction, skin, model: skin.archetype };
+    });
+    return [...own, ...plain];
+  });
 }
 
 /**
@@ -300,8 +223,8 @@ export function fly(game: Game, planet: Planet, mode: Mode, seed: number, harder
 function rated(game: Game, what: string, last: boolean, then: (line?: string) => void) {
   if (!recorder.active || game.net) return then();
   game.go(
-    new Rate(game, what, last, (r, line) => {
-      recorder.rate(r);
+    new Rate(game, what, last, (r, note, line) => {
+      recorder.rate(r, note);
       then(line);
     }),
   );
@@ -386,7 +309,7 @@ export function board(game: Game, node: ChartNode) {
       const grows = run.crew.map((c, i) => learn(c.core, res.fed[i]));
       const next = () => toChart(game);
       const core = () => (grows.some((n) => n > 0) || run.crew.some((c) => c.core.growths > 0) ? game.go(new CoreScreen(game, run, res.fed, was, next)) : next());
-      game.go(new Results(game, run, res, spec, core));
+      game.go(new Results(game, run, res, spec, 'gun', false, core));
     }, run.crew[0].build.frame),
   );
 }

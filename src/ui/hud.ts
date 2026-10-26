@@ -519,9 +519,6 @@ export class Hud {
       slantBar(ctx, sx, gy, sw, 7, p.shield / s.shield, CYAN, { dir });
       slantBar(ctx, sx, gy + 9, sw, 1, Math.min(1, p.shieldStore / (s.shield * SHIELD_STORE)), '#4ab0a0', { dir, keyline: false });
     }
-    // under the hull: the Burn, bright as it's spent (the kit is in the tray, bottom corner)
-    const burnCol = p.boosting > 0 ? (Math.floor(this.time * 12) % 2 ? '#ffffff' : '#ffb04a') : p.burn < 0.15 ? '#a04a3a' : '#ff8a3a';
-    slantBar(ctx, at(28, hw + 1), gy + 10, hw - 2, 3, p.burn, burnCol, { dir });
     // co-op: the pilot's tag on a tab hanging under the outer end
     if (coop) {
       const tx = at(4, 17);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { uploadInstances } from '../render/instances';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Shot } from '../sim/level';
 import { graftShotColor } from './grafts-view';
@@ -285,15 +286,8 @@ export class ShotArt {
       }
     }
     for (const ms of this.meshes.values())
-      for (const m of ms) {
-        if (m.count === 0) continue;
-        m.instanceMatrix.needsUpdate = true;
-        m.instanceColor!.needsUpdate = true;
-      }
-    for (const g of [this.glow, this.streaks]) {
-      g.instanceMatrix.needsUpdate = true;
-      g.instanceColor!.needsUpdate = true;
-    }
+      for (const m of ms) uploadInstances(m);
+    for (const g of [this.glow, this.streaks]) uploadInstances(g);
   }
 
   /** A soft light facing the camera, `len` long along the heading as the camera sees it, `wid` across. */

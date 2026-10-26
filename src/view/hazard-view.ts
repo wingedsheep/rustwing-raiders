@@ -865,7 +865,7 @@ export class HazardView {
           for (const l of lamps) l.scale.setScalar(2 + f * 3 + Math.random() * 0.4);
           if (f > 0.55 && !charging && seen) {
             charging = true;
-            audio.play('laser_charge', { vol: 0.2 });
+            audio.play('laser_charge', { vol: 0.35 });
           }
           for (let i = emit(f * 30, dt); i > 0; i--) fx.add({ x: (Math.random() - 0.5) * W, y: FLIGHT_Y + 0.6, z: h.z + (Math.random() - 0.5) * 0.4, vy: 1.5, life: 0.35, size: 0.2, grow: 0.4, color: ember });
           for (const l of lamps) if (Math.random() < dt * f * 12) fx.sparks(l.position.x, FLIGHT_Y + l.position.y, h.z + l.position.z, 2, pal.core, 8, 0.2, 0.2, false);
@@ -874,7 +874,7 @@ export class HazardView {
         charging = false;
         if (!was) {
           was = true;
-          if (seen) audio.play('laser_fire', { vol: 0.3 });
+          if (seen) audio.play('laser_fire', { vol: 0.55 });
           for (const l of lamps) fx.sparks(l.position.x, FLIGHT_Y + l.position.y, h.z + l.position.z, 10, pal.core, 16, 0.3, 0.25, false);
         }
         lineM.opacity = 0;

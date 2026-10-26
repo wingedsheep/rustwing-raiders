@@ -32,6 +32,8 @@ export class PixelRenderer {
   private readonly mask: THREE.WebGLRenderTarget;
   private readonly maskMat: THREE.ShaderMaterial;
   private readonly clear = new THREE.Color();
+  private litScene: THREE.Scene | null = null;
+  private litAge = 0;
   private readonly bloomA: THREE.WebGLRenderTarget;
   private readonly bloomB: THREE.WebGLRenderTarget;
   private readonly post: THREE.ShaderMaterial;
@@ -468,6 +470,16 @@ export class PixelRenderer {
     const shadows = r.shadowMap.autoUpdate;
     const alpha = r.getClearAlpha();
     r.getClearColor(this.clear);
+    // the lights go on the layer too: a pass that saw none would change the lights' state, and
+    // every lit material in the scene would look its shader up again on the next pass, each frame
+    // (looked for in a new scene, then now and then: they're nearly all made with it)
+    if (scene !== this.litScene || ++this.litAge > 30) {
+      this.litScene = scene;
+      this.litAge = 0;
+      scene.traverse((o) => {
+        if ((o as THREE.Light).isLight) o.layers.enable(OUTLINE_LAYER);
+      });
+    }
     camera.layers.set(OUTLINE_LAYER);
     scene.background = null;
     scene.overrideMaterial = this.maskMat;
@@ -475,7 +487,11 @@ export class PixelRenderer {
     r.setClearColor(0xffffff, 1);
     r.setRenderTarget(this.mask);
     r.clear();
+    // (nothing's moved since the scene was drawn: no need to walk it all for its matrices again)
+    const auto = scene.matrixWorldAutoUpdate;
+    scene.matrixWorldAutoUpdate = false;
     r.render(scene, camera);
+    scene.matrixWorldAutoUpdate = auto;
     r.setClearColor(this.clear, alpha);
     r.shadowMap.autoUpdate = shadows;
     scene.overrideMaterial = null;

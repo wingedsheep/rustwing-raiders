@@ -178,7 +178,7 @@ export class Director {
       this.beats.push({ at: f * L, run: () => this.spawnFoe(foe, false, { reward: Math.round(20 + 15 * d + (foe === 'ace' ? 10 : 0)), part, life: BOUNTY_LIFE[foe] ?? 10 }) });
     }
     // a hot crate, now and then once the run's under way: a great part, if you'll fly for it
-    if ((mode === 'raid' || mode === 'hunt') && d >= HOT_FROM && r() < (mode === 'hunt' ? 0.6 : 0.4)) this.beats.push({ at: (0.15 + r() * 0.25) * L, run: () => lv.hotCrate() });
+    if ((mode === 'raid' || mode === 'hunt') && d >= HOT_FROM && r() < (mode === 'hunt' ? 0.6 : 0.4) && lv.spec.parts !== false) this.beats.push({ at: (0.15 + r() * 0.25) * L, run: () => lv.hotCrate() });
     if (mode === 'boss') this.beats.push({ at: L - 20, run: () => this.spawnBoss(), keep: true });
     // an escort: raiders come to board the haulers, more of them as it goes on
     if (mode === 'escort') {
@@ -665,7 +665,7 @@ export class Director {
     for (const e of lv.enemies) if (!e.dead) e.d.flee = 1e-3;
     lv.emit({ type: 'bossWarning', name: p.boss.name, title: p.boss.title });
     const skin: EnemySkin = { archetype: 'brute', name: p.boss.name, kind: p.boss.kind, colors: p.boss.colors };
-    const hp = 2400 * bossHull(p.id) * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? COOP_HULL : 1);
+    const hp = 2400 * bossHull(p.id) * (1 + lv.spec.difficulty * 0.8) * (lv.players.length > 1 ? COOP_HULL : 1) * (lv.spec.bossHull ?? 1);
     lv.spawn('boss', skin, 0, lv.top - 20, {}, { boss: makeBoss(p.id), hp, max: hp, t: -2.5 });
   }
 

@@ -207,14 +207,15 @@ export function wreckOffer(r: Rng, w: Wreck, have: Grafts): GraftId[] {
     const sig = signatureOf(w.boss);
     if (sig) return [sig];
   }
-  const own = GRAFT_LIST.find((g) => g.foe === w.kind && !g.boss)?.id;
+  // (the boost is cut, and its grafts with it)
+  const own = GRAFT_LIST.find((g) => g.foe === w.kind && !g.boss && g.verb !== 'boost')?.id;
   const held = new Set(Object.values(have));
-  const kin = shuffle(r, GRAFT_LIST.filter((g) => g.faction === w.faction && !g.boss && g.id !== own).map((g) => g.id));
+  const kin = shuffle(r, GRAFT_LIST.filter((g) => g.faction === w.faction && !g.boss && g.id !== own && g.verb !== 'boost').map((g) => g.id));
   kin.sort((a, b) => Number(held.has(a)) - Number(held.has(b)));
   const out = own ? [own, ...kin.slice(0, 1)] : kin.slice(0, 2);
   // a faction with too few of its own: something from anywhere
   while (out.length < 2) {
-    const any = GRAFT_LIST.filter((g) => !g.boss && !out.includes(g.id));
+    const any = GRAFT_LIST.filter((g) => !g.boss && g.verb !== 'boost' && !out.includes(g.id));
     if (!any.length) break;
     out.push(pick(r, any).id);
   }

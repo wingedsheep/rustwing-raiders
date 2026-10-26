@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { uploadInstances } from '../render/instances';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Bullet } from '../sim/level';
 import { TORPEDO } from '../sim/level';
@@ -604,15 +605,8 @@ export class BulletArt {
       }
     }
     for (const ms of this.meshes)
-      for (const m of ms) {
-        if (m.count === 0) continue;
-        m.instanceMatrix.needsUpdate = true;
-        m.instanceColor!.needsUpdate = true;
-      }
-    for (const g of [this.glow, this.streaks, this.backing]) {
-      g.instanceMatrix.needsUpdate = true;
-      g.instanceColor!.needsUpdate = true;
-    }
+      for (const m of ms) uploadInstances(m);
+    for (const g of [this.glow, this.streaks, this.backing]) uploadInstances(g);
   }
 
   /** A soft light facing the camera, `len` long along the heading as the camera sees it, `wid` across. */

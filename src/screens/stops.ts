@@ -19,10 +19,10 @@ import { rng } from '../util';
 
 const TONE = { good: GREEN, bad: RED, info: CYAN };
 
-/** The crew's state, top right: scrap, fuel, hull, and what hangs over you. */
+/** The crew's state, top right: scrap and hull. */
 export function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: number) {
   const coop = run.crew.length > 1;
-  const lines = (coop ? 1 : 2) + run.crew.length + (run.bounty ? 1 : 0) + (run.debt ? 1 : 0) + (run.policy ? 1 : 0);
+  const lines = (coop ? 0 : 1) + run.crew.length;
   frame(ctx, x - 132, y, 132, 6 + lines * 10, 'rgba(18,12,24,0.86)');
   let ty = y + 4;
   // (co-op: each pilot's scrap on their own line, by their hull)
@@ -31,24 +31,12 @@ export function status(ctx: CanvasRenderingContext2D, run: Run, x: number, y: nu
     drawText(ctx, `${run.scrap}`, x - 6, ty, GOLD, { align: 'right' });
     ty += 10;
   }
-  drawText(ctx, 'FUEL', x - 126, ty, DIM);
-  for (let k = 0; k < FUEL_MAX; k++) drawText(ctx, '◆', x - 96 + k * 10, ty, k < run.fuel ? '#ffb04a' : '#3a2e48');
-  ty += 10;
   run.crew.forEach((c, i) => {
     drawText(ctx, `P${i + 1}`, x - 126, ty, hex(LIVERY[i][2]));
     hullGauge(ctx, c.hull, crewHull(c), x - 108, ty, 40);
     if (coop) drawText(ctx, `${c.scrap}`, x - 6, ty, GOLD, { align: 'right' });
     ty += 10;
   });
-  if (run.bounty) {
-    drawText(ctx, `BOUNTY ${run.bounty * 40}`, x - 126, ty, RED);
-    ty += 10;
-  }
-  if (run.debt) {
-    drawText(ctx, `OWE MAMA ${run.debt}`, x - 126, ty, '#ff8a7a');
-    ty += 10;
-  }
-  if (run.policy) drawText(ctx, `INSURED ${run.policy}/${HULL_STEP} HULL`, x - 126, ty, GREEN);
 }
 
 /** Fills the whole window behind the safe area. */
@@ -65,15 +53,20 @@ interface Offer {
   act: () => void;
 }
 
-type ShopRow = { kind: 'buy'; item: ShopItem } | { kind: 'repair' } | { kind: 'fuel' } | { kind: 'debt' } | { kind: 'give' } | { kind: 'sell'; index: number } | { kind: 'leave' };
+type ShopRow = { kind: 'buy'; item: ShopItem } | { kind: 'refit' } | { kind: 'repair' } | { kind: 'reroll' } | { kind: 'give' } | { kind: 'sell'; index: number } | { kind: 'leave' };
 
 /** Scrap handed over a counter at a time (co-op). */
 const GIVE = 10;
+/** A refit at the counter, by the tier it goes up from. */
+const REFIT_PRICE: Record<string, number> = { common: 45, rare: 90, epic: 160 };
+/** A fresh stall: the first, and what each one after adds. */
+const REROLL = 20;
+const REROLL_MORE = 15;
 
 /**
- * A salvage dealer: buy parts, sell what's in the hold, patch the hull, fuel up. Parts and
- * repairs come out of your own scrap and sales go into it; fuel and a debt are the crew's (see
- * Run.scrap). In co-op each of you has a counter of your own (your cursor, your hold, your hull,
+ * The dealer: three parts, a refit (one of three parts you carry, a tier up: left and right to
+ * choose which), a repair, a fresh stall for a price, and selling what's in the hold. Everything
+ * comes out of your own scrap and sales go into it (see Run.scrap). In co-op each of you has a counter of your own (your cursor, your hold, your hull,
  * your scrap, which you can hand across) over the one stall, and you leave together, once you've
  * both said you're done.
  */
@@ -89,6 +82,11 @@ export class Shop implements Screen {
   private fits: Map<Item, Fit>[] = [];
   /** Co-op: who's done here. */
   private accord: Accord<'leave'>;
+  /** Each pilot's refit on offer (one a visit), and which of them is showing. */
+  private refits: { from: Item; to: Item }[][];
+  private refitAt: number[];
+  private refitted: boolean[];
+  private rerolls = 0;
 
   constructor(
     private game: Game,
@@ -97,6 +95,9 @@ export class Shop implements Screen {
     private onDone: () => void,
   ) {
     this.stock = run.shopStock(node);
+    this.refits = run.crew.map((_, i) => run.refitOffer(i, node.seed ^ (0x7e1 + i)));
+    this.refitAt = run.crew.map(() => 0);
+    this.refitted = run.crew.map(() => false);
     this.ats = run.crew.map(() => 0);
     this.msgs = run.crew.map(() => ({ text: '', t: 0 }));
     this.accord = new Accord(run.crew.length);
@@ -105,15 +106,20 @@ export class Shop implements Screen {
 
   private rows(who: number) {
     const crew = this.run.crew[who];
-    const rows: ShopRow[] = [...this.stock.map((item) => ({ kind: 'buy', item }) as ShopRow), { kind: 'repair' }, { kind: 'fuel' }];
-    if (this.run.debt) rows.push({ kind: 'debt' });
+    const rows: ShopRow[] = [...this.stock.map((item) => ({ kind: 'buy', item }) as ShopRow), { kind: 'refit' }, { kind: 'repair' }, { kind: 'reroll' }];
     if (this.run.crew.length > 1) rows.push({ kind: 'give' });
     rows.push(...crew.cargo.map((_, index) => ({ kind: 'sell', index }) as ShopRow), { kind: 'leave' });
     return rows;
   }
 
-  private get fuelPrice() {
-    return FUEL_PRICE + 2;
+  private get rerollPrice() {
+    return REROLL + this.rerolls * REROLL_MORE;
+  }
+
+  /** The refit showing at a pilot's counter, and what it costs. */
+  private refitOf(who: number) {
+    const o = this.refits[who][this.refitAt[who]];
+    return o ? { ...o, price: REFIT_PRICE[tierOf(o.from)] ?? 999 } : null;
   }
 
   private fitFor(it: Item, who: number) {
@@ -142,6 +148,12 @@ export class Shop implements Screen {
     if (m.down) at = (at + 1) % rows.length;
     if (m.up || m.down) audio.play('ui_move');
     this.ats[who] = at;
+    // on the refit: left and right choose which part
+    const n = this.refits[who].length;
+    if (rows[at].kind === 'refit' && n > 1 && !this.refitted[who] && (m.left || m.right)) {
+      this.refitAt[who] = (this.refitAt[who] + (m.left ? n - 1 : 1)) % n;
+      audio.play('ui_move');
+    }
     if (m.back) return this.leave(who);
     if (!m.confirm) return;
     const row = rows[at];
@@ -170,18 +182,26 @@ export class Shop implements Screen {
         crew.hull = Math.min(crewHull(crew), crew.hull + HULL_STEP);
         audio.play('heal');
         break;
-      case 'fuel':
-        if (run.fuel >= FUEL_MAX) return say('THE TANKS ARE FULL');
-        if (run.scrap < this.fuelPrice) return say('NOT ENOUGH SCRAP');
-        run.scrap -= this.fuelPrice;
-        run.addFuel(1);
+      case 'refit': {
+        const o = this.refitOf(who);
+        if (this.refitted[who]) return say('ONE REFIT A VISIT');
+        if (!o) return say('NOTHING SHE CAN REFIT');
+        if (crew.scrap < o.price) return say('NOT ENOUGH SCRAP');
+        crew.scrap -= o.price;
+        recorder.buy(who, `refit:${itemTag(o.from)}>${tierOf(o.to)}`, o.price);
+        run.refit(who, o.from, o.to);
+        this.refitted[who] = true;
         audio.play('ui_buy');
         break;
-      case 'debt': {
-        const pay = Math.min(run.scrap, run.debt);
-        if (!pay) return say('NOT ENOUGH SCRAP');
-        run.scrap -= pay;
-        run.debt -= pay;
+      }
+      case 'reroll': {
+        const price = this.rerollPrice;
+        if (crew.scrap < price) return say('NOT ENOUGH SCRAP');
+        crew.scrap -= price;
+        recorder.buy(who, 'reroll', price);
+        this.rerolls++;
+        this.stock = run.shopStock(this.node, this.rerolls);
+        this.fits = [];
         audio.play('ui_buy');
         break;
       }
@@ -252,12 +272,21 @@ export class Shop implements Screen {
     if (row.kind === 'repair') {
       drawText(ctx, `REPAIR${run.crew.length > 1 ? ` P${who + 1}` : ''}: +${HULL_STEP} HULL`, x, y, ink);
       drawText(ctx, `${REPAIR}`, right, y, run.crew[who].scrap >= REPAIR ? GOLD : RED, { align: 'right' });
-    } else if (row.kind === 'fuel') {
-      drawText(ctx, `FUEL: +1 (${run.fuel}/${FUEL_MAX})`, x, y, ink);
-      drawText(ctx, `${this.fuelPrice}`, right, y, run.scrap >= this.fuelPrice ? GOLD : RED, { align: 'right' });
-    } else if (row.kind === 'debt') {
-      drawText(ctx, `PAY MAMA RUZZ (OWE ${run.debt})`, x, y, on ? INK : '#ff8a7a');
-      drawText(ctx, `${Math.min(run.scrap, run.debt)}`, right, y, GOLD, { align: 'right' });
+    } else if (row.kind === 'refit') {
+      const o = this.refitOf(who);
+      if (!o) drawText(ctx, 'REFIT: NOTHING TO REFIT', x, y, '#4a3e58');
+      else {
+        const done = this.refitted[who];
+        const many = this.refits[who].length > 1 && !done;
+        const name = itemName(o.from);
+        const text = `REFIT ${name.length > 14 ? name.slice(0, 13) + '.' : name} > ${TIER_WORD[tierOf(o.to)]}`;
+        drawText(ctx, many && on ? `< ${text} >` : text, x, y, done ? '#4a3e58' : on ? INK : TIER_COLOR[tierOf(o.to)]);
+        drawText(ctx, done ? 'DONE' : `${o.price}`, right, y, done ? '#4a3e58' : run.crew[who].scrap >= o.price ? GOLD : RED, { align: 'right' });
+        if (!done) return o.to;
+      }
+    } else if (row.kind === 'reroll') {
+      drawText(ctx, 'A FRESH STALL: THREE NEW PARTS', x, y, ink);
+      drawText(ctx, `${this.rerollPrice}`, right, y, run.crew[who].scrap >= this.rerollPrice ? GOLD : RED, { align: 'right' });
     } else if (row.kind === 'give') {
       drawText(ctx, `GIVE P${2 - who} ${GIVE} SCRAP`, x, y, ink);
       drawText(ctx, `-${GIVE}`, right, y, run.crew[who].scrap > 0 ? DIM : RED, { align: 'right' });
@@ -313,7 +342,7 @@ export class Shop implements Screen {
     drawText(ctx, 'P1', rx + 6, 69, hex(LIVERY[0][2]));
     hullGauge(ctx, c.hull, crewHull(c), rx + 26, 69, 60);
     drawText(ctx, `HOLD ${c.cargo.length}/${CARGO}`, rx + 254, 80, c.cargo.length >= CARGO ? GOLD : DIM, { align: 'right' });
-    drawText(ctx, `SCRAP ${run.scrap}  FUEL ${run.fuel}`, rx + 6, 80, GOLD);
+    drawText(ctx, `SCRAP ${run.scrap}`, rx + 6, 80, GOLD);
     if (focus) {
       const cy = 64 + 34 + 8;
       const sold = this.stock.some((s) => s.part === focus && s.sold);
@@ -330,7 +359,7 @@ export class Shop implements Screen {
   private drawCounters(ctx: CanvasRenderingContext2D, bits: [string, string][]) {
     const run = this.run;
     // the shared purse in the middle, the market either side of it
-    const purse = `FUEL ${run.fuel}/${FUEL_MAX}`;
+    const purse = '';
     const line = bits.reduce((s, [t]) => s + textWidth(t) + 14, textWidth(purse));
     let bx = Math.round(W / 2 - line / 2);
     bx += drawText(ctx, purse, bx, 50, GOLD) + 14;

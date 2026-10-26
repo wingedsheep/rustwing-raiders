@@ -155,6 +155,8 @@ export interface StageLog {
   end: StageEnd | null;
   /** The pilot's verdict (fun / meh / unfair), if given. */
   rating?: Rating;
+  /** What the pilot wrote about it, if anything. */
+  note?: string;
   /** Seconds since the run began, when the stage did. */
   at?: number;
 }

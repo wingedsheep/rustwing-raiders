@@ -5,6 +5,7 @@ import type { Biome } from '../world/planets';
 import { lookOf, PATTERNS } from '../world/looks';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
+import { batchStatic } from '../render/batch';
 import { enliven, weather, NOISE_GLSL, WASH, SEE } from '../render/alive';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
@@ -343,6 +344,7 @@ export class WorldView {
     }
     const instances: Instance[] = [];
     const emitters: Emitter[] = [];
+    const still: THREE.Object3D[] = [];
     for (const p of chunk.props) {
       const inst = library.clone(p.kind, p.variant);
       const obj = inst ? inst.obj : placeholder(p);
@@ -366,9 +368,12 @@ export class WorldView {
       }
       group.add(obj);
       if (inst?.mixer) instances.push(inst);
+      else still.push(obj);
       const e = EMITS[p.kind];
       if (e) emitters.push({ kind: e, x: p.x, y: p.y + (e === 'stack' ? metaTop(p) : 0.4 * p.s), z: p.z, s: p.s, t: hash(p.x, p.z) * 3 });
     }
+    // what doesn't move, merged into a few meshes (see batch.ts)
+    geos.push(...batchStatic(group, still));
     const wildlife: ChunkView['wildlife'] = [];
     for (const w of chunk.wildlife) {
       const inst = library.clone(w.kind, 0);

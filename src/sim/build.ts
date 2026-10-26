@@ -219,6 +219,8 @@ const SHARED_MARK = 1;
 
 /** Shield points a part's (or a frame's) shield cell is worth: about a plain hit mid-run. */
 export const SHIELD_CELL = 20;
+/** The hull a point of shield is worth, now the shield is folded into the hull (see stats). */
+const SHIELD_HULL = 1.5;
 
 export function startBuild(frame: string): Build {
   const f = frameById(frame);
@@ -371,12 +373,14 @@ export function stats(b: Build): Stats {
   const ratio = thrust / mass;
   return {
     frame: f,
-    hp: Math.round(hp * (1 + hullPct)),
+    // one hull bar: a shield cell is hull now, a bit over its worth (it used to grow back)
+    hp: Math.round((hp + shield * SHIELD_HULL) * (1 + hullPct)),
     armor,
-    shield,
+    shield: 0,
     mass,
     thrust,
-    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * (loadClass === 'overloaded' ? 0.88 : 1),
+    // (a little over what it was: the boost is cut)
+    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * 1.06 * (loadClass === 'overloaded' ? 0.88 : 1),
     accel: 140 * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
     dashSpeed: DASH_SPEED * (f.move?.dashSpeed ?? 1),
     dashTime: DASH_TIME * (f.move?.dashTime ?? 1),

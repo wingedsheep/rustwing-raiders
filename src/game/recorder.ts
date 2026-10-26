@@ -24,7 +24,7 @@ export interface RunLog {
   frames: string[];
   online: boolean;
   /** Each stop, as you landed: the sector, the site, and when (seconds into the run). */
-  route: { t: number; sector: number; stop: number; kind: string; planet?: string; reward?: string; elite?: boolean }[];
+  route: { t: number; sector: number; stop: number; kind: string; planet?: string; reward?: string; elite?: boolean; mood?: string; part?: string }[];
   /** Every choice put in front of you: where, what was on offer, and what was taken (null: none). */
   offers: { t: number; where: string; pilot: number; options: string[]; picked: string | null }[];
   buys: { t: number; pilot: number; what: string; price: number }[];
@@ -37,6 +37,16 @@ export interface RunLog {
 
 /** A part as the logs name it: id, then tier, affix and trait where it has them. */
 export const itemTag = (it: Item) => [it.id, it.tier, it.affix, it.trait].filter(Boolean).join(':');
+
+/** The frames flown on recorded runs here, latest last, for the title's random pick. */
+const FLOWN = 'rr.flown';
+const flown = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(FLOWN) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+};
 
 const stamp = () => {
   const d = new Date();
@@ -86,11 +96,28 @@ class Recorder {
       flightSecs: 0,
       menuSecs: 0,
     };
+    try {
+      localStorage.setItem(FLOWN, JSON.stringify([...flown(), ...this.log.frames].slice(-40)));
+    } catch {
+      // no storage: the random pick just forgets
+    }
     console.log(`[recorder] recording run ${run.seed} as ${this.log.name}`);
   }
 
+  /**
+   * The title's random pick, so recorded runs go round the roster: a frame never flown here if
+   * there is one, else one of the half flown longest ago.
+   */
+  freshFrame(ids: string[]): string {
+    const log = flown();
+    const last = (id: string) => log.lastIndexOf(id);
+    const never = ids.filter((id) => last(id) < 0);
+    const pool = never.length ? never : [...ids].sort((a, b) => last(a) - last(b)).slice(0, Math.ceil(ids.length / 2));
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   landed(run: Run, node: ChartNode) {
-    this.log?.route.push({ t: this.now, sector: run.sector, stop: run.stops, kind: node.kind, planet: node.planet?.id, reward: node.reward });
+    this.log?.route.push({ t: this.now, sector: run.sector, stop: run.stops, kind: node.kind, planet: node.planet?.id, reward: node.reward, elite: node.elite, mood: run.chart.mood(node) ?? undefined, part: node.part ?? undefined });
   }
 
   /** A stage is in the air. */
@@ -108,11 +135,12 @@ class Recorder {
     this.save();
   }
 
-  /** The pilot's verdict on the stage just flown. */
-  rate(r: Rating | null) {
+  /** The pilot's verdict on the stage just flown, and their note on it. */
+  rate(r: Rating | null, note?: string) {
     const s = this.log?.stages[this.log.stages.length - 1];
     if (!s) return;
     if (r) s.rating = r;
+    if (note) s.note = note;
     this.save();
   }
 

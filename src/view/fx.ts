@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { uploadInstances } from '../render/instances';
 
 /**
  * Particles: soft round camera-facing sprites, in two instanced meshes, one that adds light
@@ -46,6 +47,8 @@ export class Fx {
   private list: Particle[] = [];
   private pool: Particle[] = [];
   private rings: { mesh: THREE.Mesh; t: number; life: number; size: number; carried: boolean }[] = [];
+  /** Rings done with, kept to go again (a blast makes one, and they come by the dozen). */
+  private spare: THREE.Mesh[] = [];
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private s = new THREE.Vector3();
@@ -140,10 +143,14 @@ export class Fx {
 
   /** An expanding ring on the flight plane. */
   ring(x: number, y: number, z: number, size: number, life = 0.3, carried = true, color: THREE.ColorRepresentation = 0xfff4d0) {
-    const mesh = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+    let mesh = this.spare.pop();
+    if (!mesh) {
+      mesh = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.renderOrder = 6;
+    }
+    (mesh.material as THREE.MeshBasicMaterial).color.set(color);
     mesh.position.set(x, y, z);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.renderOrder = 6;
     this.group.add(mesh);
     this.rings.push({ mesh, t: 0, life, size, carried });
   }
@@ -212,12 +219,9 @@ export class Fx {
     this.quads.count = n;
     this.glows.count = ng;
     this.cubes.count = ns;
-    this.quads.instanceMatrix.needsUpdate = true;
-    this.glows.instanceMatrix.needsUpdate = true;
-    this.cubes.instanceMatrix.needsUpdate = true;
-    if (this.quads.instanceColor) this.quads.instanceColor.needsUpdate = true;
-    if (this.glows.instanceColor) this.glows.instanceColor.needsUpdate = true;
-    if (this.cubes.instanceColor) this.cubes.instanceColor.needsUpdate = true;
+    uploadInstances(this.quads);
+    uploadInstances(this.glows);
+    uploadInstances(this.cubes);
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i];
       r.t += dt;
@@ -225,7 +229,7 @@ export class Fx {
       const f = r.t / r.life;
       if (f >= 1) {
         this.group.remove(r.mesh);
-        (r.mesh.material as THREE.Material).dispose();
+        this.spare.push(r.mesh);
         this.rings.splice(i, 1);
         continue;
       }
@@ -237,7 +241,10 @@ export class Fx {
   clear() {
     for (const p of this.list) this.pool.push(p);
     this.list = [];
-    for (const r of this.rings) this.group.remove(r.mesh);
+    for (const r of this.rings) {
+      this.group.remove(r.mesh);
+      this.spare.push(r.mesh);
+    }
     this.rings = [];
   }
 }

@@ -25,7 +25,7 @@ export type Sfx =
   | 'player_hit' | 'player_down' | 'shield_break' | 'shield_up' | 'dash' | 'graze' | 'overheat'
   | 'pickup_scrap' | 'pickup_part' | 'heal'
   | 'special_bomb' | 'special_phase' | 'special_emp' | 'special_overdrive' | 'special_ready'
-  | 'laser_charge' | 'laser_fire' | 'lightning' | 'geyser' | 'crash' | 'hull_crash' | 'warp' | 'boss_warning' | 'level_clear'
+  | 'laser_charge' | 'laser_fire' | 'lattice_tell' | 'lightning' | 'geyser' | 'crash' | 'hull_crash' | 'warp' | 'boss_warning' | 'level_clear'
   | 'ui_move' | 'ui_select' | 'ui_back' | 'ui_error' | 'ui_place' | 'ui_buy'
   | 'card_flip' | 'loot_epic' | 'loot_legendary'
   | 'graft_deal' | 'graft_bolt' | 'bond_wake'
@@ -1397,12 +1397,23 @@ const SFX: Record<Sfx, SfxDef> = {
 
   laser_fire: S((t, p, o) => {
     const lp = filt(o, 'lowpass', 2400);
-    tone(lp, t, 'sawtooth', 110 * p, 95 * p, 0.75, 0.16, 0.004);
-    tone(lp, t, 'sawtooth', 165 * p, 140 * p, 0.75, 0.11, 0.004);
+    tone(lp, t, 'sawtooth', 110 * p, 95 * p, 0.75, 0.2, 0.004);
+    tone(lp, t, 'sawtooth', 165 * p, 140 * p, 0.75, 0.13, 0.004);
     noise(o, t, 0.6, 'bandpass', 1400 * p, 700 * p, 1, 0.18, 0.004);
+    // the sizzle on top, so it cuts through a busy fight (a beam is the one thing you must hear)
+    noise(o, t, 0.55, 'highpass', 4200, 2600, 0.7, 0.11, 0.003);
     tone(o, t, 'sine', 90 * p, 40 * p, 0.4, 0.3, 0.003);
     return 0.8;
   }, 0.1, 3, { rev: 0.15 }),
+
+  // the lattice's tell before it fires (not a beam): a short glassy rise, so its many guns don't
+  // crowd out a real beam's charge
+  lattice_tell: S((t, p, o) => {
+    tone(o, t, 'sine', 520 * p, 1250 * p, 0.28, 0.08, 0.01);
+    tone(o, t + 0.02, 'sine', 1040 * p, 2500 * p, 0.22, 0.03, 0.01);
+    noise(o, t, 0.25, 'bandpass', 2200 * p, 4200 * p, 6, 0.035, 0.12);
+    return 0.3;
+  }, 0.08, 4),
 
   lightning: S((t, p, o) => {
     noise(o, t, 0.09, 'highpass', 1800, 1200, 0.7, 0.42, 0.001);

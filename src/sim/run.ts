@@ -12,11 +12,11 @@
 import { PLANETS, type Planet } from '../world/planets';
 import { factionOf } from './factions';
 import { HULL_STEP, type LevelSpec, type Mode } from './level';
-import { LOOT, lootable, startBuild, stats, type Build } from './build';
+import { LOOT, lootable, startBuild, stats, type Build, type Placement } from './build';
 import { Chart, chartSeed, MARKET, SWEEP_SPEED, type ChartNode } from './chart';
 import { PARTS, partById, type PartClass, type Rarity } from '../game/parts';
 import { clamp, pick, rng, shuffle, weighted, type Rng } from '../util';
-import { itemName, rollItem, rollTier, TIER_VALUE, tierOf, type Item, type Tier } from '../game/loot';
+import { itemName, refitItem, rollItem, TIER_VALUE, TIERS, tierOf, type Item, type Tier } from '../game/loot';
 import type { Grafts } from '../game/grafts';
 import { remember } from './memory';
 import { IMPRINTS, UNBENDING_HULL, WAYS, imprint, newCore, type Core, type ImprintId } from '../game/core';
@@ -26,14 +26,11 @@ export const fights = (n: ChartNode) => n.kind === 'raid' || n.kind === 'hunt' |
 
 export function levelSpec(planet: Planet, mode: Mode, seed: number, difficulty: number): LevelSpec {
   const r = rng(seed);
+  // no canyons in a run: their walls pinch the lane and hide the foes (playtest 3); open ground
+  // with obstacles to weave through flies better
   const open = planet.biomes.filter((b) => b.shape !== 'canyon');
-  let biomes;
-  if (mode === 'boss') {
-    biomes = shuffle(r, [...open]).slice(0, 2);
-  } else {
-    // raids, hunts, escorts and heists fly through three of the four, canyon included sometimes
-    biomes = shuffle(r, [...planet.biomes]).slice(0, 3);
-  }
+  // a Warden's fight crosses two of them, the rest three
+  const biomes = shuffle(r, [...open]).slice(0, mode === 'boss' ? 2 : 3);
   const length = mode === 'boss' ? 220 : 300;
   return { planet, biomes, mode, seed, difficulty, length };
 }
@@ -74,8 +71,8 @@ export const FUEL_MAX = 9;
 /** Mama Ruzz's rate: a tenth more every jump. */
 export const INTEREST = 0.1;
 
-/** Extra difficulty, and scrap paid, by danger (0..3). */
-export const DANGER_HARDER = [0, 0, 0.2, 0.42];
+/** Extra difficulty, and scrap paid, by danger (0..3). (0 is a quiet planet's: easier.) */
+export const DANGER_HARDER = [-0.15, 0, 0.2, 0.42];
 export const DANGER_PAY = [1, 1, 1.4, 1.9];
 
 /** A threat (see Run.threat) as a word and a step on a five-step scale. */
@@ -187,6 +184,8 @@ export class Run {
   deeds: Record<string, string[]> = {};
   /** Hull leeches have had their go this sector. */
   leeched = false;
+  /** PART offers in a row without an epic or better (each makes the next one likelier). */
+  pity = 0;
 
   constructor(frames: string[], seed: number) {
     this.seed = seed;
@@ -260,12 +259,6 @@ export class Run {
     this.stops = 0;
     this.chart = new Chart(chartSeed(this.seed, this.sector), this.sector, this.seen.slice(-4), this.seenEvents);
     this.chart.nodes[0].done = true;
-    // a breather between sectors, and the tanks topped up a little
-    for (const c of this.crew) c.hull = Math.min(crewHull(c), c.hull + 2 * HULL_STEP);
-    this.fuel = Math.min(FUEL_MAX, Math.max(this.fuel + 2, 6));
-    if (this.policy) this.notes.push('YOUR LANTERN MUTUAL POLICY HAS RUN OUT');
-    if (this.contract) this.notes.push(`THE CRATE FOR ${this.planetName(this.contract.planet)} IS LOST TO YOU`);
-    if (this.easyJumps) this.notes.push("SEFFA'S LANES ARE BEHIND YOU NOW");
     this.policy = 0;
     this.contract = null;
     this.boom = null;
@@ -310,7 +303,6 @@ export class Run {
 
   /** The danger of a site now: its own, and a pip more where the faction hates you. */
   danger(n: ChartNode) {
-    if (n.kind === 'raid' || n.kind === 'hunt' || n.kind === 'escort' || n.kind === 'heist') return clamp(n.danger + (n.planet && this.moodOf(n.planet.faction) <= -2 ? 1 : 0), 1, 3);
     return n.danger;
   }
 
@@ -321,39 +313,88 @@ export class Run {
   threat(n: ChartNode): number | null {
     if (!fights(n)) return null;
     const next = this.sector * 0.55 + Math.min(this.stops + 1, 8) * 0.07;
-    return next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]);
+    return Math.max(0, next + (n.kind === 'gate' ? 0.5 : DANGER_HARDER[this.danger(n)]));
   }
 
   /**
-   * Three parts to choose from after a level (`rich`: hunts and bosses lean rare), each rolled.
-   * `boss`: one of them is legendary.
+   * A PART reward: three parts to choose from, by where it was won (see the table in
+   * docs/simple-run.md). Any stage can turn up something good, an elite stage always has
+   * something rare or better, and a Warden pays epics and a legendary. Every offer without an epic
+   * or better makes the next one likelier to have one. `lean`: the class the site showed (two of
+   * the three are of it). `named`: the part the site named on the chart, always the first card.
    */
-  lootChoice(seed: number, rich: boolean, boss = false): Item[] {
+  partOffer(seed: number, site: 'stage' | 'elite' | 'warden', lean: PartClass | null, named: string | null = null): Item[] {
     const r = rng(seed);
-    const d = this.difficulty();
-    const at = this.landing;
-    const danger = at ? this.danger(at) : 1;
-    rich ||= danger >= 3;
-    const lean = at && at.reward in CLASSES ? (at.reward as PartClass) : null;
-    const out = new Set<string>();
+    const pity = Math.min(this.pity, 6) * 4;
+    const odds: Record<typeof site, [Tier, number][]> = {
+      stage: [['common', Math.max(20, 60 - pity)], ['rare', 30], ['epic', 9 + pity], ['legendary', 1]],
+      elite: [['common', 15], ['rare', 40], ['epic', 40 + pity], ['legendary', 5]],
+      warden: [['epic', 70], ['legendary', 30]],
+    };
+    // the part itself: how often it turns up at all (parts.ts), leaning rarer at the better sites
+    const kinds: Record<typeof site, [Rarity, number][]> = {
+      stage: [['common', 60], ['rare', 32], ['epic', 8]],
+      elite: [['common', 40], ['rare', 42], ['epic', 18]],
+      warden: [['common', 25], ['rare', 45], ['epic', 30]],
+    };
+    const out = new Set<string>(named ? [named] : []);
     for (let tries = 0; out.size < 3 && tries < 50; tries++) {
-      const rarity = weighted(r, [
-        ['common', rich ? 26 : 64 - d * 18 - (danger - 1) * 14],
-        ['rare', rich ? 54 : 30 + d * 12 + (danger - 1) * 10],
-        ['epic', rich ? 20 : 6 + d * 6 + (danger - 1) * 4],
-      ] as [Rarity, number][]);
-      // two of the three lean the site's way, if it has one
+      const rarity = weighted(r, kinds[site]);
       const leaning = lean ? LOOT[rarity].filter((p) => p.cls === lean) : [];
-      const from = leaning.length && out.size < 2 && r() < 0.8 ? leaning : LOOT[rarity];
+      const from = leaning.length && out.size < 2 ? leaning : LOOT[rarity];
       out.add(pick(r, from).id);
     }
-    const items = [...out].map((id) => rollItem(r, id, rollTier(r, d, rich, danger)));
-    // the Warden always leaves something worth building round
-    if (boss && !items.some((it) => it.tier === 'legendary')) {
+    const items = [...out].map((id) => rollItem(r, id, weighted(r, odds[site])));
+    const rank = (it: Item) => TIERS.indexOf(tierOf(it));
+    // an elite always leaves something rare or better; a Warden, a legendary
+    if (site === 'elite' && !items.some((it) => rank(it) >= 1)) items[0] = rollItem(r, items[0].id, 'rare');
+    if (site === 'warden' && !items.some((it) => it.tier === 'legendary')) {
       const k = Math.floor(r() * items.length);
       items[k] = rollItem(r, items[k].id, 'legendary');
     }
+    this.pity = items.some((it) => rank(it) >= 2) ? 0 : this.pity + 1;
     return items;
+  }
+
+  /** Every part a pilot has, fitted or in the hold. */
+  partsOf(player: number): Item[] {
+    const c = this.crew[player];
+    return [...c.build.parts, ...c.cargo];
+  }
+
+  /**
+   * A REFIT reward: up to three of a pilot's parts (fitted first), each as it would come out a
+   * tier up. `from` is the part as it is now (a placement or a hold item).
+   */
+  refitOffer(player: number, seed: number): { from: Item; to: Item }[] {
+    const r = rng(seed);
+    const c = this.crew[player];
+    const fitted = shuffle(r, [...c.build.parts]);
+    const held = shuffle(r, [...c.cargo]);
+    const out: { from: Item; to: Item }[] = [];
+    for (const from of [...fitted, ...held]) {
+      if (out.length >= 3) break;
+      const to = refitItem(r, from);
+      if (to) out.push({ from, to });
+    }
+    return out;
+  }
+
+  /** Puts a refitted part where the old one was (on the ship, at its place; or in the hold). */
+  refit(player: number, from: Item, to: Item) {
+    const c = this.crew[player];
+    const k = c.build.parts.indexOf(from as Placement);
+    if (k >= 0) {
+      const p = c.build.parts[k];
+      // (a new object: item numbers are cached by object)
+      const fitted: Placement = { ...to, c: p.c, r: p.r };
+      if (p.rot !== undefined) fitted.rot = p.rot;
+      if (p.turned) fitted.turned = p.turned;
+      c.build.parts[k] = fitted;
+      return;
+    }
+    const h = c.cargo.indexOf(from);
+    if (h >= 0) c.cargo[h] = to;
   }
 
   /** A dealer's market: what it sells cheap, what it pays over the odds for. */
@@ -365,8 +406,8 @@ export class Run {
     return { sells: m?.sells ?? null, wants: m?.wants ?? null, boom, mark: hostile ? 1.25 : friendly ? 0.8 : 1 };
   }
 
-  shopStock(n: ChartNode): ShopItem[] {
-    const r = rng(n.seed);
+  shopStock(n: ChartNode, rerolls = 0): ShopItem[] {
+    const r = rng(n.seed + rerolls * 7919);
     const m = this.market(n);
     // three parts: one of the planet's own line, cheap, and two of anything (a ship only has
     // so much room, so each one gets looked at)
@@ -593,8 +634,6 @@ export class Run {
     return out;
   }
 }
-
-const CLASSES = { gun: 1, engine: 1, power: 1, defense: 1, booster: 1, special: 1 };
 
 export const FAVOURS: Record<string, string> = {
   doctor: 'DR VARGA OWES YOU ONE',

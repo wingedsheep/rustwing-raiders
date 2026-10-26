@@ -12,6 +12,7 @@ import { LIVERY, ShipModel } from '../view/ship-model';
 import { Stage } from '../view/stage';
 import { flat, GEO, part, toon } from '../render/toon';
 import { newRun } from '../game/flow';
+import { recorder } from '../game/recorder';
 import { clamp, rng } from '../util';
 import { lobbyOpen, openLobby } from '../net/lobby';
 
@@ -19,6 +20,12 @@ interface Seat {
   dev: DeviceId;
   frame: number;
   locked: boolean;
+  /**
+   * On the roster's last slot, there on recorded runs offline: the frames shuffle past, and locking in
+   * rolls one not flown lately (recorder.freshFrame), so the playtests go round them all.
+   */
+  random: boolean;
+  shuffle: number;
   /** Every frame, built up front in this seat's livery, so flicking through them never stalls. */
   models: ShipModel[];
   /** The lit bay the ship turns in: a backdrop facing the camera and a glowing pad under it. */
@@ -414,7 +421,7 @@ export class Title implements Screen {
   private seat(dev: DeviceId) {
     const i = this.seats.length;
     const s: Seat = {
-      dev, frame: i, locked: false, models: [], bay: new THREE.Group(), pad: new THREE.Group(),
+      dev, frame: i, locked: false, random: false, shuffle: 0, models: [], bay: new THREE.Group(), pad: new THREE.Group(),
       from: i, swap: 1, dir: 1, yaw: -0.6, kick: [0, 0], flash: 0, appear: 0,
       bars: ROWS.map(() => 0),
     };
@@ -432,6 +439,10 @@ export class Title implements Screen {
       s.swap = Math.min(1, s.swap + dt / SWAP_T);
       s.flash = Math.max(0, s.flash - dt * 3.5);
       s.kick = [Math.max(0, s.kick[0] - dt * 7), Math.max(0, s.kick[1] - dt * 7)];
+      if (s.random && !s.locked && (s.shuffle -= dt) <= 0) {
+        s.shuffle = 0.32;
+        this.swapTo(s, (s.frame + 1 + Math.floor(Math.random() * (FRAMES.length - 1))) % FRAMES.length, 1);
+      }
       const f = FRAMES[s.frame];
       s.bars = s.bars.map((b, k) => b + (barOf(k, f) - b) * Math.min(1, dt * 14));
     }
@@ -494,15 +505,17 @@ export class Title implements Screen {
         continue;
       }
       if (m.left || m.right) {
-        s.from = s.frame;
-        s.dir = m.left ? -1 : 1;
-        s.frame = (s.frame + (m.left ? FRAMES.length - 1 : 1)) % FRAMES.length;
-        // a quick flick lands mid-swap: start from where the last one had got to
-        s.swap = s.swap < 1 ? Math.min(s.swap, 0.35) : 0;
+        const slots = FRAMES.length + (this.randomSlot ? 1 : 0);
+        const at = (s.random ? FRAMES.length : s.frame) + (m.left ? slots - 1 : 1);
+        s.random = at % slots === FRAMES.length;
+        s.shuffle = 0.32;
+        // onto the random slot, the frame on show steps on as any move would
+        this.swapTo(s, s.random ? (s.frame + (m.left ? FRAMES.length - 1 : 1)) % FRAMES.length : at % slots, m.left ? -1 : 1);
         s.kick[m.left ? 0 : 1] = 1;
         audio.play('ui_move');
       }
       if (m.confirm) {
+        if (s.random) this.swapTo(s, FRAMES.findIndex((f) => f.id === recorder.freshFrame(FRAMES.map((f) => f.id))), 1);
         s.locked = true;
         s.flash = 1;
         audio.play('ui_place');
@@ -524,6 +537,20 @@ export class Title implements Screen {
 
   private launch = -1;
   private gone = false;
+
+  /** The random slot: recorded runs only, and not online, where both sides must roll the same. */
+  private get randomSlot() {
+    return recorder.enabled && !this.game.net;
+  }
+
+  private swapTo(s: Seat, frame: number, dir: number) {
+    if (frame === s.frame) return;
+    s.from = s.frame;
+    s.dir = dir;
+    s.frame = frame;
+    // a quick flick lands mid-swap: start from where the last one had got to
+    s.swap = s.swap < 1 ? Math.min(s.swap, 0.35) : 0;
+  }
 
   /** Where a seat's card sits, rising in as it appears. */
   private slot(s: Seat, i: number) {
@@ -761,7 +788,7 @@ export class Title implements Screen {
       ctx.fillRect(cx, sy > 0 ? cy : cy - 7, 1, 8);
     }
     // the frame's number in the roster, up in the window's corner
-    drawText(ctx, `${String(s.frame + 1).padStart(2, '0')}/${String(FRAMES.length).padStart(2, '0')}`, wx + WIN.w - 5, wy + 5, '#6a5a80', { align: 'right' });
+    drawText(ctx, `${s.random && !s.locked ? '??' : String(s.frame + 1).padStart(2, '0')}/${String(FRAMES.length).padStart(2, '0')}`, wx + WIN.w - 5, wy + 5, '#6a5a80', { align: 'right' });
     // how it takes fire: parrying it (a guard) or dashing out of it, in the window's other corner
     const st = styleOf(f);
     const nw = textWidth(st.name);
@@ -781,7 +808,7 @@ export class Title implements Screen {
     }
     // the name, between arrows that kick when pressed
     const ny = y + 132;
-    drawText(ctx, f.name.toUpperCase(), x + CARD_W / 2, ny, s.locked ? GOLD : INK, { scale: 2, align: 'center' });
+    drawText(ctx, s.random && !s.locked ? 'RANDOM' : f.name.toUpperCase(), x + CARD_W / 2, ny, s.locked ? GOLD : INK, { scale: 2, align: 'center' });
     if (!s.locked) {
       const pulse = Math.floor(this.t * 2) % 2 === 0;
       drawText(ctx, '<', x + 14 - Math.round(s.kick[0] * 4), ny, s.kick[0] > 0 ? col : pulse ? INK : DIM, { scale: 2 });
@@ -789,11 +816,13 @@ export class Title implements Screen {
     }
     // the roster: a pip per frame
     const pw = 10;
-    const px0 = Math.round(x + CARD_W / 2 - (FRAMES.length * (pw + 3) - 3) / 2);
-    FRAMES.forEach((_, k) => {
-      ctx.fillStyle = k === s.frame ? col : '#3a2e48';
-      ctx.fillRect(px0 + k * (pw + 3), y + 151, pw, k === s.frame ? 3 : 2);
-    });
+    const slots = FRAMES.length + (this.randomSlot ? 1 : 0);
+    const px0 = Math.round(x + CARD_W / 2 - (slots * (pw + 3) - 3) / 2);
+    for (let k = 0; k < slots; k++) {
+      const on = k === FRAMES.length ? s.random : k === s.frame && !(s.random && !s.locked);
+      ctx.fillStyle = on ? col : k === FRAMES.length ? '#5a4a30' : '#3a2e48';
+      ctx.fillRect(px0 + k * (pw + 3), y + 151, pw, on ? 3 : 2);
+    }
     // what it is, what only it does, and what its shape costs it
     drawText(ctx, f.text, x + CARD_W / 2, y + 159, '#c8bcd8', { align: 'center' });
     drawText(ctx, f.perk.name, x + CARD_W / 2, y + 169, GOLD, { align: 'center' });

@@ -200,6 +200,7 @@ async function boot() {
       }
     } else if (screen === 'results') {
       const { Results } = await import('./screens/results');
+      type SiteReward = import('./screens/results').SiteReward;
       const { convoyRoles } = await import('./sim/convoy');
       // &convoy=101: an escort's results, the middle hauler lost
       const home = q.get('convoy')?.split('').map((c) => c === '1');
@@ -217,7 +218,8 @@ async function boot() {
         const n = fate.filter((f) => f === 'caught').length;
         Object.assign(res, { heist: { fate, downed, paid: downed ? 46 : 0 }, report: { rank: downed && n === 3 ? 'S' : downed || n === 3 ? 'A' : n ? 'B' : 'C', lines: [`STRONGBOXES CAUGHT ${n}/3${downed ? '  RUNNER DOWN +46 SCRAP' : ''}`] } });
       }
-      game.go(new Results(game, run, res, spec, () => flow.toChart(game)));
+      // &reward=refit|scrap|repair|graft|warden|<class>: what the site paid; &elite
+      game.go(new Results(game, run, res, spec, (q.get('reward') ?? 'gun') as SiteReward, q.has('elite'), () => flow.toChart(game)));
     }
   } else {
     const { Title } = await import('./screens/title');

@@ -6,6 +6,7 @@ import { DT, NEUTRAL, type Intent } from '../sim/types';
 import { charge, endOf, rounded, StageRecorder, type StageSetup } from '../sim/recording';
 import { recorder } from '../game/recorder';
 import { LevelView } from '../view/level-view';
+import { warmBatches } from '../render/batch';
 import { Hud } from '../ui/hud';
 import { Quit } from '../ui/accord';
 import { input } from '../input';
@@ -142,6 +143,7 @@ export class Flight implements Screen {
     const waves = game.params.get('waves');
     if (waves !== null) this.lv.director.script(parseWaves(waves));
     this.view = new LevelView(this.lv);
+    warmBatches(game.renderer, this.view.scene, this.view.eye, game.pixel.target);
     this.hud.quit = new Quit(Math.max(1, game.devices.length));
     // (&autopilot=2: only P2 is the pilot's, P1 is yours: a bot partner)
     const auto = game.params.get('autopilot');

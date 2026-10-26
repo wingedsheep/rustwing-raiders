@@ -218,6 +218,44 @@ export function rollItem(r: Rng, id: string, tier: Tier): Item {
   return it;
 }
 
+/** The tier above (legendary stays). */
+export const tierUp = (t: Tier): Tier => TIERS[Math.min(TIERS.length - 1, TIERS.indexOf(t) + 1)];
+
+/**
+ * A REFIT: the same part a tier up, keeping what it rolled and adding what the tier carries (a
+ * rare an affix, or a mod if none fits; an epic both; a legendary a trait). Null if it can't go up.
+ */
+export function refitItem(r: Rng, it: Item): Item | null {
+  const tier = tierOf(it);
+  if (tier === 'legendary') return null;
+  const d = partById(it.id);
+  const out = toItem(it);
+  out.tier = tierUp(tier);
+  const floor = out.tier === 'legendary' ? 0.45 : 0.2;
+  const addAffix = () => {
+    const as = affixesFor(d);
+    if (out.affix || !as.length) return false;
+    out.affix = pick(r, as);
+    return true;
+  };
+  const addMod = () => {
+    const ks = (Object.keys(MODS) as ModKind[]).filter((k) => MODS[k].fits(d) && !out.mods?.some((m) => m.k === k));
+    if (out.mods?.length || !ks.length) return false;
+    out.mods = [{ k: pick(r, ks), roll: floor + (1 - floor) * r() }];
+    return true;
+  };
+  if (out.tier === 'legendary') {
+    const traits = (Object.keys(TRAITS) as TraitId[]).filter((t) => TRAITS[t].fits(d));
+    if (!traits.length) return null;
+    out.trait = pick(r, traits);
+    // (and its mod comes out at its best)
+    out.mods = out.mods?.map((m) => ({ ...m, roll: Math.max(m.roll, 0.75) }));
+    return out;
+  }
+  const grew = out.tier === 'rare' ? addAffix() || addMod() : [addAffix(), addMod()].some(Boolean);
+  return grew ? out : null;
+}
+
 /** A tier, by luck: `d` the run's difficulty, `rich` a hunt or a boss, `danger` 1..3. */
 export function rollTier(r: Rng, d: number, rich = false, danger = 1): Tier {
   const k = rich ? 2 : 1;

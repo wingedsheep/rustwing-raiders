@@ -281,7 +281,7 @@ export const PARTS: PartDef[] = [
   },
   {
     id: 'shield', name: 'Deflector', cls: 'defense', tags: ['tech', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1, shield: 1,
-    text: 'Soaks one hit, then recharges if you stop getting hit.',
+    text: 'A field round the hull: +30 hull.',
   },
   // --- boosters ----------------------------------------------------------------------------
   {
@@ -424,7 +424,7 @@ export const PARTS: PartDef[] = [
   {
     id: 'mirror', name: 'Reflector Plate', cls: 'defense', tags: ['armor', 'energy'], rarity: 'rare', shape: [[0, 0]], mass: 1.6, hp: 10,
     passive: { mirror: 3 },
-    text: 'A bullet your shield soaks or a block stops is thrown back as three shots. Parries throw one more.',
+    text: 'A bullet a block stops is thrown back as three shots. Parries throw one more.',
   },
   // --- specials (one ability button) ------------------------------------------------------
   {

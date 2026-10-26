@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | Copper Orchards | Row after row of metal trees, fruiting for the company. | terraces, pollen | — | orchard plots laid square in a grid with tracks between (bearing rows, young vase-pruned blocks, the prize block under a white hail lattice, rows half-picked), hedgerows, hydroponic troughs and cover crop, workers' sheds, pump towers, picker-drone docks, picker robots and fruit trailers, lone and heritage trees, silos, greenhouses |
 | Refinery Nine | Stacks, tanks and flares. It smells like money and burning. | flats, embers | — | flare stacks, storage, floating-roof and pressure tanks, LPG bullets, exchanger skids, a reactor and its fired heater, a tanker at the loading arm, pipe-rack bays, manifolds, control rooms and substations, fin-fan coolers |
-| Pipeline Canyon | They blasted a canyon for the pipes. Racers use it at night. | canyon | — | blast rubble, pig traps and manifolds, valve stations, laid-down pipe and welding rigs, beacons, the racers' checkpoints and a racer that missed the bend |
+| Pipeline Flats | The pipes run out across the flats. Racers use them at night. | ridges | — | blast rubble, pig traps and manifolds, valve stations, laid-down pipe and welding rigs, beacons, the racers' checkpoints and a racer that missed the bend |
 | Tailings Lake | The run-off pools here, violet and warm. Nothing lives in it. Something does. | islands, chemical lake | — | salt terraces, sulphur blisters and violet crystal, seeps, outfalls and a cracked settling tank, an orchard the run-off killed, the company's sampling posts; out on the murky water, containment booms round glowing slicks, skimmer barges and rafts of sludge foam |
 
 No creatures anywhere: the only planet that fights as lattice alone.

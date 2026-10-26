@@ -15,6 +15,8 @@ The recorder works ([how to use it](simple-run.md#how-it-gets-to-me)), and the f
 
 ### 2. The simple run: first slice
 Get to something you can play. Unhook what goes, but don't delete it yet.
+
+**In** (to fly): five stops a sector, then the gate; no fuel, Sweep, events, escorts, heists or docks on the chart. Each site shows its reward (PART of a class, GRAFT, REFIT, SCRAP, REPAIR); one reward per stage, with the rarity table and bad-luck build-up by site. No part drops in flight (they pay scrap). GRAFT sites and Wardens open the graft pick; the core screen is out of the flow. The dealer sells three parts, a refit, a repair and a reroll. The shield is folded into hull (×1.5); no +20 hull a stage; a Warden mends 60%. The buttons are trimmed by the recorder: the boost and Burn are cut, the heavy fires when held, and a takedown is flying into a reeling elite. **Still to do**: the dealer's cast member and lines, the Warden's reward wording on the wreck screen, a co-op run through, and switching off the core's systems in the code.
 - **The chart**: keep the orbiting solar system. A sector is five stops, then the gate; each jump still turns the planets.
   - Site kinds are stage, elite stage and dealer, and every site shows its reward.
   - Drop fuel, the Sweep, danger pips, markets, intel, events, escorts, heists and boarding from the run (`src/sim/chart.ts`, `src/sim/run.ts`, `src/game/flow.ts`).
@@ -40,6 +42,8 @@ Pick the seed together: one frame, three planets, three Wardens. Then loop:
 
 ### 4. Readability (ongoing)
 The most important point from earlier playtests, and it still holds: players couldn't tell enemy fire, pickups and things you crash into apart. It keeps going in small pushes, as in [readability](readability.md), each judged on many screenshots against the [level design](level-design.md) rules. The pushes are: the level generator (8–11), every biome through it (12–19), then the look, the foes, and a planet at a time (20 on).
+
+- **No canyons** (playtest 3: narrow, and the walls hid the foes). Prism Cliffs, Engine City, Tide Caves and Pipeline Flats are open ground now. **Red Mesa Run** is out of the runs until its layout is redone as open mesa country with the gorge's features as obstacles, not walls. **Pipeline Flats** wants a layout of its own: the pipes running with the scroll, the props grouped along them.
 
 ## Next
 

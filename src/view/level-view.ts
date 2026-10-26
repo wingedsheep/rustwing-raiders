@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { uploadInstances } from '../render/instances';
 import type { Enemy, Level, LevelEvent, Player } from '../sim/level';
 import { FLIGHT_Y, HALF_H, HALF_W, REACH_W, TILT, fromFlight, toFlight } from '../sim/types';
 import { WorldView } from './world-view';
@@ -815,7 +816,13 @@ export class LevelView {
             audio.play('lock_on', { pan: en.x / HALF_W, vol: 0.5, pitch: e.kind === 'seekers' ? 1.25 : 1 });
             const prey = e.tele?.shape === 'lock' ? lv.players[e.tele.id] : undefined;
             if (prey) this.pop('LOCK ON', prey.x, prey.z + 4, e.kind === 'seekers' ? '#9af4ff' : '#ff8a4a');
-          } else if (en) audio.play(e.style === 'draw' ? 'laser_charge' : e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
+          } else if (en && (e.kind === 'sweep' || e.kind === 'gate')) {
+            // a beam's charge is its own, whoever's it is, and louder than any tell
+            audio.play('laser_charge', { pan: en.x / HALF_W, vol: 0.6 });
+          } else if (en && e.style === 'draw') {
+            // (the lattice's other tells only chirp, so its many guns don't crowd out a beam)
+            audio.play('lattice_tell', { pan: en.x / HALF_W, vol: 0.4 });
+          } else if (en) audio.play(e.style === 'rear' ? 'hook' : 'overheat', { pan: en.x / HALF_W, vol: 0.35, pitch: e.style === 'swell' ? 0.6 : 1 });
           break;
         }
         case 'release':
@@ -2313,8 +2320,7 @@ export class LevelView {
       n++;
     }
     this.lines.count = n;
-    this.lines.instanceMatrix.needsUpdate = true;
-    if (this.lines.instanceColor) this.lines.instanceColor.needsUpdate = true;
+    uploadInstances(this.lines);
   }
 
   /** The camera that shows the level: the tilted one over the field. */
@@ -3173,8 +3179,7 @@ export class LevelView {
       n++;
     }
     this.shots.count = n;
-    this.shots.instanceMatrix.needsUpdate = true;
-    if (this.shots.instanceColor) this.shots.instanceColor.needsUpdate = true;
+    uploadInstances(this.shots);
   }
 
   private updateBeams() {
@@ -3243,7 +3248,7 @@ export class LevelView {
         this.laserHeard.set(l, now);
         const pan = Math.max(-1, Math.min(1, l.x / HALF_W));
         if (now === 'warn') audio.play('laser_charge', { pan, vol: 0.45 });
-        else if (l.on > 0.05) audio.play('laser_fire', { pan, vol: 0.55 });
+        else if (l.on > 0.05) audio.play('laser_fire', { pan, vol: 0.8 });
       }
       m.visible = true;
       m.position.set(x0 + dx / 2, FLIGHT_Y + 0.9, z0 + dz / 2);

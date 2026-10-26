@@ -3,10 +3,10 @@
  * browser's standard mapping), or the keyboard. One player on the keyboard gets all of it; two
  * share it, left hand and right hand.
  *
- *   keyboard (solo)   move WASD / arrows   fire J Z Space   heavy O N    dash K X        boost L C (held)   special I V        aux U B        focus Shift
- *   keyboard left     move WASD            fire Space        heavy G      dash LShift     boost F            special E          aux R          focus Q
- *   keyboard right    move arrows          fire / Num0       heavy ; Num5 dash RShift Num.  boost . Num3     special Enter      aux ' Num2     focus RCtrl Num1
- *   pad               move stick / d-pad   fire RT (R2)      heavy X RB (□ R1)  dash A (✕)      boost LT analog (L2)   special Y (△)   aux B (○)   focus LB (L1) or L3
+ *   keyboard (solo)   move WASD / arrows   fire J Z Space   heavy O N    dash K X        special I V        aux U B        focus Shift
+ *   keyboard left     move WASD            fire Space        heavy G      dash LShift     special E          aux R          focus Q
+ *   keyboard right    move arrows          fire / Num0       heavy ; Num5 dash RShift Num.  special Enter      aux ' Num2     focus RCtrl Num1
+ *   pad               move stick / d-pad   fire RT (R2)      heavy X RB (□ R1)  dash A (✕) special Y (△)   aux B (○)   focus LB (L1) or L3
  *
  * On a pad, fire is held on the right trigger, so the thumb is free: dash on A, the heavies on X
  * next to it (dash, then the heavy, is the dash-strike, one roll of the thumb). With fire on a
@@ -17,7 +17,8 @@
  *
  * Boost is analog on the left trigger (how far it's pulled), all or nothing on a key.
  *
- * Fire is held; heavy is pressed, a round at a time (see GunSpec.heavy).
+ * Fire is held; heavy is pressed, a round at a time, or held to fire each round as it comes back
+ * (see GunSpec.heavy). The boost is cut (its keys do nothing).
  */
 
 import { DT, type Intent } from './sim/types';
@@ -337,8 +338,10 @@ class Input {
         x: s.x,
         y: -s.y,
         fire: pull(g, 7) > 0.2,
-        heavy: buffer(dev, 'heavy'),
-        boost: pull(g, 6),
+        // (held, it fires each round as it comes back; see Level)
+        heavy: buffer(dev, 'heavy') || PAD_BUTTONS.heavy.some((b) => btn(g, b)),
+        // (the boost is cut: see docs/simple-run.md)
+        boost: 0,
         dash: buffer(dev, 'dash'),
         special: buffer(dev, 'special'),
         aux: buffer(dev, 'aux'),
@@ -350,8 +353,8 @@ class Input {
       x: (any(k.right, held) ? 1 : 0) - (any(k.left, held) ? 1 : 0),
       y: (any(k.up, held) ? 1 : 0) - (any(k.down, held) ? 1 : 0),
       fire: any(k.fire, held),
-      heavy: buffer(dev, 'heavy'),
-      boost: any(k.boost, held) ? 1 : 0,
+      heavy: buffer(dev, 'heavy') || any(k.heavy, held),
+      boost: 0,
       dash: buffer(dev, 'dash'),
       special: buffer(dev, 'special'),
       aux: buffer(dev, 'aux'),

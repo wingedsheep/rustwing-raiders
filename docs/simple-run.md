@@ -57,8 +57,13 @@ The [Warden rules](bosses/README.md#what-a-finished-boss-has) already ask for th
 ### The chart
 The orbiting solar system stays: planets go round the star, and what's in reach changes as they move. Too many games use the Slay the Spire map; ours is its own. It just loses everything that makes it a budget.
 
-- **No fuel and no Sweep.** A sector is **five stops, then the Warden's gate.** Each jump moves the clock, so the planets turn and the next reach is different. Which site you take now decides what you can reach next. That's the whole puzzle.
-- **Every site shows its reward before you go** (a part's button, a graft's faction, a refit, scrap, a repair), the way Hades shows rewards on its doors.
+- **No fuel and no Sweep.** A sector is **five stops, then the Warden's gate.** Each jump moves the clock, so the planets turn and the next reach is different. **In reach is a landing on each of the three nearest planets** (never the one you're on), so there's always a choice and never a wait. Which site you take now decides what you can reach next, and the chart shows it: the picked site rings what it opens up, and its card lists it. That's the whole puzzle.
+- **Every site shows its reward before you go** (a graft's faction, a refit, scrap, a repair), the way Hades shows rewards on its doors. **A PART site names one part**, and it's always one of the three on offer: you can route towards the part your build wants.
+- **Every planet has a mood this sector**, the same for all its sites, so the route is a choice of risks, not just of rewards (like Slay the Spire's elites against its rest sites). The Warden's planet always has one, and two of the other three do:
+  - **Warden's ground**: harder fights, and every stage won there takes 15% off the Warden's hull. Prepare, or weaken it?
+  - **On alert**: every stage is an elite stage.
+  - **Quiet**: easier fights, but no parts: repairs, refits and scrap. The road to take when the hull's low.
+  - **Dark**: what a site pays is hidden till it's won, but it pays like an elite.
 - **Three kinds of site:**
   - **Stage**: a plain flying stage.
   - **Elite stage**: marked on the chart. It's harder, with a set-piece elite, and pays better.
@@ -157,7 +162,8 @@ Putting parts on your ship is one of the things Rustwing has that the others don
 The core stays as the fiction: **the core copies what it beats.** That's what a graft is. The veins, knots, knacks, talismans, imprints, room, leaning, agreements, waking and the Engine's call go. The best knacks (Cold Blood, Follow Through, Hot Rivets) come back as grafts or legendary traits.
 
 ### In the fight
-- **Keep:** fire, heavy, dash with perfects, the special, boost with Burn, the Weld, and Plating → Open → Takedown (it makes elites a fight, not a sponge).
+- **Keep:** fire, heavy (pressed a round at a time, or held to fire each round as it's back), dash with perfects, the special, the Weld, and Plating → Open → Takedown (it makes elites a fight, not a sponge). A takedown is flying into a reeling elite; it used to need a dash through it, and nobody found it.
+- **Cut, from the recorder:** the boost and its Burn (6 presses in 50 minutes of playtests). The ship flies 6% faster instead.
 - **The aux is the Magpie's:** its parry. The Kestrel and Hammerhead have no aux button.
 - **Combos are on**: a blow on a set-up enemy cashes the setup in (FLARE-UP, GROUND-OUT, BREACH, SMASH, NAILED). `&nocombos` switches them off.
 - **Check the verbs on the recorder** (below): a button nobody presses goes.

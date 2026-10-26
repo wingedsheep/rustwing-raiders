@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { uploadInstances } from '../render/instances';
 import { FLIGHT_Y } from '../sim/types';
 
 /**
@@ -131,8 +132,7 @@ export class Strokes {
       n++;
     }
     this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    uploadInstances(this.mesh);
   }
 
   clear() {

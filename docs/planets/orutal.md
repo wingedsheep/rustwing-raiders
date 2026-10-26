@@ -12,7 +12,7 @@
 |---|---|---|---|
 | Fernwood Basin | Fern jungle. Something big is eating the canopy. | rolling, pollen | sauropods, raptor packs |
 | Basalt Steps | Black columns over rivers of lava. Mind the vents. | terraces over lava, embers | — |
-| Prism Cliffs | Crystal grown taller than you fly. Thread it. | canyon, motes | — |
+| Prism Cliffs | Crystal grown taller than you fly. Thread it. | terraces, motes | — |
 | Jade Shallows | A green sea, warm as a bath. Long necks break the surface. | islands, sea | plesiosaurs, pterosaur flocks |
 
 ## Who you fight
