@@ -5,7 +5,7 @@
 
 import type { Archetype, EnemySkin } from '../world/planets';
 import { COOP_HULL, type Enemy, type HazardKind, type Level } from './level';
-import { HALF_H, HALF_W, fromFlight, toFlight } from './types';
+import { HALF_H, HALF_W, OFF_BOTTOM, OFF_TOP, OFF_W, fromFlight, toFlight } from './types';
 import { LOOT } from './build';
 import { bossHull, makeBoss } from './boss';
 import { lerp, pick, rng, type Rng, weighted } from '../util';
@@ -251,7 +251,7 @@ export class Director {
     }
     const skin = foeSkin(lv.spec.planet, foe);
     const opts: Partial<Enemy> = { ...(elite ? { elite: true } : {}), ...(bounty ? { bounty } : {}) };
-    const top = lv.top - 4;
+    const top = lv.scroll + OFF_TOP;
     const d = lv.spec.difficulty;
     const p = lv.nearest(0, lv.bottom);
     const rx = (m = 8) => lerp(-HALF_W + m, HALF_W - m, r());
@@ -266,14 +266,14 @@ export class Director {
       }
       case 'rattler': {
         const n = 1 + (r() < 0.3 + d * 0.3 ? 1 : 0);
-        for (let k = 0; k < n; k++) lv.spawn(foe, skin, (p?.x ?? 0) + (k ? (r() < 0.5 ? -10 : 10) : 0), lv.bottom + 5, {}, { ...opts, t: -k * 1.5 });
+        for (let k = 0; k < n; k++) lv.spawn(foe, skin, (p?.x ?? 0) + (k ? (r() < 0.5 ? -10 : 10) : 0), lv.scroll + OFF_BOTTOM, {}, { ...opts, t: -k * 1.5 });
         break;
       }
       case 'hookjaw': {
         // later, a pair: one each side, staggered, so dodging one line flies you into the other's
         const dir = r() < 0.5 ? -1 : 1;
         const n = elite ? 1 : 1 + (r() < d * 0.6 ? 1 : 0);
-        for (let k = 0; k < n; k++) lv.spawn(foe, skin, (k ? -dir : dir) * (HALF_W + 5), lv.scroll - 6, { dir: k ? -dir : dir, hz: lerp(-12, 2, r()) }, { ...opts, t: -k * 1.1 });
+        for (let k = 0; k < n; k++) lv.spawn(foe, skin, (k ? -dir : dir) * OFF_W, lv.scroll - 6, { dir: k ? -dir : dir, hz: lerp(-12, 2, r()) }, { ...opts, t: -k * 1.1 });
         break;
       }
       case 'rigger': {
@@ -294,7 +294,7 @@ export class Director {
       }
       case 'ace': {
         const dir = r() < 0.5 ? -1 : 1;
-        lv.spawn(foe, skin, (p?.x ?? 0) + dir * 7, lv.bottom + 4, { dir }, opts);
+        lv.spawn(foe, skin, (p?.x ?? 0) + dir * 7, lv.scroll + OFF_BOTTOM, { dir }, opts);
         break;
       }
       case 'flakker':
@@ -312,7 +312,7 @@ export class Director {
         break;
       }
       case 'burrower':
-        lv.spawn(foe, skin, rx(10), top + 6, {}, opts);
+        lv.spawn(foe, skin, rx(10), top, {}, opts);
         break;
       case 'warden': {
         const n = elite ? 1 : 1 + (r() < 0.5 + d * 0.2 ? 1 : 0);
@@ -368,7 +368,8 @@ export class Director {
       case 'technical': {
         const n = elite ? 1 : 2 + (r() < 0.3 + d * 0.3 ? 1 : 0);
         // in a laid-out place, down its road (the wash, a track) in a convoy
-        const zr = lv.top - 6;
+        // (on the ground: as far up as shows it at the screen's top, out of sight)
+        const zr = lv.scroll + OFF_TOP - 6;
         const rt = road(lv, 0, zr);
         if (rt) {
           for (let k = 0; k < n; k++) {
@@ -382,7 +383,7 @@ export class Director {
         const dir = r() < 0.5 ? -1 : 1;
         for (let k = 0; k < n; k++) {
           const zg = lv.top - 6 - k * 7 - r() * 4;
-          const x = -dir * (HALF_W + 3 + k * 6);
+          const x = -dir * (OFF_W + k * 6);
           const y = Math.max(lv.terrain.height(x, zg), lv.terrain.water(zg));
           lv.spawn(foe, skin, x, toFlight(zg, y), { dir, tz: zg }, { ...opts, y, heading: (dir * Math.PI) / 2 });
         }
@@ -406,7 +407,7 @@ export class Director {
       }
       case 'manta': {
         const dir = r() < 0.5 ? -1 : 1;
-        lv.spawn(foe, skin, -dir * (HALF_W + 7), lv.scroll - 15, { dir, hz: lerp(-17, -10, r()), phase: r() * 6 }, { ...opts, heading: (dir * Math.PI) / 2 });
+        lv.spawn(foe, skin, -dir * (OFF_W + 2), lv.scroll - 15, { dir, hz: lerp(-17, -10, r()), phase: r() * 6 }, { ...opts, heading: (dir * Math.PI) / 2 });
         break;
       }
       case 'scrapling':
@@ -427,7 +428,7 @@ export class Director {
         const n = 3 + Math.floor(r() * (2 + d * 2));
         const dir = r() < 0.5 ? -1 : 1;
         const sz0 = lerp(-21, -12, r());
-        for (let k = 0; k < n; k++) lv.spawn(foe, skin, -dir * (HALF_W + 4), lv.scroll + sz0, { dir, sz0, phase: k * 0.9 }, { ...opts, t: -k * 0.45 });
+        for (let k = 0; k < n; k++) lv.spawn(foe, skin, -dir * OFF_W, lv.scroll + sz0, { dir, sz0, phase: k * 0.9 }, { ...opts, t: -k * 0.45 });
         break;
       }
       case 'runner':
@@ -465,12 +466,12 @@ export class Director {
       ['pincer', t > 0.25 ? 2 * side : 0],
     ];
     const form = weighted(r, forms);
-    const top = lv.top - 4;
+    const top = lv.scroll + OFF_TOP;
     // the leader shoots, later on (see foes.ts)
     const shoots = r() < (d - 0.15) * 1.2;
     const string = (f: Form, n: number, gap: number, x0: number, dir: number, sz0: number) => {
       for (let k = 0; k < n; k++) {
-        const [x, z] = f === 'sweep' ? [-dir * (HALF_W + 4), lv.scroll + sz0] : [x0, top];
+        const [x, z] = f === 'sweep' ? [-dir * OFF_W, lv.scroll + sz0] : [x0, top];
         lv.spawn('scrapling', skin, x, z, { form: f, slot: k, x0, dir, sz0, shots: k === 0 && shoots ? 1 : 0 }, { ...opts, t: -k * gap });
       }
     };
@@ -518,7 +519,7 @@ export class Director {
     const lv = this.lv;
     if (!lv.terrain.plan(lv.terrain.biomeIndex(lv.top - 20))) return false;
     let placed = 0;
-    for (const p of lv.terrain.posts(lv.top - 8, lv.top - 70)) {
+    for (const p of lv.terrain.posts(lv.top - 14, lv.top - 70)) {
       // (a titan's core is its welders', not a gun's)
       if (p.used || placed >= most || p.guards.startsWith('core')) continue;
       p.used = true;
@@ -552,7 +553,7 @@ export class Director {
     const lv = this.lv;
     const p = lv.nearest(0, lv.bottom);
     const water = lv.terrain.water(fromFlight(lv.top, 0));
-    const zg = fromFlight(lv.top + 2, water);
+    const zg = fromFlight(lv.scroll + OFF_TOP, water);
     const rt = channel(lv, p?.x ?? 0, zg);
     if (!rt || lv.enemies.some((e) => e.arch === 'eel' && !e.dead)) return false;
     const x = routeX(rt, zg);
@@ -567,7 +568,7 @@ export class Director {
   private skate(skin: EnemySkin, opts: Partial<Enemy>, n: number) {
     const lv = this.lv;
     const p = lv.nearest(0, lv.bottom);
-    const zr = lv.top - 6;
+    const zr = lv.scroll + OFF_TOP - 6;
     const rt = gutter(lv, p?.x ?? 0, zr);
     if (!rt) return false;
     for (let k = 0; k < n; k++) {
@@ -587,7 +588,7 @@ export class Director {
     const r = this.r;
     for (let tries = 0; tries < 30; tries++) {
       const x = lerp(-HALF_W + 8, HALF_W - 8, r());
-      const zg = lv.top - 12 - r() * 14;
+      const zg = lv.top - 16 - r() * 14;
       if (!afloat(lv, x, zg) || !afloat(lv, x - 5, zg) || !afloat(lv, x + 5, zg)) continue;
       const y = lv.terrain.water(zg);
       const dir = r() < 0.5 ? -1 : 1;
@@ -623,7 +624,7 @@ export class Director {
     const skin = this.skinFor(arch);
     if (!skin) return;
     const r = this.r;
-    const top = -HALF_H - 3;
+    const top = lv.scroll + OFF_TOP;
     const opts: Partial<Enemy> = elite ? { elite: true } : {};
     switch (arch) {
       case 'dart': {
@@ -634,7 +635,7 @@ export class Director {
         const sz0 = lerp(-HALF_H + 6, -6, r());
         for (let k = 0; k < count; k++) {
           const x = path === 'dive' ? lerp(-HALF_W + 4, HALF_W - 4, (k + 0.5) / count) : x0;
-          lv.spawn('dart', skin, x, lv.top - 6, { path, x0: x, dir, sz0, phase: k * 0.5, amp: 6 + r() * 7 }, { ...opts, t: -k * (path === 'dive' ? 0.18 : 0.32) });
+          lv.spawn('dart', skin, x, top, { path, x0: x, dir, sz0, phase: k * 0.5, amp: 6 + r() * 7 }, { ...opts, t: -k * (path === 'dive' ? 0.18 : 0.32) });
         }
         break;
       }
@@ -642,8 +643,8 @@ export class Director {
         const count = 10 + Math.floor(r() * 8);
         const side = r() < 0.6 ? 0 : r() < 0.5 ? -1 : 1;
         for (let k = 0; k < count; k++) {
-          const x = side === 0 ? lerp(-HALF_W + 3, HALF_W - 3, r()) : side * (HALF_W + 2);
-          const z = side === 0 ? lv.top - 2 - r() * 6 : lv.scroll + lerp(-HALF_H, 0, r());
+          const x = side === 0 ? lerp(-HALF_W + 3, HALF_W - 3, r()) : side * OFF_W;
+          const z = side === 0 ? top - r() * 6 : lv.scroll + lerp(-HALF_H, 0, r());
           const e = lv.spawn('swarm', skin, x, z, {}, { ...opts, t: -k * 0.07 });
           e.vx = side === 0 ? 0 : -side * 14;
           e.vz = side === 0 ? 10 : 0;
@@ -681,7 +682,7 @@ export class Director {
         // (it crosses from a side: in a canyon, a gunship instead)
         if (this.walled()) return this.spawnArch('gunship', elite);
         const dir = r() < 0.5 ? -1 : 1;
-        lv.spawn('bomber', skin, -dir * (HALF_W + 5), lv.scroll - 14, { dir, sz0: lerp(-HALF_H + 6, -10, r()) }, opts);
+        lv.spawn('bomber', skin, -dir * OFF_W, lv.scroll - 14, { dir, sz0: lerp(-HALF_H + 6, -10, r()) }, opts);
         break;
       }
       case 'lancer': {
@@ -702,7 +703,7 @@ export class Director {
         const phase = r() * 6;
         const head = lv.spawn('serpent', skin, x0, top, { x0, phase, amp: 12 + r() * 9 }, opts);
         const len = 7 + Math.floor(this.lv.spec.difficulty * 3);
-        for (let k = 1; k <= len; k++) lv.spawn('serpent', skin, x0, lv.top - 5, { leader: head.id, index: k, x0 }, { hp: 18, max: 18 } as Partial<Enemy>);
+        for (let k = 1; k <= len; k++) lv.spawn('serpent', skin, x0, top, { leader: head.id, index: k, x0 }, { hp: 18, max: 18 } as Partial<Enemy>);
         break;
       }
       case 'carrier':

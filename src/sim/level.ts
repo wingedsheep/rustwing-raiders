@@ -6,7 +6,7 @@
  */
 
 import type { Archetype, Biome, EnemySkin, Planet } from '../world/planets';
-import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, REACH_W, toFlight, type Intent } from './types';
+import { DT, FLIGHT_Y, HALF_H, HALF_W, NEUTRAL, OFF_BOTTOM, REACH_W, toFlight, type Intent } from './types';
 import { Terrain } from './terrain';
 import { SHIELD_CELL, stats, type Build, type Gun, type Stats } from './build';
 import { rng, type Rng, clamp, damp, lerp, pick } from '../util';
@@ -1007,7 +1007,7 @@ export class Level {
       if (!e.dead) tickMarks(this, e);
       if (!e.ground && !e.boss && !e.dead && e.state !== 'hidden' && !(e.d.board !== undefined && e.d.ph === 3) && e.d.qp === undefined) this.keepOffRock(e);
       // gone off the bottom (or far off the sides), or a bounty out of time: it got away
-      if (e.z > this.bottom + 10 || e.z < this.top - 40 || Math.abs(e.x) > HALF_W + 26) {
+      if (e.z > this.scroll + OFF_BOTTOM + 4 || e.z < this.top - 40 || Math.abs(e.x) > HALF_W + 26) {
         if (e.t > 1 && !e.boss) this.escape(e);
       } else if (e.bounty && e.t > e.bounty.life) this.escape(e);
     }

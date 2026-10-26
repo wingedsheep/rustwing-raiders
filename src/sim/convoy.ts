@@ -11,7 +11,7 @@
  */
 
 import type { Bullet, Enemy, Level } from './level';
-import { DT, HALF_H, HALF_W } from './types';
+import { DT, HALF_H, HALF_W, OFF_W } from './types';
 import { clamp, damp, lerp, pick, rng, shuffle } from '../util';
 import { go } from './combat';
 import { lerpAngle, moveTo, sz } from './foes';
@@ -306,7 +306,7 @@ export class Convoy {
     const h = r() < 0.5 ? live.reduce((a, b) => (b.hp < a.hp ? b : a)) : pick(r, live);
     const side = r() < 0.5 ? -1 : 1;
     for (let k = 0; k < n; k++) {
-      const x0 = side * (HALF_W + 4);
+      const x0 = side * OFF_W;
       const s0 = lerp(-HALF_H + 4, -8, r()) + k * 4;
       const e = lv.spawn('dart', skin, x0 + side * k * 3, lv.scroll + s0, { board: h.id, ph: 0, x0, hx: side * (8 + k * 5), hz: -10 + k * 4 });
       e.heading = side > 0 ? -Math.PI / 2 : Math.PI / 2;

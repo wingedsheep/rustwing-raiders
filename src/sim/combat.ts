@@ -152,6 +152,9 @@ export const CHAIN: Partial<Record<string, number>> = {
   halo: 3,
 };
 
+/** The most a foe's wait between attacks is drawn out by, at random (seconds). */
+const IDLE_BEAT = 0.6;
+
 /** Into a state: the events that go with it. */
 export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKind = 'lunge', tele: Tele | null = null) {
   // an elite's chain: straight on to the next attack, or (the last) open for long
@@ -177,6 +180,9 @@ export function go(lv: Level, e: Enemy, state: FoeState, dur = 0, kind: AttackKi
   if (state === 'stagger') e.d.td = 0;
   e.state = state;
   e.stateT = skip ? 30 : 0;
+  // back to idle, it takes a beat of its own before it goes again, never quite the same: a pattern
+  // you learn, not a metronome you count
+  if (state === 'idle' && !skip && !e.boss) e.stateT = -lv.rand() * IDLE_BEAT;
   e.stateDur = dur;
   if (state === 'windup') {
     e.tele = tele;

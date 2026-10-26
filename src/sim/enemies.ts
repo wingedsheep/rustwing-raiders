@@ -8,7 +8,7 @@
 
 import type { Form } from './foes';
 import type { Enemy, Level } from './level';
-import { DT, HALF_H, HALF_W } from './types';
+import { DT, HALF_H, HALF_W, OFF_TOP, OFF_W } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { updateBoss } from './boss';
 import { go, lookOf, over, tickFoe } from './combat';
@@ -109,6 +109,10 @@ export interface EnemyData {
   k?: number;
   /** Fliers: how far across it's swung out of its way round an obstacle (see foes.ts veer). */
   veer?: number;
+  /** And how fast that swing is moving (units/s). */
+  vv?: number;
+  /** How far its aimed attack leads you this time (0: at you; see foes.ts lead). */
+  lead?: number;
   /** Mantas: their pace (eased), how far along their line and their wave they are, how far they've been knocked off it, and where they were left. */
   pace?: number;
   glide?: number;
@@ -176,7 +180,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
   if (e.t < 0) {
     // waiting in line above the screen
     e.shielded = true;
-    e.z = lv.top - 6;
+    e.z = lv.scroll + OFF_TOP;
     e.x = d.x0 ?? 0;
     return;
   }
@@ -220,7 +224,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       const x0 = d.x0 ?? 0;
       if (d.path === 'dive') {
         // in, a pause to line up, then straight at you
-        if (t < 1.1) moveTo(lv, e, x0, lerp(-HALF_H - 3, -HALF_H * 0.45, smooth(t / 1.1)));
+        if (t < 1.1) moveTo(lv, e, x0, lerp(OFF_TOP, -HALF_H * 0.45, smooth(t / 1.1)));
         else if (t < 1.7) {
           face(lv, e, 0.2);
           e.aim = e.heading;
@@ -246,17 +250,17 @@ export function updateEnemy(lv: Level, e: Enemy) {
         }
       } else if (d.path === 'cross') {
         const dir = d.dir ?? 1;
-        moveTo(lv, e, -dir * (HALF_W + 4) + dir * pt * 20, (d.sz0 ?? -12) + Math.sin(t * 2) * 1.5);
+        moveTo(lv, e, -dir * OFF_W + dir * pt * 20, (d.sz0 ?? -12) + Math.sin(t * 2) * 1.5);
         d.fire = (d.fire ?? 0.6) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e)) {
-          d.fire = 0.8;
+          d.fire = 0.6 + lv.rand() * 0.45;
           lv.shoot(e.x, e.z, 0, pattern(lv, e, 'burst', SHARE.mid).speed, { color: e.skin.colors[2], kind: 'needle', look: lookOf(lv, e) });
         }
       } else if (d.path === 'loop') {
         // down, a loop, and off the way it came
         const cx = x0;
         const a = pt * 2.1;
-        const s = -HALF_H - 3 + Math.min(t, 1.4) * 16 - (t > 1.4 ? Math.sin(a - 2.94) * 6 : 0);
+        const s = OFF_TOP + Math.min(t, 1.4) * 16 - (t > 1.4 ? Math.sin(a - 2.94) * 6 : 0);
         moveTo(lv, e, cx + (t > 1.4 ? (1 - Math.cos(a - 2.94)) * 6 * (d.dir ?? 1) : 0), s - (t > 4.4 ? (t - 4.4) * 20 : 0));
         if (t > 2 && !d.shots && live(lv, e)) {
           d.shots = 1;
@@ -264,10 +268,10 @@ export function updateEnemy(lv: Level, e: Enemy) {
         }
       } else {
         // swoop: a weave down the screen
-        moveTo(lv, e, x0 + Math.sin(t * 1.9 + (d.phase ?? 0)) * (d.amp ?? 7), -HALF_H - 3 + pt * 15);
+        moveTo(lv, e, x0 + Math.sin(t * 1.9 + (d.phase ?? 0)) * (d.amp ?? 7), OFF_TOP + pt * 15);
         d.fire = (d.fire ?? 1 + (d.phase ?? 0) * 0.3) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e) && sz(lv, e) < 6) {
-          d.fire = 2.4;
+          d.fire = 1.9 + lv.rand() * 1.1;
           fan(lv, e, SHARE.light, 1, 0);
         }
       }
@@ -296,7 +300,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -12;
       const stay = d.stay ?? 6;
-      if (t < 1.6) moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(t / 1.6)), lerp(-HALF_H - 4, hz, smooth(t / 1.6)));
+      if (t < 1.6) moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(t / 1.6)), lerp(OFF_TOP, hz, smooth(t / 1.6)));
       else if (t < 1.6 + stay) {
         moveTo(lv, e, hx + Math.sin(t * 0.8) * 2, hz + Math.sin(t * 1.3) * 0.8);
         if (e.state !== 'windup') face(lv, e);
@@ -313,10 +317,10 @@ export function updateEnemy(lv: Level, e: Enemy) {
             d.shots = (d.shots ?? 0) + 1;
             if (d.shots % 4 === 0) {
               ring(lv, e, SHARE.mid, 6 + Math.round(runAt(lv) * 6), d.shots * 0.2);
-              d.fire = 1.8;
+              d.fire = 1.5 + lv.rand() * 0.7;
             } else {
               fan(lv, e, SHARE.mid, lv.spec.difficulty > 0.8 ? 5 : 3, 0.6);
-              d.fire = 1.3;
+              d.fire = 1 + lv.rand() * 0.7;
             }
             go(lv, e, 'recover', 0.6);
           }
@@ -335,14 +339,14 @@ export function updateEnemy(lv: Level, e: Enemy) {
         d.shots = (d.shots ?? 0) + 1;
         lv.shoot(e.x, e.z, e.heading, pattern(lv, e, 'burst', SHARE.mid).speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
         lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
-        d.fire = d.shots % 3 === 0 ? 2.2 : 0.16;
+        d.fire = d.shots % 3 === 0 ? 1.8 + lv.rand() * 0.9 : 0.16;
       }
       break;
     }
     case 'bomber': {
       const dir = d.dir ?? 1;
       // across the whole width in about nine seconds, mining as it goes
-      moveTo(lv, e, -dir * (HALF_W + 5) + dir * pt * 9, (d.sz0 ?? -14) + Math.sin(t) * 1.2);
+      moveTo(lv, e, -dir * OFF_W + dir * pt * 9, (d.sz0 ?? -14) + Math.sin(t) * 1.2);
       e.heading = (dir * Math.PI) / 2;
       d.fire = (d.fire ?? 0.8) - DT * pace(lv) * slow;
       if (d.fire <= 0 && live(lv, e)) {
@@ -356,7 +360,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'lancer': {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -14;
-      if (t < 1.4) moveTo(lv, e, hx, lerp(-HALF_H - 4, hz, smooth(t / 1.4)));
+      if (t < 1.4) moveTo(lv, e, hx, lerp(OFF_TOP, hz, smooth(t / 1.4)));
       else if (t < (e.elite ? 40 : 7) || e.state === 'attack' || e.state === 'windup') {
         moveTo(lv, e, hx + Math.sin(t * 0.6) * 1.5, hz);
         const beam = lv.lasers.find((l) => l.owner === e.id);
@@ -365,7 +369,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
           e.aim = e.heading;
           d.fire = (d.fire ?? 0.3) - DT * pace(lv) * slow;
           if (d.fire <= 0 && live(lv, e)) {
-            d.fire = 2.2;
+            d.fire = 1.8 + lv.rand() * 0.9;
             // it aims a little to one side and sweeps through where you are
             d.dir = lv.rand() < 0.5 ? -1 : 1;
             const a = e.heading - d.dir * 0.18;
@@ -396,7 +400,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'brute': {
       // armoured, until it charges: a stamp, a lunge at you, a slam that rings out; then it's open
       const hx = d.hx ?? 0;
-      if (t < 3) moveTo(lv, e, hx, lerp(-HALF_H - 5, -13, smooth(t / 3)));
+      if (t < 3) moveTo(lv, e, hx, lerp(OFF_TOP - 1, -13, smooth(t / 3)));
       else if (t < (e.elite ? 45 : 16) || e.state !== 'idle') {
         if (e.state === 'idle' && d.ph === 1) {
           // back up to where it stands
@@ -463,13 +467,13 @@ export function updateEnemy(lv: Level, e: Enemy) {
     case 'serpent': {
       if (d.leader === undefined) {
         // the head: weaving across, leaving a trail for the body
-        const s = -HALF_H - 3 + pt * 8.5;
+        const s = OFF_TOP + pt * 8.5;
         moveTo(lv, e, (d.x0 ?? 0) + Math.sin(t * 1.3 + (d.phase ?? 0)) * (d.amp ?? 10), s);
         (d.trail ??= []).push(e.x, s);
         if (d.trail.length > 400) d.trail.splice(0, 2);
         d.fire = (d.fire ?? 1.5) - DT * pace(lv) * slow;
         if (d.fire <= 0 && live(lv, e)) {
-          d.fire = 1.6;
+          d.fire = 1.3 + lv.rand() * 0.7;
           fan(lv, e, SHARE.mid, 3, 0.35);
         }
       } else {
@@ -485,7 +489,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         if (k >= 0) moveTo(lv, e, tr[k], tr[k + 1]);
         else {
           e.x = head.d.x0 ?? 0;
-          e.z = lv.top - 5;
+          e.z = lv.scroll + OFF_TOP;
         }
         d.fire = (d.fire ?? 2 + (d.index ?? 0) * 0.4) - DT * slow;
         if (d.fire <= 0 && live(lv, e) && lv.spec.difficulty > 0.3) {
@@ -500,14 +504,14 @@ export function updateEnemy(lv: Level, e: Enemy) {
     }
     case 'carrier': {
       const hx = d.hx ?? 0;
-      if (t < 4) moveTo(lv, e, hx, lerp(-HALF_H - 6, -15, smooth(t / 4)));
+      if (t < 4) moveTo(lv, e, hx, lerp(OFF_TOP - 2, -15, smooth(t / 4)));
       else if (t < (e.elite ? 45 : 20)) {
         moveTo(lv, e, hx + Math.sin(t * 0.25) * 10, -15 + Math.sin(t * 0.4));
         e.heading = 0;
         d.fire = (d.fire ?? 1) - DT * pace(lv) * slow;
         if (d.fire <= 0 && live(lv, e)) {
           d.shots = (d.shots ?? 0) + 1;
-          d.fire = 1.3;
+          d.fire = 1.1 + lv.rand() * 0.5;
           if (d.shots % 2 === 0 && (d.spawned ?? 0) < 10) {
             // launches a pair from its bay
             const skin = lv.director.skinFor('swarm') ?? e.skin;

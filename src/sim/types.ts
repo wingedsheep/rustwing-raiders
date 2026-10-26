@@ -15,6 +15,15 @@ export const HALF_W = 36;
 export const HALF_H = 26;
 /** How far across a ship can fly: out to a 16:9 screen's sides, past the field into the land round it. */
 export const REACH_W = 42.5;
+/**
+ * Just out of sight, from the middle of the screen: the camera shows the whole field and more land
+ * round it (as far across as a ship can fly, and more on a squarer window: see LevelView.fit), so
+ * what comes on comes from out here and never pops up in view. Across; up the screen (negative);
+ * down it. (Out of sight on any window up to 3:2.)
+ */
+export const OFF_W = REACH_W + 5;
+export const OFF_TOP = -(HALF_H + 9);
+export const OFF_BOTTOM = HALF_H + 12;
 
 /** Where a thing at height `h` above (x, z) shows on the flight plane (the screen). */
 export const toFlight = (z: number, h: number) => z + (FLIGHT_Y - h) * Math.tan(TILT);

@@ -5,7 +5,7 @@
  */
 
 import { SEEKER, TORPEDO, type Enemy, type Level, type Player } from './level';
-import { DT, FLIGHT_Y, HALF_H, HALF_W, fromFlight, toFlight } from './types';
+import { DT, FLIGHT_Y, HALF_H, HALF_W, OFF_BOTTOM, OFF_TOP, OFF_W, fromFlight, toFlight } from './types';
 import { clamp, lerp, smooth } from '../util';
 import { go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
@@ -46,16 +46,25 @@ export function moveTo(lv: Level, e: Enemy, x: number, s: number, from = false) 
   const dz = nz - e.z;
   e.vx = dx / DT;
   e.vz = dz / DT;
-  if (Math.abs(dx) + Math.abs(s - (e.z - lv.scroll)) > 1e-4) e.heading = lerpAngle(e.heading, Math.atan2(dx, s - (e.z - lv.scroll)), 0.15);
+  // (it noses round into its flight as fast as it's flying: a hover's drift doesn't swing it about)
+  const ds = s - (e.z - lv.scroll);
+  const v = Math.hypot(dx, ds) / DT;
+  if (v > 0.5) e.heading = lerpAngle(e.heading, Math.atan2(dx, ds), 0.15 * Math.min(1, v / 10));
   e.x = x;
   e.z = nz;
 }
 
-/** How far ahead (s) a flier looks for an obstacle in its way, how far it'll swing out round one, and how quick it swings out and back (units/s). */
-const VEER_LOOK = 1.1;
+/**
+ * How far ahead (s) a flier looks for an obstacle in its way, how far it'll swing out round one,
+ * and the swing's spring: how hard it pulls out round one and back after (a banked curve that
+ * eases in and out, not a sidestep), and its top speed and push (units/s, units/s²).
+ */
+const VEER_LOOK = 1.4;
 const VEER_MAX = 16;
-const VEER_OUT = 24;
-const VEER_BACK = 7;
+const VEER_OUT = 50;
+const VEER_BACK = 9;
+const VEER_V = 24;
+const VEER_A = 150;
 
 /**
  * A flier's swing round the obstacles. It looks along the way it's going over the land (the land
@@ -65,10 +74,16 @@ const VEER_BACK = 7;
  * swerve: what it lined up on, it hits.
  */
 function veer(lv: Level, e: Enemy, x: number, z: number, s: number, v0: number): number {
-  if (e.tele?.shape === 'line' && (e.state === 'windup' || e.state === 'attack')) return v0;
+  const d = e.d;
+  if (e.tele?.shape === 'line' && (e.state === 'windup' || e.state === 'attack')) {
+    d.vv = 0;
+    return v0;
+  }
   // (not while it's still coming in from off the top or the sides)
-  if (s < -HALF_H - 2 || Math.abs(x) > HALF_W + 2) return v0 + clamp(-v0, -VEER_BACK * DT, VEER_BACK * DT);
-  const vx = clamp(e.vx, -30, 30);
+  if (s < -HALF_H - 2 || Math.abs(x) > HALF_W + 2) return swing(e, v0, 0, VEER_BACK);
+  // the way it means to go: its last move without the swing's own (or the swing would see itself
+  // carry it clear, swing back, and wobble)
+  const vx = clamp(e.vx - (d.vv ?? 0), -30, 30);
   const vz = clamp(e.vz, -30, 30) - lv.speedNow;
   const r = e.r + 0.8;
   const reach = Math.abs(vz) * VEER_LOOK + r + 4;
@@ -111,8 +126,15 @@ function veer(lv: Level, e: Enemy, x: number, z: number, s: number, v0: number):
     soonest = k;
     want = pick;
   }
-  const rate = Math.abs(want) > Math.abs(v0) || want * v0 < 0 ? VEER_OUT : VEER_BACK;
-  return v0 + clamp((want - v0) * 6, -rate, rate) * DT;
+  return swing(e, v0, want, want ? VEER_OUT : VEER_BACK);
+}
+
+/** The swing on its spring towards `want` (critically damped: it settles without overshooting). */
+function swing(e: Enemy, v0: number, want: number, k: number) {
+  const vv = e.d.vv ?? 0;
+  const a = clamp(k * (want - v0) - 2 * Math.sqrt(k) * vv, -VEER_A, VEER_A);
+  e.d.vv = clamp(vv + a * DT, -VEER_V, VEER_V);
+  return v0 + e.d.vv * DT;
 }
 
 /** Ease towards a screen spot (a hover), at up to `max` units/s. */
@@ -140,17 +162,65 @@ function line(e: Enemy, len: number, w: number, lock: number, body = false): Tel
   return { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * len, z2: e.z + Math.cos(e.aim) * len, w, lock, body };
 }
 
-/** Keep a tracking line tell on the enemy, following its aim until it locks. */
-function track(lv: Level, e: Enemy, rate = 0.12) {
+/**
+ * Keep a tracking line tell on the enemy, following its aim until it locks; with a `speed` (its
+ * shot's, or its own for a lunge), leading you by its `lead` this time.
+ */
+function track(lv: Level, e: Enemy, rate = 0.12, speed = 0) {
   const t = e.tele;
   if (!t || t.shape !== 'line') return;
-  if (e.stateT < t.lock) e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), rate);
+  if (e.stateT < t.lock) e.aim = lerpAngle(e.aim, speed ? lead(lv, e, speed) : lv.aim(e.x, e.z), rate);
   const len = Math.hypot(t.x2 - t.x, t.z2 - t.z);
   t.x = e.x;
   t.z = e.z;
   t.x2 = e.x + Math.sin(e.aim) * len;
   t.z2 = e.z + Math.cos(e.aim) * len;
 }
+/**
+ * Its aim at you, leading you by its `lead` (0: where you are; 1: where a shot at `speed` meets you
+ * if you hold your course). The tell shows the led line, so it's read like any other; it only
+ * makes steady drifting no answer. Never a dash, a decoy or a hauler.
+ */
+function lead(lv: Level, e: Enemy, speed: number) {
+  const a = lv.aim(e.x, e.z);
+  const k = e.d.lead ?? 0;
+  const p = lv.nearest(e.x, e.z);
+  if (!p || k <= 0 || p.dashT > 0) return a;
+  const dx = p.x - e.x;
+  const dz = p.z - e.z;
+  if (Math.abs(lerpAngle(0, Math.atan2(dx, dz) - a, 1)) > 0.05) return a;
+  const t = (Math.hypot(dx, dz) / speed) * k;
+  return Math.atan2(dx + clamp(p.vx, -24, 24) * t, dz + clamp(p.vz, -24, 24) * t);
+}
+
+/** How much this attack leads you: none `none` of the time, else from `lo` to `hi`. */
+function leads(lv: Level, e: Enemy, none: number, lo: number, hi: number) {
+  e.d.lead = lv.rand() < none ? 0 : lerp(lo, hi, lv.rand());
+}
+
+/**
+ * A hoverer's new spot, across from where it was: after it's fired, or when you've been pouring
+ * fire into it, so it's no sitting target and its next shot comes from somewhere new. Off your line
+ * if you're under it.
+ */
+function shift(lv: Level, e: Enemy, p: Player | undefined, most = 10) {
+  const d = e.d;
+  const hx = d.hx ?? e.x;
+  let side = p && Math.abs(p.x - e.x) < 8 ? Math.sign(e.x - p.x) || 1 : lv.rand() < 0.5 ? -1 : 1;
+  if (Math.abs(hx + side * most) > HALF_W - 8) side = -side;
+  d.hx = clamp(hx + side * lerp(most * 0.5, most, lv.rand()), -HALF_W + 8, HALF_W - 8);
+  d.heat = 0;
+}
+
+/** Taking a stream of fire while it waits: it moves (see shift). True if it did. */
+function underFire(lv: Level, e: Enemy, p: Player | undefined) {
+  const d = e.d;
+  d.heat = e.hitT < 0.15 ? (d.heat ?? 0) + DT : Math.max(0, (d.heat ?? 0) - DT * 0.5);
+  if (e.state !== 'idle' || d.heat < 1.4) return false;
+  shift(lv, e, p, 8);
+  return true;
+}
+
 
 /** Leaving: off the top (or a side) and away. */
 function leave(lv: Level, e: Enemy, dx = 0) {
@@ -292,12 +362,12 @@ function formation(d: Enemy['d'], t: number): [number, number] {
   const x0 = d.x0 ?? 0;
   const dir = d.dir ?? 1;
   const slot = d.slot ?? 0;
-  const top = -HALF_H - 3;
+  const top = OFF_TOP;
   switch (d.form) {
     case 'sweep': {
-      const span = 2 * (HALF_W + 4);
+      const span = 2 * OFF_W;
       const u = clamp((t * 22) / span, 0, 1.4);
-      return [-dir * (HALF_W + 4) + dir * u * span, (d.sz0 ?? -16) + Math.sin(Math.min(u, 1) * Math.PI) * 7];
+      return [-dir * OFF_W + dir * u * span, (d.sz0 ?? -16) + Math.sin(Math.min(u, 1) * Math.PI) * 7];
     }
     case 'hook':
     case 'loop': {
@@ -364,11 +434,12 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.state === 'idle') {
         if (d.shots === 1 && ok && p && s > -16 && s < -2 && ps(lv, p) - s > 10) {
           d.shots = 2;
+          leads(lv, e, 0.5, 0.5, 0.8);
           e.aim = lv.aim(e.x, e.z);
           go(lv, e, 'windup', 0.5 * quick(lv), 'burst', line(e, 24, 0.4, 0.3 * quick(lv)));
         }
       } else if (e.state === 'windup') {
-        track(lv, e, 0.2);
+        track(lv, e, 0.2, pattern(lv, e, 'burst', SHARE.light).speed);
         if (over(e)) {
           lv.shoot(e.x, e.z, e.aim, pattern(lv, e, 'burst', SHARE.light).speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
@@ -387,7 +458,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       if (e.t < 0.9) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 0.9)), lerp(-HALF_H - 4, hz, smooth(e.t / 0.9)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 0.9)), lerp(OFF_TOP, hz, smooth(e.t / 0.9)));
         e.aim = lv.aim(e.x, e.z);
         e.heading = 0;
         break;
@@ -396,9 +467,13 @@ export function updateFoe(lv: Level, e: Enemy): void {
         ease(lv, e, hx, hz, 4, 10);
         e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
         e.heading = lerpAngle(e.heading, e.aim, 0.1);
-        if (e.stateT > (d.phase ?? 0.3) && ok && p && ps(lv, p) - s > 8) go(lv, e, 'windup', 0.7 * quick(lv), 'burst', line(e, 30, 0.5, 0.45 * quick(lv)));
+        if (e.stateT > (d.phase ?? 0.3) && ok && p && ps(lv, p) - s > 8) {
+          // a marksman: it mostly leads you
+          leads(lv, e, 0.3, 0.4, 1);
+          go(lv, e, 'windup', 0.7 * quick(lv), 'burst', line(e, 30, 0.5, 0.45 * quick(lv)));
+        }
       } else if (e.state === 'windup') {
-        track(lv, e, 0.15);
+        track(lv, e, 0.15, pattern(lv, e, 'burst', SHARE.light).speed);
         e.heading = e.aim;
         // a kick back as it braces
         moveTo(lv, e, e.x - Math.sin(e.aim) * 1.2 * DT, s - Math.cos(e.aim) * 1.2 * DT, true);
@@ -429,7 +504,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       // across the top third in a string; as it comes over you it flares and drops one slug
       // straight down, leading you by where it'll be
       const dir = d.dir ?? 1;
-      const x = -dir * (HALF_W + 4) + dir * pt * 20;
+      const x = -dir * OFF_W + dir * pt * 20;
       moveTo(lv, e, x, (d.sz0 ?? -16) + Math.sin(pt * 2 + (d.phase ?? 0)) * 0.8);
       e.heading = (dir * Math.PI) / 2;
       e.aim = 0;
@@ -463,7 +538,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       if (e.t < 1.2 && !d.n) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.2)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.2)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.2)), lerp(OFF_TOP, hz, smooth(e.t / 1.2)));
         e.aim = lv.aim(e.x, e.z);
         break;
       }
@@ -478,11 +553,13 @@ export function updateFoe(lv: Level, e: Enemy): void {
         const again = e.elite && (d.combo ?? 0) > 0 && p && ps(lv, p) - s > 7 && Math.abs(lv.aim(e.x, e.z)) < 1.1;
         if (e.stateT > 0.35 && ok && p && ((down && Math.abs(s - hz) < 3) || again)) {
           const len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 8, 20, 44);
+          // now and then it lines up where you're going, to cut you off
+          leads(lv, e, 0.55, 0.4, 0.7);
           d.len = len;
           go(lv, e, 'windup', 0.85 * quick(lv), 'lunge', line(e, len, e.r * 1.5, 0.5 * quick(lv), true));
         }
       } else if (e.state === 'windup') {
-        track(lv, e);
+        track(lv, e, 0.12, 40);
         e.heading = e.aim;
         // rocking back on its haunches
         moveTo(lv, e, e.x - Math.sin(e.aim) * 2 * DT, s - Math.cos(e.aim) * 2 * DT, true);
@@ -524,7 +601,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         // waiting under the screen: a chevron at the bottom edge
         if (e.state !== 'windup') go(lv, e, 'windup', 1.0, 'ram', { shape: 'edge', x: e.x, z: lv.bottom });
         const tx = p ? p.x : e.x;
-        moveTo(lv, e, e.x + clamp(tx - e.x, -6, 6) * DT, HALF_H + 5, true);
+        moveTo(lv, e, e.x + clamp(tx - e.x, -6, 6) * DT, OFF_BOTTOM, true);
         const t = e.tele;
         if (t && t.shape === 'edge') {
           t.x = e.x;
@@ -540,12 +617,13 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (ph === 1) {
         const chase = lv.speed * 1.45;
         // in a fight the screen keeps its pace and boost moves the ship: count the target's boost
-        const ds = lv.speedNow - chase + (!p ? 0 : p.boosting * lv.speed * 0.9);
+        // (quicker up while it's still out of sight below)
+        const ds = lv.speedNow - chase + (!p ? 0 : p.boosting * lv.speed * 0.9) - (s > HALF_H ? 8 : 0);
         const tx = p ? p.x : e.x;
         moveTo(lv, e, e.x + clamp(tx - e.x, -9, 9) * DT * 1.5, s + ds * DT, true);
         e.heading = Math.PI;
         e.aim = Math.PI;
-        if (s > HALF_H + 9 && e.stateT > 1) {
+        if (s > OFF_BOTTOM + 2 && e.stateT > 1) {
           // left behind: it spins out into the dust
           const q = p ?? lv.players[0];
           lv.emit({ type: 'outran', id: q.id, enemy: e.id });
@@ -596,7 +674,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = side * (HALF_W - 6);
       const hz = d.hz ?? -6;
       if (e.t < 1.4) {
-        moveTo(lv, e, lerp(side * (HALF_W + 5), hx, smooth(e.t / 1.4)), hz);
+        moveTo(lv, e, lerp(side * OFF_W, hx, smooth(e.t / 1.4)), hz);
         e.aim = lv.aim(e.x, e.z);
         e.heading = e.aim;
         break;
@@ -669,7 +747,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -17;
       if (e.t < 1.6) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(OFF_TOP, hz, smooth(e.t / 1.6)));
         e.aim = lv.aim(e.x, e.z);
         e.heading = e.aim;
         break;
@@ -678,6 +756,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         leave(lv, e, (hx < 0 ? -1 : 1) * 10);
         break;
       }
+      underFire(lv, e, p);
       ease(lv, e, hx + Math.sin(e.t * 0.45) * 7, hz + Math.sin(e.t * 0.8) * 1.5, 1.5, 6);
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.06);
       e.heading = e.aim;
@@ -709,7 +788,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
       } else if (e.state === 'attack') {
         if (over(e)) go(lv, e, 'recover', 1.8);
-      } else if (over(e)) go(lv, e, 'idle');
+      } else if (over(e)) {
+        shift(lv, e, p, 12);
+        go(lv, e, 'idle');
+      }
       break;
     }
     case 'ace': {
@@ -721,7 +803,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.t < 1.6) {
         // coming past you from behind
         const side = d.dir ?? 1;
-        moveTo(lv, e, lerp(p.x + side * 7, p.x + side * 3, smooth(e.t / 1.6)), lerp(HALF_H + 4, py - 10, smooth(e.t / 1.6)));
+        moveTo(lv, e, lerp(p.x + side * 7, p.x + side * 3, smooth(e.t / 1.6)), lerp(OFF_BOTTOM, py - 10, smooth(e.t / 1.6)));
         e.heading = 0;
         break;
       }
@@ -768,9 +850,12 @@ export function updateFoe(lv: Level, e: Enemy): void {
           if (Math.abs(e.x + d.rollDir * 8) > HALF_W - 4) d.rollDir = -d.rollDir;
           d.heat = 0;
           go(lv, e, 'dodge', 0.45);
-        } else if (d.fire <= 0 && ok) go(lv, e, 'windup', 0.5 * quick(lv), 'burst', line(e, 30, 0.5, 0.3));
+        } else if (d.fire <= 0 && ok) {
+          leads(lv, e, 0.35, 0.3, 0.9);
+          go(lv, e, 'windup', 0.5 * quick(lv), 'burst', line(e, 30, 0.5, 0.3));
+        }
       } else if (e.state === 'windup') {
-        track(lv, e, 0.2);
+        track(lv, e, 0.2, pattern(lv, e, 'burst', SHARE.heavy).speed);
         if (over(e)) {
           d.shots = 0;
           d.fire = 0;
@@ -779,12 +864,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
+          // a pilot: it walks the rest of its burst after you, a little
+          if (d.shots) e.aim = turn(e.aim, lv.aim(e.x, e.z), 0.06 / DT);
           const k = pattern(lv, e, 'burst', SHARE.heavy);
           lv.shoot(e.x, e.z, e.aim, k.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
           d.shots = (d.shots ?? 0) + 1;
           d.fire = Math.max(0.1, k.gap);
           if (d.shots >= Math.min(3, k.burst)) {
-            d.fire = 2.6;
+            d.fire = 2 + lv.rand() * 1.2;
             go(lv, e, 'idle');
           }
         }
@@ -830,7 +917,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         d.a = (d.a ?? d.phase ?? 0) + DT * 1.6;
         const tx = hx + Math.cos(d.a) * 5;
         const ts = hz + Math.sin(d.a) * 3;
-        if (e.t < 1.4 && !d.n) moveTo(lv, e, lerp(d.x0 ?? hx, tx, smooth(e.t / 1.4)), lerp(-HALF_H - 4, ts, smooth(e.t / 1.4)));
+        if (e.t < 1.4 && !d.n) moveTo(lv, e, lerp(d.x0 ?? hx, tx, smooth(e.t / 1.4)), lerp(OFF_TOP, ts, smooth(e.t / 1.4)));
         else ease(lv, e, tx, ts, 4, 20);
         if (e.stateT > 1.2 + (d.phase ?? 0) * 0.3 && ok && p && e.t > 1.4) {
           go(lv, e, 'windup', 1.1 * quick(lv), 'dive', { shape: 'circle', x: p.x, z: p.z, r: 2.2, ground: false });
@@ -1043,7 +1130,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -12;
       if (e.t < 1.6) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(OFF_TOP, hz, smooth(e.t / 1.6)));
         e.aim = lv.aim(e.x, e.z);
         e.guard = 0.7;
         break;
@@ -1056,11 +1143,15 @@ export function updateFoe(lv: Level, e: Enemy): void {
       ease(lv, e, hx + Math.sin(e.t * 0.5) * 3, hz, 2, 6);
       e.heading = e.aim;
       if (e.state === 'idle' || e.state === 'windup') {
-        e.aim = turn(e.aim, lv.aim(e.x, e.z), 0.5);
+        e.aim = turn(e.aim, e.state === 'windup' ? lead(lv, e, pattern(lv, e, 'wall', SHARE.heavy).speed) : lv.aim(e.x, e.z), 0.5);
         e.guard = 0.7;
+      if (underFire(lv, e, p)) e.stateT = Math.min(e.stateT, 1);
       }
       if (e.state === 'idle') {
-        if (e.stateT > 2 && ok) go(lv, e, 'windup', 1.0, 'bar', line(e, 40, 6, 1.0));
+        if (e.stateT > 2 && ok) {
+          leads(lv, e, 0.5, 0.4, 0.7);
+          go(lv, e, 'windup', 1.0, 'bar', line(e, 40, 6, 1.0));
+        }
       } else if (e.state === 'windup') {
         track(lv, e, 0);
         if (over(e)) {
@@ -1077,7 +1168,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
       } else if (e.state === 'attack') {
         if (over(e)) go(lv, e, 'recover', 1.6);
-      } else if (over(e)) go(lv, e, 'idle');
+      } else if (over(e)) {
+        shift(lv, e, p);
+        go(lv, e, 'idle');
+      }
       break;
     }
     case 'prism': {
@@ -1085,7 +1179,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -15;
       if (e.t < 1.6) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(OFF_TOP, hz, smooth(e.t / 1.6)));
         break;
       }
       if (e.t > (d.stay ?? 14) && e.state === 'idle') {
@@ -1124,7 +1218,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
             l.z2 = e.z + Math.cos(e.aim) * 60;
           }
         if (over(e)) go(lv, e, 'recover', 1.2);
-      } else if (over(e)) go(lv, e, 'idle');
+      } else if (over(e)) {
+        shift(lv, e, p, 12);
+        go(lv, e, 'idle');
+      }
       break;
     }
     case 'gatekeeper': {
@@ -1138,7 +1235,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       // tethers its friends (tough while linked, and healing) and breathes spores
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -17;
-      if (e.t < 2) moveTo(lv, e, hx, lerp(-HALF_H - 4, hz, smooth(e.t / 2)));
+      if (e.t < 2) moveTo(lv, e, hx, lerp(OFF_TOP, hz, smooth(e.t / 2)));
       else if (e.t > (d.stay ?? 16) && e.state !== 'windup') leave(lv, e);
       else ease(lv, e, hx + Math.sin(e.t * 0.3) * 6, hz + Math.sin(e.t * 0.7), 1.5, 5);
       e.heading = Math.sin(e.t) * 0.3;
@@ -1404,16 +1501,19 @@ export function updateFoe(lv: Level, e: Enemy): void {
       }
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.15);
       // (off the side it's driving to: the trucks behind the first come in from further out)
-      if ((Math.abs(e.x) > HALF_W + 8 && Math.sign(e.x) === dir) || (d.ride && sz(lv, e) > HALF_H + 6)) {
+      if ((Math.abs(e.x) > OFF_W + 2 && Math.sign(e.x) === dir) || (d.ride && sz(lv, e) > OFF_BOTTOM - 2)) {
         lv.escape(e);
         break;
       }
       if (!ok || !p) break;
       if (e.state === 'idle') {
         const inside = Math.abs(e.x) < HALF_W - 8;
-        if (inside && e.stateT > ((d.n ?? 0) ? 0.9 : 0.4) && (d.n ?? 0) < 2 && s < HALF_H - 6) go(lv, e, 'windup', 0.65 * quick(lv), 'burst', line(e, 34, 0.5, 0.4 * quick(lv)));
+        if (inside && e.stateT > ((d.n ?? 0) ? 0.9 : 0.4) && (d.n ?? 0) < 2 && s < HALF_H - 6) {
+          leads(lv, e, 0.4, 0.3, 0.7);
+          go(lv, e, 'windup', 0.65 * quick(lv), 'burst', line(e, 34, 0.5, 0.4 * quick(lv)));
+        }
       } else if (e.state === 'windup') {
-        track(lv, e, 0.15);
+        track(lv, e, 0.15, pattern(lv, e, 'burst', SHARE.mid).speed);
         if (over(e)) {
           d.shots = 0;
           d.fire = 0;
@@ -1464,7 +1564,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const want = slewed ? run + turn * SKATE.slew : st === 'windup' ? run - turn * 0.18 * k : run;
       e.heading = lerpAngle(e.heading, want, slewed ? 0.2 : 0.08);
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.1);
-      if (s > HALF_H + 6) {
+      if (s > OFF_BOTTOM - 2) {
         lv.escape(e);
         break;
       }
@@ -1516,7 +1616,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -14;
       if (e.t < 3) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 3)), lerp(-HALF_H - 6, hz, smooth(e.t / 3)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 3)), lerp(OFF_TOP - 2, hz, smooth(e.t / 3)));
         e.heading = 0;
         break;
       }
@@ -1604,7 +1704,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -14;
       if (e.t < 1.4) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.4)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.4)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.4)), lerp(OFF_TOP, hz, smooth(e.t / 1.4)));
         break;
       }
       if (e.t > (d.stay ?? 14) && e.state === 'idle') {
@@ -1625,6 +1725,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           t.z = e.z;
         }
         if (over(e)) {
+      underFire(lv, e, p);
           d.a = lv.aim(e.x, e.z);
           d.k = 0;
           d.fire = 0;
@@ -1648,7 +1749,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
           d.k = (d.k ?? 0) + 1;
         }
         if (over(e)) go(lv, e, 'recover', 1.3);
-      } else if (over(e)) go(lv, e, 'idle');
+      } else if (over(e)) {
+        shift(lv, e, p);
+        go(lv, e, 'idle');
+      }
       break;
     }
     case 'rook': {
@@ -1658,7 +1762,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const hx = d.hx ?? 0;
       const hz = d.hz ?? -17;
       if (e.t < 1.6) {
-        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(-HALF_H - 4, hz, smooth(e.t / 1.6)));
+        moveTo(lv, e, lerp(d.x0 ?? hx, hx, smooth(e.t / 1.6)), lerp(OFF_TOP, hz, smooth(e.t / 1.6)));
         e.heading = 0;
         break;
       }
@@ -1705,7 +1809,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       d.pace = lerp(d.pace ?? 1, e.state === 'windup' ? 0.25 : slow, Math.min(1, 4 * DT));
       d.glide = (d.glide ?? 0) + 6.5 * d.pace * DT;
       d.wave = (d.wave ?? d.phase ?? 0) + 0.9 * d.pace * DT;
-      const x = -dir * (HALF_W + 7) + dir * d.glide;
+      const x = -dir * (OFF_W + 2) + dir * d.glide;
       const z = (d.hz ?? -15) + Math.sin(d.wave) * 5;
       // knocked off its line, it glides back onto it rather than snapping
       const back = 1 - Math.min(1, 2.5 * DT);
@@ -1714,7 +1818,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       moveTo(lv, e, x + d.ox, z + d.oz);
       d.ex = e.x;
       d.es = sz(lv, e);
-      if (Math.abs(e.x) > HALF_W + 9 && e.t > 3) {
+      if (Math.abs(e.x) > OFF_W + 3 && e.t > 3) {
         lv.escape(e);
         break;
       }
@@ -1750,7 +1854,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       // a loot runner: keeps away from your guns, jinks when you line up, and bolts when time's up
       const life = e.bounty?.life ?? 9;
       if (e.t < 1.2) {
-        moveTo(lv, e, d.x0 ?? 0, lerp(-HALF_H - 4, -17, smooth(e.t / 1.2)));
+        moveTo(lv, e, d.x0 ?? 0, lerp(OFF_TOP, -17, smooth(e.t / 1.2)));
         break;
       }
       if (e.t > life - 1) {
@@ -1800,7 +1904,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       const life = e.bounty?.life ?? 10;
       const hx = d.hx ?? 0;
       d.tx = e.t < 1.4 ? hx : hx + Math.sin(e.t * 0.5) * 8;
-      d.ts = e.t < 1.4 ? lerp(-HALF_H - 4, -13, smooth(e.t / 1.4)) : e.t > life - 1 ? (d.ts ?? -13) - 30 * DT : -13 + Math.sin(e.t * 0.8) * 2;
+      d.ts = e.t < 1.4 ? lerp(OFF_TOP, -13, smooth(e.t / 1.4)) : e.t > life - 1 ? (d.ts ?? -13) - 30 * DT : -13 + Math.sin(e.t * 0.8) * 2;
       e.heading += DT * 0.6;
       const tugs = lv.enemies.filter((o) => o.arch === 'tug' && o.d.host === e.id && !o.dead);
       if (tugs.length < (d.n ?? 2)) {
