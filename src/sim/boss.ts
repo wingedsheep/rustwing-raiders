@@ -38,6 +38,7 @@ import { go, over, release, type AttackKind, type Tele } from './combat';
 import { foeSkin, type Foe } from './factions';
 import { lerpAngle } from './foes';
 import { strike, type Strike } from './strikes';
+import { SHARE, pattern, type Family } from './volleys';
 
 export type BossStyle = 'brawler' | 'fortress' | 'pursuer' | 'hive';
 export type BossMove =
@@ -1977,7 +1978,7 @@ function sigGo(lv: Level, e: Enemy, b: BossState): boolean {
       lv.lasers.push({ x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, warn: 0.32, on: 0.45, color: col, owner: e.id });
       lv.emit({ type: 'telegraph', x: e.x, z: e.z, x2: e.x + Math.sin(a) * 80, z2: e.z + Math.cos(a) * 80, t: 0.32 });
       if (b.k % 2 === 1 || b.phase >= 2)
-        for (const s of [-1, 1]) lv.bullet(b.mx + Math.cos(a) * s * 5, b.ms - Math.sin(a) * s * 5, 0, 0, { kind: 'mine', r: 0.7, life: repoMine(lv, b), split: 6, color: col });
+        for (const s of [-1, 1]) lv.bullet(b.mx + Math.cos(a) * s * 5, b.ms - Math.sin(a) * s * 5, 0, 0, { kind: 'mine', r: 0.7, life: repoMine(lv, b), ...mineRing(lv, e, 6), color: col });
       // ARU-0 seizes what's there: a lot of scrap left where you were (its Lien comes for it next)
       if (lv.spec.planet.id === 'cinder') {
         lv.drop('scrap', b.mx, b.ms, LIEN_SCRAP);
@@ -2159,7 +2160,7 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       b.gone += sp * DT;
       if (b.gone > 5) {
         b.gone -= 5;
-        lv.bullet(b.sx, e.z, 0, 0, { kind: 'mine', r: 0.7, life: 1.1 + lv.rand() * 0.4, split: b.phase >= 1 ? 6 : 4, color: col });
+        lv.bullet(b.sx, e.z, 0, 0, { kind: 'mine', r: 0.7, life: 1.1 + lv.rand() * 0.4, ...mineRing(lv, e, b.phase >= 1 ? 6 : 4), color: col });
       }
       if (Math.abs(b.sx) > HALF_W - 6 && Math.sign(b.sx) === b.dir) {
         b.sx = b.dir * (HALF_W - 6);
@@ -2183,8 +2184,9 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       if (Math.floor(u) > b.k && b.ball) {
         b.k = Math.floor(u);
         if (b.phase >= 1 || b.last) {
-          const n = 7 + b.phase;
-          for (let k = 0; k < n; k++) lv.bullet(b.ball.x, b.ball.z, (k / n) * Math.PI * 2 + b.k, 7, { color: col, kind: 'big', r: 0.6 });
+          const r = pattern(lv, e, 'ring', SHARE.boss);
+          const n = Math.min(7 + b.phase, r.n);
+          for (let k = 0; k < n; k++) lv.shoot(b.ball.x, b.ball.z, (k / n) * Math.PI * 2 + b.k, r.speed, { color: col, kind: 'big', r: 0.6 });
         }
         lv.emit({ type: 'strike', kind: 'slam', x: b.ball.x, z: b.ball.z, r: 1.5 });
       }
@@ -2203,10 +2205,11 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       }
       b.fire -= DT;
       if (b.fire <= 0) {
-        b.fire = 0.11;
-        b.angle += b.dir * 0.14;
-        const arms = Math.min(7, 5 + b.phase);
-        for (let k = 0; k < arms; k++) lv.bullet(e.x, e.z, b.angle + (k / arms) * Math.PI * 2, 6.2, { color: col, kind: 'spore', r: 0.5 });
+        const sp = pattern(lv, e, 'spiral', SHARE.boss);
+        b.fire = Math.max(0.11, sp.every);
+        b.angle += b.dir * Math.min(0.14, sp.spin * b.fire);
+        const arms = Math.min(7, 5 + b.phase, sp.arms);
+        for (let k = 0; k < arms; k++) lv.shoot(e.x, e.z, b.angle + (k / arms) * Math.PI * 2, sp.speed, { color: col, kind: 'spore', r: 0.5 });
       }
       if (over(e)) endMove(lv, e, b, 1.8);
       break;
@@ -2266,9 +2269,12 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         b.fire += beatOf(lv) * 2;
         b.ms = GUST_T;
         const gap = b.angle + (b.k % 2) * b.dir * 0.55;
-        for (let a = -1.15; a <= 1.15; a += 0.085) {
+        // (a fan: no denser than the table's)
+        const f = pattern(lv, e, 'fan', SHARE.boss);
+        const step = Math.max(0.085, 2.3 / Math.max(1, f.n - 1));
+        for (let a = -1.15; a <= 1.15; a += step) {
           if (Math.abs(b.angle + a - gap) < 0.17) continue;
-          lv.bullet(e.x, e.z + 2, b.angle + a, 12, { color: col, kind: 'needle', r: 0.4 });
+          lv.shoot(e.x, e.z + 2, b.angle + a, f.speed, { color: col, kind: 'needle', r: 0.4 });
         }
         lv.emit({ type: 'bossBeat', enemy: e.id, move: 'gust', k: b.k++, x: e.x, z: e.z });
       }
@@ -2409,9 +2415,11 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
       b.fire -= DT;
       if (b.fire <= 0) {
         b.fire += 2 * beatOf(lv);
-        for (let x = -HALF_W + 0.9; x <= HALF_W; x += BROAD_STEP) {
-          if (Math.abs(x - b.sx) < BROAD_GAP) continue;
-          lv.bullet(x, e.z + 3, 0, 13, { color: col, r: 0.45 });
+        const w = pattern(lv, e, 'wall', SHARE.boss);
+        const gap = Math.max(BROAD_GAP, w.hole / 2);
+        for (let x = -HALF_W + 0.9; x <= HALF_W; x += Math.max(BROAD_STEP, w.spacing)) {
+          if (Math.abs(x - b.sx) < gap) continue;
+          lv.shoot(x, e.z + 3, 0, w.speed, { color: col, r: 0.45 });
         }
         lv.emit({ type: 'bossBeat', enemy: e.id, move: 'broadside', k: b.k, x: b.sx, z: e.z });
       }
@@ -2520,11 +2528,12 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         const z = lv.scroll + b.ss;
         strike(lv, 'slam', x, z, { r: LEAP_R, warn: 0, active: 0.3, air: true, owner: e.id, color: col });
         // the junk shaken off it as it lands, in a ring: no junk where its thrusters are (either side)
-        const n = leapJunk(b);
+        const r = pattern(lv, e, 'ring', SHARE.boss);
+        const n = Math.min(leapJunk(b), r.n);
         for (let k = 0; k < n; k++) {
           const a = (k / n) * Math.PI * 2;
           if (Math.abs(Math.cos(a)) < 0.2) continue;
-          lv.bullet(x, z, a, 9 + (k % 2) * 2, { color: JUNK, kind: 'big', r: 0.55 });
+          lv.shoot(x, z, a, r.speed * (k % 2 ? 1 : 0.82), { color: JUNK, kind: 'big', r: 0.55 });
         }
         e.tele = null;
         lv.emit({ type: 'bossBeat', enemy: e.id, move: 'land', k: 0, x, z });
@@ -2586,12 +2595,14 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
         // and out: a wall of bubbles, three rows deep, fanned at you
         const a = lv.aim(e.x, e.z);
         const rows = b.last ? 4 : 3;
-        // (each row's bubbles sit in the gaps of the one before: weave through)
+        // (a fan in rows, the last at the table's speed and the first ones slower; each row's
+        // bubbles sit in the gaps of the one before: weave through)
+        const f = pattern(lv, e, 'fan', SHARE.boss);
         for (let r = 0; r < rows; r++) {
-          const n = 8;
+          const n = Math.min(8, f.n);
           const step = 1.9 / n;
           for (let k = 0; k < n; k++) {
-            const o = lv.bullet(e.x, e.z + 2, a + (k - (n - 1) / 2 + (r % 2) * 0.5) * step, 6 + r * 1.8, { color: col, kind: 'big', r: 0.7 });
+            const o = lv.shoot(e.x, e.z + 2, a + (k - (n - 1) / 2 + (r % 2) * 0.5) * step, (f.speed * (6 + r * 1.8)) / (6 + (rows - 1) * 1.8), { color: col, kind: 'big', r: 0.7 });
             // on the tide, the wall comes back to her, the far rows first
             if (tideOn(b)) onTide(lv, b, o, 2.6 - r * 0.2);
           }
@@ -2604,15 +2615,26 @@ function sigAttack(lv: Level, e: Enemy, b: BossState) {
   }
 }
 
+/** A mine's ring: at most `n`, and the ring family's (a boss's) count and speed. */
+function mineRing(lv: Level, e: Enemy, n: number) {
+  const r = pattern(lv, e, 'ring', SHARE.boss);
+  return { split: Math.min(n, r.n), splitV: r.speed };
+}
+
 /** Khet's junk, thrown off the head. */
 const JUNK = 0xff7a2a;
 
 /** The ram stopped by its thrusters: a fan of fire straight back up the line it came down. */
 function retro(lv: Level, e: Enemy, b: BossState) {
   const a = e.aim + Math.PI;
-  for (let k = 0; k < RETRO_N; k++) {
-    const off = (k / (RETRO_N - 1) - 0.5) * 2 * RETRO_FAN;
-    lv.bullet(b.sx, lv.scroll + b.ss, a + off, RETRO_V + (k % 2) * 3, { color: JUNK, kind: 'big', r: 0.6, life: RETRO_LIFE });
+  const f = pattern(lv, e, 'fan', SHARE.boss);
+  const n = Math.max(2, Math.min(RETRO_N, f.n));
+  // (it reaches as far as it did, however fast it flies)
+  const reach = lv.fireSpeed(RETRO_V) * RETRO_LIFE;
+  for (let k = 0; k < n; k++) {
+    const off = (k / (n - 1) - 0.5) * 2 * RETRO_FAN;
+    const v = f.speed * (k % 2 ? 1 : 0.85);
+    lv.shoot(b.sx, lv.scroll + b.ss, a + off, v, { color: JUNK, kind: 'big', r: 0.6, life: reach / v });
   }
   lv.emit({ type: 'bossBeat', enemy: e.id, move: 'retro', k: 0, x: b.sx, z: lv.scroll + b.ss });
 }
@@ -2720,48 +2742,58 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
   b.fire -= DT * hard;
   if (b.fire > 0) return;
   b.shots++;
+  // (the filler fires a heavy foe's share of its family, and never quicker than that: `hard` speeds its clock)
+  const k = <F extends Family>(f: F) => pattern(lv, e, f, SHARE.heavy);
+  const every = (own: number, f: { every: number }) => Math.max(own, f.every * hard);
   switch (pat) {
     case 'fans': {
-      for (const g of b.guns.filter((_, k) => k % 2 === b.shots % 2)) {
+      const f = k('fan');
+      const n = Math.min(4, f.n);
+      for (const g of b.guns.filter((_, j) => j % 2 === b.shots % 2)) {
         const p = at(e, g);
         const a = lv.aim(p.x, p.z);
-        for (let k = 0; k < 4; k++) lv.bullet(p.x, p.z, a + (k / 3 - 0.5) * 0.7, 11, { color: col });
+        for (let j = 0; j < n; j++) lv.shoot(p.x, p.z, a + (n === 1 ? 0 : (j / (n - 1) - 0.5) * 0.7), f.speed, { color: col });
       }
       lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
-      b.fire = 0.85;
+      b.fire = every(0.85, f);
       break;
     }
     case 'spiral': {
-      b.angle += 0.27;
-      const arms = 3 + b.phase;
-      for (let k = 0; k < arms; k++) lv.bullet(e.x, e.z, b.angle + (k / arms) * Math.PI * 2, 8, { color: col });
-      b.fire = 0.11;
+      const sp = k('spiral');
+      b.fire = every(0.11, sp);
+      b.angle += Math.min(0.27, sp.spin * b.fire);
+      const arms = Math.min(3 + b.phase, sp.arms);
+      for (let j = 0; j < arms; j++) lv.shoot(e.x, e.z, b.angle + (j / arms) * Math.PI * 2, sp.speed, { color: col });
       break;
     }
     case 'rain': {
       const g = b.guns[b.shots % b.guns.length];
       const p = at(e, g);
-      lv.bullet(p.x, p.z, (lv.rand() - 0.5) * 0.7, 10 + lv.rand() * 4, { color: col, kind: 'needle', r: 0.35 });
-      b.fire = 0.07;
+      const r = k('rain');
+      lv.shoot(p.x, p.z, (lv.rand() - 0.5) * 0.7, r.speed * (0.75 + lv.rand() * 0.25), { color: col, kind: 'needle', r: 0.35 });
+      b.fire = every(0.07, r);
       break;
     }
     case 'rings': {
-      const n = 14 + b.phase * 3;
+      const r = k('ring');
+      const n = Math.min(14 + b.phase * 3, r.n);
       const off = (b.shots % 2) * (Math.PI / n);
-      for (let k = 0; k < n; k++) lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 8.5, { color: col });
+      for (let j = 0; j < n; j++) lv.shoot(e.x, e.z, off + (j / n) * Math.PI * 2, r.speed, { color: col });
       lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
-      b.fire = 0.9;
+      b.fire = every(0.9, r);
       break;
     }
     case 'walls': {
       // a row across the screen with two gaps to find (one in each half: it's a wide screen)
+      const w = k('wall');
       const gaps = [lerp(-HALF_W + 5, -4, lv.rand()), lerp(4, HALF_W - 5, lv.rand())];
-      for (let x = -HALF_W; x <= HALF_W; x += 1.8) {
-        if (gaps.some((g) => Math.abs(x - g) < 3.4)) continue;
-        lv.bullet(x, e.z + 2, 0, 9, { color: col, kind: 'needle', r: 0.35 });
+      const half = Math.max(3.4, w.hole / 2);
+      for (let x = -HALF_W; x <= HALF_W; x += Math.max(1.8, w.spacing)) {
+        if (gaps.some((g) => Math.abs(x - g) < half)) continue;
+        lv.shoot(x, e.z + 2, 0, w.speed, { color: col, kind: 'needle', r: 0.35 });
       }
       lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
-      b.fire = 1.4;
+      b.fire = every(1.4, w);
       break;
     }
     case 'lasers': {
@@ -2771,34 +2803,42 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
         const a = lv.aim(p.x, p.z) + (lv.rand() - 0.5) * 0.25;
         lv.lasers.push({ x: p.x, z: p.z, x2: p.x + Math.sin(a) * 70, z2: p.z + Math.cos(a) * 70, warn: 1.05, on: 0.6, color: col, owner: e.id });
       }
-      for (let k = 0; k < 6; k++) lv.bullet(e.x, e.z, (k / 6) * Math.PI * 2 + b.shots, 7, { color: col });
-      b.fire = 2.1;
+      const r = k('ring');
+      const n = Math.min(6, r.n);
+      for (let j = 0; j < n; j++) lv.shoot(e.x, e.z, (j / n) * Math.PI * 2 + b.shots, r.speed, { color: col });
+      b.fire = every(2.1, r);
       break;
     }
     case 'splitters': {
       const g = b.guns[b.shots % b.guns.length];
       const p = at(e, g);
-      lv.bullet(p.x, p.z, lv.aim(p.x, p.z) + (lv.rand() - 0.5) * 0.6, 7.5, { kind: 'big', r: 1, life: 1.3, split: 8 + b.phase * 2, color: col });
+      const r = k('ring');
+      lv.bullet(p.x, p.z, lv.aim(p.x, p.z) + (lv.rand() - 0.5) * 0.6, 7.5, { kind: 'big', r: 1, life: 1.3, split: Math.min(8 + b.phase * 2, r.n), splitV: r.speed, color: col });
       lv.emit({ type: 'enemyShot', x: p.x, z: p.z, color: col });
-      b.fire = 0.9;
+      b.fire = every(0.9, r);
       break;
     }
     case 'frost': {
       // half asleep: it breathes out a slow ring of frost, and breathes in
-      const n = 12;
+      // (slower than the table: it's breathing, not firing)
+      const r = k('ring');
+      const n = Math.min(12, r.n);
       const off = (b.shots % 2) * (Math.PI / n);
-      for (let k = 0; k < n; k++) lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 6, { color: ICE, kind: 'needle', r: 0.4 });
+      for (let j = 0; j < n; j++) lv.shoot(e.x, e.z, off + (j / n) * Math.PI * 2, r.speed * 0.7, { color: ICE, kind: 'needle', r: 0.4 });
       lv.emit({ type: 'bossBeat', enemy: e.id, move: 'frost', k: b.shots, x: e.x, z: e.z });
-      b.fire = 1.6;
+      b.fire = every(1.6, r);
       break;
     }
     case 'tide': {
       // the sea breathed out in a ring that stalls and comes back to her: weave out, weave back
-      const n = 12;
+      // (it goes out as far as it did, however fast: the tide turns it sooner)
+      const r = k('ring');
+      const n = Math.min(12, r.n);
       const off = (b.shots % 2) * (Math.PI / n);
-      for (let k = 0; k < n; k++) onTide(lv, b, lv.bullet(e.x, e.z, off + (k / n) * Math.PI * 2, 8, { color: col, kind: 'big', r: 0.6 }), 1.8);
+      const out = (1.8 * lv.fireSpeed(8)) / r.speed;
+      for (let j = 0; j < n; j++) onTide(lv, b, lv.shoot(e.x, e.z, off + (j / n) * Math.PI * 2, r.speed, { color: col, kind: 'big', r: 0.6 }), out);
       lv.emit({ type: 'bossBeat', enemy: e.id, move: 'swell', k: b.shots, x: e.x, z: e.z });
-      b.fire = 2.2;
+      b.fire = every(2.2, r);
       break;
     }
     case 'ledger': {
@@ -2807,29 +2847,36 @@ function run(lv: Level, e: Enemy, b: BossState, pat: Pattern) {
       const span = 2 * HALF_W - 14;
       const u = (b.shots * 4.5) % (span * 2);
       const gx = -HALF_W + 7 + (u < span ? u : span * 2 - u);
-      for (let x = -HALF_W + 0.9; x <= HALF_W; x += 1.9) {
-        if (Math.abs(x - gx) < 5.2) continue;
-        lv.bullet(x, e.z + 2, 0, 6, { color: col, kind: 'needle', r: 0.35 });
+      // (slow, as printing is)
+      const w = k('wall');
+      const half = Math.max(5.2, w.hole / 2);
+      for (let x = -HALF_W + 0.9; x <= HALF_W; x += Math.max(1.9, w.spacing)) {
+        if (Math.abs(x - gx) < half) continue;
+        lv.shoot(x, e.z + 2, 0, w.speed * 0.7, { color: col, kind: 'needle', r: 0.35 });
       }
-      b.fire = 1.5;
+      b.fire = every(1.5, w);
       break;
     }
     case 'salvo': {
       // *Unbending*'s guns, by the book: a file of rounds down one line at you, then a step
       // across and another (fire on a line, not a spray: step off it)
       const a = lv.aim(e.x, e.z) + ((b.shots % 3) - 1) * 0.18;
-      for (let k = 0; k < 5; k++) lv.bullet(e.x, e.z + 2, a, 12 + k * 1.6, { color: col, kind: 'needle', r: 0.4 });
+      // (a burst in one go: the file spread out by speed, its fastest the table's)
+      const f = k('burst');
+      const n = Math.min(5, f.burst);
+      for (let j = 0; j < n; j++) lv.shoot(e.x, e.z + 2, a, (f.speed * (12 + j * 1.6)) / (12 + 4 * 1.6), { color: col, kind: 'needle', r: 0.4 });
       lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: col });
-      b.fire = 0.75;
+      b.fire = every(0.75, f);
       break;
     }
     case 'curves': {
+      const f = k('fan');
       for (const side of [-1, 1]) {
         const g = side < 0 ? b.guns[0] : b.guns[b.guns.length - 1];
         const p = at(e, g);
-        for (let k = 0; k < 3; k++) lv.bullet(p.x, p.z, side * (0.9 - k * 0.25), 9, { color: col, turn: -side * 0.9 });
+        for (let j = 0; j < Math.min(3, f.n); j++) lv.shoot(p.x, p.z, side * (0.9 - j * 0.25), f.speed, { color: col, turn: -side * 0.9 });
       }
-      b.fire = 0.4;
+      b.fire = every(0.4, f);
       break;
     }
   }

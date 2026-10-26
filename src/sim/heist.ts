@@ -15,6 +15,7 @@ import { DT, HALF_H, HALF_W } from './types';
 import { clamp, damp } from '../util';
 import { go } from './combat';
 import { lerpAngle } from './foes';
+import { SHARE, pattern } from './volleys';
 import type { EnemySkin } from '../world/planets';
 
 /** Where its parts sit (x across, z down the screen, from its middle). Matches tools/models/ships.py. */
@@ -205,7 +206,8 @@ export class Heist {
     if ((this.mineT -= DT) <= 0) {
       this.mineT = 4.2 - lv.spec.difficulty * 0.8 + lv.rand() * 1.5;
       const b = RUNNER.bay;
-      lv.bullet(this.x + b.x, this.z + b.z, (lv.rand() - 0.5) * 0.8, 5, { kind: 'mine', r: 0.7, life: 2.2, split: 6 + Math.round(lv.spec.difficulty * 2), color: this.skin.colors[2] });
+      const r = pattern(lv, null, 'ring', SHARE.mid);
+      lv.bullet(this.x + b.x, this.z + b.z, (lv.rand() - 0.5) * 0.8, 5, { kind: 'mine', r: 0.7, life: 2.2, split: Math.min(6 + Math.round(lv.spec.difficulty * 2), r.n), splitV: r.speed, color: this.skin.colors[2] });
       lv.emit({ type: 'runner', what: 'mine', x: this.x + b.x, z: this.z + b.z });
     }
     if ((this.launchT -= DT) <= 0) {
@@ -284,7 +286,7 @@ export class Heist {
           d.gone = 0.13;
           d.n = (d.n ?? 0) + 1;
           const a = e.aim + ((d.n ?? 0) - 2) * 0.05;
-          lv.bullet(e.x + Math.sin(a) * 1.4, e.z + Math.cos(a) * 1.4, a, 17, { kind: 'needle', r: 0.4, color: e.skin.colors[2] });
+          lv.shoot(e.x + Math.sin(a) * 1.4, e.z + Math.cos(a) * 1.4, a, pattern(lv, e, 'burst', SHARE.heavy).speed, { kind: 'needle', r: 0.4, color: e.skin.colors[2] });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2] });
         }
         if ((d.n ?? 0) >= BURST && e.stateT >= BURST * 0.13) go(lv, e, 'recover', OPEN);

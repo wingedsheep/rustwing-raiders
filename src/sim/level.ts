@@ -26,6 +26,7 @@ import { bondsOf, type GraftId, type Grafts, type Wreck } from '../game/grafts';
 import { LONG_SLOW, Mind, newMindState, type MindState, type MindWhat } from './mind';
 import { UNBENDING_HULL, waysOf, type CoreKit, type ImprintId } from '../game/core';
 import { canParryProjectile } from './parry';
+import { fairFire, newFairLog } from './fair';
 import { kitAux, kitGraze, kitShip, kitSoak, kitSpecial, kitTakedown, kitWalls, kitWorld, type KitWhat } from './kit';
 import { armShot, axEdge, cashIn, preMove, ripeness, shotLanded, tickAx, type Ax, type CashKind, type ShotAx } from './arsenal';
 
@@ -39,6 +40,8 @@ const SURGE_SHIP = 0.9;
 const SURGE_PUSH = 0.7;
 /** Seconds between heavy rounds while the button's held. */
 const HEAVY_GAP = 0.22;
+/** Enemy fire, all of it, this much quicker than it's written (playtest: everything felt a touch slow). */
+const FIRE_PACE = 1.4;
 /** Burn per second at full boost, and what flying close to danger earns. */
 const BURN_DRAIN = 0.3;
 const BURN_START = 0.35;
@@ -351,6 +354,8 @@ export interface Bullet {
   split: number;
   /** Where the first of that ring will fly (rolled at launch, so the view can show it coming). */
   splitA: number;
+  /** How fast that ring flies (a true speed, its family's: see volleys.ts); else a plain 9. */
+  splitV?: number;
   /** Whose fire it is: how it's drawn (a pirate's slug, the lattice's shard, a beast's spit, a spore). */
   look: Faction;
   /** Torpedoes: the player it chases, and what it takes to shoot it down. */
@@ -365,6 +370,8 @@ export interface Bullet {
   dead: boolean;
   /** Who fired it (a foe's kind, a boss's move), for the flight recorder. */
   from?: string;
+  /** Fired this frame, not yet checked for a way through (see fair.ts). */
+  fresh?: boolean;
 }
 
 /** Torpedoes: drift out for `launch` seconds, then light and chase (turning at `turn` rad/s, up to `speed`) until `fuel` runs out. */
@@ -760,6 +767,8 @@ export class Level {
   credit: string | null = null;
   /** Who's firing now (the foe being updated), so its bullets carry it (see Bullet.from). */
   firing: string | undefined;
+  /** What fair fire took out to keep a way through (see fair.ts). */
+  fair = newFairLog();
   private nextId = 1;
   private biomeShown = -1;
 
@@ -1003,6 +1012,7 @@ export class Level {
     this.updateSentinels(dz);
     this.updateHazards(dz);
     kitWorld(this, dz);
+    fairFire(this);
     this.collide();
 
     if (this.comboT > 0) {
@@ -2106,9 +2116,19 @@ export class Level {
     this.blowing--;
   }
 
+  /** How fast enemy fire of speed `speed` flies here (harder levels throw it harder). */
+  fireSpeed(speed: number) {
+    return speed * FIRE_PACE * (1 + this.spec.difficulty * 0.18);
+  }
+
+  /** Enemy fire at a true speed (a pattern family's, see volleys.ts: already paced, not scaled again). */
+  shoot(x: number, z: number, angle: number, speed: number, opts: Partial<Bullet> = {}) {
+    return this.bullet(x, z, angle, speed / this.fireSpeed(1), opts);
+  }
+
   /** Enemy fire. Angle 0 is down the screen (towards the players). */
   bullet(x: number, z: number, angle: number, speed: number, opts: Partial<Bullet> = {}) {
-    const s = speed * (1 + this.spec.difficulty * 0.18);
+    const s = this.fireSpeed(speed);
     this.bullets.push({
       x,
       z,
@@ -2131,6 +2151,7 @@ export class Level {
       seed: (((this.time * 13.7 + x * 0.31 + z * 0.17 + angle * 0.53) % 1) + 1) % 1,
       open: false,
       dead: false,
+      fresh: true,
       ...opts,
     });
     const b = this.bullets[this.bullets.length - 1];
@@ -2289,7 +2310,7 @@ export class Level {
       if (b.t > b.life || !this.onScreen(b.x, b.z, 6)) {
         if (b.split && b.t > b.life && !b.dead) {
           for (let k = 0; k < b.split; k++)
-            this.bullet(b.x, b.z, b.splitA + (k / b.split) * Math.PI * 2, 9, { color: b.color, r: 0.4, look: b.look });
+            this.shoot(b.x, b.z, b.splitA + (k / b.split) * Math.PI * 2, b.splitV ?? this.fireSpeed(9), { color: b.color, r: 0.4, look: b.look, fresh: false });
         }
         if (b.kind === 'torpedo' && b.t > b.life && !b.dead) this.emit({ type: 'torpedo', x: b.x, z: b.z, color: b.color, shot: false });
         b.dead = true;

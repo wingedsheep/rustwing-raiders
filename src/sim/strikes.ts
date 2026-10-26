@@ -10,6 +10,7 @@
 import type { Level, Player } from './level';
 import { DT } from './types';
 import { clamp, lerp } from '../util';
+import { SHARE, pattern } from './volleys';
 
 /** `ball`: a body its owner swings about (a crane's wrecking ball), hurting all the while it's out; `plate`: one it throws (ARU-0's ballast), the same until it's off the field. */
 export type StrikeKind = 'shell' | 'acid' | 'puddle' | 'slam' | 'wave' | 'spore' | 'gate' | 'harpoon' | 'ball' | 'plate';
@@ -118,7 +119,9 @@ export function updateStrikes(lv: Level, dz: number) {
     // landing
     if (was < s.warn && s.t >= s.warn && s.kind !== 'gate' && s.kind !== 'harpoon') {
       lv.emit({ type: 'strike', kind: s.kind, x: s.x, z: s.z, r: s.kind === 'wave' ? s.rMax : s.r, color: s.color });
-      for (let k = 0; k < s.shards; k++) lv.bullet(s.x, s.z, ((k + 0.5) / s.shards) * Math.PI * 2, 7, { color: s.color, kind: 'needle', r: 0.35 });
+      const ring = pattern(lv, null, 'ring', SHARE.mid);
+      const n = Math.min(s.shards, ring.n);
+      for (let k = 0; k < n; k++) lv.shoot(s.x, s.z, ((k + 0.5) / n) * Math.PI * 2, ring.speed, { color: s.color, kind: 'needle', r: 0.35 });
       if (s.kind === 'acid') {
         strike(lv, 'puddle', s.x, s.z, { r: s.r * 1.1, warn: 0, active: 2.5, color: s.color, owner: s.owner });
         s.dead = true;

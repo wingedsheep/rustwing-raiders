@@ -15,6 +15,7 @@ import { go, lookOf, over, tickFoe } from './combat';
 import { foeDef } from './combat';
 import { lerpAngle, moveTo, sz, updateFoe } from './foes';
 import { strike } from './strikes';
+import { SHARE, arms as volleyArms, fan as volleyFan, pattern, ring as volleyRing, runAt } from './volleys';
 import type { PartKind } from './heist';
 
 export interface EnemyData {
@@ -153,14 +154,17 @@ function face(lv: Level, e: Enemy, t = 0.1) {
 /** Can it see you? (On screen, and not right at the edge.) */
 const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun <= 0 && lv.state !== 'clear';
 
-function fan(lv: Level, e: Enemy, n: number, spread: number, speed: number, opts = {}) {
-  const a = lv.aim(e.x, e.z);
-  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, a + (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread), speed, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
+/** A fan at you: its family's speed, at `share` of it; `most` shots at most (fewer if the fan's are fewer), over its own `spread`. */
+function fan(lv: Level, e: Enemy, share: number, most: number, spread: number, opts = {}) {
+  const k = pattern(lv, e, 'fan', share);
+  volleyFan(lv, e.x, e.z, lv.aim(e.x, e.z), { n: Math.min(most, k.n), arc: spread, speed: k.speed }, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
   lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
 }
 
-function ring(lv: Level, e: Enemy, n: number, speed: number, off = 0, opts = {}) {
-  for (let i = 0; i < n; i++) lv.bullet(e.x, e.z, off + (i / n) * Math.PI * 2, speed, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
+/** A ring: its family's speed, at `share` of it; `most` shots at most. */
+function ring(lv: Level, e: Enemy, share: number, most: number, off = 0, opts = {}) {
+  const k = pattern(lv, e, 'ring', share);
+  volleyRing(lv, e.x, e.z, { n: Math.min(most, k.n), speed: k.speed }, off, undefined, { color: e.skin.colors[2], look: lookOf(lv, e), ...opts });
   lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
 }
 
@@ -222,7 +226,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
           e.aim = e.heading;
           if (!d.shots && live(lv, e)) {
             d.shots = 1;
-            fan(lv, e, 2, 0.35, 11);
+            fan(lv, e, SHARE.light, 2, 0.35);
             go(lv, e, 'windup', 0.6, 'dive', { shape: 'line', x: e.x, z: e.z, x2: e.x + Math.sin(e.aim) * 40, z2: e.z + Math.cos(e.aim) * 40, w: e.r, lock: 0.45, body: true });
           }
           const tl = e.tele;
@@ -246,7 +250,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         d.fire = (d.fire ?? 0.6) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e)) {
           d.fire = 0.8;
-          lv.bullet(e.x, e.z, 0, 10, { color: e.skin.colors[2], kind: 'needle', look: lookOf(lv, e) });
+          lv.shoot(e.x, e.z, 0, pattern(lv, e, 'burst', SHARE.mid).speed, { color: e.skin.colors[2], kind: 'needle', look: lookOf(lv, e) });
         }
       } else if (d.path === 'loop') {
         // down, a loop, and off the way it came
@@ -256,7 +260,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         moveTo(lv, e, cx + (t > 1.4 ? (1 - Math.cos(a - 2.94)) * 6 * (d.dir ?? 1) : 0), s - (t > 4.4 ? (t - 4.4) * 20 : 0));
         if (t > 2 && !d.shots && live(lv, e)) {
           d.shots = 1;
-          fan(lv, e, 1, 0, 12);
+          fan(lv, e, SHARE.light, 1, 0);
         }
       } else {
         // swoop: a weave down the screen
@@ -264,7 +268,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         d.fire = (d.fire ?? 1 + (d.phase ?? 0) * 0.3) - DT * pace(lv);
         if (d.fire <= 0 && live(lv, e) && sz(lv, e) < 6) {
           d.fire = 2.4;
-          fan(lv, e, 1, 0, 12);
+          fan(lv, e, SHARE.light, 1, 0);
         }
       }
       break;
@@ -308,10 +312,10 @@ export function updateEnemy(lv: Level, e: Enemy) {
           if (over(e)) {
             d.shots = (d.shots ?? 0) + 1;
             if (d.shots % 4 === 0) {
-              ring(lv, e, 6 + Math.round(lv.spec.difficulty * 4), 8, d.shots * 0.2);
+              ring(lv, e, SHARE.mid, 6 + Math.round(runAt(lv) * 6), d.shots * 0.2);
               d.fire = 1.8;
             } else {
-              fan(lv, e, lv.spec.difficulty > 0.8 ? 5 : 3, 0.6, 11);
+              fan(lv, e, SHARE.mid, lv.spec.difficulty > 0.8 ? 5 : 3, 0.6);
               d.fire = 1.3;
             }
             go(lv, e, 'recover', 0.6);
@@ -329,7 +333,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
       if (d.fire <= 0 && live(lv, e) && sz(lv, e) < HALF_H - 8) {
         if (e.state === 'windup') go(lv, e, 'idle');
         d.shots = (d.shots ?? 0) + 1;
-        lv.bullet(e.x, e.z, e.heading, 12, { color: e.skin.colors[2], look: lookOf(lv, e) });
+        lv.shoot(e.x, e.z, e.heading, pattern(lv, e, 'burst', SHARE.mid).speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
         lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
         d.fire = d.shots % 3 === 0 ? 2.2 : 0.16;
       }
@@ -343,7 +347,9 @@ export function updateEnemy(lv: Level, e: Enemy) {
       d.fire = (d.fire ?? 0.8) - DT * pace(lv) * slow;
       if (d.fire <= 0 && live(lv, e)) {
         d.fire = 0.95;
-        lv.bullet(e.x, e.z + 1, 0, 3.5, { kind: 'mine', r: 0.7, life: 1.8, split: 6 + Math.round(lv.spec.difficulty * 3), color: e.skin.colors[2], look: lookOf(lv, e) });
+        // (its ring: the ring family's speed, and no more of them than it would fire)
+        const k = pattern(lv, e, 'ring', SHARE.mid);
+        lv.bullet(e.x, e.z + 1, 0, 3.5, { kind: 'mine', r: 0.7, life: 1.8, split: Math.min(6 + Math.round(runAt(lv) * 4), k.n), splitV: k.speed, color: e.skin.colors[2], look: lookOf(lv, e) });
       }
       break;
     }
@@ -406,8 +412,9 @@ export function updateEnemy(lv: Level, e: Enemy) {
           d.fire = (d.fire ?? 0) - DT * pace(lv) * slow;
           const burst = (e.stateT % 3.2) < 1.1 && e.stateT > 0.6;
           if (d.fire <= 0 && burst && live(lv, e)) {
-            for (let k = 0; k < 3; k++) lv.bullet(e.x, e.z, d.angle + (k / 3) * Math.PI * 2, 8, { color: e.skin.colors[2], look: lookOf(lv, e) });
-            d.fire = 0.2;
+            const k = pattern(lv, e, 'spiral', SHARE.heavy);
+            volleyArms(lv, e.x, e.z, d.angle, { arms: Math.min(3, k.arms), speed: k.speed }, { color: e.skin.colors[2], look: lookOf(lv, e) });
+            d.fire = Math.max(0.2, k.every);
           }
           if (e.stateT > 4.4 && live(lv, e) && lv.nearest(e.x, e.z)) {
             const p = lv.nearest(e.x, e.z)!;
@@ -463,7 +470,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
         d.fire = (d.fire ?? 1.5) - DT * pace(lv) * slow;
         if (d.fire <= 0 && live(lv, e)) {
           d.fire = 1.6;
-          fan(lv, e, 3, 0.35, 11);
+          fan(lv, e, SHARE.mid, 3, 0.35);
         }
       } else {
         const head = lv.enemies.find((h) => h.id === d.leader);
@@ -484,8 +491,9 @@ export function updateEnemy(lv: Level, e: Enemy) {
         if (d.fire <= 0 && live(lv, e) && lv.spec.difficulty > 0.3) {
           d.fire = 5;
           const side = e.heading + Math.PI / 2;
-          lv.bullet(e.x, e.z, side, 7, { color: e.skin.colors[2], look: lookOf(lv, e) });
-          lv.bullet(e.x, e.z, side + Math.PI, 7, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          const v = pattern(lv, e, 'burst', SHARE.light).speed;
+          lv.shoot(e.x, e.z, side, v, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.shoot(e.x, e.z, side + Math.PI, v, { color: e.skin.colors[2], look: lookOf(lv, e) });
         }
       }
       break;
@@ -505,7 +513,7 @@ export function updateEnemy(lv: Level, e: Enemy) {
             const skin = lv.director.skinFor('swarm') ?? e.skin;
             for (const side of [-1, 1]) lv.spawn('swarm', skin, e.x + side * 2, e.z + 2, {}, { t: 0 });
             d.spawned = (d.spawned ?? 0) + 2;
-          } else if (lv.spec.difficulty > 0.5) ring(lv, e, 8, 7.5, d.shots * 0.3);
+          } else if (lv.spec.difficulty > 0.5) ring(lv, e, SHARE.heavy, 8, d.shots * 0.3);
         }
       } else moveTo(lv, e, e.x, sz(lv, e) - (t - 20) * 16 * DT, true);
       break;

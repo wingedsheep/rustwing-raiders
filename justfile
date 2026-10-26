@@ -64,6 +64,11 @@ look *args:
     @npx esbuild tools/look.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-look.mjs"
     @node "${TMPDIR:-/tmp}/rustwing-look.mjs" {{args}}
 
+# pattern trials: how hard each attack pattern can get and still be dodged, per reader over a run; writes src/generated/trials_<mode>.json (e.g. just trials --mode boss, just trials --show ring --s 0.6 --reader 2; see docs/wave-design.md)
+trials *args:
+    @npx esbuild tools/trials.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-trials.mjs"
+    @node "${TMPDIR:-/tmp}/rustwing-trials.mjs" {{args}}
+
 # the forge, headless: builds side by side against a target (e.g. just forge --a rivet,flak --b frost,anchor --target plated --combos=both)
 forge *args:
     @npx esbuild tools/forge.ts --bundle --platform=node --format=esm --log-level=warning --outfile="${TMPDIR:-/tmp}/rustwing-forge.mjs"

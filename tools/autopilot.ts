@@ -25,6 +25,7 @@
 import { cpus } from 'node:os';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { Level, type Mode } from '../src/sim/level';
+import type { FairLog } from '../src/sim/fair';
 import { levelSpec } from '../src/sim/run';
 import { loadout } from '../src/sim/loadouts';
 import { newPilot, pilot } from '../src/sim/pilot';
@@ -93,6 +94,8 @@ interface Result extends Job {
   wrecks: string;
   hull: string;
   progress: number;
+  /** What fair fire took out to keep a way through (src/sim/fair.ts). */
+  fair: FairLog;
   log: string[];
 }
 
@@ -186,6 +189,7 @@ function fly(job: Job): Result {
     wrecks: `${lv.wrecks.length}/${lv.wrecks.length + wrecksLost}`,
     hull: lv.players.map((p) => `${p.hp}/${p.stats.hp}`).join(' '),
     progress: lv.progress,
+    fair: lv.fair,
     convoy: lv.convoy ? `${lv.convoy.delivered}/3 (${lv.convoy.haulers.map((h) => `${h.hp}/${h.max}`).join(' ')}; ${Object.entries(hhit).map(([k, v]) => `${k} ${v}`).join(', ')})` : '',
     log,
   };
@@ -250,6 +254,7 @@ if (!isMainThread) {
             `${Math.round(r.progress * 100)}%  hull ${r.hull}  hits ${r.hits} (${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(', ') || '-'})  ` +
             `kills ${r.kills}${r.reactions ? ` (reactions ${r.reactions})` : ''}  grazes ${r.grazes}  perfects ${r.perfects}  takedowns ${r.takedowns}  welds ${r.welds}${r.weldsLost ? ` (lost ${r.weldsLost})` : ''}${r.crates ? `  crate ${r.crates}` : ''}  edge crits ${r.edges}  aux ${r.aux} (parried ${r.parries})  boost ${Math.round(r.boost * 100)}%  skim ${r.skim.toFixed(1)}s  ` +
             `killed ${Math.round(r.killShare * 100)}%${r.fullClear ? ' FULL' : ''}  waves ${r.waves}  bounties ${r.bounties}` +
+            `  fair: carved ${r.fair.carved} (${r.fair.removed} taken, ${r.fair.unreadable} too quick) shut ${r.fair.shut}` +
             `  ${r.rank} +${r.bonus}  scrap ${r.scrap}  fed ${r.fed.join('/')}  wrecks ${r.wrecks}${r.convoy ? `  convoy ${r.convoy}` : ''}` +
             (Object.keys(r.grafted).length ? `\n    grafts: ${Object.entries(r.grafted).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''),
         );
@@ -281,6 +286,14 @@ if (!isMainThread) {
       `core fed ${[0, 1, 2].map((k) => (results.reduce((s, r) => s + r.fed[k], 0) / results.length).toFixed(1)).join('/')} (nerve/steel/grease). ` +
       `Ranks ${['S', 'A', 'B', 'C', '-'].map((k) => `${k} ${results.filter((r) => r.rank === k).length}`).join(' ')}. ` +
       `What hit: ${Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`,
+  );
+  // the patterns that keep needing a gap cut: their gaps want building in
+  const taken: Record<string, number> = {};
+  for (const r of results) for (const [k, v] of Object.entries(r.fair.by)) taken[k] = (taken[k] ?? 0) + v;
+  const sum = (f: (l: FairLog) => number) => results.reduce((s, r) => s + f(r.fair), 0);
+  console.log(
+    `Fair fire: ${sum((l) => l.checks)} volleys checked, ${sum((l) => l.carved)} carved, ${sum((l) => l.removed)} bullets taken (${sum((l) => l.unreadable)} too quick), ${sum((l) => l.shut)} already shut. ` +
+      `Taken from: ${Object.entries(taken).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ') || '-'}`,
   );
   process.exit(failed.length ? 1 : 0);
 }

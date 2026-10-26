@@ -210,7 +210,9 @@ export function gunDir(f: FrameDef, p: Placement) {
  * The plain dash: a fixed burst, and not a safe one (see sim/level.ts); a frame's Move scales it.
  * After it, a moment before the next.
  */
-const DASH_SPEED = 62;
+/** Every ship this much quicker than its parts say (it answers faster fire: see FIRE_PACE in level.ts). */
+const SHIP_PACE = 1.25;
+const DASH_SPEED = 62 * SHIP_PACE;
 const DASH_TIME = 0.17;
 const DASH_RECOVER = 0.25;
 
@@ -380,8 +382,8 @@ export function stats(b: Build): Stats {
     mass,
     thrust,
     // (a little over what it was: the boost is cut)
-    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * 1.06 * (loadClass === 'overloaded' ? 0.88 : 1),
-    accel: 140 * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
+    speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * 1.06 * SHIP_PACE * (loadClass === 'overloaded' ? 0.88 : 1),
+    accel: 140 * SHIP_PACE * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
     dashSpeed: DASH_SPEED * (f.move?.dashSpeed ?? 1),
     dashTime: DASH_TIME * (f.move?.dashTime ?? 1),
     dashRecover: DASH_RECOVER * (f.move?.recover ?? 1),

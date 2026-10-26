@@ -10,6 +10,7 @@ import { clamp, lerp, smooth } from '../util';
 import { go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
 import { routeX, type Route } from './layout';
+import { SHARE, arms as volleyArms, fan as volleyFan, pattern } from './volleys';
 
 export const sz = (lv: Level, e: Enemy) => e.z - lv.scroll;
 
@@ -230,7 +231,7 @@ export function gutter(lv: Level, x: number, zg: number): Route | null {
  * land going by), how it bleeds speed through the luff, the slew and the slide, how far it slews,
  * and the rake it fires down the gutter out of its downhill flank (shots a volley, the fan's step).
  */
-export const SKATE = { run: 11, luff: 6, slide: 3, slew: 1.35, volleys: 2, fan: 5, step: 0.17, speed: 10 };
+export const SKATE = { run: 11, luff: 6, slide: 3, slew: 1.35, volleys: 2, fan: 5, step: 0.17 };
 
 /**
  * The Mire Eel's body: how many segments trail its head and how far apart (ground units, back down
@@ -249,14 +250,16 @@ export function eelAt(lv: Level, e: Enemy, k: number): [number, number] {
 export const afloat = (lv: Level, x: number, zg: number) => lv.terrain.height(x, zg) < lv.terrain.water(zg) - 0.25;
 
 /** Fire a row of shots out of a hull's flank: `side` 1 to its right (of its heading), -1 to its left. */
-function broadside(lv: Level, e: Enemy, side: number, ports: number, spacing: number, spread: number, speed: number) {
+/** (its speed is the wall family's, at a line foe's share: see volleys.ts) */
+function broadside(lv: Level, e: Enemy, side: number, ports: number, spacing: number, spread: number) {
+  const speed = pattern(lv, e, 'wall', SHARE.mid).speed;
   const out = e.heading - side * (Math.PI / 2);
   const fx = Math.sin(e.heading);
   const fz = Math.cos(e.heading);
   for (let k = 0; k < ports; k++) {
     const off = (k - (ports - 1) / 2) * spacing;
     const a = out + (lv.rand() - 0.5) * spread;
-    lv.bullet(e.x + fx * off + Math.sin(out) * e.r * 0.6, e.z + fz * off + Math.cos(out) * e.r * 0.6, a, speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
+    lv.shoot(e.x + fx * off + Math.sin(out) * e.r * 0.6, e.z + fz * off + Math.cos(out) * e.r * 0.6, a, speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
   }
   lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
 }
@@ -367,7 +370,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'windup') {
         track(lv, e, 0.2);
         if (over(e)) {
-          lv.bullet(e.x, e.z, e.aim, 12, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.shoot(e.x, e.z, e.aim, pattern(lv, e, 'burst', SHARE.light).speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           go(lv, e, 'recover', 0.4);
         }
@@ -406,10 +409,11 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
-        if (d.fire <= 0 && (d.shots ?? 0) < (lv.spec.difficulty >= 0.5 ? 2 : 1)) {
-          d.fire = 0.18;
+        const k = pattern(lv, e, 'burst', SHARE.light);
+        if (d.fire <= 0 && (d.shots ?? 0) < Math.min(lv.spec.difficulty >= 0.5 ? 2 : 1, k.burst)) {
+          d.fire = Math.max(0.18, k.gap);
           d.shots = (d.shots ?? 0) + 1;
-          lv.bullet(e.x, e.z, e.aim, 13, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.shoot(e.x, e.z, e.aim, k.speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           // the recoil
           moveTo(lv, e, e.x - Math.sin(e.aim) * 0.6, s - Math.cos(e.aim) * 0.6, true);
@@ -442,7 +446,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
         if (over(e)) {
           d.shots = 1;
-          lv.bullet(e.x, e.z + 0.8, 0, 15, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          lv.shoot(e.x, e.z + 0.8, 0, pattern(lv, e, 'burst', SHARE.mid).speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           go(lv, e, 'recover', 0.6);
         }
@@ -775,10 +779,11 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
-          lv.bullet(e.x, e.z, e.aim, 15, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'burst', SHARE.heavy);
+          lv.shoot(e.x, e.z, e.aim, k.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
           d.shots = (d.shots ?? 0) + 1;
-          d.fire = 0.1;
-          if (d.shots >= 3) {
+          d.fire = Math.max(0.1, k.gap);
+          if (d.shots >= Math.min(3, k.burst)) {
             d.fire = 2.6;
             go(lv, e, 'idle');
           }
@@ -985,7 +990,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
           // the head spits first, at you; then the flanks, down the body
           if (p) {
             const a = lv.aim(e.x, e.z);
-            for (let j = -1; j <= 1; j++) lv.bullet(e.x, e.z, a + j * 0.22, 11, { color: e.skin.colors[2], look: lookOf(lv, e) });
+            const k = pattern(lv, e, 'fan', SHARE.mid);
+            volleyFan(lv, e.x, e.z, a, { n: Math.min(3, k.n), arc: 0.44, speed: k.speed }, { color: e.skin.colors[2], look: lookOf(lv, e) });
           }
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           d.k = 0;
@@ -998,7 +1004,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
           d.fire += 0.08;
           const [sx, sz2] = eelAt(lv, e, d.k ?? 0);
           const fz = toFlight(sz2, water);
-          for (const side of [-1, 1]) lv.bullet(sx, fz, side * (Math.PI / 2 - 0.3), 9, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          const v = pattern(lv, e, 'wall', SHARE.mid).speed;
+          for (const side of [-1, 1]) lv.shoot(sx, fz, side * (Math.PI / 2 - 0.3), v, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: sx, z: fz, color: e.skin.colors[2], look: lookOf(lv, e) });
           d.k = (d.k ?? 0) + 2;
         }
@@ -1062,7 +1069,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
           // a bar: five abreast, square to its aim
           const px = Math.cos(e.aim);
           const pz = -Math.sin(e.aim);
-          for (let k = -2; k <= 2; k++) lv.bullet(e.x + px * k * 1.3, e.z + pz * k * 1.3, e.aim, 10, { color: e.skin.colors[2], kind: 'needle', r: 0.4, look: lookOf(lv, e) });
+          // (as a wall's row: no tighter than its spacing, its speed)
+          const w = pattern(lv, e, 'wall', SHARE.heavy);
+          const gap = Math.max(1.3, w.spacing);
+          for (let k = -2; k <= 2; k++) lv.shoot(e.x + px * k * gap, e.z + pz * k * gap, e.aim, w.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.4, look: lookOf(lv, e) });
           go(lv, e, 'attack', 0.3, 'bar');
         }
       } else if (e.state === 'attack') {
@@ -1335,8 +1345,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.state === 'idle') {
         d.fire = (d.fire ?? 0.8) - DT;
         if (d.fire <= 0) {
-          d.fire = 1.5;
-          lv.bullet(e.x, e.z, e.aim, 11, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'burst', SHARE.mid);
+          d.fire = Math.max(1.5, k.every);
+          lv.shoot(e.x, e.z, e.aim, k.speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
         }
         if (e.stateT > 2.2) {
           d.side = flank(lv, e);
@@ -1359,7 +1370,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         if (d.fire <= 0 && (d.shots ?? 0) < 3) {
           d.fire = 0.18;
           d.shots = (d.shots ?? 0) + 1;
-          broadside(lv, e, d.side ?? 1, 3, 1.4, 0.35, 9.5);
+          broadside(lv, e, d.side ?? 1, 3, 1.4, 0.35);
         }
         if (over(e)) go(lv, e, 'recover', 1.5);
       } else if (over(e)) go(lv, e, 'idle');
@@ -1411,8 +1422,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
-          d.fire = 0.12;
-          lv.bullet(e.x, e.z, e.aim + (lv.rand() - 0.5) * 0.08, 14, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'burst', SHARE.mid);
+          d.fire = Math.max(0.12, k.gap);
+          lv.shoot(e.x, e.z, e.aim + (lv.rand() - 0.5) * 0.08, k.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
         }
         if (over(e)) {
           d.n = (d.n ?? 0) + 1;
@@ -1484,9 +1496,10 @@ export function updateFoe(lv: Level, e: Enemy): void {
         if (d.fire <= 0 && (d.shots ?? 0) < SKATE.volleys) {
           d.fire = 0.22;
           // (the second volley between the first's shots: the fan is one you leave, not thread)
-          const n = SKATE.fan + (lv.spec.difficulty > 0.6 ? 1 : 0) - (d.shots ?? 0);
+          const k = pattern(lv, e, 'fan', SHARE.mid);
+          const n = Math.min(SKATE.fan + (lv.spec.difficulty > 0.6 ? 1 : 0) - (d.shots ?? 0), k.n);
           const c = d.rake ?? run;
-          for (let j = 0; j < n; j++) lv.bullet(e.x, e.z, c + (j - (n - 1) / 2) * SKATE.step, SKATE.speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          for (let j = 0; j < n; j++) lv.shoot(e.x, e.z, c + (j - (n - 1) / 2) * SKATE.step, k.speed, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           d.shots = (d.shots ?? 0) + 1;
         }
@@ -1516,7 +1529,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
       d.mine = (d.mine ?? 2.5) - DT * slow;
       if (d.mine <= 0 && ok) {
         d.mine = 3.2;
-        lv.bullet(e.x, e.z + 1, 0, 2.5, { kind: 'mine', r: 0.7, life: 2, split: 6, color: e.skin.colors[2], look: lookOf(lv, e) });
+        const k = pattern(lv, e, 'ring', SHARE.mid);
+        lv.bullet(e.x, e.z + 1, 0, 2.5, { kind: 'mine', r: 0.7, life: 2, split: Math.min(6, k.n), splitV: k.speed, color: e.skin.colors[2], look: lookOf(lv, e) });
       }
       if (e.state === 'idle') {
         if (e.stateT > 2.4 && ok && p) {
@@ -1541,7 +1555,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         if (d.fire <= 0 && (d.shots ?? 0) < 4) {
           d.fire = 0.22;
           d.shots = (d.shots ?? 0) + 1;
-          broadside(lv, e, d.side ?? 1, 2, 2.2, 0.5, 8.5);
+          broadside(lv, e, d.side ?? 1, 2, 2.2, 0.5);
         }
         if (over(e)) {
           // and then the other flank, once
@@ -1574,8 +1588,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
         d.a += (d.dir ?? 1) * 1.25 * DT * slow;
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
-          d.fire = 0.13;
-          for (let k = 0; k < 4; k++) lv.bullet(e.x, e.z, d.a + (k * Math.PI) / 2, 8.5, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'spiral', SHARE.mid);
+          d.fire = Math.max(0.13, k.every);
+          volleyArms(lv, e.x, e.z, d.a, { arms: Math.min(4, k.arms), speed: k.speed }, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
         }
         if (over(e)) go(lv, e, 'recover', 1.5);
       } else if (over(e)) go(lv, e, 'idle');
@@ -1620,11 +1635,14 @@ export function updateFoe(lv: Level, e: Enemy): void {
         if (d.fire <= 0 && (d.k ?? 0) < 2) {
           d.fire = 0.55;
           const gap = (d.a ?? 0) + (d.k ? (d.dir ?? 1) * 0.6 : 0);
-          const n = 18;
+          // (a ring, at most 18 and its hole no narrower than the table's)
+          const r = pattern(lv, e, 'ring', SHARE.mid);
+          const n = Math.min(18, r.n);
+          const half = Math.max(0.38, ((r.hole / 2) * Math.PI * 2) / r.n);
           for (let k = 0; k < n; k++) {
             const a = gap + (k / n) * Math.PI * 2;
-            if (Math.abs(Math.atan2(Math.sin(a - gap), Math.cos(a - gap))) < 0.38) continue;
-            lv.bullet(e.x, e.z, a, 8, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
+            if (Math.abs(Math.atan2(Math.sin(a - gap), Math.cos(a - gap))) < half) continue;
+            lv.shoot(e.x, e.z, a, r.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
           }
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           d.k = (d.k ?? 0) + 1;
@@ -1703,7 +1721,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
       d.mine = (d.mine ?? 0.6) - DT * slow;
       if (d.mine <= 0 && ok && e.state !== 'windup') {
         d.mine = 0.5;
-        const b = lv.bullet(e.x - Math.sin(e.heading) * 2, e.z - Math.cos(e.heading) * 2, 0, 0, { kind: 'mine', r: 0.5, life: 1.5, split: 2, color: e.skin.colors[2], look: lookOf(lv, e) });
+        const b = lv.bullet(e.x - Math.sin(e.heading) * 2, e.z - Math.cos(e.heading) * 2, 0, 0, { kind: 'mine', r: 0.5, life: 1.5, split: 2, splitV: pattern(lv, e, 'ring', SHARE.light).speed, color: e.skin.colors[2], look: lookOf(lv, e) });
         b.splitA = e.heading + Math.PI / 2;
       }
       if (!ok || !p) break;
@@ -1717,7 +1735,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
         }
         if (over(e)) {
           const a = lv.aim(e.x, e.z);
-          for (let k = 0; k < 7; k++) lv.bullet(e.x, e.z, a + (k / 6 - 0.5) * 1.1, 9, { color: e.skin.colors[2], look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'fan', SHARE.mid);
+          volleyFan(lv, e.x, e.z, a, { n: Math.min(7, k.n), arc: 1.1, speed: k.speed }, { color: e.skin.colors[2], look: lookOf(lv, e) });
           lv.emit({ type: 'enemyShot', x: e.x, z: e.z, color: e.skin.colors[2], look: lookOf(lv, e) });
           go(lv, e, 'attack', 0.2, 'spit');
         }
@@ -1751,7 +1770,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
         d.mine = (d.mine ?? 2) - DT;
         if (d.mine <= 0 && ok) {
           d.mine = 2.4;
-          lv.bullet(e.x, e.z + 1, 0, 3, { kind: 'mine', r: 0.7, life: 1.6, split: 6, color: e.skin.colors[2], look: lookOf(lv, e) });
+          const k = pattern(lv, e, 'ring', SHARE.mid);
+          lv.bullet(e.x, e.z + 1, 0, 3, { kind: 'mine', r: 0.7, life: 1.6, split: Math.min(6, k.n), splitV: k.speed, color: e.skin.colors[2], look: lookOf(lv, e) });
         }
         if (p && Math.abs(p.x - e.x) < 3 && e.stateT > 0.8) {
           d.dir = e.x > 0 ? -1 : 1;
