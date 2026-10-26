@@ -27,11 +27,10 @@ const fall = (lv: Level, b: Bullet) => (b.kind === 'seeker' ? b.vz - lv.speedNow
 const DIRS: [number, number][] = [[0, 0]];
 for (let k = 0; k < 16; k++) DIRS.push([Math.cos((k / 16) * Math.PI * 2), Math.sin((k / 16) * Math.PI * 2)]);
 const STEPS = [0.06, 0.12, 0.2, 0.3, 0.42, 0.56];
-/** The dash as the level does it (see level.ts): speed, how long, and the slip at the start. */
-const DASH_SPEED = 62;
-const DASH_TIME = 0.17;
+/** The slip at the start of a dash, as the level does it (the dash itself is the frame's: p.stats). */
 const SLIP = 0.12;
-const DASH_RECOVER = 0.25;
+/** The accel the pilot's lag is tuned to (a plain frame's). */
+const ACCEL = 147;
 
 export interface PilotState {
   /** The move it chose last frame, kept unless something's clearly better (no dithering). */
@@ -146,6 +145,11 @@ export function pilot(lv: Level, p: Player, st: PilotState): Intent {
     intent.heavy = false;
     intent.special = false;
     intent.aux = false;
+  }
+  // in a dash, the stick stays on it (a Kestrel's would bend it off the way it chose)
+  if (p.dashT > 0) {
+    intent.x = p.dashX;
+    intent.y = -p.dashZ;
   }
   return intent;
 }
@@ -303,7 +307,7 @@ function chasing(lv: Level, p: Player) {
 
 /** A takedown: the way to dash (an index into DIRS) that passes through something staggered, if one does. */
 function takedownDash(lv: Level, p: Player): number | null {
-  const reach = DASH_SPEED * DASH_TIME;
+  const reach = p.stats.dashSpeed * p.stats.dashTime;
   for (const e of lv.enemies) {
     if (e.dead || e.ground || e.t < 0 || e.state !== 'stagger' || e.d.td) continue;
     const ex = e.x - p.x;
@@ -351,17 +355,17 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
   for (let k = 1; k < DIRS.length; k++) {
     const [dx, dz] = DIRS[k];
     // where it comes out, held there with the screen a moment
-    const ex = p.x + dx * DASH_SPEED * DASH_TIME;
-    const ez = p.z + dz * DASH_SPEED * DASH_TIME - scroll * DASH_TIME;
+    const ex = p.x + dx * p.stats.dashSpeed * p.stats.dashTime;
+    const ez = p.z + dz * p.stats.dashSpeed * p.stats.dashTime - scroll * p.stats.dashTime;
     if (Math.abs(ex) > HALF_W - 1.5 || ez - lv.scroll < -HALF_H + 4 || ez - lv.scroll > HALF_H - 3) continue;
     let danger = 0;
     // the way out: anything it'd run into on the way (a shrouded dash flies through fire and foes,
     // not the land)
     let way = 0;
     for (const f of [0.2, 0.4, 0.6, 0.8]) {
-      const t = DASH_TIME * f;
-      const x = p.x + dx * DASH_SPEED * t;
-      const z = p.z + dz * DASH_SPEED * t - scroll * t;
+      const t = p.stats.dashTime * f;
+      const x = p.x + dx * p.stats.dashSpeed * t;
+      const z = p.z + dz * p.stats.dashSpeed * t - scroll * t;
       if (lv.terrain.touches(x, z, 1.3) || [...lv.terrain.colliders(x, z, 3)].some((c) => (c.x - x) ** 2 + (c.z - z) ** 2 < (c.r + 1.3) ** 2)) way += 5;
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.4;
@@ -379,8 +383,8 @@ function dashPlan(lv: Level, p: Player, goal: { x: number; z: number }) {
       if (threatCost(lv, x, z, t, core) >= 500) way += 3;
     }
     danger += way;
-    for (const t of [DASH_TIME, 0.22, 0.32, DASH_TIME + DASH_RECOVER, 0.5]) {
-      const z = ez - scroll * (t - DASH_TIME);
+    for (const t of [p.stats.dashTime, 0.22, 0.32, p.stats.dashTime + p.stats.dashRecover, 0.5]) {
+      const z = ez - scroll * (t - p.stats.dashTime);
       for (const b of lv.bullets) {
         const hr = core + b.r + 0.9;
         if ((b.x + b.vx * t - ex) ** 2 + (b.z + fall(lv, b) * t - z) ** 2 < hr * hr) danger++;
@@ -414,7 +418,8 @@ function cost(lv: Level, p: Player, dx: number, dz: number, focus: boolean, goal
   let z = p.z;
   for (let i = 0; i < STEPS.length; i++) {
     const t = STEPS[i];
-    const lag = Math.min(t, 0.07);
+    // (how long it takes to answer: a heavy ship's longer)
+    const lag = Math.min(t, (0.07 * ACCEL) / s.accel);
     x = clamp(p.x + p.vx * lag + tvx * (t - lag), -REACH_W + 1.2, REACH_W - 1.2);
     const sz = clamp(p.z - lv.scroll + p.vz * lag + tvz * (t - lag), -HALF_H + 3, HALF_H - 2);
     z = lv.scroll - scroll * t + sz;

@@ -483,10 +483,30 @@ export interface FrameDef {
   flyby?: boolean;
   /** Magpie: every shot the parry catches loads a heavy round. */
   catch?: boolean;
+  /** How it flies, against the plain ship (see Move). */
+  move?: Move;
   /** Linked parts run at this (150% elsewhere); a part that needs its link runs at a third of the extra. */
   linked?: number;
   /** Parts it comes with, as [part, col, row]. */
   start: [string, number, number][];
+}
+
+/**
+ * How a frame flies, each against the plain ship (1, or none): how quick it is to get going
+ * (`accel`), how much of its speed it keeps a step with the stick let go (`stop`, 0.8 plain), the
+ * dash's length, speed and recovery, how much of the dash's speed it keeps coming out (`exit`, 0.35
+ * plain), how fast the stick bends a dash (`steer`, radians a second; 0 is a straight burst), and how
+ * far it leans into a turn (`lean`, the look only).
+ */
+export interface Move {
+  accel?: number;
+  stop?: number;
+  dashTime?: number;
+  dashSpeed?: number;
+  recover?: number;
+  exit?: number;
+  steer?: number;
+  lean?: number;
 }
 
 export const FRAMES: FrameDef[] = [
@@ -494,11 +514,13 @@ export const FRAMES: FrameDef[] = [
     id: 'kestrel',
     name: 'Kestrel',
     text: 'A stripped-down racer, made of tinfoil. It flies past them.',
-    perk: { name: 'FLY-BY', text: 'Dash past foes, close but not into them: each one is tagged. As the dash ends, the guns loose a volley at every tagged foe, as blows that carry their marks.' },
+    perk: { name: 'FLY-BY', text: 'The dash bends with the stick: hook it past foes, close but not into them, and each one is tagged. As the dash ends, the guns loose a volley at every tagged foe, as blows that carry their marks.' },
     weak: '60 HULL. NO ARMOUR FOR A RAM.',
     grid: ['..#..', '.###.', '.###.', '#####', '.#.#.'],
     mounts: { T: 2, H: 1, S: 1 },
     hp: 60, mass: 4, thrust: 15, grip: 1.25, dash: 1, dashCd: 1.6, load: 8, speed: 1.15, burn: 0.2, core: 0.3, flyby: true, refill: true,
+    // it carves: quickest to answer, and slings out of a dash it can bend round a foe
+    move: { accel: 1.3, steer: 10, exit: 0.55, lean: 1.4 },
     start: [['rivet', 1, 1], ['rivet', 3, 1], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
   {
@@ -506,21 +528,25 @@ export const FRAMES: FrameDef[] = [
     name: 'Hammerhead',
     text: 'A wide armoured head and a slim tail. It goes through them.',
     perk: { name: 'BATTERING RAM', text: 'The dash rams with the whole head: it breaks plating, and a second ram takes the reeling down. Every foe rammed gives the dash back sooner.' },
-    weak: 'STIFF IN A TURN. BEAMS AND BLASTS GO THROUGH THE RAM.',
+    weak: 'HEAVY: SLOW TO GET GOING, SLOW TO STOP. BEAMS AND BLASTS GO THROUGH THE RAM.',
     grid: ['######', '######', '..##..', '..##..'],
     mounts: { T: 2, H: 1, S: 1 },
     hp: 85, mass: 6, thrust: 14, grip: 0.95, dash: 1, dashCd: 2.2, load: 10.5, speed: 1.05, burn: 0.1, core: 0.42, ram: 22,
+    // it charges: slow to get going, it glides on its weight, and its dash is a long, low run it ploughs on out of
+    move: { accel: 0.8, stop: 0.88, dashTime: 1.3, dashSpeed: 0.9, exit: 0.5, lean: 0.55 },
     start: [['scatter', 2, 0], ['scatter', 3, 0], ['thruster', 2, 3], ['thruster', 3, 3]],
   },
   {
     id: 'magpie',
     name: 'Magpie',
     text: 'A catcher\'s crescent on a split tail. It throws their fire back.',
-    perk: { name: 'THE CATCH', text: 'A parry emitter of its own. Every shot it catches loads a round into the heavy.' },
-    weak: 'A SLOW DASH. BEAMS, HEAVY ROUNDS, MINES AND BODIES CAN\'T BE CAUGHT.',
+    perk: { name: 'THE CATCH', text: 'A parry emitter of its own. Every shot it catches loads a round into the heavy. It stops dead, and its dash is a quick sidestep.' },
+    weak: 'A SHORT DASH. BEAMS, HEAVY ROUNDS, MINES AND BODIES CAN\'T BE CAUGHT.',
     grid: ['#...#', '##.##', '#####', '.###.', '.#.#.'],
     mounts: { T: 2, H: 1, A: 1, S: 1 },
-    hp: 72, mass: 5, thrust: 15, grip: 1.05, dash: 1, dashCd: 2.4, load: 10, speed: 1.02, burn: 0.12, core: 0.38, catch: true,
+    hp: 72, mass: 5, thrust: 15, grip: 1.05, dash: 1, dashCd: 2, load: 10, speed: 1.02, burn: 0.12, core: 0.38, catch: true,
+    // it holds its ground: it stops dead, and the dash is a short hop that's over at once, to stay in the fire it catches
+    move: { accel: 1.1, stop: 0.7, dashTime: 0.6, dashSpeed: 1.05, recover: 0.5, exit: 0.15 },
     start: [['rivet', 1, 1], ['rivet', 3, 1], ['parry', 2, 2], ['thruster', 1, 4], ['thruster', 3, 4]],
   },
 ];

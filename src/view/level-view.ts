@@ -2467,7 +2467,7 @@ export class LevelView {
       const az = Math.abs(p.dashZ);
       r.scale.set(1 + st * (0.4 * ax - 0.15 * az), 1 - st * 0.12, 1 + st * (0.4 * az - 0.15 * ax));
       // lean into turns, nose down when pushing forward
-      this.banks[i] = damp(this.banks[i], clamp(-p.vx / 22, -0.6, 0.6), 12, dt);
+      this.banks[i] = damp(this.banks[i], clamp((-p.vx / 22) * p.stats.lean, -0.6 * p.stats.lean, 0.6 * p.stats.lean), 12 * Math.sqrt(p.stats.lean), dt);
       // a crash knocks it about: it rocks hard, twists off the rock, jitters as the frame rings
       const cr = this.crashT[i] * this.crashT[i];
       const [cnx, cnz] = this.crashN[i];

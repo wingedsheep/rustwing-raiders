@@ -56,14 +56,11 @@ const BODY = 0.7;
 const RIM = Array.from({ length: 12 }, (_, k) => [Math.cos((k / 12) * Math.PI * 2), Math.sin((k / 12) * Math.PI * 2)]);
 /** A kill this close is point-blank: a little Burn. */
 const POINT_BLANK = 7;
-/**
- * The dash: a fixed burst, and not a safe one: what it runs into still hits you (unless a Slip
- * Field makes it untouchable). Fire that would have hit where you dashed from, during the opening slip, is a
- * perfect. After it, a moment before the next.
+/*
+ * The dash (its speed, length and recovery are the frame's: see stats): a burst, and not a safe one:
+ * what it runs into still hits you (unless a Slip Field makes it untouchable). Fire that would have
+ * hit where you dashed from, during the opening slip, is a perfect.
  */
-const DASH_SPEED = 62;
-const DASH_TIME = 0.17;
-const DASH_RECOVER = 0.25;
 /**
  * A dash pressed too soon (in the dash, or its recovery) is held this long and goes the moment it
  * can: mashing through a recovery never eats a press.
@@ -1146,12 +1143,20 @@ export class Level {
     if (diving) this.grafting.dive(p);
     else if (p.dashT > 0) {
       p.dashT -= DT;
-      p.vx = p.dashX * DASH_SPEED;
-      p.vz = p.dashZ * DASH_SPEED;
+      // the Kestrel's bends with the stick
+      if (s.steer && Math.hypot(mx, mz) > 0.2) {
+        const at = Math.atan2(p.dashZ, p.dashX);
+        const d = Math.atan2(mz, mx) - at;
+        const a = at + clamp(Math.atan2(Math.sin(d), Math.cos(d)), -s.steer * DT, s.steer * DT);
+        p.dashX = Math.cos(a);
+        p.dashZ = Math.sin(a);
+      }
+      p.vx = p.dashX * s.dashSpeed;
+      p.vz = p.dashZ * s.dashSpeed;
       if (s.flyby) this.tagAlong(p);
       if (p.dashT <= 0) {
-        p.vx *= 0.35;
-        p.vz *= 0.35;
+        p.vx *= s.dashExit;
+        p.vz *= s.dashExit;
         if (s.flyby) this.flyby(p);
         if (s.thunder > 0) this.thunderclap(p);
         this.grafting.dashEnd(p);
@@ -1163,7 +1168,7 @@ export class Level {
       p.vx += clamp(tx - p.vx, -a, a);
       p.vz += clamp(tz - p.vz, -a, a);
       // stopping is sharper than starting: no ice (a little more slide at speed)
-      const stop = 0.8 + 0.1 * b;
+      const stop = s.stop + 0.1 * b;
       if (Math.abs(mx) < 0.1) p.vx *= stop;
       if (Math.abs(mz) < 0.1) p.vz *= stop;
     }
@@ -1192,8 +1197,8 @@ export class Level {
       p.dashX = dl > 0.2 ? mx / dl : 0;
       p.dashZ = dl > 0.2 ? mz / dl : -1;
       // committed: a fixed burst, and nothing in it is safe (see perfectDash)
-      p.dashT = DASH_TIME * this.grafting.dashLength(p);
-      p.dashLock = p.dashT + DASH_RECOVER;
+      p.dashT = s.dashTime * this.grafting.dashLength(p);
+      p.dashLock = p.dashT + s.dashRecover;
       p.slip = s.slip;
       p.slipX = p.x;
       p.slipZ = p.z - this.scroll;
@@ -2912,8 +2917,8 @@ export class Level {
     const z0 = p.z;
     if (m.blink > 0) this.blink(p);
     // where it ends up (for mines along the way)
-    const x1 = m.blink > 0 ? p.x : x0 + p.dashX * DASH_SPEED * DASH_TIME;
-    const z1 = m.blink > 0 ? p.z : z0 + p.dashZ * DASH_SPEED * DASH_TIME;
+    const x1 = m.blink > 0 ? p.x : x0 + p.dashX * s.dashSpeed * s.dashTime;
+    const z1 = m.blink > 0 ? p.z : z0 + p.dashZ * s.dashSpeed * s.dashTime;
     for (let k = 0; k < m.mines; k++) {
       const t = (k + 0.5) / m.mines;
       const w = this.addShot(p.id, 'mine', lerp(x0, x1, t), lerp(z0, z1, t), 0, 0, WAKE_DMG, WAKE_LIFE, 0, 0);

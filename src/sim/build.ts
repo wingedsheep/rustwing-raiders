@@ -70,6 +70,15 @@ export interface Stats {
   accel: number;
   dashes: number;
   dashCooldown: number;
+  /** The frame's dash (see Move in game/parts.ts): speed, seconds, the recovery after, the speed kept coming out, how fast the stick bends it. */
+  dashSpeed: number;
+  dashTime: number;
+  dashRecover: number;
+  dashExit: number;
+  steer: number;
+  /** The speed kept a step with the stick let go, and how far it leans into a turn (the look). */
+  stop: number;
+  lean: number;
   /** Seconds a dash's opening slip lasts: fire that would have hit you then makes it a perfect. */
   slip: number;
   /** The parts' mass, what the ship can carry, and so how it flies (see LOAD in game/parts.ts). */
@@ -196,6 +205,14 @@ export function gunDir(f: FrameDef, p: Placement) {
   if (outer) return (mc < cols / 2 ? -1 : 1) * 0.22;
   return 0;
 }
+
+/**
+ * The plain dash: a fixed burst, and not a safe one (see sim/level.ts); a frame's Move scales it.
+ * After it, a moment before the next.
+ */
+const DASH_SPEED = 62;
+const DASH_TIME = 0.17;
+const DASH_RECOVER = 0.25;
 
 /** How strong the marks are that a Spark Gap hands across. */
 const SHARED_MARK = 1;
@@ -360,7 +377,14 @@ export function stats(b: Build): Stats {
     mass,
     thrust,
     speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * (loadClass === 'overloaded' ? 0.88 : 1),
-    accel: 140 * grip * (loadClass === 'overloaded' ? 0.8 : 1),
+    accel: 140 * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
+    dashSpeed: DASH_SPEED * (f.move?.dashSpeed ?? 1),
+    dashTime: DASH_TIME * (f.move?.dashTime ?? 1),
+    dashRecover: DASH_RECOVER * (f.move?.recover ?? 1),
+    dashExit: f.move?.exit ?? 0.35,
+    steer: f.move?.steer ?? 0,
+    stop: f.move?.stop ?? 0.8,
+    lean: f.move?.lean ?? 1,
     dashes: f.dash,
     dashCooldown: (f.dashCd / (1 + dash * 0.6)) * dashRecover * (loadClass === 'nimble' ? 0.8 : loadClass === 'overloaded' ? 1.5 : 1),
     slip: loadClass === 'nimble' ? 0.17 : loadClass === 'overloaded' ? 0.09 : 0.12,
