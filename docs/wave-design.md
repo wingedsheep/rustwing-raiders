@@ -16,8 +16,10 @@ Everything is a bit quicker than it was:
 |---|---|---|---|
 | Enemy fire | as written | ×1.4 | `FIRE_PACE` in `src/sim/level.ts` (`Level.fireSpeed`) |
 | Ship top speed, accel, dash speed | as built | ×1.25 | `SHIP_PACE` in `src/sim/build.ts` |
+| Ship accel (grip) | as built | ×1.3 more | `SHIP_GRIP` in `src/sim/build.ts` |
+| Dash | 62 u/s for 0.17 s, 0.25 s after, recharge as the frame says, 0.35 of its speed kept | 71 u/s for 0.15 s (about as far), 0.1 s after, recharge ×0.65, 0.5 kept | `DASH_*` in `src/sim/build.ts` |
 
-Fire speeds up more than the ship does, so the screen asks a little more of you. The dash keeps its time, so it carries a bit further. Every shot goes through `Level.bullet`, which applies the pace, so the speeds written in the foes and the bosses stay as they were. A mine's ring uses `fireSpeed` too, so fair fire predicts it at the speed it will really fly.
+Fire speeds up more than the ship does, so the screen asks a little more of you. The dash is a shorter, harder snap that covers about the same distance as before, and it's ready again sooner, so dodging stays nimble. A frame's own Move still scales it. The autopilot's lag is tuned to the new accel (`ACCEL` in `src/sim/pilot.ts`). Every shot goes through `Level.bullet`, which applies the pace, so the speeds written in the foes and the bosses stay as they were. A mine's ring uses `fireSpeed` too, so fair fire predicts it at the speed it will really fly.
 
 ## What Silksong asks
 

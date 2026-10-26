@@ -212,9 +212,13 @@ export function gunDir(f: FrameDef, p: Placement) {
  */
 /** Every ship this much quicker than its parts say (it answers faster fire: see FIRE_PACE in level.ts). */
 const SHIP_PACE = 1.25;
-const DASH_SPEED = 62 * SHIP_PACE;
-const DASH_TIME = 0.17;
-const DASH_RECOVER = 0.25;
+/** And this much sharper to answer the stick: it gets to speed, and turns, quicker than it flies. */
+const SHIP_GRIP = 1.3;
+/** The dash: a short, hard snap (about as far as it was, in less time), barely a beat after, and back sooner. */
+const DASH_SPEED = 71 * SHIP_PACE;
+const DASH_TIME = 0.15;
+const DASH_RECOVER = 0.1;
+const DASH_CD = 0.65;
 
 /** How strong the marks are that a Spark Gap hands across. */
 const SHARED_MARK = 1;
@@ -383,16 +387,16 @@ export function stats(b: Build): Stats {
     thrust,
     // (a little over what it was: the boost is cut)
     speed: Math.min(28, Math.max(11, 10 + 5 * Math.sqrt(ratio))) * f.speed * 1.06 * SHIP_PACE * (loadClass === 'overloaded' ? 0.88 : 1),
-    accel: 140 * SHIP_PACE * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
+    accel: 140 * SHIP_PACE * SHIP_GRIP * grip * (f.move?.accel ?? 1) * (loadClass === 'overloaded' ? 0.8 : 1),
     dashSpeed: DASH_SPEED * (f.move?.dashSpeed ?? 1),
     dashTime: DASH_TIME * (f.move?.dashTime ?? 1),
     dashRecover: DASH_RECOVER * (f.move?.recover ?? 1),
-    dashExit: f.move?.exit ?? 0.35,
+    dashExit: f.move?.exit ?? 0.5,
     steer: f.move?.steer ?? 0,
     stop: f.move?.stop ?? 0.8,
     lean: f.move?.lean ?? 1,
     dashes: f.dash,
-    dashCooldown: (f.dashCd / (1 + dash * 0.6)) * dashRecover * (loadClass === 'nimble' ? 0.8 : loadClass === 'overloaded' ? 1.5 : 1),
+    dashCooldown: ((f.dashCd * DASH_CD) / (1 + dash * 0.6)) * dashRecover * (loadClass === 'nimble' ? 0.8 : loadClass === 'overloaded' ? 1.5 : 1),
     slip: loadClass === 'nimble' ? 0.17 : loadClass === 'overloaded' ? 0.09 : 0.12,
     load,
     capacity: carry,

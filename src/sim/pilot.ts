@@ -29,8 +29,8 @@ for (let k = 0; k < 16; k++) DIRS.push([Math.cos((k / 16) * Math.PI * 2), Math.s
 const STEPS = [0.06, 0.12, 0.2, 0.3, 0.42, 0.56];
 /** The slip at the start of a dash, as the level does it (the dash itself is the frame's: p.stats). */
 const SLIP = 0.12;
-/** The accel the pilot's lag is tuned to (a plain frame's, with SHIP_PACE). */
-const ACCEL = 184;
+/** The accel the pilot's lag is tuned to (a plain frame's, with SHIP_PACE and SHIP_GRIP). */
+const ACCEL = 239;
 
 export interface PilotState {
   /** The move it chose last frame, kept unless something's clearly better (no dithering). */
