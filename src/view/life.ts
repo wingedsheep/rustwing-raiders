@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Level } from '../sim/level';
 import type { Biome } from '../world/planets';
-import { FLIGHT_Y } from '../sim/types';
+import { FLIGHT_Y, toFlight } from '../sim/types';
 import { toon } from '../render/toon';
 import { weather } from '../render/alive';
 import type { Fx } from './fx';
@@ -32,6 +32,8 @@ interface Flock {
   vx: number;
   vz: number;
   t: number;
+  /** Crows off a roost: a ragged scatter climbing away, not a V (see placed(), 'roost'). */
+  vy?: number;
 }
 
 /** A bird: a body and two wings that beat. Seen from above it's a little flickering V. */
@@ -73,6 +75,8 @@ export class Life {
   private sprayT = 0;
   /** The clock the placed effects turn on. */
   private placeT = 0;
+  /** The roosts whose crows have gone up already. */
+  private flown = new WeakSet<Emitter>();
   /** The fog banks on screen, by their emitter: when each was last seen in range. */
   private fogs = new Map<Emitter, { g: THREE.Group; mat: THREE.SpriteMaterial; puffs: { s: THREE.Sprite; x: number; z: number; ph: number }[]; born: number; seen: number }>();
 
@@ -132,6 +136,14 @@ export class Life {
           if (!roll(4)) break;
           const y = t.height(e.x, e.z) + 2.5;
           this.fx.add({ x: e.x + (Math.random() - 0.5) * 0.6, y, z: e.z, vx: wind.x * 0.8, vy: 2.2, vz: wind.y * 0.8, size: 0.7, grow: 3.4, life: 2.6, glow: false, color: SMOKE, to: SMOKE_END });
+          break;
+        }
+        case 'clamp': {
+          // a charcoal clamp breathing: heavy pale smoke welling off its crown, slow, swelling,
+          // leaning off downwind and thinning to the ash's grey
+          if (!roll(2.2)) break;
+          const y = t.height(e.x, e.z) + 2.6;
+          this.fx.add({ x: e.x + (Math.random() - 0.5) * 1.6, y, z: e.z + (Math.random() - 0.5) * 1.6, vx: wind.x * 1.1, vy: 1.3 + Math.random() * 0.5, vz: wind.y * 1.1, size: 1.5 + Math.random() * 0.5, grow: 3.2, life: 4.5, glow: false, color: CLAMP_SMOKE, to: tone(b.ground[2]) });
           break;
         }
         case 'bubble': {
@@ -226,6 +238,18 @@ export class Life {
           if (roll(1.5)) this.fx.add({ x: e.x, y: y + 0.3, z: e.z, vx: wind.x * 0.6, vy: 1.2, vz: wind.y * 0.6, size: 0.5, grow: 2.4, life: 1.6, glow: false, color: SMOKE_END, to: tone(b.ground[2]) });
           break;
         }
+        case 'roost': {
+          // crows in a dead tree: they sit till a ship comes over, then go up all at once and
+          // scatter off away from it, low over the trees (dark, never a speck that could be a shot)
+          if (this.flown.has(e)) break;
+          const h = t.height(e.x, e.z) + 4;
+          const zf = toFlight(e.z, h);
+          const p = lv.nearest(e.x, zf);
+          if (!p || Math.abs(p.z - zf) > 13 || Math.abs(p.x - e.x) > 26) break;
+          this.flown.add(e);
+          this.crows(e.x, h, e.z, Math.atan2(e.z - p.z, e.x - p.x), b);
+          break;
+        }
         case 'trickle': {
           // now and then a few stones come off the face, a puff where they leave it
           if (!roll(0.5)) break;
@@ -277,6 +301,29 @@ export class Life {
     this.fogs.set(e, { g, mat, puffs, born: this.placeT, seen: this.placeT });
   }
 
+  /** A roost's crows going up from (x, y, z), off along heading `a` (radians, world x-z). */
+  private crows(x: number, y: number, z: number, a: number, b: Biome) {
+    const n = 6 + Math.floor(Math.random() * 6);
+    const mat = toon(new THREE.Color(b.cliff).lerp(new THREE.Color(0x101014), 0.7));
+    const birds: Bird[] = [];
+    for (let k = 0; k < n; k++) {
+      const obj = new THREE.Group();
+      const body = new THREE.Mesh(BODY, mat);
+      const l = new THREE.Mesh(WING, mat);
+      const r = new THREE.Mesh(WING, mat);
+      r.scale.x = -1;
+      for (const m of [body, l, r]) m.castShadow = true;
+      obj.add(body, l, r);
+      obj.scale.setScalar(1.3 + Math.random() * 0.5);
+      this.scene.add(obj);
+      // (a ragged cloud, not a V: each its own way off the tree)
+      birds.push({ obj, wings: [l, r], phase: Math.random() * 6, ox: (Math.random() - 0.5) * 3, oz: (Math.random() - 0.5) * 3 });
+    }
+    const speed = 6 + Math.random() * 2;
+    const ang = a + (Math.random() - 0.5) * 0.8;
+    this.flocks.push({ birds, x, y, z, vx: Math.cos(ang) * speed, vz: Math.sin(ang) * speed, t: 0, vy: 1.6 });
+  }
+
   private birds(dt: number, lv: Level, b: Biome, halfW: number) {
     this.flockT -= dt;
     if (this.flockT <= 0 && birdy(b) && this.flocks.length < (busy(lv) > 0.5 ? 1 : 3)) {
@@ -318,6 +365,15 @@ export class Life {
       f.t += dt;
       f.x += f.vx * dt;
       f.z += f.vz * dt;
+      if (f.vy !== undefined) {
+        // (crows: climbing off the roost, levelling out; each spreads off its own way)
+        f.y += f.vy * dt;
+        f.vy *= Math.exp(-0.9 * dt);
+        for (const bd of f.birds) {
+          bd.ox *= 1 + 0.35 * dt;
+          bd.oz *= 1 + 0.35 * dt;
+        }
+      }
       const heading = Math.atan2(f.vx, f.vz);
       const c = Math.cos(heading);
       const s = Math.sin(heading);
@@ -446,6 +502,7 @@ const tone = (hex: number, k = 1) => {
 };
 const SMOKE = new THREE.Color(0x4a3a34);
 const SMOKE_END = new THREE.Color(0x8a7a70);
+const CLAMP_SMOKE = new THREE.Color(0xb4aea8);
 const FOAM = new THREE.Color(0xa8c8d0);
 const BREATH = new THREE.Color(0xf4e8d8);
 /** A crew's cutting sparks: a dull straw-white cooling to rust as they fall (never a shot's hot glow). */

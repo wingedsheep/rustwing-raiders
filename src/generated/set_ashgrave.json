@@ -3033,5 +3033,476 @@
   ],
   "mounts": [],
   "variant": 1
+ },
+ "ashgrave_woods_burnt#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_burnt",
+  "max": [
+   2.292,
+   1.447,
+   2.171
+  ],
+  "min": [
+   -2.188,
+   -0.43,
+   -2.306
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_burnt#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_burnt",
+  "max": [
+   1.735,
+   5.178,
+   1.817
+  ],
+  "min": [
+   -2.145,
+   -0.43,
+   -1.767
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_burnt#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_burnt",
+  "max": [
+   3.23,
+   3.607,
+   2.857
+  ],
+  "min": [
+   -2.407,
+   -0.43,
+   -2.656
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_clamp#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_clamp",
+  "max": [
+   3.346,
+   2.057,
+   3.258
+  ],
+  "min": [
+   -4.335,
+   -0.2,
+   -3.511
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_clamp#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_clamp",
+  "max": [
+   4.144,
+   0.86,
+   5.179
+  ],
+  "min": [
+   -4.27,
+   -0.8,
+   -4.259
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_clamp#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_clamp",
+  "max": [
+   5.074,
+   3.2,
+   3.534
+  ],
+  "min": [
+   -3.362,
+   -0.4,
+   -3.541
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_cordwood#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_cordwood",
+  "max": [
+   3.3,
+   1.65,
+   1.45
+  ],
+  "min": [
+   -3.3,
+   -0.2,
+   -1.45
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_cordwood#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_cordwood",
+  "max": [
+   4.8,
+   1.65,
+   1.45
+  ],
+  "min": [
+   -4.8,
+   -0.2,
+   -1.45
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_cordwood#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_cordwood",
+  "max": [
+   4.8,
+   1.84,
+   1.45
+  ],
+  "min": [
+   -4.8,
+   -0.2,
+   -1.45
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_crown#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_crown",
+  "max": [
+   4.634,
+   3.333,
+   1.649
+  ],
+  "min": [
+   -1.677,
+   -0.705,
+   -1.538
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_crown#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_crown",
+  "max": [
+   4.949,
+   3.842,
+   1.675
+  ],
+  "min": [
+   -2.05,
+   -0.705,
+   -1.675
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_crown#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_crown",
+  "max": [
+   4.709,
+   2.119,
+   1.74
+  ],
+  "min": [
+   -2.162,
+   -0.705,
+   -1.573
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_elder#0": {
+  "colliders": [
+   {
+    "r": 2.2,
+    "x": 0.235,
+    "z": -0.332
+   }
+  ],
+  "kind": "ashgrave_woods_elder",
+  "max": [
+   4.814,
+   19.002,
+   4.433
+  ],
+  "min": [
+   -4.817,
+   -1.093,
+   -4.549
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_elder#1": {
+  "colliders": [
+   {
+    "r": 1.45,
+    "x": -2.0,
+    "z": 0.22
+   },
+   {
+    "r": 1.45,
+    "x": 2.0,
+    "z": -0.22
+   }
+  ],
+  "kind": "ashgrave_woods_elder",
+  "max": [
+   5.131,
+   17.983,
+   4.555
+  ],
+  "min": [
+   -5.109,
+   -1.142,
+   -4.279
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_elder#2": {
+  "colliders": [
+   {
+    "r": 2.2,
+    "x": -0.094,
+    "z": -0.056
+   }
+  ],
+  "kind": "ashgrave_woods_elder",
+  "max": [
+   4.812,
+   16.551,
+   4.579
+  ],
+  "min": [
+   -4.807,
+   -1.025,
+   -4.582
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_felled#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_felled",
+  "max": [
+   9.563,
+   3.779,
+   2.411
+  ],
+  "min": [
+   -2.42,
+   -0.357,
+   -2.493
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_felled#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_felled",
+  "max": [
+   11.513,
+   4.415,
+   3.116
+  ],
+  "min": [
+   -2.705,
+   -0.357,
+   -2.791
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_felled#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_felled",
+  "max": [
+   14.521,
+   5.002,
+   4.044
+  ],
+  "min": [
+   -2.99,
+   -0.424,
+   -3.121
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_hut#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_hut",
+  "max": [
+   2.954,
+   3.725,
+   3.89
+  ],
+  "min": [
+   -2.954,
+   -0.15,
+   -2.4
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_hut#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_hut",
+  "max": [
+   2.954,
+   1.562,
+   3.419
+  ],
+  "min": [
+   -2.954,
+   -0.13,
+   -2.4
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_pole#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_pole",
+  "max": [
+   2.237,
+   8.099,
+   1.391
+  ],
+  "min": [
+   -1.356,
+   -0.403,
+   -1.418
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_pole#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_pole",
+  "max": [
+   1.804,
+   7.004,
+   1.341
+  ],
+  "min": [
+   -1.319,
+   -0.403,
+   -1.389
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_pole#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_pole",
+  "max": [
+   4.246,
+   4.588,
+   1.374
+  ],
+  "min": [
+   -1.456,
+   -0.354,
+   -1.437
+  ],
+  "mounts": [],
+  "variant": 2
+ },
+ "ashgrave_woods_sled#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_sled",
+  "max": [
+   3.628,
+   1.48,
+   0.95
+  ],
+  "min": [
+   -2.0,
+   0.017,
+   -0.95
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_sled#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_sled",
+  "max": [
+   3.628,
+   1.3,
+   0.95
+  ],
+  "min": [
+   -2.0,
+   0.017,
+   -0.95
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_stump#0": {
+  "colliders": [],
+  "kind": "ashgrave_woods_stump",
+  "max": [
+   1.368,
+   0.76,
+   1.253
+  ],
+  "min": [
+   -0.994,
+   -0.268,
+   -1.2
+  ],
+  "mounts": [],
+  "variant": 0
+ },
+ "ashgrave_woods_stump#1": {
+  "colliders": [],
+  "kind": "ashgrave_woods_stump",
+  "max": [
+   1.653,
+   1.05,
+   1.557
+  ],
+  "min": [
+   -1.577,
+   -0.245,
+   -1.529
+  ],
+  "mounts": [],
+  "variant": 1
+ },
+ "ashgrave_woods_stump#2": {
+  "colliders": [],
+  "kind": "ashgrave_woods_stump",
+  "max": [
+   1.695,
+   1.389,
+   1.712
+  ],
+  "min": [
+   -1.696,
+   -0.251,
+   -1.694
+  ],
+  "mounts": [],
+  "variant": 2
  }
 }

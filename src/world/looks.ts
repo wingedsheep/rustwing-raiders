@@ -274,8 +274,9 @@ export const LOOKS: Record<string, Look> = {
   whitewood: {
     sets: [{ kind: 'ashgrave_white_canopy', role: 'span', w: 3 }, { kind: 'ashgrave_white_trunks', role: 'gate', w: 2 }, { kind: 'ashgrave_overgrown_mech', role: 'giant', w: 2 }],
     setChance: 0.2,
-    haze: { color: 0xe4e0da, rate: 0.28 },
-    pattern: { kind: 'streaks', color: 0x9e9890, scale: 8, amount: 0.4, patchy: 0.5 },
+    // (a cold haze under the moon; the ash's own streaks are painted downwind by its layout)
+    haze: { color: 0xa8b2cc, alpha: 0.22, rate: 0.16 },
+    pattern: { kind: 'streaks', color: 0x86868f, scale: 8, amount: 0.25, patchy: 0.5 },
   },
   // ── VESH ───────────────────────────────────────────────────────────────────────────────────
   coralflats: {

@@ -13,7 +13,7 @@
 | Titan Graveyard | Their hands are bigger than your ship. Some of them still twitch. | rolling, ash | — |
 | Glass Craters | Where the big guns hit, the ground turned to glass. It still glows. | craters, ash | — |
 | Scav Camp | Tents, fires and a lot of people aiming at you. | flats, ash | crawlers |
-| Bone-White Woods | A forest, dead and bleached. Ash falls like snow, under a blue moon. | rolling, ash | — |
+| Bone-White Woods | A forest, dead and bleached. Ash falls like snow, under a blue moon. | rolling, ash; laid out (`src/sim/layouts/whitewood.ts`) | crows |
 
 ## Who you fight
 

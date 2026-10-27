@@ -1162,3 +1162,6 @@ def build():
     # the Scav Camp's crawlers, tents, berm, claims, stalls, banners, berth and forge (set_ashgrave_camp.py)
     import set_ashgrave_camp
     set_ashgrave_camp.build()
+    # the Bone-White Woods' poles, felled trees, burnt snags, the colliers' things, crowns and elders (set_ashgrave_woods.py)
+    import set_ashgrave_woods
+    set_ashgrave_woods.build()

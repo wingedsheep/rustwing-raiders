@@ -15,5 +15,6 @@ import { scavcamp } from './scavcamp';
 import { sporevents } from './sporevents';
 import { temple } from './temple';
 import { titans } from './titans';
+import { whitewood } from './whitewood';
 
-export const LAYOUTS: Record<string, Layout> = { glass, glowcap, mesarun, monoliths, oasis, peat, saltpans, scavcamp, sporevents, temple, titans };
+export const LAYOUTS: Record<string, Layout> = { glass, glowcap, mesarun, monoliths, oasis, peat, saltpans, scavcamp, sporevents, temple, titans, whitewood };

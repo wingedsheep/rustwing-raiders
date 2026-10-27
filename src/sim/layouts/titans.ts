@@ -79,7 +79,7 @@ const BODY_W = 7;
 type ArmEnd = 'hand' | 'fist' | 'up' | 'reach';
 type LegEnd = 'foot' | 'knee';
 
-interface Limb {
+export interface Limb {
   /** Its first segment's heading, and its second's (radians, world: atan2(dz, dx)). */
   a1: number;
   a2: number;
@@ -87,7 +87,7 @@ interface Limb {
 }
 
 /** A titan, where and how it fell. */
-interface Titan {
+export interface Titan {
   side: 0 | 1;
   /** 0 face down, 1 on its back, 2 stripped to the frame. */
   pose: 0 | 1 | 2;
@@ -142,14 +142,14 @@ const dirOf = (a: number): [number, number] => [Math.cos(a), Math.sin(a)];
 const along = (a: number) => -a;
 
 /** Where (u along, w across to the left) on titan t is in the world. */
-function at(t: Titan, u: number, w: number) {
+export function at(t: Titan, u: number, w: number) {
   const [dx, dz] = dirOf(t.ang);
   // (its left, seen from above with the head up the screen: the Blender model's +y is -z)
   return { x: t.x + (u * dx + w * dz) * t.s, z: t.z + (u * dz - w * dx) * t.s };
 }
 
 /** Each joint of a titan's limbs, and the capsules of its body, worked out from its pose. */
-function skeleton(t: Titan) {
+export function skeleton(t: Titan) {
   const caps: Cap[] = [];
   const cap = (a: { x: number; z: number }, b: { x: number; z: number }, r: number) => caps.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, r: r * t.s });
   const chest = at(t, 6, 0);
@@ -606,16 +606,17 @@ const livery = (ps: Placed[], side: number, r: () => number) => {
   for (const p of ps) if (p.kind === 'ashgrave_shed_plate') p.variant = side + (r() < 0.5 ? 0 : 2);
 };
 
-function plan(kit: Kit, b: Field) {
+/**
+ * A titan laid down part by part where it fell, on the ground `plain` gives, sunk `sink` into it (its
+ * scale times): each part as built, its raised limbs solid, its core's Tenders asleep in it if it lies
+ * on its back. Shared with the woods (sim/layouts/whitewood.ts). Returns its joints.
+ */
+export function layTitan(kit: Kit, t: Titan, plain: (x: number, z: number) => number, sink: number) {
   const r = kit.r;
-  const sink = SINK[b.ash];
-  /** Off the way through. */
-  const clear = (x: number, z: number, m = LANE) => Math.abs(x - b.lane(z)) > m;
-
   /** A part of a titan lying where it fell: placed as built (one shade, no lean), sunk in the ash. */
   const part = (kind: string, variant: number, x: number, z: number, heading: number, s: number, rad: number, len = 0) => {
     if (z > kit.z0 || z <= kit.z1) return null;
-    const p: Placed = { kind, variant, x, z, y: b.plain(x, z) - sink * s, rot: along(heading), s, obstacle: false, cols: [], biome: kit.biome, role: 'giant' };
+    const p: Placed = { kind, variant, x, z, y: plain(x, z) - sink * s, rot: along(heading), s, obstacle: false, cols: [], biome: kit.biome, role: 'giant' };
     kit.props.push(p);
     // (the room it takes, along its length)
     const [dx, dz] = dirOf(heading);
@@ -627,78 +628,84 @@ function plan(kit: Kit, b: Field) {
     return p;
   };
 
-  /** A titan, laid down part by part; returns its joints. */
-  const lay = (t: Titan) => {
-    const sk = skeleton(t);
-    const v = t.side;
-    // the body
-    const mid = at(t, 0, 0);
-    // (the model's middle is at u = -2: chest and pelvis from -14 to 10)
-    part('ashgrave_titan_body', v + t.pose * 2, mid.x, mid.z, t.ang, t.s, BODY_W, 20 * t.s);
-    // the head, turned
-    part('ashgrave_titan_head', v + (t.lit ? 2 : 0), sk.head.x, sk.head.z, t.ang + t.head, t.s, 3);
-    // the arms
-    t.arms.forEach((l, i) => {
-      const { sh, el, wr } = sk.arms[i];
-      const mid1 = { x: (sh.x + el.x) / 2, z: (sh.z + el.z) / 2 };
-      part('ashgrave_titan_arm', v, mid1.x, mid1.z, l.a1, t.s, 2.4, UPPER * t.s);
-      if (l.end === 'up') {
-        const p = kit.solid('ashgrave_titan_arm_up', el.x, el.z, t.s, r() * Math.PI * 2);
-        if (p) {
-          p.variant = v;
-          p.y = b.plain(el.x, el.z) - sink * t.s;
-        }
-        return;
+  const sk = skeleton(t);
+  const v = t.side;
+  // the body
+  const mid = at(t, 0, 0);
+  // (the model's middle is at u = -2: chest and pelvis from -14 to 10)
+  part('ashgrave_titan_body', v + t.pose * 2, mid.x, mid.z, t.ang, t.s, BODY_W, 20 * t.s);
+  // the head, turned
+  part('ashgrave_titan_head', v + (t.lit ? 2 : 0), sk.head.x, sk.head.z, t.ang + t.head, t.s, 3);
+  // the arms
+  t.arms.forEach((l, i) => {
+    const { sh, el, wr } = sk.arms[i];
+    const mid1 = { x: (sh.x + el.x) / 2, z: (sh.z + el.z) / 2 };
+    part('ashgrave_titan_arm', v, mid1.x, mid1.z, l.a1, t.s, 2.4, UPPER * t.s);
+    if (l.end === 'up') {
+      const p = kit.solid('ashgrave_titan_arm_up', el.x, el.z, t.s, r() * Math.PI * 2);
+      if (p) {
+        p.variant = v;
+        p.y = plain(el.x, el.z) - sink * t.s;
       }
-      const mid2 = { x: (el.x + wr.x) / 2, z: (el.z + wr.z) / 2 };
-      part('ashgrave_titan_arm', v + 2, mid2.x, mid2.z, l.a2, t.s, 2.1, FORE * t.s);
-      if (l.end === 'reach') {
-        const [dx, dz] = dirOf(l.a2);
-        const hx = wr.x + dx * REACH_OFF * t.s;
-        const hz = wr.z + dz * REACH_OFF * t.s;
-        const p = kit.solid('ashgrave_titan_reach', hx, hz, t.s, along(l.a2));
-        if (p) {
-          p.variant = v;
-          p.y = b.plain(hx, hz) - sink * 0.5;
-        }
-        return;
-      }
-      const [dx, dz] = dirOf(l.a2);
-      part('ashgrave_titan_hand', v + (l.end === 'fist' ? 2 : 0), wr.x + dx * HAND_OFF * t.s, wr.z + dz * HAND_OFF * t.s, l.a2, t.s, 3);
-    });
-    // the legs
-    t.legs.forEach((l, i) => {
-      const { hp, kn, an } = sk.legs[i];
-      if (l.end === 'knee') {
-        const p = kit.solid('ashgrave_titan_knee_up', hp.x, hp.z, t.s, along(l.a1));
-        if (p) {
-          p.variant = v;
-          p.y = b.plain(hp.x, hp.z) - sink * t.s;
-        }
-        return;
-      }
-      part('ashgrave_titan_legpart', v, (hp.x + kn.x) / 2, (hp.z + kn.z) / 2, l.a1, t.s, 2.8, THIGH * t.s);
-      part('ashgrave_titan_legpart', v + 2, (kn.x + an.x) / 2, (kn.z + an.z) / 2, l.a2, t.s, 2.5, SHIN * t.s);
-      const [dx, dz] = dirOf(l.a2);
-      part('ashgrave_titan_foot', v, an.x + dx * FOOT_OFF * t.s, an.z + dz * FOOT_OFF * t.s, l.a2 + (i ? -0.2 : 0.2), t.s, 2.8);
-    });
-    // what's still alive in it: the core breathing through the cracked chest, a lit eye's glow
-    if (t.pose === 1) {
-      const c = at(t, 1.6, 0);
-      kit.emit('breath', c.x, c.z);
-      kit.emit('breath', c.x + 0.8, c.z - 0.6);
+      return;
     }
-    // and its welders, asleep in the core till you come over it (the director wakes them; not out
-    // past the field's edge, where they'd climb out unseen): on its back, or bared in the yard
-    if (t.pose !== 0) {
-      const c = at(t, t.pose === 1 ? 1.6 : 2.05, 0);
-      if (inField(c.x, 4)) {
-        kit.post(c.x, c.z, 0, `core:${t.side}`);
-        kit.posts[kit.posts.length - 1].y = b.plain(c.x, c.z) - sink * t.s + (t.pose === 1 ? 5.2 : 2) * t.s;
+    const mid2 = { x: (el.x + wr.x) / 2, z: (el.z + wr.z) / 2 };
+    part('ashgrave_titan_arm', v + 2, mid2.x, mid2.z, l.a2, t.s, 2.1, FORE * t.s);
+    if (l.end === 'reach') {
+      const [dx, dz] = dirOf(l.a2);
+      const hx = wr.x + dx * REACH_OFF * t.s;
+      const hz = wr.z + dz * REACH_OFF * t.s;
+      const p = kit.solid('ashgrave_titan_reach', hx, hz, t.s, along(l.a2));
+      if (p) {
+        p.variant = v;
+        p.y = plain(hx, hz) - sink * 0.5;
       }
+      return;
     }
-    return sk;
-  };
+    const [dx, dz] = dirOf(l.a2);
+    part('ashgrave_titan_hand', v + (l.end === 'fist' ? 2 : 0), wr.x + dx * HAND_OFF * t.s, wr.z + dz * HAND_OFF * t.s, l.a2, t.s, 3);
+  });
+  // the legs
+  t.legs.forEach((l, i) => {
+    const { hp, kn, an } = sk.legs[i];
+    if (l.end === 'knee') {
+      const p = kit.solid('ashgrave_titan_knee_up', hp.x, hp.z, t.s, along(l.a1));
+      if (p) {
+        p.variant = v;
+        p.y = plain(hp.x, hp.z) - sink * t.s;
+      }
+      return;
+    }
+    part('ashgrave_titan_legpart', v, (hp.x + kn.x) / 2, (hp.z + kn.z) / 2, l.a1, t.s, 2.8, THIGH * t.s);
+    part('ashgrave_titan_legpart', v + 2, (kn.x + an.x) / 2, (kn.z + an.z) / 2, l.a2, t.s, 2.5, SHIN * t.s);
+    const [dx, dz] = dirOf(l.a2);
+    part('ashgrave_titan_foot', v, an.x + dx * FOOT_OFF * t.s, an.z + dz * FOOT_OFF * t.s, l.a2 + (i ? -0.2 : 0.2), t.s, 2.8);
+  });
+  // what's still alive in it: the core breathing through the cracked chest, a lit eye's glow
+  if (t.pose === 1) {
+    const c = at(t, 1.6, 0);
+    kit.emit('breath', c.x, c.z);
+    kit.emit('breath', c.x + 0.8, c.z - 0.6);
+  }
+  // and its welders, asleep in the core till you come over it (the director wakes them; not out
+  // past the field's edge, where they'd climb out unseen): on its back, or bared in the yard
+  if (t.pose !== 0) {
+    const c = at(t, t.pose === 1 ? 1.6 : 2.05, 0);
+    if (inField(c.x, 4)) {
+      kit.post(c.x, c.z, 0, `core:${t.side}`);
+      kit.posts[kit.posts.length - 1].y = plain(c.x, c.z) - sink * t.s + (t.pose === 1 ? 5.2 : 2) * t.s;
+    }
+  }
+  return sk;
+}
+
+function plan(kit: Kit, b: Field) {
+  const r = kit.r;
+  const sink = SINK[b.ash];
+  /** Off the way through. */
+  const clear = (x: number, z: number, m = LANE) => Math.abs(x - b.lane(z)) > m;
+
+  const lay = (t: Titan) => layTitan(kit, t, b.plain, sink);
 
   /** The debris that gathers round a body: plates shed along its flanks, cables out of its joints. */
   const shed = (t: Titan, n: number) => {
