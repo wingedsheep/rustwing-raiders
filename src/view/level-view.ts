@@ -336,6 +336,7 @@ export class LevelView {
   private q = new THREE.Quaternion();
   private v = new THREE.Vector3();
   private s = new THREE.Vector3();
+  private hotAt = new THREE.Vector3();
   private c = new THREE.Color();
 
   constructor(readonly lv: Level) {
@@ -2534,6 +2535,18 @@ export class LevelView {
     // the ground under the lane calmed (the camera sits 120 off the flight plane, which is further
     // off up the picture than down it)
     u.uLane.value = 1;
+    // what you'd hit marked, its edge hot round the ships (see SOLID_LAYER)
+    u.uSolidEdgeStrength.value = 1;
+    const ships = u.uSolidHot.value as THREE.Vector4[];
+    for (let i = 0; i < ships.length; i++) {
+      const p = this.lv.players[i];
+      if (!p || p.down) {
+        ships[i].w = 0;
+        continue;
+      }
+      const v = this.hotAt.set(p.x, FLIGHT_Y, p.z).project(this.camera);
+      ships[i].set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5, 0, 1);
+    }
     u.uPlane.value.set(120 + this.camera.bottom * Math.tan(TILT), 120 + this.camera.top * Math.tan(TILT));
   }
 

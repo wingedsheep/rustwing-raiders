@@ -7,7 +7,7 @@
 import { SEEKER, TORPEDO, type Enemy, type Level, type Player } from './level';
 import { DT, FLIGHT_Y, HALF_H, HALF_W, OFF_BOTTOM, OFF_TOP, OFF_W, fromFlight, toFlight } from './types';
 import { clamp, lerp, smooth } from '../util';
-import { go, lookOf, over, release, type Tele } from './combat';
+import { PUFF, burst, go, lookOf, over, release, type Tele } from './combat';
 import { strike } from './strikes';
 import { routeX, type Route } from './layout';
 import { SHARE, arms as volleyArms, fan as volleyFan, pattern } from './volleys';
@@ -150,7 +150,6 @@ export const live = (lv: Level, e: Enemy) => lv.onScreen(e.x, e.z, -1) && e.stun
 
 /** Quicker tells later in the run (never by much). */
 /** Puffballs: how fast they sink, how close sets one off, the swell, the blast and the cloud it leaves (radius, seconds). */
-const PUFF = { sink: 6, near: 4.5, swell: 0.55, blast: 4.5, cloud: 4, linger: 3 };
 /** Hookjaws: the harpoon's speed, how far ahead of you it aims (of your flight), the reel's pull, how long until it drags you onto its hull, and how squarely a dash must pull away to snap the line, and how far a wrong-way dash is yanked back. */
 const HOOK = { speed: 58, lead: 0.85, reel: 10, hold: 1.8, snap: 0.35, yank: 0.7 };
 /** Tenders: the climb out of the core and the ring they circle in, the gap between turns in a brood, then each one's windup and lock, its dart's speed, how long its seam burns on, how long it's open, how many darts before it goes home, and the wait between them. */
@@ -176,6 +175,7 @@ function track(lv: Level, e: Enemy, rate = 0.12, speed = 0) {
   t.x2 = e.x + Math.sin(e.aim) * len;
   t.z2 = e.z + Math.cos(e.aim) * len;
 }
+
 /**
  * Its aim at you, leading you by its `lead` (0: where you are; 1: where a shot at `speed` meets you
  * if you hold your course). The tell shows the led line, so it's read like any other; it only
@@ -220,7 +220,6 @@ function underFire(lv: Level, e: Enemy, p: Player | undefined) {
   shift(lv, e, p, 8);
   return true;
 }
-
 
 /** Leaving: off the top (or a side) and away. */
 function leave(lv: Level, e: Enemy, dx = 0) {
@@ -434,8 +433,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.state === 'idle') {
         if (d.shots === 1 && ok && p && s > -16 && s < -2 && ps(lv, p) - s > 10) {
           d.shots = 2;
-          leads(lv, e, 0.5, 0.5, 0.8);
           e.aim = lv.aim(e.x, e.z);
+          leads(lv, e, 0.5, 0.5, 0.8);
           go(lv, e, 'windup', 0.5 * quick(lv), 'burst', line(e, 24, 0.4, 0.3 * quick(lv)));
         }
       } else if (e.state === 'windup') {
@@ -553,9 +552,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
         const again = e.elite && (d.combo ?? 0) > 0 && p && ps(lv, p) - s > 7 && Math.abs(lv.aim(e.x, e.z)) < 1.1;
         if (e.stateT > 0.35 && ok && p && ((down && Math.abs(s - hz) < 3) || again)) {
           const len = clamp(Math.hypot(p.x - e.x, p.z - e.z) + 8, 20, 44);
+          d.len = len;
           // now and then it lines up where you're going, to cut you off
           leads(lv, e, 0.55, 0.4, 0.7);
-          d.len = len;
           go(lv, e, 'windup', 0.85 * quick(lv), 'lunge', line(e, len, e.r * 1.5, 0.5 * quick(lv), true));
         }
       } else if (e.state === 'windup') {
@@ -756,8 +755,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
         leave(lv, e, (hx < 0 ? -1 : 1) * 10);
         break;
       }
-      underFire(lv, e, p);
       ease(lv, e, hx + Math.sin(e.t * 0.45) * 7, hz + Math.sin(e.t * 0.8) * 1.5, 1.5, 6);
+      underFire(lv, e, p);
       e.aim = lerpAngle(e.aim, lv.aim(e.x, e.z), 0.06);
       e.heading = e.aim;
       if (e.state === 'idle') {
@@ -864,9 +863,9 @@ export function updateFoe(lv: Level, e: Enemy): void {
       } else if (e.state === 'attack') {
         d.fire = (d.fire ?? 0) - DT;
         if (d.fire <= 0) {
+          const k = pattern(lv, e, 'burst', SHARE.heavy);
           // a pilot: it walks the rest of its burst after you, a little
           if (d.shots) e.aim = turn(e.aim, lv.aim(e.x, e.z), 0.06 / DT);
-          const k = pattern(lv, e, 'burst', SHARE.heavy);
           lv.shoot(e.x, e.z, e.aim, k.speed, { color: e.skin.colors[2], kind: 'needle', r: 0.35, look: lookOf(lv, e) });
           d.shots = (d.shots ?? 0) + 1;
           d.fire = Math.max(0.1, k.gap);
@@ -1145,8 +1144,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
       if (e.state === 'idle' || e.state === 'windup') {
         e.aim = turn(e.aim, e.state === 'windup' ? lead(lv, e, pattern(lv, e, 'wall', SHARE.heavy).speed) : lv.aim(e.x, e.z), 0.5);
         e.guard = 0.7;
-      if (underFire(lv, e, p)) e.stateT = Math.min(e.stateT, 1);
       }
+      if (underFire(lv, e, p)) e.stateT = Math.min(e.stateT, 1);
       if (e.state === 'idle') {
         if (e.stateT > 2 && ok) {
           leads(lv, e, 0.5, 0.4, 0.7);
@@ -1280,14 +1279,29 @@ export function updateFoe(lv: Level, e: Enemy): void {
     }
     case 'puffball': {
       // spore mines sinking down the screen; come too close and one swells and bursts, a blast and
-      // then a cloud that burns a while; boost near them and they come after you to do it
+      // then a cloud that burns a while; they drift after you, and boost near them and they rush you.
+      // Any hit sets one off (see foeHurt): pop them from afar
       const near = lv.players.some((o) => !o.down && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < PUFF.near ** 2);
       const swell = () => {
         d.prey = undefined;
         go(lv, e, 'windup', PUFF.swell, 'swell', { shape: 'circle', x: e.x, z: e.z, r: PUFF.cloud, ground: false });
       };
       if (e.state === 'idle') {
-        moveTo(lv, e, e.x + Math.sin(e.t * 1.3 + e.id) * 2 * DT, s + PUFF.sink * DT, true);
+        let vx = Math.sin(e.t * 1.3 + e.id) * 2;
+        let vz = PUFF.sink;
+        let best = Infinity;
+        for (const o of lv.players) {
+          const d2 = (o.x - e.x) ** 2 + (o.z - e.z) ** 2;
+          if (o.down || d2 >= best) continue;
+          best = d2;
+          const dl = Math.sqrt(d2) || 1;
+          vx = Math.sin(e.t * 1.3 + e.id) * 2 + ((o.x - e.x) / dl) * PUFF.home;
+          vz = PUFF.sink + ((o.z - e.z) / dl) * PUFF.home;
+        }
+        const k = Math.min(1, PUFF.turn * DT);
+        e.vx += (vx - e.vx) * k;
+        e.vz = (e.vz ?? 0) + (vz - (e.vz ?? 0)) * k;
+        moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT, true);
         const q = lv.players.find((o) => !o.down && o.boosting > 0.2 && (o.x - e.x) ** 2 + (o.z - e.z) ** 2 < 20 * 20);
         if (near && e.t > 0.3 && ok) swell();
         else if (q && e.t > 0.5 && ok) {
@@ -1295,7 +1309,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           go(lv, e, 'windup', 0.4, 'swell', { shape: 'circle', x: e.x, z: e.z, r: 1.6, ground: false });
         }
       } else if (e.state === 'windup') {
-        // it stops to swell: shoot it now and it only puffs
+        // it stops to swell
         moveTo(lv, e, e.x, s + DT, true);
         const t = e.tele;
         if (t && t.shape === 'circle') {
@@ -1306,8 +1320,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
           // (swelling to chase a boost, or to burst)
           if (d.prey !== undefined) go(lv, e, 'attack', 3.5, 'swell');
           else {
-            strike(lv, 'shell', e.x, e.z, { r: PUFF.blast, warn: 0, active: 0.15, color: e.skin.colors[2], air: true, owner: e.id });
-            strike(lv, 'spore', e.x, e.z, { r: PUFF.cloud, warn: 0, active: PUFF.linger, color: e.skin.colors[2], effect: 'hurt', air: true, vz: PUFF.sink * 0.4, owner: e.id });
+            burst(lv, e);
             lv.escape(e);
             lv.emit({ type: 'explode', x: e.x, z: e.z, y: e.y, size: 2.2, color: e.skin.colors[2], enemy: e.id });
           }
@@ -1318,8 +1331,8 @@ export function updateFoe(lv: Level, e: Enemy): void {
           const dx = q.x - e.x;
           const dz = q.z - e.z;
           const dl = Math.hypot(dx, dz) || 1;
-          e.vx = clamp(e.vx + (dx / dl) * 30 * DT, -15, 15);
-          e.vz = clamp((e.vz ?? 0) + (dz / dl) * 30 * DT, -15, 15);
+          e.vx = clamp(e.vx + (dx / dl) * PUFF.rush * DT, -PUFF.rushMax, PUFF.rushMax);
+          e.vz = clamp((e.vz ?? 0) + (dz / dl) * PUFF.rush * DT, -PUFF.rushMax, PUFF.rushMax);
         }
         moveTo(lv, e, e.x + e.vx * DT, s + e.vz * DT, true);
         if (near && ok) swell();
@@ -1715,6 +1728,7 @@ export function updateFoe(lv: Level, e: Enemy): void {
         break;
       }
       ease(lv, e, hx + Math.sin(e.t * 0.6) * 6, hz + Math.cos(e.t * 0.9), 2, 7);
+      underFire(lv, e, p);
       e.heading += DT * (e.state === 'windup' ? 6 : 1.5);
       if (e.state === 'idle') {
         if (e.stateT > 1.8 && ok && p) {
@@ -1728,7 +1742,6 @@ export function updateFoe(lv: Level, e: Enemy): void {
           t.z = e.z;
         }
         if (over(e)) {
-      underFire(lv, e, p);
           d.a = lv.aim(e.x, e.z);
           d.k = 0;
           d.fire = 0;

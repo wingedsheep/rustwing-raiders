@@ -315,6 +315,8 @@ const PLATE_BACK = 0.2;
 export function foeHurt(lv: Level, e: Enemy, dmg: number, poise = dmg) {
   e.hitT = 0;
   if (e.boss) bossHurt(lv, e, poise);
+  // a puffball goes off at any hit (onKill bursts it)
+  if (e.arch === 'puffball' && dmg > 0) e.hp = Math.min(e.hp, 0);
   // a hooked player is let go if the hook takes enough
   if (e.grab >= 0) {
     e.d.yank = (e.d.yank ?? 0) + dmg;
@@ -351,7 +353,7 @@ const chains = new WeakMap<Level, { id: number; n: number; t: number; x: number;
 
 /** Every kill: a multi-kill if they come quick, and the foes that do something as they go. */
 export function onKill(lv: Level, e: Enemy, owner: number) {
-  if (e.arch === 'puffball') puff(lv, e.x, e.z, e.skin.colors[2]);
+  if (e.arch === 'puffball') burst(lv, e);
   if (e.grab >= 0) release(lv, e, false);
   for (const o of lv.enemies) {
     const i = o.links.indexOf(e.id);
@@ -387,9 +389,14 @@ export function tickCombat(lv: Level) {
   if (c && lv.time - c.t > 0.45) flush(lv);
 }
 
-/** A spore puff where a puffball burst: slows and jams whoever's in it. */
-export function puff(lv: Level, x: number, z: number, color: number) {
-  strike(lv, 'spore', x, z, { r: 3.2, warn: 0, active: 1.2, color, effect: 'jam', air: true });
+/** Puffballs: how fast they sink, drift after you (and how quickly they turn to), and rush a boost (and their top speed then); how close sets one off, its swell, its blast, and the cloud that burns on after. */
+export const PUFF = { sink: 6, home: 7, turn: 2.5, rush: 45, rushMax: 20, near: 4.5, swell: 0.55, blast: 4.5, cloud: 4, linger: 3 };
+
+/** A puffball goes off (come too close, or hit): a blast, then a cloud that burns a while. */
+export function burst(lv: Level, e: Enemy) {
+  const color = e.skin.colors[2];
+  strike(lv, 'shell', e.x, e.z, { r: PUFF.blast, warn: 0, active: 0.15, color, air: true, owner: e.id });
+  strike(lv, 'spore', e.x, e.z, { r: PUFF.cloud, warn: 0, active: PUFF.linger, color, effect: 'hurt', air: true, vz: PUFF.sink * 0.4, owner: e.id });
 }
 
 /** Reeling after its attack (or staggered): its body does no harm, so you can get in close and punish it. A brake-checking rattler still blocks. */

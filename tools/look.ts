@@ -9,6 +9,7 @@
  *   just look kessra mesarun --twice      renders it twice and counts the pixels that differ
  *   just look --all --stats               the numbers, the painting's beside the game's, with a pass or fail
  *   just look kessra mesarun --seeds      twelve seeds on one sheet
+ *   just look kessra mesarun --query k=v  more of the game's URL query, for a look behind a switch
  *
  * Out in --out (default $TMPDIR/rustwing-look): <planet>-<biome>.png (the still), -side.png (the
  * painting | the game | the grey frame), -grey.png, and look-all.png for --all. The grey frame
@@ -33,7 +34,7 @@ const opt = (name: string, def: string) => {
   return i >= 0 ? argv[i + 1] : def;
 };
 const flag = (name: string) => argv.includes(`--${name}`);
-const valued = new Set(['at', 'seed', 'out', 'size', 'url', 'chrome', 'mode']);
+const valued = new Set(['at', 'seed', 'out', 'size', 'url', 'chrome', 'mode', 'query']);
 const words = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && valued.has(argv[i - 1].slice(2))));
 // (--stats looks a little later: by 20 s every biome's foes are firing)
 const AT = Number(opt('at', flag('stats') ? '20' : '15'));
@@ -189,7 +190,7 @@ await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceSc
  * for --stats, the one without enemy fire). Gives the ambient count then.
  */
 async function capture(s: Shot, file: string, seed = SEED, only = false): Promise<{ ambient: number; clouds: number }> {
-  await send('Page.navigate', { url: `${URL_BASE}?planet=${s.planet}&biomes=${s.biome}&mode=${MODE}&seed=${seed}&look=${AT}` });
+  await send('Page.navigate', { url: `${URL_BASE}?planet=${s.planet}&biomes=${s.biome}&mode=${MODE}&seed=${seed}&look=${AT}${opt('query', '') && `&${opt('query', '')}`}` });
   for (let i = 0; !(await evaluate('window.__look?.ready === true')); i++) {
     if (i > 600) throw new Error(`${s.planet} ${s.biome}: the look never got ready`);
     await sleep(0.1);

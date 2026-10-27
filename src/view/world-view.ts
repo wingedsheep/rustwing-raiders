@@ -6,7 +6,7 @@ import { lookOf, PATTERNS } from '../world/looks';
 import { library, type Instance } from '../render/assets';
 import { toon, GEO, part, GRADIENT } from '../render/toon';
 import { batchStatic } from '../render/batch';
-import { xray } from './xray';
+import { solid } from '../render/pixel';
 import { enliven, weather, NOISE_GLSL, WASH, SEE, type Alive } from '../render/alive';
 import { clamp, noise2 } from '../util';
 import { metaOf, height as metaHeight } from '../sim/meta';
@@ -375,7 +375,7 @@ export class WorldView {
       group.add(obj);
       if (inst?.mixer) instances.push(inst);
       else still.push(obj);
-      if (p.obstacle) collar(group, p);
+      if (p.obstacle) collar(group, p, obj);
       const e = EMITS[p.kind];
       if (e) emitters.push({ kind: e, x: p.x, y: p.y + (e === 'stack' ? metaTop(p) : 0.4 * p.s), z: p.z, s: p.s, t: hash(p.x, p.z) * 3 });
     }
@@ -606,27 +606,40 @@ export function seeThrough(obj: THREE.Object3D, hole = true) {
 }
 
 /**
- * What you'd hit wears the collider's band: a lit cream ring with a dark edge either side, round
- * each of its colliders at the height you fly, its true size. A cap or a crown you pass under
- * covers its stem, so the band shows through what's over it as a silhouette (as the ship does):
- * a band is a thing you'll hit, and nothing without one is.
+ * What you'd hit is marked on itself, not on the ground: its silhouette lit cream with the ground
+ * just outside it pressed dark, and its edge running hot as a ship comes near (the post pass does
+ * that, see SOLID_LAYER in pixel.ts). Round its foot at the flight line, a soft shadow pools, so it
+ * stands planted. Scenery gets neither: what's lit is what you'll hit.
  */
-const bandLit = new THREE.MeshBasicMaterial({ color: LIP, side: THREE.DoubleSide, fog: false });
-const bandInk = new THREE.MeshBasicMaterial({ color: 0x140e1c, side: THREE.DoubleSide, fog: false });
-/** A flat ring from radius r0 to r1 at height y. */
-function ring(group: THREE.Group, x: number, y: number, z: number, r0: number, r1: number, mat: THREE.Material) {
-  const geo = new THREE.RingGeometry(r0, r1, 32, 1).rotateX(-Math.PI / 2);
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z);
-  group.add(m);
-  return m;
-}
-function collar(group: THREE.Group, p: Placed) {
-  const y = FLIGHT_Y - 0.5;
+const poolMat = new THREE.ShaderMaterial({
+  vertexShader: /* glsl */ `
+    attribute float aR;
+    varying float vD;
+    void main() {
+      // (how far out of the collider, 0 at its edge)
+      vD = length(position.xz) - aR;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    varying float vD;
+    void main() {
+      // darkest at the foot, gone 2.5 out
+      gl_FragColor = vec4(0.05, 0.03, 0.08, (1.0 - smoothstep(-0.6, 2.6, vD)) * 0.55);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+});
+function collar(group: THREE.Group, p: Placed, obj: THREE.Object3D) {
+  solid(obj);
   for (const c of p.cols) {
-    ring(group, c.x, y - 0.02, c.z, c.r + 0.55, c.r + 0.8, bandInk);
-    const lit = ring(group, c.x, y, c.z, c.r, c.r + 0.55, bandLit);
-    xray(lit, LIP, 0.85);
+    const geo = new THREE.RingGeometry(Math.max(0, c.r - 0.8), c.r + 2.8, 40, 1).rotateX(-Math.PI / 2);
+    geo.setAttribute('aR', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(c.r), 1));
+    const m = new THREE.Mesh(geo, poolMat);
+    m.position.set(c.x, FLIGHT_Y - 0.5, c.z);
+    m.renderOrder = 3;
+    group.add(m);
   }
 }
 

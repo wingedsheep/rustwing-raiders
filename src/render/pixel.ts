@@ -26,10 +26,24 @@ export function outlined(obj: THREE.Object3D) {
   });
 }
 
+/**
+ * Meshes on this layer (what you'd hit) get a bold dark line round their silhouette and a lit edge
+ * just inside it, the land's own colour lifted: solid things stand off the ground like a cut-out.
+ */
+export const SOLID_LAYER = 4;
+
+/** Puts everything under `obj` on the solid layer. */
+export function solid(obj: THREE.Object3D) {
+  obj.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && !o.userData.xray) o.layers.enable(SOLID_LAYER);
+  });
+}
+
 export class PixelRenderer {
   readonly target: THREE.WebGLRenderTarget;
   private readonly graded: THREE.WebGLRenderTarget;
   private readonly mask: THREE.WebGLRenderTarget;
+  private readonly solidMask: THREE.WebGLRenderTarget;
   private readonly maskMat: THREE.ShaderMaterial;
   private readonly clear = new THREE.Color();
   private litScene: THREE.Scene | null = null;
@@ -53,6 +67,8 @@ export class PixelRenderer {
     // (depth wants all the bits it can get: a full float where the GPU can draw one)
     const float = renderer.extensions.has('EXT_color_buffer_float');
     this.mask = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: float ? THREE.FloatType : THREE.HalfFloatType });
+    // (drawn with their own materials, which may bend them up or thin them away: only its depth is read)
+    this.solidMask = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthTexture: new THREE.DepthTexture(1, 1, THREE.UnsignedIntType) });
     this.maskMat = new THREE.ShaderMaterial({
       vertexShader: /* glsl */ `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: /* glsl */ `void main() { gl_FragColor = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0); }`,
@@ -109,6 +125,15 @@ export class PixelRenderer {
         tDepth: { value: this.target.depthTexture },
         tBloom: { value: this.bloomA.texture },
         tMask: { value: this.mask.texture },
+        tSolid: { value: this.solidMask.depthTexture },
+        uSolidEdge: { value: new THREE.Color(0x120c18) },
+        uSolidEdgeStrength: { value: 0 },
+        uSolidRim: { value: 0.85 },
+        uSolidLip: { value: new THREE.Color(1.0, 0.89, 0.69) }, // the light a solid thing's top edge catches (the canyon lips' cream)
+        uSolidFrom: { value: 4 }, // a solid thing is marked from this height up (not the skirt of rubble round its foot)
+        uInvViewProj: { value: new THREE.Matrix4() },
+        uSolidWide: { value: 0.6 }, // how bright a solid thing's lit edge is a texel further in (0: a texel wide)
+        uSolidHot: { value: [new THREE.Vector4(), new THREE.Vector4()] }, // the ships on screen (uv x, y, 0, strength): a solid thing's edge runs hot near one
         uNear: { value: 1 },
         uFar: { value: 400 },
         uOutline: { value: new THREE.Color(0x1a1424) },
@@ -145,6 +170,15 @@ export class PixelRenderer {
         uniform sampler2D tDepth;
         uniform sampler2D tBloom;
         uniform sampler2D tMask;
+        uniform sampler2D tSolid;
+        uniform vec3 uSolidEdge;
+        uniform float uSolidEdgeStrength;
+        uniform float uSolidRim;
+        uniform vec3 uSolidLip;
+        uniform vec4 uSolidHot[2];
+        uniform float uSolidWide;
+        uniform float uSolidFrom;
+        uniform mat4 uInvViewProj;
         uniform float uNear;
         uniform float uFar;
         uniform vec3 uOutline;
@@ -212,6 +246,42 @@ export class PixelRenderer {
           }
           return vec3(n, dot(n, n) > 0.0 ? 1.0 : 0.0);
         }
+        float solidZ(ivec2 p) { return texelFetch(tSolid, clamp(p, ivec2(0), size - 1), 0).r; }
+        // is a solid thing what shows at p (not hidden behind something else)?
+        bool solidAt(ivec2 p) {
+          float m = solidZ(p);
+          if (m >= 1.0 || linear(m) > viewZ(p) + 0.3) return false;
+          // (how high it is there, from its depth)
+          vec4 w = uInvViewProj * vec4((vec2(p) + 0.5) / vec2(size) * 2.0 - 1.0, m * 2.0 - 1.0, 1.0);
+          return w.y / w.w > uSolidFrom;
+        }
+        // ink round a solid thing: 1 a texel off it, fading the texel after, where this texel
+        // shows something well behind it
+        const ivec2 RING[12] = ivec2[12](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1), ivec2(1, 1), ivec2(-1, 1), ivec2(1, -1), ivec2(-1, -1),
+                                         ivec2(2, 0), ivec2(-2, 0), ivec2(0, 2), ivec2(0, -2));
+        float solidEdge(ivec2 p, float z) {
+          if (solidAt(p)) return 0.0;
+          float ink = 0.0;
+          for (int k = 0; k < 12; k++) {
+            ivec2 q = p + RING[k];
+            if (solidAt(q) && z - linear(solidZ(q)) > 0.6) ink = max(ink, k < 4 ? 1.0 : k < 8 ? 0.8 : 0.4);
+          }
+          return ink;
+        }
+        // a solid thing's own outermost texels: the way out (xy), 1 in z when p is one
+        vec3 solidRim(ivec2 p, float z) {
+          if (!solidAt(p)) return vec3(0.0);
+          vec2 n = vec2(0.0);
+          // (its outline only: not where one of its own parts stands over another; two texels
+          // deep, the inner one fainter)
+          float w = 0.0;
+          for (int k = 0; k < 4; k++) {
+            ivec2 o = RING[k];
+            if (!solidAt(p + o) && viewZ(p + o) - z > 0.6) { n += vec2(o); w = 1.0; }
+            else if (uSolidWide > 0.0 && !solidAt(p + o * 2) && viewZ(p + o * 2) - z > 0.6) { n += vec2(o); w = max(w, uSolidWide); }
+          }
+          return vec3(n, dot(n, n) > 0.0 ? w : 0.0);
+        }
         vec3 at(ivec2 p) { return texelFetch(tColor, clamp(p, ivec2(0), size - 1), 0).rgb; }
 
         // a small Kuwahara: of the four 2x2-texel quadrants around a texel, take the mean of the
@@ -272,6 +342,27 @@ export class PixelRenderer {
           // (in perspective the gaps grow with distance: judged against how far off it is)
           float edge = (uPersp > 0.5 ? smoothstep(0.9, 2.2, dz / max(1.0, z * 0.06)) : smoothstep(0.9, 2.2, dz)) * (sky ? 0.0 : 1.0);
           col = mix(col, col * uOutline * 2.4, edge * uOutlineStrength);
+          if (uSolidEdgeStrength > 0.0) {
+            // what you'd hit: its edge lit cream, most on the sun's side, and the ground just
+            // outside it pressed dark, so it stands off any ground like a cut-out; near a ship the
+            // edge runs hot and pulses, and its light spills out over the ground (as a canyon's)
+            float ink = solidEdge(p, z);
+            vec3 r = solidRim(p, z);
+            float near = 0.0;
+            if (ink + r.z > 0.0) {
+              vec2 a = vec2(float(size.x) / float(size.y), 1.0);
+              for (int i = 0; i < 2; i++)
+                near = max(near, uSolidHot[i].w * (1.0 - smoothstep(0.08, 0.26, length((vUv - uSolidHot[i].xy) * a))));
+            }
+            float pulse = 0.7 + 0.3 * sin(uTime * 9.0);
+            vec3 hot = mix(uSolidLip, vec3(1.0, 0.36, 0.12), near);
+            col = mix(col, col * 0.3 * (uSolidEdge * 6.0 + 0.4), ink * uSolidEdgeStrength * 0.85 * (1.0 - near));
+            col += hot * ink * near * pulse * 0.7 * uSolidEdgeStrength;
+            if (r.z > 0.0) {
+              float lit = 0.5 + 0.5 * dot(normalize(r.xy), vec2(-0.96, 0.27));
+              col = mix(col, hot * mix(0.8, 1.15, lit) * (1.0 + near * pulse * 0.8), max(uSolidRim * mix(0.4, 1.0, lit), near) * r.z * uSolidEdgeStrength);
+            }
+          }
           if (uFoeEdgeStrength > 0.0) {
             // ink round the outside; and inside, the foe's own edge catches the light in its own
             // colour, most on the side the sun comes from and most against dark ground, where the
@@ -438,7 +529,11 @@ export class PixelRenderer {
     r.setRenderTarget(this.target);
     r.clear();
     r.render(scene, camera);
-    this.drawMask(scene, camera);
+    this.drawMask(scene, camera, OUTLINE_LAYER, this.mask, this.maskMat);
+    if (this.post.uniforms.uSolidEdgeStrength.value > 0) {
+      this.post.uniforms.uInvViewProj.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+      this.drawMask(scene, camera, SOLID_LAYER, this.solidMask, null);
+    }
     // bloom: the bright bits, halved and blurred twice each way
     this.pass(this.bright, this.bloomA);
     const blur = this.blur.uniforms;
@@ -453,6 +548,7 @@ export class PixelRenderer {
     this.pass(this.post, this.graded);
     // (the lane is set fresh each frame by the flight that wants it; other views don't)
     this.post.uniforms.uLane.value = 0;
+    this.post.uniforms.uSolidEdgeStrength.value = 0;
     if (overlay) {
       const auto = r.autoClear;
       r.autoClear = false;
@@ -462,8 +558,8 @@ export class PixelRenderer {
     }
   }
 
-  /** The foes' depth alone (cleared to 1 where there are none), for their outline. */
-  private drawMask(scene: THREE.Scene, camera: THREE.Camera) {
+  /** The depth of what's on `layer` alone (cleared to 1 where there's none), for its outline. */
+  private drawMask(scene: THREE.Scene, camera: THREE.Camera, layer: number, target: THREE.WebGLRenderTarget, mat: THREE.Material | null) {
     const r = this.renderer;
     const layers = camera.layers.mask;
     const bg = scene.background;
@@ -477,15 +573,17 @@ export class PixelRenderer {
       this.litScene = scene;
       this.litAge = 0;
       scene.traverse((o) => {
-        if ((o as THREE.Light).isLight) o.layers.enable(OUTLINE_LAYER);
+        if (!(o as THREE.Light).isLight) return;
+        o.layers.enable(OUTLINE_LAYER);
+        o.layers.enable(SOLID_LAYER);
       });
     }
-    camera.layers.set(OUTLINE_LAYER);
+    camera.layers.set(layer);
     scene.background = null;
-    scene.overrideMaterial = this.maskMat;
+    scene.overrideMaterial = mat;
     r.shadowMap.autoUpdate = false; // (the shadows were drawn for this frame already)
     r.setClearColor(0xffffff, 1);
-    r.setRenderTarget(this.mask);
+    r.setRenderTarget(target);
     r.clear();
     // (nothing's moved since the scene was drawn: no need to walk it all for its matrices again)
     const auto = scene.matrixWorldAutoUpdate;
@@ -507,6 +605,7 @@ export class PixelRenderer {
       this.target.setSize(tw, th);
       this.graded.setSize(tw, th);
       this.mask.setSize(tw, th);
+      this.solidMask.setSize(tw, th);
       const bw = Math.max(1, Math.ceil(tw / 2));
       const bh = Math.max(1, Math.ceil(th / 2));
       this.bloomA.setSize(bw, bh);
